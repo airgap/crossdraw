@@ -8,6 +8,7 @@ files:
   - dist-electron/**/*
   - "!node_modules"
 asar: true
+npmRebuild: false
 
 mac:
   category: public.app-category.graphics-design
@@ -40,11 +41,9 @@ linux:
     - target: AppImage
       arch:
         - x64
-        - arm64
     - target: deb
       arch:
         - x64
-        - arm64
   category: Graphics
   icon: build/icon.png
 
