@@ -1,5 +1,21 @@
+// Triggered via Gitea push webhook → generic-webhook-trigger (token: crossdraw-webhook)
+
 pipeline {
     agent none
+
+    triggers {
+        GenericTrigger(
+            genericVariables: [
+                [key: 'ref', value: '$.ref']
+            ],
+            token: 'crossdraw-webhook',
+            causeString: 'Push to $ref',
+            printContributedVariables: true,
+            printPostContent: false,
+            regexpFilterText: '$ref',
+            regexpFilterExpression: '^refs/heads/(main|release/.*)$'
+        )
+    }
 
     options {
         buildDiscarder(logRotator(numToKeepStr: '10'))
