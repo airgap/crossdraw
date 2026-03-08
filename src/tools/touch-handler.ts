@@ -1,0 +1,276 @@
+/**
+ * Touch / stylus handler for the Designer canvas.
+ *
+ * Gesture detection:
+ * - Single finger  → routed to current tool (touch ↔ mouse translation)
+ * - Two fingers    → pinch-to-zoom + pan
+ * - Long press     → context menu (500 ms)
+ * - Pen/stylus     → pressure-sensitive input + palm rejection
+ */
+
+import { useEditorStore } from '@/store/editor.store'
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export interface TouchPoint {
+  id: number
+  x: number
+  y: number
+  radiusX: number
+  radiusY: number
+  pressure: number
+  pointerType: string
+}
+
+export interface TouchHandlerCallbacks {
+  /** Translate a pointer event into a synthetic MouseEvent-like object and
+   *  forward it to the viewport mouse-down handler. */
+  onPointerDown: (x: number, y: number, button: number, shiftKey: boolean, pressure: number, pointerType: string) => void
+  onPointerMove: (x: number, y: number, shiftKey: boolean, pressure: number, pointerType: string) => void
+  onPointerUp: (pressure: number, pointerType: string) => void
+  onContextMenu: (x: number, y: number) => void
+  getCanvasRect: () => DOMRect
+}
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+const activeTouches = new Map<number, TouchPoint>()
+
+let longPressTimer: ReturnType<typeof setTimeout> | null = null
+const LONG_PRESS_MS = 500
+
+/** When a stylus is in contact we flag it so we can reject palm touches. */
+let stylusActive = false
+
+/** Initial pinch distance (or 0 when no pinch is happening). */
+let pinchStartDist = 0
+let pinchStartZoom = 1
+let pinchStartPanX = 0
+let pinchStartPanY = 0
+let pinchStartMidX = 0
+let pinchStartMidY = 0
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function dist(a: TouchPoint, b: TouchPoint): number {
+  const dx = a.x - b.x
+  const dy = a.y - b.y
+  return Math.sqrt(dx * dx + dy * dy)
+}
+
+function midpoint(a: TouchPoint, b: TouchPoint) {
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+}
+
+function clearLongPress() {
+  if (longPressTimer !== null) {
+    clearTimeout(longPressTimer)
+    longPressTimer = null
+  }
+}
+
+function isPalm(touch: TouchPoint): boolean {
+  return touch.radiusX > 20 || touch.radiusY > 20
+}
+
+function touchFromPointer(e: PointerEvent): TouchPoint {
+  return {
+    id: e.pointerId,
+    x: e.clientX,
+    y: e.clientY,
+    radiusX: (e as any).width ? (e as any).width / 2 : 0,
+    radiusY: (e as any).height ? (e as any).height / 2 : 0,
+    pressure: e.pressure,
+    pointerType: e.pointerType,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Public API — attach / detach
+// ---------------------------------------------------------------------------
+
+let attached = false
+let currentCanvas: HTMLCanvasElement | null = null
+let currentCallbacks: TouchHandlerCallbacks | null = null
+
+/** Current stylus pressure (0-1). Exported so other modules (brush) can read it. */
+export let currentPressure = 1
+
+export function attachTouchHandler(canvas: HTMLCanvasElement, cbs: TouchHandlerCallbacks) {
+  if (attached) detachTouchHandler()
+
+  currentCanvas = canvas
+  currentCallbacks = cbs
+  attached = true
+
+  canvas.style.touchAction = 'none'
+
+  canvas.addEventListener('pointerdown', onPointerDown)
+  canvas.addEventListener('pointermove', onPointerMove)
+  canvas.addEventListener('pointerup', onPointerUp)
+  canvas.addEventListener('pointercancel', onPointerUp)
+  canvas.addEventListener('touchstart', preventDefaultTouch, { passive: false })
+  canvas.addEventListener('touchmove', preventDefaultTouch, { passive: false })
+  canvas.addEventListener('touchend', preventDefaultTouch, { passive: false })
+}
+
+export function detachTouchHandler() {
+  if (!currentCanvas) return
+  const canvas = currentCanvas
+
+  canvas.removeEventListener('pointerdown', onPointerDown)
+  canvas.removeEventListener('pointermove', onPointerMove)
+  canvas.removeEventListener('pointerup', onPointerUp)
+  canvas.removeEventListener('pointercancel', onPointerUp)
+  canvas.removeEventListener('touchstart', preventDefaultTouch)
+  canvas.removeEventListener('touchmove', preventDefaultTouch)
+  canvas.removeEventListener('touchend', preventDefaultTouch)
+
+  canvas.style.touchAction = ''
+
+  activeTouches.clear()
+  clearLongPress()
+  pinchStartDist = 0
+  stylusActive = false
+  attached = false
+  currentCanvas = null
+  currentCallbacks = null
+}
+
+// ---------------------------------------------------------------------------
+// Prevent default on raw touch events to stop browser scroll/zoom
+// ---------------------------------------------------------------------------
+
+function preventDefaultTouch(e: TouchEvent) {
+  e.preventDefault()
+}
+
+// ---------------------------------------------------------------------------
+// Pointer event handlers
+// ---------------------------------------------------------------------------
+
+function onPointerDown(e: PointerEvent) {
+  if (!currentCallbacks) return
+  e.preventDefault()
+
+  const tp = touchFromPointer(e)
+
+  // Palm rejection: if stylus is active, reject large-area touches
+  if (tp.pointerType === 'pen') {
+    stylusActive = true
+  } else if (tp.pointerType === 'touch' && stylusActive && isPalm(tp)) {
+    return // rejected as palm
+  }
+
+  activeTouches.set(tp.id, tp)
+
+  // Capture pointer for reliable tracking
+  if (currentCanvas) {
+    try { currentCanvas.setPointerCapture(e.pointerId) } catch {}
+  }
+
+  const count = activeTouches.size
+
+  if (count === 1) {
+    // Start long press timer
+    clearLongPress()
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null
+      if (activeTouches.size === 1) {
+        currentCallbacks?.onContextMenu(tp.x, tp.y)
+      }
+    }, LONG_PRESS_MS)
+
+    // Forward as mouse-down
+    currentPressure = tp.pointerType === 'pen' ? tp.pressure : 1
+    currentCallbacks.onPointerDown(tp.x, tp.y, 0, false, currentPressure, tp.pointerType)
+  } else if (count === 2) {
+    // Cancel any single-finger operations and start pinch
+    clearLongPress()
+
+    const pts = Array.from(activeTouches.values())
+    const a = pts[0]!
+    const b = pts[1]!
+    pinchStartDist = dist(a, b)
+
+    const store = useEditorStore.getState()
+    pinchStartZoom = store.viewport.zoom
+    pinchStartPanX = store.viewport.panX
+    pinchStartPanY = store.viewport.panY
+    const mid = midpoint(a, b)
+    pinchStartMidX = mid.x
+    pinchStartMidY = mid.y
+  }
+}
+
+function onPointerMove(e: PointerEvent) {
+  if (!currentCallbacks) return
+
+  const tp = touchFromPointer(e)
+
+  // Palm rejection while stylus active
+  if (tp.pointerType === 'touch' && stylusActive && isPalm(tp)) return
+
+  if (!activeTouches.has(tp.id)) return
+  activeTouches.set(tp.id, tp)
+
+  const count = activeTouches.size
+
+  if (count === 1) {
+    // Any movement cancels long press
+    clearLongPress()
+
+    currentPressure = tp.pointerType === 'pen' ? tp.pressure : 1
+    currentCallbacks.onPointerMove(tp.x, tp.y, false, currentPressure, tp.pointerType)
+  } else if (count === 2 && pinchStartDist > 0) {
+    // Pinch-to-zoom + pan
+    const pts = Array.from(activeTouches.values())
+    const a = pts[0]!
+    const b = pts[1]!
+    const newDist = dist(a, b)
+    const mid = midpoint(a, b)
+
+    const scale = newDist / pinchStartDist
+    const newZoom = Math.max(0.1, Math.min(10, pinchStartZoom * scale))
+
+    // The zoom change requires adjusting pan to keep the midpoint stable
+    const zoomRatio = newZoom / pinchStartZoom
+    const newPanX = mid.x - (pinchStartMidX - pinchStartPanX) * zoomRatio
+    const newPanY = mid.y - (pinchStartMidY - pinchStartPanY) * zoomRatio
+
+    const store = useEditorStore.getState()
+    store.setZoom(newZoom)
+    store.setPan(newPanX, newPanY)
+  }
+}
+
+function onPointerUp(e: PointerEvent) {
+  if (!currentCallbacks) return
+
+  const tp = touchFromPointer(e)
+
+  if (tp.pointerType === 'pen') {
+    stylusActive = false
+  }
+
+  if (!activeTouches.has(tp.id)) return
+  activeTouches.delete(tp.id)
+
+  clearLongPress()
+
+  if (currentCanvas) {
+    try { currentCanvas.releasePointerCapture(e.pointerId) } catch {}
+  }
+
+  if (activeTouches.size === 0) {
+    pinchStartDist = 0
+    currentPressure = 1
+    currentCallbacks.onPointerUp(tp.pressure, tp.pointerType)
+  }
+}

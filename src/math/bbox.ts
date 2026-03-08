@@ -1,0 +1,294 @@
+import type { Segment, Path, VectorLayer, Layer, Artboard, GroupLayer, TextLayer } from '@/types'
+
+export interface BBox {
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+const EMPTY_BBOX: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+
+export function mergeBBox(a: BBox, b: BBox): BBox {
+  return {
+    minX: Math.min(a.minX, b.minX),
+    minY: Math.min(a.minY, b.minY),
+    maxX: Math.max(a.maxX, b.maxX),
+    maxY: Math.max(a.maxY, b.maxY),
+  }
+}
+
+export function expandBBox(bbox: BBox, amount: number): BBox {
+  return {
+    minX: bbox.minX - amount,
+    minY: bbox.minY - amount,
+    maxX: bbox.maxX + amount,
+    maxY: bbox.maxY + amount,
+  }
+}
+
+export function bboxContainsPoint(bbox: BBox, x: number, y: number): boolean {
+  return x >= bbox.minX && x <= bbox.maxX && y >= bbox.minY && y <= bbox.maxY
+}
+
+/** Compute the bounding box of a cubic bezier segment. */
+function cubicBBox(
+  x0: number, y0: number,
+  cp1x: number, cp1y: number,
+  cp2x: number, cp2y: number,
+  x3: number, y3: number,
+): BBox {
+  // Find extrema by solving derivative = 0 for each axis
+  const bbox: BBox = {
+    minX: Math.min(x0, x3),
+    minY: Math.min(y0, y3),
+    maxX: Math.max(x0, x3),
+    maxY: Math.max(y0, y3),
+  }
+
+  for (const [p0, p1, p2, p3, axis] of [
+    [x0, cp1x, cp2x, x3, 'x'] as const,
+    [y0, cp1y, cp2y, y3, 'y'] as const,
+  ]) {
+    // Derivative coefficients: at^2 + bt + c = 0
+    const a = -3 * p0 + 9 * p1 - 9 * p2 + 3 * p3
+    const b = 6 * p0 - 12 * p1 + 6 * p2
+    const c = -3 * p0 + 3 * p1
+
+    if (Math.abs(a) < 1e-12) {
+      // Linear case
+      if (Math.abs(b) > 1e-12) {
+        const t = -c / b
+        if (t > 0 && t < 1) {
+          const val = cubicAt(p0, p1, p2, p3, t)
+          if (axis === 'x') {
+            bbox.minX = Math.min(bbox.minX, val)
+            bbox.maxX = Math.max(bbox.maxX, val)
+          } else {
+            bbox.minY = Math.min(bbox.minY, val)
+            bbox.maxY = Math.max(bbox.maxY, val)
+          }
+        }
+      }
+      continue
+    }
+
+    const disc = b * b - 4 * a * c
+    if (disc < 0) continue
+
+    const sqrtDisc = Math.sqrt(disc)
+    for (const t of [(-b + sqrtDisc) / (2 * a), (-b - sqrtDisc) / (2 * a)]) {
+      if (t > 0 && t < 1) {
+        const val = cubicAt(p0, p1, p2, p3, t)
+        if (axis === 'x') {
+          bbox.minX = Math.min(bbox.minX, val)
+          bbox.maxX = Math.max(bbox.maxX, val)
+        } else {
+          bbox.minY = Math.min(bbox.minY, val)
+          bbox.maxY = Math.max(bbox.maxY, val)
+        }
+      }
+    }
+  }
+
+  return bbox
+}
+
+function cubicAt(p0: number, p1: number, p2: number, p3: number, t: number): number {
+  const mt = 1 - t
+  return mt * mt * mt * p0 + 3 * mt * mt * t * p1 + 3 * mt * t * t * p2 + t * t * t * p3
+}
+
+/** Compute the bounding box of a quadratic bezier segment. */
+function quadraticBBox(
+  x0: number, y0: number,
+  cpx: number, cpy: number,
+  x2: number, y2: number,
+): BBox {
+  const bbox: BBox = {
+    minX: Math.min(x0, x2),
+    minY: Math.min(y0, y2),
+    maxX: Math.max(x0, x2),
+    maxY: Math.max(y0, y2),
+  }
+
+  // t = (p0 - p1) / (p0 - 2*p1 + p2) for each axis
+  for (const [p0, p1, p2, axis] of [
+    [x0, cpx, x2, 'x'] as const,
+    [y0, cpy, y2, 'y'] as const,
+  ]) {
+    const denom = p0 - 2 * p1 + p2
+    if (Math.abs(denom) < 1e-12) continue
+    const t = (p0 - p1) / denom
+    if (t > 0 && t < 1) {
+      const mt = 1 - t
+      const val = mt * mt * p0 + 2 * mt * t * p1 + t * t * p2
+      if (axis === 'x') {
+        bbox.minX = Math.min(bbox.minX, val)
+        bbox.maxX = Math.max(bbox.maxX, val)
+      } else {
+        bbox.minY = Math.min(bbox.minY, val)
+        bbox.maxY = Math.max(bbox.maxY, val)
+      }
+    }
+  }
+
+  return bbox
+}
+
+/** Compute the bounding box of a path's segments. */
+export function pathBBox(segments: Segment[]): BBox {
+  let bbox = { ...EMPTY_BBOX }
+  let curX = 0
+  let curY = 0
+
+  for (const seg of segments) {
+    switch (seg.type) {
+      case 'move':
+        bbox = mergeBBox(bbox, { minX: seg.x, minY: seg.y, maxX: seg.x, maxY: seg.y })
+        curX = seg.x
+        curY = seg.y
+        break
+      case 'line':
+        bbox = mergeBBox(bbox, {
+          minX: Math.min(curX, seg.x),
+          minY: Math.min(curY, seg.y),
+          maxX: Math.max(curX, seg.x),
+          maxY: Math.max(curY, seg.y),
+        })
+        curX = seg.x
+        curY = seg.y
+        break
+      case 'cubic':
+        bbox = mergeBBox(bbox, cubicBBox(curX, curY, seg.cp1x, seg.cp1y, seg.cp2x, seg.cp2y, seg.x, seg.y))
+        curX = seg.x
+        curY = seg.y
+        break
+      case 'quadratic':
+        bbox = mergeBBox(bbox, quadraticBBox(curX, curY, seg.cpx, seg.cpy, seg.x, seg.y))
+        curX = seg.x
+        curY = seg.y
+        break
+      case 'arc':
+        // Conservative: use endpoint + current as bbox (exact arc bbox is complex)
+        bbox = mergeBBox(bbox, {
+          minX: Math.min(curX, seg.x) - Math.max(seg.rx, seg.ry),
+          minY: Math.min(curY, seg.y) - Math.max(seg.rx, seg.ry),
+          maxX: Math.max(curX, seg.x) + Math.max(seg.rx, seg.ry),
+          maxY: Math.max(curY, seg.y) + Math.max(seg.rx, seg.ry),
+        })
+        curX = seg.x
+        curY = seg.y
+        break
+      case 'close':
+        break
+    }
+  }
+
+  return bbox
+}
+
+/** Compute bounding box of a Path (all segments). */
+export function getPathBBox(path: Path): BBox {
+  return pathBBox(path.segments)
+}
+
+/** Compute bounding box for any layer type. */
+export function getLayerBBox(layer: Layer, artboard: Artboard): BBox {
+  switch (layer.type) {
+    case 'vector':
+      return getVectorLayerBBox(layer, artboard)
+    case 'raster': {
+      const t = layer.transform
+      return {
+        minX: artboard.x + t.x,
+        minY: artboard.y + t.y,
+        maxX: artboard.x + t.x + layer.width,
+        maxY: artboard.y + t.y + layer.height,
+      }
+    }
+    case 'group':
+      return getGroupLayerBBox(layer, artboard)
+    case 'text':
+      return getTextLayerBBox(layer, artboard)
+    case 'adjustment':
+      // Adjustment layers affect the entire artboard
+      return {
+        minX: artboard.x,
+        minY: artboard.y,
+        maxX: artboard.x + artboard.width,
+        maxY: artboard.y + artboard.height,
+      }
+  }
+}
+
+function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
+  const visibleChildren = group.children.filter(c => c.visible)
+  if (visibleChildren.length === 0) return { ...EMPTY_BBOX }
+
+  let bbox = { ...EMPTY_BBOX }
+  for (const child of visibleChildren) {
+    const childBBox = getLayerBBox(child, artboard)
+    if (childBBox.minX === Infinity) continue
+    bbox = mergeBBox(bbox, childBBox)
+  }
+
+  if (bbox.minX === Infinity) return { ...EMPTY_BBOX }
+
+  // Apply group's own transform offset
+  const t = group.transform
+  if (t.x !== 0 || t.y !== 0) {
+    bbox = {
+      minX: bbox.minX + t.x,
+      minY: bbox.minY + t.y,
+      maxX: bbox.maxX + t.x,
+      maxY: bbox.maxY + t.y,
+    }
+  }
+
+  return bbox
+}
+
+function getTextLayerBBox(layer: TextLayer, artboard: Artboard): BBox {
+  const t = layer.transform
+  const lines = layer.text.split('\n')
+  // Estimate max line width: fontSize * 0.6 per character
+  let maxLineWidth = 0
+  for (const line of lines) {
+    maxLineWidth = Math.max(maxLineWidth, layer.fontSize * line.length * 0.6)
+  }
+  const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
+  const estimatedHeight = lines.length * lineH
+
+  return {
+    minX: artboard.x + t.x,
+    minY: artboard.y + t.y,
+    maxX: artboard.x + t.x + maxLineWidth * t.scaleX,
+    maxY: artboard.y + t.y + estimatedHeight * t.scaleY,
+  }
+}
+
+function getVectorLayerBBox(layer: VectorLayer, artboard: Artboard): BBox {
+  if (layer.paths.length === 0) return { ...EMPTY_BBOX }
+
+  let bbox = { ...EMPTY_BBOX }
+  for (const path of layer.paths) {
+    bbox = mergeBBox(bbox, getPathBBox(path))
+  }
+
+  // Apply layer transform offset
+  const t = layer.transform
+  bbox = {
+    minX: bbox.minX + t.x + artboard.x,
+    minY: bbox.minY + t.y + artboard.y,
+    maxX: bbox.maxX + t.x + artboard.x,
+    maxY: bbox.maxY + t.y + artboard.y,
+  }
+
+  // Expand for stroke
+  if (layer.stroke) {
+    bbox = expandBBox(bbox, layer.stroke.width / 2)
+  }
+
+  return bbox
+}

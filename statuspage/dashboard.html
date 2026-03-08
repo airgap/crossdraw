@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DESIGNER // STATUS</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700;800&family=Orbitron:wght@400;700;900&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --cyan: #00fff5;
+    --magenta: #ff00ff;
+    --yellow: #ffe600;
+    --green: #00ff88;
+    --red: #ff3366;
+    --orange: #ff8800;
+    --blue: #4a7dff;
+    --bg: #0a0a0f;
+    --bg2: #12121f;
+    --card: rgba(15, 15, 30, 0.8);
+  }
+
+  html, body {
+    background: var(--bg);
+    color: #e0e0e0;
+    font-family: 'JetBrains Mono', monospace;
+    overflow-x: hidden;
+    min-height: 100vh;
+  }
+
+  /* ═══ MATRIX RAIN BACKGROUND ═══ */
+  #matrix-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100vw; height: 100vh;
+    z-index: 0;
+    opacity: 0.12;
+    pointer-events: none;
+  }
+
+  /* ═══ SCANLINE OVERLAY ═══ */
+  .scanlines {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 0, 0, 0.08) 2px,
+      rgba(0, 0, 0, 0.08) 4px
+    );
+  }
+
+  /* ═══ GRID OVERLAY ═══ */
+  .grid-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+    pointer-events: none;
+    background-image:
+      linear-gradient(rgba(0, 255, 245, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0, 255, 245, 0.03) 1px, transparent 1px);
+    background-size: 60px 60px;
+  }
+
+  /* ═══ MAIN CONTAINER ═══ */
+  .container {
+    position: relative;
+    z-index: 2;
+    max-width: 1600px;
+    margin: 0 auto;
+    padding: 30px;
+  }
+
+  /* ═══ HEADER ═══ */
+  .header {
+    text-align: center;
+    margin-bottom: 40px;
+    position: relative;
+  }
+
+  .header h1 {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 3.5rem;
+    font-weight: 900;
+    letter-spacing: 12px;
+    text-transform: uppercase;
+    background: linear-gradient(135deg, var(--cyan), var(--magenta), var(--cyan));
+    background-size: 300% 300%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: gradientShift 3s ease infinite, glitch 8s infinite;
+    text-shadow: 0 0 80px rgba(0, 255, 245, 0.3);
+    position: relative;
+  }
+
+  .header h1::before,
+  .header h1::after {
+    content: attr(data-text);
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: inherit;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .header h1::before {
+    animation: glitchLeft 3s infinite;
+    clip-path: inset(0 0 60% 0);
+  }
+
+  .header h1::after {
+    animation: glitchRight 3s infinite;
+    clip-path: inset(60% 0 0 0);
+  }
+
+  .header .subtitle {
+    font-size: 0.85rem;
+    letter-spacing: 8px;
+    color: var(--cyan);
+    opacity: 0.6;
+    margin-top: 8px;
+    text-transform: uppercase;
+  }
+
+  .header .live-dot {
+    display: inline-block;
+    width: 10px; height: 10px;
+    background: var(--green);
+    border-radius: 50%;
+    margin-right: 8px;
+    animation: pulse 1.5s ease infinite;
+    box-shadow: 0 0 20px var(--green), 0 0 40px var(--green);
+  }
+
+  .last-updated {
+    font-size: 0.7rem;
+    color: rgba(255,255,255,0.3);
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ═══ STATS BAR ═══ */
+  .stats-bar {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 40px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border: 1px solid rgba(0, 255, 245, 0.15);
+    border-radius: 12px;
+    padding: 20px 24px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    transition: all 0.3s ease;
+  }
+
+  .stat-card:hover {
+    border-color: var(--cyan);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 32px rgba(0, 255, 245, 0.15);
+  }
+
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: -100%;
+    width: 200%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 255, 245, 0.05), transparent);
+    animation: shimmer 3s infinite;
+  }
+
+  .stat-card .label {
+    font-size: 0.65rem;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 8px;
+  }
+
+  .stat-card .value {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.5rem;
+    font-weight: 900;
+    line-height: 1;
+  }
+
+  .stat-card.total .value { color: var(--cyan); text-shadow: 0 0 30px rgba(0,255,245,0.4); }
+  .stat-card.done .value { color: var(--green); text-shadow: 0 0 30px rgba(0,255,136,0.4); }
+  .stat-card.progress .value { color: var(--yellow); text-shadow: 0 0 30px rgba(255,230,0,0.4); }
+  .stat-card.backlog .value { color: var(--blue); text-shadow: 0 0 30px rgba(74,125,255,0.4); }
+
+  /* ═══ PROGRESS RING ═══ */
+  .progress-section {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 40px;
+    gap: 40px;
+    flex-wrap: wrap;
+  }
+
+  .progress-ring-container {
+    position: relative;
+    width: 200px;
+    height: 200px;
+  }
+
+  .progress-ring {
+    transform: rotate(-90deg);
+    filter: drop-shadow(0 0 15px rgba(0, 255, 245, 0.3));
+  }
+
+  .progress-ring circle {
+    fill: none;
+    stroke-width: 8;
+    stroke-linecap: round;
+    cx: 100;
+    cy: 100;
+    r: 88;
+  }
+
+  .progress-ring .bg { stroke: rgba(255,255,255,0.05); }
+  .progress-ring .done { stroke: var(--green); transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1); }
+  .progress-ring .wip { stroke: var(--yellow); transition: stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1); }
+
+  .progress-label {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .progress-label .pct {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 2.8rem;
+    font-weight: 900;
+    color: var(--green);
+    text-shadow: 0 0 40px rgba(0, 255, 136, 0.5);
+    animation: numberGlow 2s ease infinite;
+  }
+
+  .progress-label .pct-label {
+    font-size: 0.6rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.4);
+  }
+
+  /* ═══ PROGRESS BAR (horizontal) ═══ */
+  .progress-bar-section {
+    margin-bottom: 40px;
+  }
+
+  .progress-bar-wrapper {
+    height: 28px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 14px;
+    overflow: hidden;
+    position: relative;
+    border: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .progress-bar-wrapper::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%);
+    animation: barShimmer 2s infinite;
+  }
+
+  .progress-bar-fill {
+    height: 100%;
+    display: flex;
+    transition: width 1s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .progress-bar-fill .seg-done {
+    background: linear-gradient(90deg, #00cc6a, var(--green));
+    box-shadow: 0 0 20px rgba(0,255,136,0.3);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-bar-fill .seg-done::after {
+    content: '';
+    position: absolute;
+    top: 0; left: -50%;
+    width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    animation: barGlow 2s infinite;
+  }
+
+  .progress-bar-fill .seg-wip {
+    background: linear-gradient(90deg, #ccb800, var(--yellow));
+    box-shadow: 0 0 20px rgba(255,230,0,0.3);
+    animation: wipPulse 1.5s ease infinite;
+  }
+
+  .bar-legend {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-top: 12px;
+    font-size: 0.75rem;
+  }
+
+  .bar-legend span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: rgba(255,255,255,0.5);
+  }
+
+  .bar-legend .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+  }
+
+  .bar-legend .dot.done { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .bar-legend .dot.wip { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
+  .bar-legend .dot.backlog { background: var(--blue); box-shadow: 0 0 8px var(--blue); }
+
+  /* ═══ FILTER TABS ═══ */
+  .filter-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+
+  .filter-tab {
+    padding: 8px 18px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: rgba(255,255,255,0.03);
+    color: rgba(255,255,255,0.5);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+  }
+
+  .filter-tab:hover {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: rgba(0, 255, 245, 0.05);
+  }
+
+  .filter-tab.active {
+    border-color: var(--cyan);
+    color: var(--cyan);
+    background: rgba(0, 255, 245, 0.1);
+    box-shadow: 0 0 20px rgba(0, 255, 245, 0.1), inset 0 0 20px rgba(0, 255, 245, 0.05);
+  }
+
+  .filter-tab .count {
+    display: inline-block;
+    background: rgba(255,255,255,0.1);
+    padding: 1px 6px;
+    border-radius: 4px;
+    margin-left: 6px;
+    font-size: 0.65rem;
+  }
+
+  .filter-tab.active .count {
+    background: rgba(0, 255, 245, 0.2);
+  }
+
+  /* ═══ ISSUE CARDS ═══ */
+  .issues-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 14px;
+  }
+
+  .issue-card {
+    background: var(--card);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    cursor: pointer;
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    animation: cardEntry 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+    text-decoration: none;
+    display: block;
+    color: inherit;
+  }
+
+  .issue-card:hover {
+    border-color: var(--cyan);
+    transform: translateY(-3px) scale(1.01);
+    box-shadow:
+      0 12px 40px rgba(0, 255, 245, 0.12),
+      0 0 1px var(--cyan),
+      inset 0 1px 0 rgba(255,255,255,0.06);
+  }
+
+  .issue-card::before {
+    content: '';
+    position: absolute;
+    left: 0; top: 0;
+    width: 3px; height: 100%;
+    transition: all 0.3s ease;
+  }
+
+  .issue-card[data-state="completed"]::before { background: var(--green); box-shadow: 0 0 12px var(--green); }
+  .issue-card[data-state="started"]::before { background: var(--yellow); box-shadow: 0 0 12px var(--yellow); animation: wipPulse 1.5s ease infinite; }
+  .issue-card[data-state="backlog"]::before,
+  .issue-card[data-state="unstarted"]::before { background: var(--blue); box-shadow: 0 0 12px var(--blue); }
+  .issue-card[data-state="cancelled"]::before { background: var(--red); box-shadow: 0 0 12px var(--red); }
+  .issue-card[data-state="triage"]::before { background: var(--orange); box-shadow: 0 0 12px var(--orange); }
+
+  .issue-card .identifier {
+    font-family: 'Orbitron', sans-serif;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--cyan);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+    opacity: 0.8;
+  }
+
+  .issue-card .title {
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1.4;
+    margin-bottom: 10px;
+    color: rgba(255,255,255,0.9);
+  }
+
+  .issue-card .meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.65rem;
+    color: rgba(255,255,255,0.35);
+  }
+
+  .issue-card .state-badge {
+    padding: 2px 10px;
+    border-radius: 20px;
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .issue-card[data-state="completed"] .state-badge { background: rgba(0,255,136,0.15); color: var(--green); border: 1px solid rgba(0,255,136,0.3); }
+  .issue-card[data-state="started"] .state-badge { background: rgba(255,230,0,0.15); color: var(--yellow); border: 1px solid rgba(255,230,0,0.3); }
+  .issue-card[data-state="backlog"] .state-badge,
+  .issue-card[data-state="unstarted"] .state-badge { background: rgba(74,125,255,0.15); color: var(--blue); border: 1px solid rgba(74,125,255,0.3); }
+  .issue-card[data-state="cancelled"] .state-badge { background: rgba(255,51,102,0.15); color: var(--red); border: 1px solid rgba(255,51,102,0.3); }
+  .issue-card[data-state="triage"] .state-badge { background: rgba(255,136,0,0.15); color: var(--orange); border: 1px solid rgba(255,136,0,0.3); }
+
+  .issue-card .priority-indicator {
+    display: flex;
+    gap: 2px;
+  }
+
+  .issue-card .priority-indicator .bar {
+    width: 3px; height: 12px;
+    border-radius: 1px;
+    background: rgba(255,255,255,0.1);
+  }
+
+  .issue-card .priority-indicator .bar.active { background: var(--orange); box-shadow: 0 0 4px var(--orange); }
+  .issue-card .priority-indicator[data-priority="1"] .bar.active { background: var(--red); box-shadow: 0 0 4px var(--red); }
+
+  .label-tag {
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    letter-spacing: 0.5px;
+  }
+
+  /* ═══ RECENTLY COMPLETED CELEBRATION ═══ */
+  .issue-card[data-state="completed"].recent {
+    animation: completionFlash 2s ease;
+  }
+
+  /* ═══ PARTICLES CONTAINER ═══ */
+  #particles {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .particle {
+    position: absolute;
+    width: 2px; height: 2px;
+    border-radius: 50%;
+    background: var(--cyan);
+    animation: floatUp linear infinite;
+    opacity: 0;
+  }
+
+  /* ═══ CONNECTING LINE / PULSE BORDER ═══ */
+  .neon-border {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+    border: 1px solid transparent;
+    border-image: linear-gradient(135deg, var(--cyan), transparent 30%, transparent 70%, var(--magenta)) 1;
+    opacity: 0.3;
+  }
+
+  /* ═══ KEYFRAMES ═══ */
+  @keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+  }
+
+  @keyframes glitch {
+    0%, 90%, 100% { transform: none; }
+    91% { transform: translate(-2px, 1px) skew(0.5deg); }
+    92% { transform: translate(2px, -1px) skew(-0.5deg); }
+    93% { transform: none; }
+    94% { transform: translate(1px, 2px); }
+    95% { transform: none; }
+  }
+
+  @keyframes glitchLeft {
+    0%, 90%, 100% { transform: none; }
+    92% { transform: translate(-3px, 0); }
+    93% { transform: none; }
+  }
+
+  @keyframes glitchRight {
+    0%, 90%, 100% { transform: none; }
+    91% { transform: translate(3px, 0); }
+    92% { transform: none; }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(1.3); }
+  }
+
+  @keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+  }
+
+  @keyframes cardEntry {
+    from {
+      opacity: 0;
+      transform: translateY(20px) scale(0.95);
+      filter: blur(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+      filter: blur(0);
+    }
+  }
+
+  @keyframes numberGlow {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.3); }
+  }
+
+  @keyframes wipPulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+  }
+
+  @keyframes barGlow {
+    0% { left: -50%; }
+    100% { left: 150%; }
+  }
+
+  @keyframes barShimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes completionFlash {
+    0% { box-shadow: 0 0 0 0 rgba(0,255,136,0.6); }
+    30% { box-shadow: 0 0 60px 10px rgba(0,255,136,0.3); }
+    100% { box-shadow: none; }
+  }
+
+  @keyframes floatUp {
+    0% { transform: translateY(100vh) translateX(0); opacity: 0; }
+    10% { opacity: 0.6; }
+    90% { opacity: 0.6; }
+    100% { transform: translateY(-10vh) translateX(var(--drift)); opacity: 0; }
+  }
+
+  @keyframes borderPulse {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 0.5; }
+  }
+
+  /* ═══ RESPONSIVE ═══ */
+  @media (max-width: 768px) {
+    .header h1 { font-size: 1.8rem; letter-spacing: 6px; }
+    .issues-grid { grid-template-columns: 1fr; }
+    .container { padding: 16px; }
+    .stats-bar { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  /* ═══ AUDIO VISUALIZER BAR ═══ */
+  .visualizer {
+    display: flex;
+    gap: 3px;
+    align-items: flex-end;
+    height: 40px;
+    justify-content: center;
+    margin-bottom: 30px;
+  }
+
+  .visualizer .bar {
+    width: 4px;
+    border-radius: 2px;
+    background: linear-gradient(to top, var(--cyan), var(--magenta));
+    animation: eqBounce var(--dur) ease infinite alternate;
+    opacity: 0.6;
+  }
+
+  @keyframes eqBounce {
+    from { height: var(--min-h); }
+    to { height: var(--max-h); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-canvas"></canvas>
+<div class="scanlines"></div>
+<div class="grid-overlay"></div>
+<div class="neon-border"></div>
+<div id="particles"></div>
+
+<div class="container">
+  <header class="header">
+    <h1 data-text="DESIGNER">DESIGNER</h1>
+    <div class="subtitle"><span class="live-dot"></span>LIVE STATUS FEED</div>
+    <div class="last-updated" id="last-updated">Connecting...</div>
+  </header>
+
+  <!-- Fake EQ visualizer -->
+  <div class="visualizer" id="visualizer"></div>
+
+  <!-- Stats -->
+  <div class="stats-bar" id="stats-bar">
+    <div class="stat-card total"><div class="label">Total Issues</div><div class="value" id="stat-total">--</div></div>
+    <div class="stat-card done"><div class="label">Completed</div><div class="value" id="stat-done">--</div></div>
+    <div class="stat-card progress"><div class="label">In Progress</div><div class="value" id="stat-wip">--</div></div>
+    <div class="stat-card backlog"><div class="label">Backlog</div><div class="value" id="stat-backlog">--</div></div>
+  </div>
+
+  <!-- Progress ring + bar -->
+  <div class="progress-section">
+    <div class="progress-ring-container">
+      <svg class="progress-ring" viewBox="0 0 200 200">
+        <circle class="bg" />
+        <circle class="wip" id="ring-wip" stroke-dasharray="553" stroke-dashoffset="553" />
+        <circle class="done" id="ring-done" stroke-dasharray="553" stroke-dashoffset="553" />
+      </svg>
+      <div class="progress-label">
+        <div class="pct" id="pct-value">0%</div>
+        <div class="pct-label">complete</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-bar-section">
+    <div class="progress-bar-wrapper">
+      <div class="progress-bar-fill" id="progress-bar">
+        <div class="seg-done" id="bar-done" style="width:0%"></div>
+        <div class="seg-wip" id="bar-wip" style="width:0%"></div>
+      </div>
+    </div>
+    <div class="bar-legend">
+      <span><span class="dot done"></span>Done</span>
+      <span><span class="dot wip"></span>In Progress</span>
+      <span><span class="dot backlog"></span>Backlog</span>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-tabs" id="filters"></div>
+
+  <!-- Issues -->
+  <div class="issues-grid" id="issues-grid"></div>
+</div>
+
+<script>
+// ═══ MATRIX RAIN ═══
+(function initMatrix() {
+  const canvas = document.getElementById('matrix-canvas');
+  const ctx = canvas.getContext('2d');
+
+  function resize() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const chars = 'DESIGNERLYKU01アイウエオカキクケコ█▓▒░';
+  const fontSize = 14;
+  let columns = Math.floor(canvas.width / fontSize);
+  let drops = Array.from({ length: columns }, () => Math.random() * -100);
+
+  window.addEventListener('resize', () => {
+    columns = Math.floor(canvas.width / fontSize);
+    drops = Array.from({ length: columns }, () => Math.random() * -100);
+  });
+
+  function draw() {
+    ctx.fillStyle = 'rgba(10, 10, 15, 0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#00fff5';
+    ctx.font = `${fontSize}px JetBrains Mono`;
+
+    for (let i = 0; i < drops.length; i++) {
+      const char = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillStyle = Math.random() > 0.98 ? '#ff00ff' : `rgba(0, 255, 245, ${Math.random() * 0.5 + 0.1})`;
+      ctx.fillText(char, i * fontSize, drops[i] * fontSize);
+      if (drops[i] * fontSize > canvas.height && Math.random() > 0.98) {
+        drops[i] = 0;
+      }
+      drops[i] += 0.4 + Math.random() * 0.3;
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ═══ FLOATING PARTICLES ═══
+(function initParticles() {
+  const container = document.getElementById('particles');
+  function spawnParticle() {
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const x = Math.random() * 100;
+    const dur = 8 + Math.random() * 12;
+    const drift = (Math.random() - 0.5) * 100;
+    const size = 1 + Math.random() * 3;
+    const color = Math.random() > 0.7 ? '#ff00ff' : '#00fff5';
+    p.style.cssText = `left:${x}%;width:${size}px;height:${size}px;background:${color};animation-duration:${dur}s;--drift:${drift}px;box-shadow:0 0 ${size*3}px ${color};`;
+    container.appendChild(p);
+    setTimeout(() => p.remove(), dur * 1000);
+  }
+  setInterval(spawnParticle, 300);
+})();
+
+// ═══ VISUALIZER BARS ═══
+(function initVisualizer() {
+  const v = document.getElementById('visualizer');
+  for (let i = 0; i < 60; i++) {
+    const bar = document.createElement('div');
+    bar.className = 'bar';
+    const minH = 3 + Math.random() * 5;
+    const maxH = 10 + Math.random() * 30;
+    const dur = 0.3 + Math.random() * 0.7;
+    bar.style.cssText = `--min-h:${minH}px;--max-h:${maxH}px;--dur:${dur}s;animation-delay:${Math.random()*-2}s;`;
+    v.appendChild(bar);
+  }
+})();
+
+// ═══ STATE MANAGEMENT ═══
+let currentFilter = 'all';
+let prevState = null;
+
+function animateValue(el, newVal) {
+  const old = parseInt(el.textContent) || 0;
+  if (old === newVal) return;
+  const diff = newVal - old;
+  const steps = 20;
+  const step = diff / steps;
+  let current = old;
+  let i = 0;
+  const interval = setInterval(() => {
+    current += step;
+    i++;
+    el.textContent = Math.round(current);
+    if (i >= steps) {
+      el.textContent = newVal;
+      clearInterval(interval);
+    }
+  }, 30);
+}
+
+function updateDashboard(data) {
+  const { issues, stats, lastUpdated } = data;
+
+  // Stats
+  animateValue(document.getElementById('stat-total'), stats.total);
+  animateValue(document.getElementById('stat-done'), stats.done);
+  animateValue(document.getElementById('stat-wip'), stats.inProgress);
+  animateValue(document.getElementById('stat-backlog'), stats.backlog);
+
+  // Progress ring
+  const circumference = 553;
+  const donePct = stats.total > 0 ? stats.done / stats.total : 0;
+  const wipPct = stats.total > 0 ? stats.inProgress / stats.total : 0;
+  document.getElementById('ring-done').style.strokeDashoffset = circumference * (1 - donePct);
+  document.getElementById('ring-wip').style.strokeDashoffset = circumference * (1 - donePct - wipPct);
+  document.getElementById('pct-value').textContent = Math.round(donePct * 100) + '%';
+
+  // Progress bar
+  document.getElementById('bar-done').style.width = (donePct * 100) + '%';
+  document.getElementById('bar-wip').style.width = (wipPct * 100) + '%';
+
+  // Last updated
+  const d = new Date(lastUpdated);
+  document.getElementById('last-updated').textContent =
+    `Last sync: ${d.toLocaleTimeString()} // ${issues.length} issues tracked`;
+
+  // Filters
+  const stateTypes = {};
+  for (const issue of issues) {
+    const type = issue.state.type;
+    stateTypes[type] = (stateTypes[type] || 0) + 1;
+  }
+  const filtersEl = document.getElementById('filters');
+  const filterOrder = ['all', 'started', 'backlog', 'unstarted', 'completed', 'cancelled', 'triage'];
+  const filterLabels = { all: 'All', started: 'In Progress', backlog: 'Backlog', unstarted: 'Todo', completed: 'Done', cancelled: 'Cancelled', triage: 'Triage' };
+
+  filtersEl.innerHTML = '';
+  for (const f of filterOrder) {
+    const count = f === 'all' ? issues.length : (stateTypes[f] || 0);
+    if (count === 0 && f !== 'all') continue;
+    const tab = document.createElement('button');
+    tab.className = `filter-tab${currentFilter === f ? ' active' : ''}`;
+    tab.innerHTML = `${filterLabels[f] || f}<span class="count">${count}</span>`;
+    tab.onclick = () => { currentFilter = f; updateDashboard(data); };
+    filtersEl.appendChild(tab);
+  }
+
+  // Issues
+  const filtered = currentFilter === 'all' ? issues : issues.filter(i => i.state.type === currentFilter);
+
+  // Sort: in progress first, then backlog, then completed
+  const stateOrder = { started: 0, triage: 1, unstarted: 2, backlog: 3, completed: 4, cancelled: 5 };
+  filtered.sort((a, b) => {
+    const sa = stateOrder[a.state.type] ?? 3;
+    const sb = stateOrder[b.state.type] ?? 3;
+    if (sa !== sb) return sa - sb;
+    return a.identifier.localeCompare(b.identifier, undefined, { numeric: true });
+  });
+
+  const grid = document.getElementById('issues-grid');
+  grid.innerHTML = '';
+
+  filtered.forEach((issue, idx) => {
+    const card = document.createElement('a');
+    card.href = issue.url;
+    card.target = '_blank';
+    card.rel = 'noopener';
+    card.className = 'issue-card';
+    card.dataset.state = issue.state.type;
+    card.style.animationDelay = `${idx * 0.03}s`;
+
+    // Check if recently completed (within last 60s)
+    if (issue.state.type === 'completed') {
+      const updatedAt = new Date(issue.updatedAt);
+      if (Date.now() - updatedAt.getTime() < 60000) {
+        card.classList.add('recent');
+      }
+    }
+
+    // Priority bars
+    const prio = issue.priority || 0;
+    const prioBars = [1,2,3,4].map(i => `<div class="bar${i <= (5-prio) && prio > 0 ? ' active' : ''}"></div>`).join('');
+
+    // Labels
+    const labels = (issue.labels?.nodes || []).map(l =>
+      `<span class="label-tag" style="background:${l.color}22;color:${l.color};border:1px solid ${l.color}44">${l.name}</span>`
+    ).join('');
+
+    card.innerHTML = `
+      <div class="identifier">${issue.identifier}</div>
+      <div class="title">${issue.title}</div>
+      <div class="meta">
+        <span class="state-badge">${issue.state.name}</span>
+        <div class="priority-indicator" data-priority="${prio}">${prioBars}</div>
+        ${labels}
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+
+  prevState = data;
+}
+
+// ═══ SSE CONNECTION ═══
+function connect() {
+  const es = new EventSource('/events');
+
+  es.onmessage = (e) => {
+    try {
+      const data = JSON.parse(e.data);
+      updateDashboard(data);
+    } catch (err) {
+      console.error('Parse error:', err);
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    document.getElementById('last-updated').textContent = 'Connection lost. Reconnecting...';
+    setTimeout(connect, 3000);
+  };
+}
+
+connect();
+</script>
+</body>
+</html>
