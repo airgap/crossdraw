@@ -23,11 +23,6 @@ pipeline {
         timeout(time: 60, unit: 'MINUTES')
     }
 
-    environment {
-        BUN_INSTALL = "${HOME}/.bun"
-        PATH = "${BUN_INSTALL}/bin:${PATH}"
-    }
-
     stages {
         // ────────────────────────────────────────────────────────
         // Stage 1: Build web assets + run tests (once, on Linux)
@@ -35,11 +30,11 @@ pipeline {
         stage('Build & Test') {
             agent { label 'linux' }
             steps {
-                sh 'bun install --frozen-lockfile'
-                sh 'bun run format:check'
-                sh 'bunx tsc -b'
-                sh 'bun test'
-                sh 'bunx vite build'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun run format:check'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -b'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun test'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bunx vite build'
                 stash includes: 'dist/**', name: 'web-dist'
             }
         }
@@ -77,10 +72,10 @@ pipeline {
                         APPLE_TEAM_ID = credentials('apple-team-id')
                     }
                     steps {
-                        sh 'bun install --frozen-lockfile'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'bunx tsc -p electron/tsconfig.json'
-                        sh 'bunx electron-builder --config electron-builder.yml --mac --x64 --arm64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -p electron/tsconfig.json'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx electron-builder --config electron-builder.yml --mac --x64 --arm64'
                     }
                     post {
                         success {
@@ -93,10 +88,10 @@ pipeline {
                 stage('Electron Linux') {
                     agent { label 'linux' }
                     steps {
-                        sh 'bun install --frozen-lockfile'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'bunx tsc -p electron/tsconfig.json'
-                        sh 'bunx electron-builder --config electron-builder.yml --linux --x64 --arm64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -p electron/tsconfig.json'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx electron-builder --config electron-builder.yml --linux --x64 --arm64'
                     }
                     post {
                         success {
@@ -109,15 +104,15 @@ pipeline {
                 stage('Web Server Binaries') {
                     agent { label 'linux' }
                     steps {
-                        sh 'bun install --frozen-lockfile'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'bun server/bundle-dist.ts'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun server/bundle-dist.ts'
                         sh 'mkdir -p release'
-                        sh 'bun build server/main.ts --compile --target=bun-linux-x64 --outfile release/crossdraw-server-linux-x64'
-                        sh 'bun build server/main.ts --compile --target=bun-linux-arm64 --outfile release/crossdraw-server-linux-arm64'
-                        sh 'bun build server/main.ts --compile --target=bun-darwin-x64 --outfile release/crossdraw-server-darwin-x64'
-                        sh 'bun build server/main.ts --compile --target=bun-darwin-arm64 --outfile release/crossdraw-server-darwin-arm64'
-                        sh 'bun build server/main.ts --compile --target=bun-windows-x64 --outfile release/crossdraw-server-windows-x64.exe'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-linux-x64 --outfile release/crossdraw-server-linux-x64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-linux-arm64 --outfile release/crossdraw-server-linux-arm64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-darwin-x64 --outfile release/crossdraw-server-darwin-x64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-darwin-arm64 --outfile release/crossdraw-server-darwin-arm64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-windows-x64 --outfile release/crossdraw-server-windows-x64.exe'
                     }
                     post {
                         success {
@@ -137,9 +132,9 @@ pipeline {
                         ANDROID_KEY_PASSWORD = credentials('android-key-password')
                     }
                     steps {
-                        sh 'bun install --frozen-lockfile'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'bunx cap sync android'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync android'
                         dir('android') {
                             sh './gradlew assembleRelease'
                         }
@@ -155,9 +150,9 @@ pipeline {
                 stage('iOS') {
                     agent { label 'mac' }
                     steps {
-                        sh 'bun install --frozen-lockfile'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'bunx cap sync ios'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync ios'
                         dir('ios/App') {
                             sh '''
                                 xcodebuild \
