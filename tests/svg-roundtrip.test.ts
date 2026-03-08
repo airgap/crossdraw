@@ -1225,7 +1225,7 @@ describe('Complex SVG: currentColor and inherited fill', () => {
 
   test('gamepad.svg: currentColor fill produces visible black path', () => {
     const fs = require('fs')
-    const svg = fs.readFileSync('/raid/lyku/apps/webui/src/assets/platforms/gamepad.svg', 'utf-8')
+    const svg = fs.readFileSync(new URL('fixtures/gamepad.svg', import.meta.url).pathname, 'utf-8')
     const doc = importSVG(svg)
     const layer = doc.artboards[0]!.layers[0] as VectorLayer
     expect(layer.fill).not.toBeNull()
@@ -1242,7 +1242,7 @@ describe('Complex SVG: currentColor and inherited fill', () => {
 
   test('ios.svg: group scale preserved on import and export', () => {
     const fs = require('fs')
-    const svg = fs.readFileSync('/raid/lyku/apps/webui/src/assets/platforms/ios.svg', 'utf-8')
+    const svg = fs.readFileSync(new URL('fixtures/ios.svg', import.meta.url).pathname, 'utf-8')
     const doc = importSVG(svg)
     const layers = doc.artboards[0]!.layers
 
@@ -1729,7 +1729,7 @@ describe('Complex SVG: .design binary round-trip', () => {
 })
 
 describe('coswall.svg full round-trip', () => {
-  const coswallSVG = require('fs').readFileSync('/raid/lyku/apps/webui/src/assets/platforms/coswall.svg', 'utf-8')
+  const coswallSVG = require('fs').readFileSync(new URL('fixtures/coswall.svg', import.meta.url).pathname, 'utf-8')
 
   test('import→export→import preserves all shapes', () => {
     const doc1 = importSVG(coswallSVG)
