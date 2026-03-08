@@ -44,46 +44,6 @@ pipeline {
         // ────────────────────────────────────────────────────────
         stage('Package') {
             parallel {
-                // ── Electron: Windows ───────────────────────────
-                stage('Electron Windows') {
-                    agent { label 'windows' }
-                    steps {
-                        bat 'bun install --frozen-lockfile'
-                        unstash 'web-dist'
-                        bat 'bunx tsc -p electron/tsconfig.json'
-                        bat 'bunx electron-builder --config electron-builder.yml --win --x64 --arm64'
-                    }
-                    post {
-                        success {
-                            archiveArtifacts artifacts: 'release/*.exe,release/*.msi', fingerprint: true
-                        }
-                    }
-                }
-
-                // ── Electron: macOS ─────────────────────────────
-                stage('Electron macOS') {
-                    agent { label 'macos' }
-                    environment {
-                        // Set these in Jenkins credentials for code signing
-                        CSC_LINK = credentials('mac-codesign-cert')
-                        CSC_KEY_PASSWORD = credentials('mac-codesign-password')
-                        APPLE_ID = credentials('apple-id')
-                        APPLE_APP_SPECIFIC_PASSWORD = credentials('apple-app-password')
-                        APPLE_TEAM_ID = credentials('apple-team-id')
-                    }
-                    steps {
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
-                        unstash 'web-dist'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -p electron/tsconfig.json'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx electron-builder --config electron-builder.yml --mac --x64 --arm64'
-                    }
-                    post {
-                        success {
-                            archiveArtifacts artifacts: 'release/*.dmg,release/*.zip', fingerprint: true
-                        }
-                    }
-                }
-
                 // ── Electron: Linux ─────────────────────────────
                 stage('Electron Linux') {
                     agent { label 'linux' }
@@ -91,7 +51,7 @@ pipeline {
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -p electron/tsconfig.json'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx electron-builder --config electron-builder.yml --linux --x64 --arm64'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx electron-builder --config electron-builder.yml --linux --x64'
                     }
                     post {
                         success {
@@ -121,66 +81,95 @@ pipeline {
                     }
                 }
 
-                // ── Mobile: Android ─────────────────────────────
-                stage('Android') {
-                    agent { label 'linux' }
-                    environment {
-                        ANDROID_HOME = "${HOME}/Android/Sdk"
-                        ANDROID_KEYSTORE = credentials('android-keystore')
-                        ANDROID_KEYSTORE_PASSWORD = credentials('android-keystore-password')
-                        ANDROID_KEY_ALIAS = credentials('android-key-alias')
-                        ANDROID_KEY_PASSWORD = credentials('android-key-password')
-                    }
-                    steps {
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
-                        unstash 'web-dist'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync android'
-                        dir('android') {
-                            sh './gradlew assembleRelease'
-                        }
-                    }
-                    post {
-                        success {
-                            archiveArtifacts artifacts: 'android/app/build/outputs/apk/release/*.apk', fingerprint: true
-                        }
-                    }
-                }
-
-                // ── Mobile: iOS ─────────────────────────────────
-                stage('iOS') {
+                // ── Electron: macOS (unsigned) ─────────────────
+                stage('Electron macOS') {
                     agent { label 'macos' }
                     steps {
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync ios'
-                        dir('ios/App') {
-                            sh '''
-                                xcodebuild \
-                                    -workspace App.xcworkspace \
-                                    -scheme App \
-                                    -configuration Release \
-                                    -archivePath build/Crossdraw.xcarchive \
-                                    archive \
-                                    CODE_SIGN_IDENTITY="" \
-                                    CODE_SIGNING_REQUIRED=NO \
-                                    CODE_SIGNING_ALLOWED=NO
-                            '''
-                            sh '''
-                                xcodebuild \
-                                    -exportArchive \
-                                    -archivePath build/Crossdraw.xcarchive \
-                                    -exportOptionsPlist ../../ios-export-options.plist \
-                                    -exportPath build/export \
-                                    || true
-                            '''
-                        }
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -p electron/tsconfig.json'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && CSC_IDENTITY_AUTO_DISCOVERY=false bunx electron-builder --config electron-builder.yml --mac --arm64'
                     }
                     post {
                         success {
-                            archiveArtifacts artifacts: 'ios/App/build/**/*.ipa,ios/App/build/**/*.xcarchive/**', fingerprint: true, allowEmptyArchive: true
+                            archiveArtifacts artifacts: 'release/*.dmg,release/*.zip', fingerprint: true
                         }
                     }
                 }
+
+                // ── Electron: Windows ─────────────────────────
+                // Disabled: windows-strix cannot reach git@t.muzz.in (SSH timeout)
+                // Uncomment when Windows node has network access to Gitea
+                // stage('Electron Windows') {
+                //     agent { label 'windows' }
+                //     steps {
+                //         bat 'bun install --frozen-lockfile'
+                //         unstash 'web-dist'
+                //         bat 'bunx tsc -p electron/tsconfig.json'
+                //         bat 'bunx electron-builder --config electron-builder.yml --win --x64 --arm64'
+                //     }
+                //     post {
+                //         success {
+                //             archiveArtifacts artifacts: 'release/*.exe,release/*.msi', fingerprint: true
+                //         }
+                //     }
+                // }
+
+                // ── Mobile: Android ─────────────────────────────
+                // Disabled: credentials (android-keystore etc.) not yet configured
+                // stage('Android') {
+                //     agent { label 'linux' }
+                //     environment {
+                //         ANDROID_HOME = "${HOME}/Android/Sdk"
+                //         ANDROID_KEYSTORE = credentials('android-keystore')
+                //         ANDROID_KEYSTORE_PASSWORD = credentials('android-keystore-password')
+                //         ANDROID_KEY_ALIAS = credentials('android-key-alias')
+                //         ANDROID_KEY_PASSWORD = credentials('android-key-password')
+                //     }
+                //     steps {
+                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                //         unstash 'web-dist'
+                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync android'
+                //         dir('android') {
+                //             sh './gradlew assembleRelease'
+                //         }
+                //     }
+                //     post {
+                //         success {
+                //             archiveArtifacts artifacts: 'android/app/build/outputs/apk/release/*.apk', fingerprint: true
+                //         }
+                //     }
+                // }
+
+                // ── Mobile: iOS ─────────────────────────────────
+                // Disabled: App.xcworkspace not yet generated (needs initial pod install)
+                // stage('iOS') {
+                //     agent { label 'macos' }
+                //     steps {
+                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                //         unstash 'web-dist'
+                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync ios'
+                //         dir('ios/App') {
+                //             sh 'pod install'
+                //             sh '''
+                //                 xcodebuild \
+                //                     -workspace App.xcworkspace \
+                //                     -scheme App \
+                //                     -configuration Release \
+                //                     -archivePath build/Crossdraw.xcarchive \
+                //                     archive \
+                //                     CODE_SIGN_IDENTITY="" \
+                //                     CODE_SIGNING_REQUIRED=NO \
+                //                     CODE_SIGNING_ALLOWED=NO
+                //             '''
+                //         }
+                //     }
+                //     post {
+                //         success {
+                //             archiveArtifacts artifacts: 'ios/App/build/**/*.ipa,ios/App/build/**/*.xcarchive/**', fingerprint: true, allowEmptyArchive: true
+                //         }
+                //     }
+                // }
             }
         }
     }
