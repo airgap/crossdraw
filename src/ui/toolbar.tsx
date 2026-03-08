@@ -1,12 +1,27 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
 import { toggleTheme, getTheme } from '@/ui/theme'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { ShortcutPreferences } from '@/ui/shortcut-preferences'
+import { UISettings } from '@/ui/ui-settings'
 import {
-  MousePointer2, Spline, PenTool, Square, Circle, Hexagon,
-  Star, Type, Pipette, Hand, Ruler, Paintbrush, Crop,
-  Keyboard, Sun, Moon,
+  MousePointer2,
+  Spline,
+  PenTool,
+  Square,
+  Circle,
+  Hexagon,
+  Star,
+  Type,
+  Pipette,
+  Hand,
+  Ruler,
+  Paintbrush,
+  Crop,
+  Keyboard,
+  Sun,
+  Moon,
+  Settings,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -31,24 +46,34 @@ export function Toolbar() {
   const setActiveTool = useEditorStore((s) => s.setActiveTool)
   const [themeName, setThemeName] = useState(getTheme().name)
   const [showShortcuts, setShowShortcuts] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
   const handleToggleTheme = () => {
     toggleTheme()
     setThemeName(getTheme().name)
   }
 
+  // Listen for menu bar events
+  useEffect(() => {
+    const onShowSettings = () => setShowSettings(true)
+    window.addEventListener('crossdraw:show-settings', onShowSettings)
+    return () => window.removeEventListener('crossdraw:show-settings', onShowSettings)
+  }, [])
+
   return (
     <>
-      <div style={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 'var(--space-1)',
-        padding: 'var(--space-1)',
-        background: 'var(--bg-surface)',
-        borderRight: '1px solid var(--border-subtle)',
-        width: 40,
-        alignItems: 'center',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-1)',
+          padding: 'var(--space-1)',
+          background: 'var(--bg-surface)',
+          borderRight: '1px solid var(--border-subtle)',
+          width: 40,
+          alignItems: 'center',
+        }}
+      >
         {tools.map((tool) => {
           const Icon = tool.icon
           const isActive = activeTool === tool.id
@@ -96,10 +121,38 @@ export function Toolbar() {
             color: 'var(--text-secondary)',
             background: 'transparent',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
         >
           <Keyboard size={16} strokeWidth={1.75} />
+        </button>
+        <button
+          onClick={() => setShowSettings(true)}
+          title="UI Settings"
+          style={{
+            width: 'var(--height-toolbar)',
+            height: 'var(--height-toolbar)',
+            border: 'none',
+            borderRadius: 'var(--radius-md)',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'var(--text-secondary)',
+            background: 'transparent',
+          }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          <Settings size={16} strokeWidth={1.75} />
         </button>
         <button
           onClick={handleToggleTheme}
@@ -116,13 +169,25 @@ export function Toolbar() {
             color: 'var(--text-secondary)',
             background: 'transparent',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
         >
           {themeName === 'dark' ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
         </button>
       </div>
       {showShortcuts && <ShortcutPreferences onClose={() => setShowShortcuts(false)} />}
+      {showSettings && (
+        <UISettings
+          onClose={() => {
+            setShowSettings(false)
+            setThemeName(getTheme().name)
+          }}
+        />
+      )}
     </>
   )
 }

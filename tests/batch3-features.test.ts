@@ -25,12 +25,13 @@ describe('LYK-118: JPEG export', () => {
   })
 
   test('JPEG quality default', () => {
-    const quality = undefined ?? 0.92
+    const input: number | undefined = undefined
+    const quality = input ?? 0.92
     expect(quality).toBe(0.92)
   })
 
   test('PNG format still works', () => {
-    const format = 'png' as const
+    const format = 'png' as 'png' | 'jpeg'
     const mimeType = format === 'jpeg' ? 'image/jpeg' : 'image/png'
     expect(mimeType).toBe('image/png')
   })
@@ -49,14 +50,14 @@ describe('LYK-90/LYK-123: corner radius', () => {
     const segs = generateRectangle(0, 0, 100, 50, 10)
     // Should have: move + line + cubic + line + cubic + line + cubic + line + cubic + close
     expect(segs.length).toBe(10)
-    const cubics = segs.filter(s => s.type === 'cubic')
+    const cubics = segs.filter((s) => s.type === 'cubic')
     expect(cubics.length).toBe(4) // one per corner
   })
 
   test('corner radius clamped to half minimum dimension', () => {
     const segs = generateRectangle(0, 0, 40, 20, 100)
     // radius should be clamped to min(100, 20, 10) = 10
-    const firstCubic = segs.find(s => s.type === 'cubic')
+    const firstCubic = segs.find((s) => s.type === 'cubic')
     expect(firstCubic).toBeDefined()
     // Check the path is valid (no NaN)
     for (const seg of segs) {
@@ -92,12 +93,14 @@ describe('LYK-100: multi-line text', () => {
   })
 
   test('default line height is 1.4', () => {
-    const lineHeight = undefined ?? 1.4
+    const input: number | undefined = undefined
+    const lineHeight = input ?? 1.4
     expect(lineHeight).toBe(1.4)
   })
 
   test('default letter spacing is 0', () => {
-    const letterSpacing = undefined ?? 0
+    const input: number | undefined = undefined
+    const letterSpacing = input ?? 0
     expect(letterSpacing).toBe(0)
   })
 

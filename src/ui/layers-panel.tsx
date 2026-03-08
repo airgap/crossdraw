@@ -2,8 +2,17 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import type { Layer, GroupLayer } from '@/types'
 import {
-  PenTool, Image, Folder, SlidersHorizontal, Type, Component,
-  Eye, EyeOff, ChevronDown, ChevronRight, Lock,
+  PenTool,
+  Image,
+  Folder,
+  SlidersHorizontal,
+  Type,
+  Component,
+  Eye,
+  EyeOff,
+  ChevronDown,
+  ChevronRight,
+  Lock,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -76,23 +85,26 @@ export function LayersPanel() {
     setDragOver(index)
   }, [])
 
-  const handleDrop = useCallback((targetIndex: number, e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(null)
-    if (!dragRef.current || !artboard) return
+  const handleDrop = useCallback(
+    (targetIndex: number, e: React.DragEvent) => {
+      e.preventDefault()
+      setDragOver(null)
+      if (!dragRef.current || !artboard) return
 
-    const { layerId, sourceIndex } = dragRef.current
-    // Convert visual (reversed) indices to actual array indices
-    const totalLayers = artboard.layers.length
-    const actualSource = totalLayers - 1 - sourceIndex
-    let actualTarget = totalLayers - 1 - targetIndex
-    if (actualSource < actualTarget) actualTarget-- // adjust for removal shift
+      const { layerId, sourceIndex } = dragRef.current
+      // Convert visual (reversed) indices to actual array indices
+      const totalLayers = artboard.layers.length
+      const actualSource = totalLayers - 1 - sourceIndex
+      let actualTarget = totalLayers - 1 - targetIndex
+      if (actualSource < actualTarget) actualTarget-- // adjust for removal shift
 
-    if (actualSource !== actualTarget && actualTarget >= 0) {
-      reorderLayer(artboard.id, layerId, actualTarget)
-    }
-    dragRef.current = null
-  }, [artboard, reorderLayer])
+      if (actualSource !== actualTarget && actualTarget >= 0) {
+        reorderLayer(artboard.id, layerId, actualTarget)
+      }
+      dragRef.current = null
+    },
+    [artboard, reorderLayer],
+  )
 
   // Close context menu on click outside or Escape
   useEffect(() => {
@@ -121,7 +133,7 @@ export function LayersPanel() {
     })
   }, [])
 
-  const filteredLayers = artboard.layers.filter(layer => {
+  const filteredLayers = artboard.layers.filter((layer) => {
     if (searchQuery) {
       const q = searchQuery.toLowerCase()
       if (!layer.name.toLowerCase().includes(q)) return false
@@ -132,16 +144,25 @@ export function LayersPanel() {
   const reversedLayers = [...filteredLayers].reverse()
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      position: 'relative',
-      flex: 1,
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        position: 'relative',
+        flex: 1,
+      }}
+    >
       {/* Header provided by Sidebar wrapper */}
       {/* Search and filter */}
-      <div style={{ padding: 'var(--space-1) var(--space-2)', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: 'var(--space-1)' }}>
+      <div
+        style={{
+          padding: 'var(--space-1) var(--space-2)',
+          borderBottom: '1px solid var(--border-subtle)',
+          display: 'flex',
+          gap: 'var(--space-1)',
+        }}
+      >
         <input
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
@@ -204,7 +225,14 @@ export function LayersPanel() {
           />
         ))}
         {artboard.layers.length === 0 && (
-          <div style={{ padding: 'var(--space-3)', fontSize: 'var(--font-size-sm)', color: 'var(--text-disabled)', textAlign: 'center' }}>
+          <div
+            style={{
+              padding: 'var(--space-3)',
+              fontSize: 'var(--font-size-sm)',
+              color: 'var(--text-disabled)',
+              textAlign: 'center',
+            }}
+          >
             No layers yet
           </div>
         )}
@@ -350,14 +378,16 @@ function LayerRow({
         )}
 
         {/* Type icon */}
-        <span style={{
-          color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
-          width: 14,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}>
+        <span
+          style={{
+            color: isSelected ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
+            width: 14,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
           {(() => {
             const Icon = TYPE_ICONS[layer.type]
             return Icon ? <Icon size={12} strokeWidth={1.75} /> : '?'
@@ -409,30 +439,33 @@ function LayerRow({
       </div>
 
       {/* Group children */}
-      {isGroup && expanded && (layer as GroupLayer).children && (
-        [...(layer as GroupLayer).children].reverse().map((child) => (
-          <LayerRow
-            key={child.id}
-            layer={child}
-            artboardId={artboardId}
-            selection={selection}
-            selectLayer={selectLayer}
-            setLayerVisibility={setLayerVisibility}
-            setLayerLocked={setLayerLocked}
-            depth={depth + 1}
-            visualIndex={visualIndex}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            onDragOver={onDragOver}
-            onDrop={onDrop}
-            dragOverIndex={dragOverIndex}
-            onContextMenu={onContextMenu}
-            editingLayerId={editingLayerId}
-            setEditingLayerId={setEditingLayerId}
-            updateLayer={updateLayer}
-          />
-        ))
-      )}
+      {isGroup &&
+        expanded &&
+        (layer as GroupLayer).children &&
+        [...(layer as GroupLayer).children]
+          .reverse()
+          .map((child) => (
+            <LayerRow
+              key={child.id}
+              layer={child}
+              artboardId={artboardId}
+              selection={selection}
+              selectLayer={selectLayer}
+              setLayerVisibility={setLayerVisibility}
+              setLayerLocked={setLayerLocked}
+              depth={depth + 1}
+              visualIndex={visualIndex}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragOver={onDragOver}
+              onDrop={onDrop}
+              dragOverIndex={dragOverIndex}
+              onContextMenu={onContextMenu}
+              editingLayerId={editingLayerId}
+              setEditingLayerId={setEditingLayerId}
+              updateLayer={updateLayer}
+            />
+          ))}
     </>
   )
 }
@@ -513,7 +546,7 @@ function ContextMenu({
   setEditingLayerId: (id: string | null) => void
   layers: Layer[]
 }) {
-  const layer = layers.find(l => l.id === layerId)
+  const layer = layers.find((l) => l.id === layerId)
   if (!layer) return null
 
   const multiSelected = selection.layerIds.length >= 2
@@ -541,14 +574,14 @@ function ContextMenu({
     {
       label: 'Move Up',
       action: () => {
-        const idx = layers.findIndex(l => l.id === layerId)
+        const idx = layers.findIndex((l) => l.id === layerId)
         if (idx < layers.length - 1) reorderLayer(artboardId, layerId, idx + 1)
       },
     },
     {
       label: 'Move Down',
       action: () => {
-        const idx = layers.findIndex(l => l.id === layerId)
+        const idx = layers.findIndex((l) => l.id === layerId)
         if (idx > 0) reorderLayer(artboardId, layerId, idx - 1)
       },
     },
@@ -608,7 +641,7 @@ function ContextMenu({
               if (!item.disabled) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'none'
+              ;(e.currentTarget as HTMLElement).style.background = 'none'
             }}
           >
             {item.label}

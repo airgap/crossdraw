@@ -6,9 +6,7 @@ import type { DesignDocument } from '@/types'
  * Uses a minimal PDF 1.4 structure without external dependencies.
  */
 export async function exportArtboardToPDF(doc: DesignDocument, artboardId?: string): Promise<Blob> {
-  const artboard = artboardId
-    ? doc.artboards.find((a) => a.id === artboardId)
-    : doc.artboards[0]
+  const artboard = artboardId ? doc.artboards.find((a) => a.id === artboardId) : doc.artboards[0]
   if (!artboard) throw new Error('No artboard found')
 
   // Render to PNG at 2x
@@ -38,7 +36,9 @@ export async function exportArtboardToPDF(doc: DesignDocument, artboardId?: stri
   write(`2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n`)
 
   // Object 3: Page
-  write(`3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${ptW} ${ptH}] /Contents 4 0 R /Resources << /XObject << /Img0 5 0 R >> >> >>\nendobj\n`)
+  write(
+    `3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${ptW} ${ptH}] /Contents 4 0 R /Resources << /XObject << /Img0 5 0 R >> >> >>\nendobj\n`,
+  )
 
   // Object 4: Page content stream (draw image)
   const stream = `q\n${ptW} 0 0 ${ptH} 0 0 cm\n/Img0 Do\nQ`
@@ -68,11 +68,7 @@ export async function exportArtboardToPDF(doc: DesignDocument, artboardId?: stri
 
   // Cross-reference table
   const xrefPos = header.length + objects.reduce((s, o) => s + new TextEncoder().encode(o).length, 0)
-  const xref = [
-    'xref',
-    `0 ${objects.length + 1}`,
-    '0000000000 65535 f ',
-  ]
+  const xref = ['xref', `0 ${objects.length + 1}`, '0000000000 65535 f ']
 
   let cumOffset = header.length
   for (const obj of objects) {

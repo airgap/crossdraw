@@ -1,16 +1,14 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { isElectron, electronOpen } from '@/io/electron-bridge'
+import { openFile } from '@/io/open-file'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { batchExportSlices, downloadBatchExport } from '@/io/batch-export'
 import { importImageFromPicker } from '@/tools/import-image'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
-import {
-  bringToFront, bringForward, sendBackward, sendToBack,
-  flipHorizontal, flipVertical,
-} from '@/tools/layer-ops'
+import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 
@@ -50,13 +48,11 @@ function buildMenus(): MenuDef[] {
         shortcut: '',
         action: () => store().newDocument(),
       },
-      ...(isElectron()
-        ? [{
-            label: 'Open\u2026',
-            shortcut: 'Ctrl+O',
-            action: () => electronOpen(),
-          }]
-        : []),
+      {
+        label: 'Open\u2026',
+        shortcut: 'Ctrl+O',
+        action: () => (isElectron() ? electronOpen() : openFile()),
+      },
       { label: '', divider: true },
       {
         label: 'Save',
@@ -210,6 +206,13 @@ function buildMenus(): MenuDef[] {
         action: () => pasteStyle(),
         disabled: () => store().selection.layerIds.length === 0,
       },
+      { label: '', divider: true },
+      {
+        label: 'UI Settings\u2026',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('crossdraw:show-settings'))
+        },
+      },
     ],
   }
 
@@ -317,7 +320,7 @@ function buildMenus(): MenuDef[] {
           const artboard = s.document.artboards[0]
           if (artboard && s.selection.layerIds.length === 1) {
             const layerId = s.selection.layerIds[0]!
-            const layer = artboard.layers.find(l => l.id === layerId)
+            const layer = artboard.layers.find((l) => l.id === layerId)
             if (layer && layer.type === 'group') {
               s.ungroupLayer(artboard.id, layerId)
             }
@@ -328,7 +331,7 @@ function buildMenus(): MenuDef[] {
           if (s.selection.layerIds.length !== 1) return true
           const artboard = s.document.artboards[0]
           if (!artboard) return true
-          const layer = artboard.layers.find(l => l.id === s.selection.layerIds[0])
+          const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
           return !layer || layer.type !== 'group'
         },
       },
@@ -416,14 +419,14 @@ function buildMenus(): MenuDef[] {
         label: 'Keyboard Shortcuts',
         action: () => {
           // Dispatch a custom event that the shortcut preferences UI can listen for
-          window.dispatchEvent(new CustomEvent('designer:show-shortcuts'))
+          window.dispatchEvent(new CustomEvent('crossdraw:show-shortcuts'))
         },
       },
       { label: '', divider: true },
       {
-        label: 'About Designer',
+        label: 'About Crossdraw',
         action: () => {
-          alert('Designer — A professional vector & raster design editor.')
+          alert('Crossdraw — A professional vector & raster design editor.')
         },
       },
     ],
@@ -470,11 +473,11 @@ export function MenuBar() {
   }, [openMenu])
 
   const handleMenuClick = useCallback((label: string) => {
-    setOpenMenu(prev => prev === label ? null : label)
+    setOpenMenu((prev) => (prev === label ? null : label))
   }, [])
 
   const handleMenuHover = useCallback((label: string) => {
-    setOpenMenu(prev => prev !== null ? label : prev)
+    setOpenMenu((prev) => (prev !== null ? label : prev))
   }, [])
 
   const handleItemClick = useCallback((item: MenuItem) => {
@@ -499,7 +502,7 @@ export function MenuBar() {
         flexShrink: 0,
       }}
     >
-      {menus.map(menu => (
+      {menus.map((menu) => (
         <div key={menu.label} style={{ position: 'relative' }}>
           {/* Menu trigger button */}
           <div
@@ -517,12 +520,12 @@ export function MenuBar() {
             }}
             onMouseOver={(e) => {
               if (openMenu !== menu.label) {
-                (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover)'
+                ;(e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover)'
               }
             }}
             onMouseOut={(e) => {
               if (openMenu !== menu.label) {
-                (e.currentTarget as HTMLDivElement).style.background = 'transparent'
+                ;(e.currentTarget as HTMLDivElement).style.background = 'transparent'
               }
             }}
           >
@@ -530,12 +533,7 @@ export function MenuBar() {
           </div>
 
           {/* Dropdown */}
-          {openMenu === menu.label && (
-            <MenuDropdown
-              items={menu.items}
-              onItemClick={handleItemClick}
-            />
-          )}
+          {openMenu === menu.label && <MenuDropdown items={menu.items} onItemClick={handleItemClick} />}
         </div>
       ))}
     </div>
@@ -544,13 +542,7 @@ export function MenuBar() {
 
 // ── Dropdown component ──
 
-function MenuDropdown({
-  items,
-  onItemClick,
-}: {
-  items: MenuItem[]
-  onItemClick: (item: MenuItem) => void
-}) {
+function MenuDropdown({ items, onItemClick }: { items: MenuItem[]; onItemClick: (item: MenuItem) => void }) {
   return (
     <div
       style={{
@@ -582,14 +574,7 @@ function MenuDropdown({
 
         const disabled = isDisabled(item)
 
-        return (
-          <MenuItemRow
-            key={item.label}
-            item={item}
-            disabled={disabled}
-            onClick={() => onItemClick(item)}
-          />
-        )
+        return <MenuItemRow key={item.label} item={item} disabled={disabled} onClick={() => onItemClick(item)} />
       })}
     </div>
   )
@@ -597,15 +582,7 @@ function MenuDropdown({
 
 // ── Single menu item row ──
 
-function MenuItemRow({
-  item,
-  disabled,
-  onClick,
-}: {
-  item: MenuItem
-  disabled: boolean
-  onClick: () => void
-}) {
+function MenuItemRow({ item, disabled, onClick }: { item: MenuItem; disabled: boolean; onClick: () => void }) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -623,11 +600,7 @@ function MenuItemRow({
         padding: '5px 16px',
         cursor: disabled ? 'default' : 'pointer',
         background: hovered && !disabled ? 'var(--bg-hover)' : 'transparent',
-        color: disabled
-          ? 'var(--text-disabled)'
-          : hovered
-            ? 'var(--text-primary)'
-            : 'var(--text-primary)',
+        color: disabled ? 'var(--text-disabled)' : hovered ? 'var(--text-primary)' : 'var(--text-primary)',
         fontSize: 'var(--font-size-base)',
         whiteSpace: 'nowrap',
       }}
@@ -637,9 +610,7 @@ function MenuItemRow({
         <span
           style={{
             marginLeft: 32,
-            color: disabled
-              ? 'var(--text-disabled)'
-              : 'var(--text-secondary)',
+            color: disabled ? 'var(--text-disabled)' : 'var(--text-secondary)',
             fontSize: 'var(--font-size-sm)',
           }}
         >

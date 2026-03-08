@@ -7,10 +7,7 @@ import { snapPoint } from '@/tools/snap'
  * Generate a rectangle path from origin + size.
  * If shift is held, constrains to a square.
  */
-export function generateRectangle(
-  x: number, y: number, w: number, h: number,
-  cornerRadius = 0,
-): Segment[] {
+export function generateRectangle(x: number, y: number, w: number, h: number, cornerRadius = 0): Segment[] {
   if (cornerRadius <= 0) {
     return [
       { type: 'move', x, y },
@@ -28,7 +25,15 @@ export function generateRectangle(
     { type: 'line', x: x + w - r, y },
     { type: 'cubic', x: x + w, y: y + r, cp1x: x + w - r + r * k, cp1y: y, cp2x: x + w, cp2y: y + r - r * k },
     { type: 'line', x: x + w, y: y + h - r },
-    { type: 'cubic', x: x + w - r, y: y + h, cp1x: x + w, cp1y: y + h - r + r * k, cp2x: x + w - r + r * k, cp2y: y + h },
+    {
+      type: 'cubic',
+      x: x + w - r,
+      y: y + h,
+      cp1x: x + w,
+      cp1y: y + h - r + r * k,
+      cp2x: x + w - r + r * k,
+      cp2y: y + h,
+    },
     { type: 'line', x: x + r, y: y + h },
     { type: 'cubic', x, y: y + h - r, cp1x: x + r - r * k, cp1y: y + h, cp2x: x, cp2y: y + h - r + r * k },
     { type: 'line', x, y: y + r },
@@ -40,9 +45,7 @@ export function generateRectangle(
 /**
  * Generate an ellipse path approximated with 4 cubic bezier curves.
  */
-export function generateEllipse(
-  cx: number, cy: number, rx: number, ry: number,
-): Segment[] {
+export function generateEllipse(cx: number, cy: number, rx: number, ry: number): Segment[] {
   const k = 0.5522847498
   const kx = rx * k
   const ky = ry * k
@@ -59,9 +62,7 @@ export function generateEllipse(
 /**
  * Generate a regular polygon with N sides.
  */
-export function generatePolygon(
-  cx: number, cy: number, radius: number, sides: number,
-): Segment[] {
+export function generatePolygon(cx: number, cy: number, radius: number, sides: number): Segment[] {
   sides = Math.max(3, Math.min(12, sides))
   const segments: Segment[] = []
   for (let i = 0; i < sides; i++) {
@@ -78,7 +79,11 @@ export function generatePolygon(
  * Generate a star with N points.
  */
 export function generateStar(
-  cx: number, cy: number, outerRadius: number, innerRatio: number, points: number,
+  cx: number,
+  cy: number,
+  outerRadius: number,
+  innerRatio: number,
+  points: number,
 ): Segment[] {
   points = Math.max(3, Math.min(12, points))
   const innerRadius = outerRadius * Math.max(0.1, Math.min(0.95, innerRatio))
@@ -114,9 +119,7 @@ const dragState: ShapeDragState = {
   layerId: null,
 }
 
-export function beginShapeDrag(
-  docX: number, docY: number, artboardId: string,
-) {
+export function beginShapeDrag(docX: number, docY: number, artboardId: string) {
   // Snap the starting point
   const snapResult = snapPoint(docX, docY)
   const snappedX = snapResult.x ?? docX
@@ -129,9 +132,7 @@ export function beginShapeDrag(
   dragState.layerId = null
 }
 
-export function updateShapeDrag(
-  docX: number, docY: number, shift: boolean, alt: boolean,
-) {
+export function updateShapeDrag(docX: number, docY: number, shift: boolean, alt: boolean) {
   if (!dragState.active) return
 
   const store = useEditorStore.getState()
@@ -244,4 +245,3 @@ export function endShapeDrag() {
 export function isShapeDragging(): boolean {
   return dragState.active
 }
-

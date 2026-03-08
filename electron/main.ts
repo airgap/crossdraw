@@ -124,14 +124,14 @@ function buildMenu() {
   const isMac = process.platform === 'darwin'
 
   const template: Electron.MenuItemConstructorOptions[] = [
-    ...(isMac ? [{
-      label: app.name,
-      submenu: [
-        { role: 'about' as const },
-        { type: 'separator' as const },
-        { role: 'quit' as const },
-      ],
-    }] : []),
+    ...(isMac
+      ? [
+          {
+            label: app.name,
+            submenu: [{ role: 'about' as const }, { type: 'separator' as const }, { role: 'quit' as const }],
+          },
+        ]
+      : []),
     {
       label: 'File',
       submenu: [
@@ -162,7 +162,11 @@ function buildMenu() {
       submenu: [
         { label: 'Zoom In', accelerator: 'CmdOrCtrl+=', click: () => mainWindow?.webContents.send('menu:zoom-in') },
         { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: () => mainWindow?.webContents.send('menu:zoom-out') },
-        { label: 'Zoom to Fit', accelerator: 'CmdOrCtrl+0', click: () => mainWindow?.webContents.send('menu:zoom-fit') },
+        {
+          label: 'Zoom to Fit',
+          accelerator: 'CmdOrCtrl+0',
+          click: () => mainWindow?.webContents.send('menu:zoom-fit'),
+        },
         { type: 'separator' },
         { role: 'toggleDevTools' },
         { role: 'togglefullscreen' },
@@ -171,7 +175,11 @@ function buildMenu() {
     {
       label: 'Help',
       submenu: [
-        { label: 'About Designer', click: () => dialog.showMessageBox({ message: 'Designer v0.1.0', detail: 'A vector + raster design editor.' }) },
+        {
+          label: 'About Crossdraw',
+          click: () =>
+            dialog.showMessageBox({ message: 'Crossdraw v0.1.0', detail: 'A vector + raster design editor.' }),
+        },
       ],
     },
   ]
@@ -193,7 +201,7 @@ async function handleOpen() {
   currentFilePath = filePath
   await addRecentFile(filePath)
   mainWindow.webContents.send('file:opened', data.buffer, filePath)
-  mainWindow.setTitle(`${basename(filePath)} — Designer`)
+  mainWindow.setTitle(`${basename(filePath)} — Crossdraw`)
 }
 
 async function handleSave() {
@@ -215,7 +223,7 @@ async function handleSaveAs() {
   currentFilePath = result.filePath
   await addRecentFile(result.filePath)
   mainWindow.webContents.send('file:request-save', result.filePath)
-  mainWindow.setTitle(`${basename(result.filePath)} — Designer`)
+  mainWindow.setTitle(`${basename(result.filePath)} — Crossdraw`)
 }
 
 // ─── IPC handlers ────────────────────────────────────────────
@@ -228,7 +236,12 @@ ipcMain.handle('file:save', async (_event, filePath: string, data: ArrayBuffer) 
 ipcMain.handle('file:open-dialog', async () => {
   if (!mainWindow) return null
   const result = await dialog.showOpenDialog(mainWindow, {
-    filters: [{ name: 'Design Files', extensions: ['design'] }],
+    filters: [
+      { name: 'All Supported', extensions: ['design', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] },
+      { name: 'Design Files', extensions: ['design'] },
+      { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
+      { name: 'SVG', extensions: ['svg'] },
+    ],
     properties: ['openFile'],
   })
   if (result.canceled || result.filePaths.length === 0) return null
@@ -236,7 +249,7 @@ ipcMain.handle('file:open-dialog', async () => {
   const data = await readFile(filePath)
   currentFilePath = filePath
   await addRecentFile(filePath)
-  mainWindow.setTitle(`${basename(filePath)} — Designer`)
+  mainWindow.setTitle(`${basename(filePath)} — Crossdraw`)
   return { filePath, data: data.buffer }
 })
 
@@ -249,7 +262,7 @@ ipcMain.handle('file:save-dialog', async () => {
   if (result.canceled || !result.filePath) return null
   currentFilePath = result.filePath
   await addRecentFile(result.filePath)
-  mainWindow.setTitle(`${basename(result.filePath)} — Designer`)
+  mainWindow.setTitle(`${basename(result.filePath)} — Crossdraw`)
   return result.filePath
 })
 
@@ -283,7 +296,9 @@ ipcMain.handle('autosave:clear', async () => {
   try {
     const { unlink } = await import('fs/promises')
     await unlink(path)
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 })
 
 // ─── App lifecycle ───────────────────────────────────────────

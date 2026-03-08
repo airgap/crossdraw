@@ -9,7 +9,7 @@
 const LINEAR_API_KEY = process.env.LINEAR_API_KEY ?? ''
 const PORT = Number(process.env.PORT ?? 4444)
 const TEAM_KEY = 'LYK'
-const PROJECT_NAME = 'Designer'
+const PROJECT_NAME = 'Crossdraw'
 const POLL_INTERVAL = 10_000 // 10s
 
 if (!LINEAR_API_KEY) {

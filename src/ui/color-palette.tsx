@@ -3,13 +3,15 @@ import { useEditorStore } from '@/store/editor.store'
 import type { NamedColor } from '@/types'
 import { v4 as uuid } from 'uuid'
 
-const STORAGE_KEY = 'designer:palette'
+const STORAGE_KEY = 'crossdraw:palette'
 
 function loadPalette(): NamedColor[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
     if (stored) return JSON.parse(stored)
-  } catch { /* empty */ }
+  } catch {
+    /* empty */
+  }
   return [
     { id: uuid(), name: 'Black', value: '#000000' },
     { id: uuid(), name: 'White', value: '#ffffff' },
@@ -60,7 +62,7 @@ export function ColorPalette() {
   }
 
   function handleChangeColor(id: string, value: string) {
-    const updated = colors.map((c) => c.id === id ? { ...c, value } : c)
+    const updated = colors.map((c) => (c.id === id ? { ...c, value } : c))
     setColors(updated)
     savePalette(updated)
   }
@@ -68,21 +70,38 @@ export function ColorPalette() {
   return (
     <div style={{ padding: 'var(--space-2)', flex: 1 }}>
       {/* Header provided by Sidebar wrapper */}
-      <div style={{
-        fontSize: 'var(--font-size-xs)', fontWeight: 'var(--font-weight-semibold)', textTransform: 'uppercase',
-        color: 'var(--text-secondary)', marginBottom: 'var(--space-1)',
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div
+        style={{
+          fontSize: 'var(--font-size-xs)',
+          fontWeight: 'var(--font-weight-semibold)',
+          textTransform: 'uppercase',
+          color: 'var(--text-secondary)',
+          marginBottom: 'var(--space-1)',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <button
           onClick={handleAddColor}
           style={{
-            background: 'none', border: 'none', color: 'var(--text-secondary)',
-            cursor: 'pointer', fontSize: 14, padding: 0,
+            background: 'none',
+            border: 'none',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 14,
+            padding: 0,
           }}
           title="Add swatch"
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
-        >+</button>
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'
+          }}
+        >
+          +
+        </button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
         {colors.map((c) => (
@@ -95,7 +114,9 @@ export function ColorPalette() {
               handleRemoveColor(c.id)
             }}
             style={{
-              width: 20, height: 20, borderRadius: 'var(--radius-sm)',
+              width: 20,
+              height: 20,
+              borderRadius: 'var(--radius-sm)',
               background: c.value,
               border: '1px solid var(--border-default)',
               cursor: 'pointer',
@@ -107,8 +128,12 @@ export function ColorPalette() {
               value={c.value}
               onChange={(e) => handleChangeColor(c.id, e.target.value)}
               style={{
-                position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer',
-                width: '100%', height: '100%',
+                position: 'absolute',
+                inset: 0,
+                opacity: 0,
+                cursor: 'pointer',
+                width: '100%',
+                height: '100%',
               }}
             />
           </div>

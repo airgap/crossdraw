@@ -63,9 +63,9 @@ function stopBlink() {
  */
 export function beginTextEdit(layerId: string, artboardId: string) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards.find(a => a.id === artboardId)
+  const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
-  const layer = artboard.layers.find(l => l.id === layerId) as TextLayer | undefined
+  const layer = artboard.layers.find((l) => l.id === layerId) as TextLayer | undefined
   if (!layer || layer.type !== 'text') return
 
   state.active = true
@@ -82,7 +82,7 @@ export function beginTextEdit(layerId: string, artboardId: string) {
  */
 export function createAndEditText(docX: number, docY: number, artboardId: string) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards.find(a => a.id === artboardId)
+  const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
 
   const layer: TextLayer = {
@@ -96,7 +96,9 @@ export function createAndEditText(docX: number, docY: number, artboardId: string
     transform: {
       x: docX - artboard.x,
       y: docY - artboard.y,
-      scaleX: 1, scaleY: 1, rotation: 0,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
     },
     effects: [],
     text: '',
@@ -124,9 +126,9 @@ export function endTextEdit(cancel = false) {
   if (cancel && state.layerId && state.artboardId) {
     // If canceling with empty text, delete the layer
     const store = useEditorStore.getState()
-    const artboard = store.document.artboards.find(a => a.id === state.artboardId)
+    const artboard = store.document.artboards.find((a) => a.id === state.artboardId)
     if (artboard) {
-      const layer = artboard.layers.find(l => l.id === state.layerId) as TextLayer | undefined
+      const layer = artboard.layers.find((l) => l.id === state.layerId) as TextLayer | undefined
       if (layer && layer.text === '') {
         store.deleteLayer(state.artboardId, state.layerId)
       }
@@ -145,9 +147,9 @@ export function endTextEdit(cancel = false) {
 function getEditingLayer(): TextLayer | null {
   if (!state.layerId || !state.artboardId) return null
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards.find(a => a.id === state.artboardId)
+  const artboard = store.document.artboards.find((a) => a.id === state.artboardId)
   if (!artboard) return null
-  const layer = artboard.layers.find(l => l.id === state.layerId) as TextLayer | undefined
+  const layer = artboard.layers.find((l) => l.id === state.layerId) as TextLayer | undefined
   return layer && layer.type === 'text' ? layer : null
 }
 
@@ -248,24 +250,27 @@ export function textEditKeyDown(e: KeyboardEvent): boolean {
 
   // Paste
   if (ctrlOrMeta && e.key === 'v') {
-    navigator.clipboard.readText().then(clipText => {
-      const currentLayer = getEditingLayer()
-      if (!currentLayer) return
-      const currentText = currentLayer.text
+    navigator.clipboard
+      .readText()
+      .then((clipText) => {
+        const currentLayer = getEditingLayer()
+        if (!currentLayer) return
+        const currentText = currentLayer.text
 
-      if (hasSelection()) {
-        const [start, end] = getSelectionRange()
-        updateText(currentText.slice(0, start) + clipText + currentText.slice(end))
-        state.cursorPos = start + clipText.length
-      } else {
-        updateText(currentText.slice(0, state.cursorPos) + clipText + currentText.slice(state.cursorPos))
-        state.cursorPos += clipText.length
-      }
-      state.selectionStart = null
-      state.selectionEnd = null
-      startBlink()
-      triggerRender()
-    }).catch(() => {})
+        if (hasSelection()) {
+          const [start, end] = getSelectionRange()
+          updateText(currentText.slice(0, start) + clipText + currentText.slice(end))
+          state.cursorPos = start + clipText.length
+        } else {
+          updateText(currentText.slice(0, state.cursorPos) + clipText + currentText.slice(state.cursorPos))
+          state.cursorPos += clipText.length
+        }
+        state.selectionStart = null
+        state.selectionEnd = null
+        startBlink()
+        triggerRender()
+      })
+      .catch(() => {})
     return true
   }
 
@@ -492,7 +497,11 @@ export function renderTextEditOverlay(
   const lines = text.split('\n')
 
   // Build per-character (x, y, line) positions
-  interface CharPos { x: number; y: number; lineIdx: number }
+  interface CharPos {
+    x: number
+    y: number
+    lineIdx: number
+  }
   const charPositions: CharPos[] = []
   let charIdx = 0
   for (let li = 0; li < lines.length; li++) {

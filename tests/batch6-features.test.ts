@@ -1,12 +1,19 @@
 import { describe, test, expect } from 'bun:test'
-import type { Gradient, VectorLayer, Fill, Stroke, NamedColor } from '@/types'
+import type { Gradient, Fill, Stroke, NamedColor } from '@/types'
 import { copyStyle, pasteStyle, hasStyleClipboard } from '@/tools/style-clipboard'
 
 describe('LYK-87: gradient transform and positioning', () => {
   test('gradient can have gradientTransform', () => {
     const grad: Gradient = {
-      id: '1', name: 'test', type: 'linear', x: 0.5, y: 0.5,
-      stops: [{ offset: 0, color: '#000', opacity: 1 }, { offset: 1, color: '#fff', opacity: 1 }],
+      id: '1',
+      name: 'test',
+      type: 'linear',
+      x: 0.5,
+      y: 0.5,
+      stops: [
+        { offset: 0, color: '#000', opacity: 1 },
+        { offset: 1, color: '#fff', opacity: 1 },
+      ],
       dithering: { enabled: false, algorithm: 'none', strength: 0, seed: 0 },
       gradientTransform: { rotate: 45, scaleX: 2, scaleY: 1 },
     }
@@ -16,7 +23,12 @@ describe('LYK-87: gradient transform and positioning', () => {
 
   test('gradient can have gradientUnits', () => {
     const grad: Gradient = {
-      id: '1', name: 'test', type: 'radial', x: 0.5, y: 0.5, radius: 0.5,
+      id: '1',
+      name: 'test',
+      type: 'radial',
+      x: 0.5,
+      y: 0.5,
+      radius: 0.5,
       stops: [{ offset: 0, color: '#ff0', opacity: 1 }],
       dithering: { enabled: false, algorithm: 'none', strength: 0, seed: 0 },
       gradientUnits: 'userSpaceOnUse',
@@ -26,8 +38,13 @@ describe('LYK-87: gradient transform and positioning', () => {
 
   test('default gradientUnits is objectBoundingBox', () => {
     const grad: Gradient = {
-      id: '1', name: 'test', type: 'linear', x: 0, y: 0,
-      stops: [], dithering: { enabled: false, algorithm: 'none', strength: 0, seed: 0 },
+      id: '1',
+      name: 'test',
+      type: 'linear',
+      x: 0,
+      y: 0,
+      stops: [],
+      dithering: { enabled: false, algorithm: 'none', strength: 0, seed: 0 },
     }
     expect(grad.gradientUnits ?? 'objectBoundingBox').toBe('objectBoundingBox')
   })
@@ -68,7 +85,6 @@ describe('LYK-104: color palette', () => {
   })
 
   test('palette stored in localStorage format', () => {
-    const key = 'designer:palette'
     const colors: NamedColor[] = [{ id: '1', name: 'Test', value: '#ff0000' }]
     const json = JSON.stringify(colors)
     const parsed: NamedColor[] = JSON.parse(json)
@@ -81,9 +97,7 @@ describe('LYK-109: multiple fills and strokes', () => {
     const layer = {
       type: 'vector' as const,
       fill: { type: 'solid' as const, color: '#ff0000', opacity: 1 },
-      additionalFills: [
-        { type: 'solid' as const, color: '#00ff00', opacity: 0.5 },
-      ] as Fill[],
+      additionalFills: [{ type: 'solid' as const, color: '#00ff00', opacity: 0.5 }] as Fill[],
     }
     expect(layer.additionalFills.length).toBe(1)
     expect(layer.additionalFills[0]!.color).toBe('#00ff00')
@@ -92,9 +106,25 @@ describe('LYK-109: multiple fills and strokes', () => {
   test('vector layer has optional additionalStrokes', () => {
     const layer = {
       type: 'vector' as const,
-      stroke: { width: 2, color: '#000', opacity: 1, position: 'center' as const, linecap: 'butt' as const, linejoin: 'miter' as const, miterLimit: 4 },
+      stroke: {
+        width: 2,
+        color: '#000',
+        opacity: 1,
+        position: 'center' as const,
+        linecap: 'butt' as const,
+        linejoin: 'miter' as const,
+        miterLimit: 4,
+      },
       additionalStrokes: [
-        { width: 4, color: '#ff0000', opacity: 0.5, position: 'outside' as const, linecap: 'round' as const, linejoin: 'round' as const, miterLimit: 4 },
+        {
+          width: 4,
+          color: '#ff0000',
+          opacity: 0.5,
+          position: 'outside' as const,
+          linecap: 'round' as const,
+          linejoin: 'round' as const,
+          miterLimit: 4,
+        },
       ] as Stroke[],
     }
     expect(layer.additionalStrokes.length).toBe(1)
@@ -140,10 +170,7 @@ describe('LYK-127: status bar', () => {
   })
 
   test('layer count calculation', () => {
-    const artboards = [
-      { layers: [1, 2, 3] },
-      { layers: [4, 5] },
-    ]
+    const artboards = [{ layers: [1, 2, 3] }, { layers: [4, 5] }]
     const count = artboards.reduce((sum, a) => sum + a.layers.length, 0)
     expect(count).toBe(5)
   })

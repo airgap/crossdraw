@@ -1,11 +1,9 @@
 import { segmentsToSVGPath } from '@/math/path'
 import { getRasterCanvas } from '@/store/raster-data'
-import type { DesignDocument, VectorLayer, TextLayer, RasterLayer, Gradient } from '@/types'
+import type { DesignDocument, VectorLayer, TextLayer, RasterLayer, GroupLayer, Layer, Gradient } from '@/types'
 
 export function exportArtboardToSVG(doc: DesignDocument, artboardId?: string): string {
-  const artboard = artboardId
-    ? doc.artboards.find((a) => a.id === artboardId)
-    : doc.artboards[0]
+  const artboard = artboardId ? doc.artboards.find((a) => a.id === artboardId) : doc.artboards[0]
 
   if (!artboard) throw new Error('No artboard found')
 
@@ -14,13 +12,9 @@ export function exportArtboardToSVG(doc: DesignDocument, artboardId?: string): s
     `<svg xmlns="http://www.w3.org/2000/svg" width="${artboard.width}" height="${artboard.height}" viewBox="0 0 ${artboard.width} ${artboard.height}">`,
   )
 
-  // Collect gradient definitions
+  // Collect gradient definitions (recursively)
   const gradients: Gradient[] = []
-  for (const layer of artboard.layers) {
-    if (layer.type === 'vector' && layer.fill?.type === 'gradient' && layer.fill.gradient) {
-      gradients.push(layer.fill.gradient)
-    }
-  }
+  collectGradients(artboard.layers, gradients)
 
   if (gradients.length > 0) {
     lines.push('  <defs>')
@@ -36,14 +30,7 @@ export function exportArtboardToSVG(doc: DesignDocument, artboardId?: string): s
   )
 
   for (const layer of artboard.layers) {
-    if (!layer.visible) continue
-    if (layer.type === 'vector') {
-      renderVectorLayerSVG(lines, layer)
-    } else if (layer.type === 'text') {
-      renderTextLayerSVG(lines, layer)
-    } else if (layer.type === 'raster') {
-      renderRasterLayerSVG(lines, layer)
-    }
+    renderLayerSVG(lines, layer, '  ')
   }
 
   lines.push('</svg>')
@@ -65,7 +52,9 @@ function renderGradientDef(lines: string[], grad: Gradient, _artboardW: number, 
       const cy = grad.y
       const dx = Math.cos(angle) * 0.5
       const dy = Math.sin(angle) * 0.5
-      lines.push(`    <linearGradient id="${grad.id}" x1="${cx - dx}" y1="${cy - dy}" x2="${cx + dx}" y2="${cy + dy}"${gtAttrs}>`)
+      lines.push(
+        `    <linearGradient id="${grad.id}" x1="${cx - dx}" y1="${cy - dy}" x2="${cx + dx}" y2="${cy + dy}"${gtAttrs}>`,
+      )
       lines.push(...stopLines)
       lines.push('    </linearGradient>')
       break
@@ -95,18 +84,68 @@ function buildGradientTransformAttrs(grad: Gradient): string {
     const transforms: string[] = []
     if (gt.translateX || gt.translateY) transforms.push(`translate(${gt.translateX ?? 0} ${gt.translateY ?? 0})`)
     if (gt.rotate) transforms.push(`rotate(${gt.rotate})`)
-    if (gt.scaleX !== undefined || gt.scaleY !== undefined) transforms.push(`scale(${gt.scaleX ?? 1} ${gt.scaleY ?? 1})`)
+    if (gt.scaleX !== undefined || gt.scaleY !== undefined)
+      transforms.push(`scale(${gt.scaleX ?? 1} ${gt.scaleY ?? 1})`)
     if (transforms.length > 0) parts.push(` gradientTransform="${transforms.join(' ')}"`)
   }
   return parts.join('')
 }
 
-function renderVectorLayerSVG(lines: string[], layer: VectorLayer) {
-  const t = layer.transform
-  const transforms: string[] = []
-  if (t.x !== 0 || t.y !== 0) transforms.push(`translate(${t.x} ${t.y})`)
-  if (t.scaleX !== 1 || t.scaleY !== 1) transforms.push(`scale(${t.scaleX} ${t.scaleY})`)
-  if (t.rotation) transforms.push(`rotate(${t.rotation})`)
+/** Recursively collect all gradient fills from layers. */
+function collectGradients(layers: Layer[], out: Gradient[]) {
+  for (const layer of layers) {
+    if (layer.type === 'vector' && layer.fill?.type === 'gradient' && layer.fill.gradient) {
+      out.push(layer.fill.gradient)
+    }
+    if (layer.type === 'group') {
+      collectGradients(layer.children, out)
+    }
+  }
+}
+
+/** Build SVG transform attribute parts from a layer transform. */
+function buildTransformParts(t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number }): string[] {
+  const parts: string[] = []
+  if (t.x !== 0 || t.y !== 0) parts.push(`translate(${t.x} ${t.y})`)
+  if (t.scaleX !== 1 || t.scaleY !== 1) parts.push(`scale(${t.scaleX} ${t.scaleY})`)
+  if (t.rotation) parts.push(`rotate(${t.rotation})`)
+  return parts
+}
+
+/** Dispatch to the correct renderer for a layer type. */
+function renderLayerSVG(lines: string[], layer: Layer, indent: string) {
+  if (!layer.visible) return
+  switch (layer.type) {
+    case 'vector':
+      renderVectorLayerSVG(lines, layer, indent)
+      break
+    case 'group':
+      renderGroupLayerSVG(lines, layer, indent)
+      break
+    case 'text':
+      renderTextLayerSVG(lines, layer)
+      break
+    case 'raster':
+      renderRasterLayerSVG(lines, layer)
+      break
+  }
+}
+
+function renderGroupLayerSVG(lines: string[], group: GroupLayer, indent: string) {
+  const transforms = buildTransformParts(group.transform)
+  const attrs: string[] = []
+  if (transforms.length > 0) attrs.push(`transform="${transforms.join(' ')}"`)
+  if (group.opacity < 1) attrs.push(`opacity="${group.opacity}"`)
+
+  lines.push(`${indent}<g${attrs.length > 0 ? ' ' + attrs.join(' ') : ''}>`)
+  for (const child of group.children) {
+    renderLayerSVG(lines, child, indent + '  ')
+  }
+  lines.push(`${indent}</g>`)
+}
+
+function renderVectorLayerSVG(lines: string[], layer: VectorLayer, baseIndent: string = '  ') {
+  const transforms = buildTransformParts(layer.transform)
 
   const hasGroup = transforms.length > 0 || layer.opacity < 1
   const groupAttrs: string[] = []
@@ -114,23 +153,26 @@ function renderVectorLayerSVG(lines: string[], layer: VectorLayer) {
   if (layer.opacity < 1) groupAttrs.push(`opacity="${layer.opacity}"`)
 
   if (hasGroup) {
-    lines.push(`  <g ${groupAttrs.join(' ')}>`)
+    lines.push(`${baseIndent}<g ${groupAttrs.join(' ')}>`)
   }
 
   // ClipPath: if layer has a vector mask, emit a clipPath def
   if (layer.mask && layer.mask.type === 'vector') {
     const clipId = `clip-${layer.id}`
     const maskLayer = layer.mask
-    lines.push(`  <defs><clipPath id="${clipId}">`)
+    lines.push(`${baseIndent}<defs><clipPath id="${clipId}">`)
     for (const mp of maskLayer.paths) {
-      lines.push(`    <path d="${segmentsToSVGPath(mp.segments)}" />`)
+      lines.push(`${baseIndent}  <path d="${segmentsToSVGPath(mp.segments)}" />`)
     }
-    lines.push('  </clipPath></defs>')
+    lines.push(`${baseIndent}</clipPath></defs>`)
     if (hasGroup) {
       // Need to add clip-path to the group
-      const lastLine = lines[lines.length - 1]
-      if (lastLine?.includes('<g ')) {
-        lines[lines.length - 1] = lastLine.replace('<g ', `<g clip-path="url(#${clipId})" `)
+      // Search backwards for the <g> we just opened
+      for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i]?.includes('<g ')) {
+          lines[i] = lines[i]!.replace('<g ', `<g clip-path="url(#${clipId})" `)
+          break
+        }
       }
     }
   }
@@ -172,12 +214,12 @@ function renderVectorLayerSVG(lines: string[], layer: VectorLayer) {
       }
     }
 
-    const indent = hasGroup ? '    ' : '  '
+    const indent = hasGroup ? baseIndent + '  ' : baseIndent
     lines.push(`${indent}<path ${attrs.join(' ')} />`)
   }
 
   if (hasGroup) {
-    lines.push('  </g>')
+    lines.push(`${baseIndent}</g>`)
   }
 }
 
@@ -233,15 +275,15 @@ function imageDataToBase64PNG(imageData: ImageData, width: number, height: numbe
   const png: number[] = []
 
   // PNG signature
-  png.push(0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A)
+  png.push(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
 
   // IHDR
   const ihdr = new Uint8Array(13)
   const ihdrView = new DataView(ihdr.buffer)
   ihdrView.setUint32(0, width)
   ihdrView.setUint32(4, height)
-  ihdr[8] = 8  // bit depth
-  ihdr[9] = 6  // color type: RGBA
+  ihdr[8] = 8 // bit depth
+  ihdr[9] = 6 // color type: RGBA
   ihdr[10] = 0 // compression
   ihdr[11] = 0 // filter
   ihdr[12] = 0 // interlace
@@ -276,15 +318,16 @@ function deflateStore(data: Uint8Array): Uint8Array {
     out[pos++] = last
     out[pos++] = blockLen & 0xff
     out[pos++] = (blockLen >> 8) & 0xff
-    out[pos++] = (~blockLen) & 0xff
-    out[pos++] = ((~blockLen) >> 8) & 0xff
+    out[pos++] = ~blockLen & 0xff
+    out[pos++] = (~blockLen >> 8) & 0xff
     out.set(data.subarray(offset, offset + blockLen), pos)
     pos += blockLen
     offset += blockLen
     remaining -= blockLen
   }
   // Adler-32
-  let a = 1, b = 0
+  let a = 1,
+    b = 0
   for (let i = 0; i < data.length; i++) {
     a = (a + data[i]!) % 65521
     b = (b + a) % 65521
@@ -302,7 +345,7 @@ function buildCrc32Table(): Uint32Array {
   for (let n = 0; n < 256; n++) {
     let c = n
     for (let k = 0; k < 8; k++) {
-      c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1)
+      c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
     }
     table[n] = c
   }
@@ -310,11 +353,11 @@ function buildCrc32Table(): Uint32Array {
 }
 
 function crc32(data: Uint8Array, table: Uint32Array): number {
-  let crc = 0xFFFFFFFF
+  let crc = 0xffffffff
   for (let i = 0; i < data.length; i++) {
     crc = table[(crc ^ data[i]!) & 0xff]! ^ (crc >>> 8)
   }
-  return (crc ^ 0xFFFFFFFF) >>> 0
+  return (crc ^ 0xffffffff) >>> 0
 }
 
 function writeChunk(out: number[], type: string, data: Uint8Array, table: Uint32Array) {
@@ -355,11 +398,7 @@ function renderTextLayerSVG(lines: string[], layer: TextLayer) {
 }
 
 function escapeXml(str: string): string {
-  return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 export function downloadSVG(svgString: string, filename = 'export.svg') {

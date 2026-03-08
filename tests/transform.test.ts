@@ -39,11 +39,7 @@ describe('transform handles', () => {
 
   it('should hit test rotation handle', () => {
     const handles = getHandlePositions(bbox, zoom)
-    const result = hitTestHandles(
-      { x: handles.rotation.x, y: handles.rotation.y },
-      bbox,
-      zoom,
-    )
+    const result = hitTestHandles({ x: handles.rotation.x, y: handles.rotation.y }, bbox, zoom)
     expect(result).toBe('rotation')
   })
 

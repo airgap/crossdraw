@@ -1,7 +1,12 @@
 import { describe, test, expect } from 'bun:test'
 import type {
-  SymbolDefinition, SymbolInstanceLayer, ICCProfile, CropRegion,
-  BrushSettings, RasterLayer, ExportSlice, Layer,
+  SymbolDefinition,
+  SymbolInstanceLayer,
+  ICCProfile,
+  CropRegion,
+  BrushSettings,
+  RasterLayer,
+  Layer,
 } from '@/types'
 import { parseSVGPathD, parseTransformAttr } from '@/io/svg-import'
 import { parseICCProfile, ICC_PRESETS, iccColorSpaceToDocColorspace } from '@/io/icc-profile'
@@ -163,7 +168,10 @@ describe('LYK-95: CSS style parsing in SVG', () => {
 describe('LYK-86: symbol/instance support', () => {
   test('SymbolDefinition has required fields', () => {
     const sym: SymbolDefinition = {
-      id: '1', name: 'Button', width: 100, height: 40,
+      id: '1',
+      name: 'Button',
+      width: 100,
+      height: 40,
       layers: [],
     }
     expect(sym.name).toBe('Button')
@@ -172,9 +180,14 @@ describe('LYK-86: symbol/instance support', () => {
 
   test('SymbolInstanceLayer references a symbol', () => {
     const instance: SymbolInstanceLayer = {
-      id: '2', name: 'Button Instance',
-      type: 'symbol-instance', symbolId: '1',
-      visible: true, locked: false, opacity: 1, blendMode: 'normal',
+      id: '2',
+      name: 'Button Instance',
+      type: 'symbol-instance',
+      symbolId: '1',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
       transform: { x: 100, y: 200, scaleX: 1, scaleY: 1, rotation: 0 },
       effects: [],
     }
@@ -184,9 +197,14 @@ describe('LYK-86: symbol/instance support', () => {
 
   test('SymbolInstanceLayer supports overrides', () => {
     const instance: SymbolInstanceLayer = {
-      id: '3', name: 'Button Instance 2',
-      type: 'symbol-instance', symbolId: '1',
-      visible: true, locked: false, opacity: 1, blendMode: 'normal',
+      id: '3',
+      name: 'Button Instance 2',
+      type: 'symbol-instance',
+      symbolId: '1',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
       effects: [],
       overrides: {
@@ -200,9 +218,14 @@ describe('LYK-86: symbol/instance support', () => {
 
   test('symbol-instance is a valid Layer type', () => {
     const layer: Layer = {
-      id: '1', name: 'Instance',
-      type: 'symbol-instance', symbolId: 'sym-1',
-      visible: true, locked: false, opacity: 1, blendMode: 'normal',
+      id: '1',
+      name: 'Instance',
+      type: 'symbol-instance',
+      symbolId: 'sym-1',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
       effects: [],
     }
@@ -221,8 +244,12 @@ describe('LYK-86: symbol/instance support', () => {
 describe('LYK-106: raster brush tools', () => {
   test('BrushSettings has all fields', () => {
     const brush: BrushSettings = {
-      size: 20, hardness: 0.7, opacity: 0.9, flow: 0.8,
-      color: '#ff0000', spacing: 0.25,
+      size: 20,
+      hardness: 0.7,
+      opacity: 0.9,
+      flow: 0.8,
+      color: '#ff0000',
+      spacing: 0.25,
     }
     expect(brush.size).toBe(20)
     expect(brush.hardness).toBe(0.7)
@@ -261,20 +288,36 @@ describe('LYK-106: raster brush tools', () => {
   })
 
   test('brush tool is in activeTool union', () => {
-    const tools = ['select', 'pen', 'node', 'rectangle', 'ellipse', 'polygon', 'star',
-      'text', 'gradient', 'eyedropper', 'hand', 'measure', 'brush', 'crop']
+    const tools = [
+      'select',
+      'pen',
+      'node',
+      'rectangle',
+      'ellipse',
+      'polygon',
+      'star',
+      'text',
+      'gradient',
+      'eyedropper',
+      'hand',
+      'measure',
+      'brush',
+      'crop',
+    ]
     expect(tools).toContain('brush')
     expect(tools).toContain('crop')
   })
 
   test('alpha compositing source-over formula', () => {
     // source alpha = 0.5, dest alpha = 0.8
-    const sa = 0.5, da = 0.8
+    const sa = 0.5,
+      da = 0.8
     const outAlpha = sa + da * (1 - sa)
     expect(outAlpha).toBeCloseTo(0.9)
 
     // Blended color channel: (srcC * sa + dstC * da * (1-sa)) / outAlpha
-    const srcC = 255, dstC = 0
+    const srcC = 255,
+      dstC = 0
     const outC = (srcC * sa + dstC * da * (1 - sa)) / outAlpha
     expect(Math.round(outC)).toBe(142) // ~141.7
   })
@@ -289,10 +332,18 @@ describe('LYK-108: image crop tool', () => {
 
   test('RasterLayer supports cropRegion', () => {
     const layer: RasterLayer = {
-      id: '1', name: 'Photo', type: 'raster',
-      visible: true, locked: false, opacity: 1, blendMode: 'normal',
+      id: '1',
+      name: 'Photo',
+      type: 'raster',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
-      effects: [], imageChunkId: 'chunk-1', width: 800, height: 600,
+      effects: [],
+      imageChunkId: 'chunk-1',
+      width: 800,
+      height: 600,
       cropRegion: { x: 100, y: 50, width: 400, height: 300 },
     }
     expect(layer.cropRegion!.width).toBe(400)
@@ -300,7 +351,8 @@ describe('LYK-108: image crop tool', () => {
   })
 
   test('crop region clamping', () => {
-    const imgW = 800, imgH = 600
+    const imgW = 800,
+      imgH = 600
     const crop = { x: 700, y: 500, width: 200, height: 200 }
     const clampedW = Math.min(imgW - crop.x, crop.width)
     const clampedH = Math.min(imgH - crop.y, crop.height)
@@ -310,10 +362,18 @@ describe('LYK-108: image crop tool', () => {
 
   test('effective dimensions with crop', () => {
     const layer: RasterLayer = {
-      id: '1', name: 'Img', type: 'raster',
-      visible: true, locked: false, opacity: 1, blendMode: 'normal',
+      id: '1',
+      name: 'Img',
+      type: 'raster',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
-      effects: [], imageChunkId: 'c1', width: 1000, height: 800,
+      effects: [],
+      imageChunkId: 'c1',
+      width: 1000,
+      height: 800,
       cropRegion: { x: 0, y: 0, width: 500, height: 400 },
     }
     const effectiveW = layer.cropRegion ? layer.cropRegion.width : layer.width
@@ -327,7 +387,7 @@ describe('LYK-108: image crop tool', () => {
     const srcWidth = 4
     const row = 1
     const cropX = 1
-    const cropWidth = 2
+    void 2 // cropWidth (unused in offset calc)
     const srcOffset = (row * srcWidth + cropX) * 4
     const expectedOffset = (1 * 4 + 1) * 4 // row 1, col 1
     expect(srcOffset).toBe(expectedOffset)
@@ -363,7 +423,7 @@ describe('LYK-97: export slicing', () => {
   test('batch export filename generation', () => {
     const name = 'hero'
     const format = 'png'
-    const scale = 2
+    const scale: number = 2
     const suffix = scale !== 1 ? `@${scale}x` : ''
     const filename = `${name}${suffix}.${format}`
     expect(filename).toBe('hero@2x.png')
@@ -372,7 +432,7 @@ describe('LYK-97: export slicing', () => {
   test('batch export 1x has no suffix', () => {
     const name = 'icon'
     const format = 'svg'
-    const scale = 1
+    const scale: number = 1
     const suffix = scale !== 1 ? `@${scale}x` : ''
     const filename = `${name}${suffix}.${format}`
     expect(filename).toBe('icon.svg')
@@ -404,11 +464,20 @@ describe('LYK-93: ICC color profile support', () => {
     // Build minimal 132-byte ICC header
     const data = new Uint8Array(132)
     // Device class at offset 12-15: "mntr" (monitor)
-    data[12] = 0x6D; data[13] = 0x6E; data[14] = 0x74; data[15] = 0x72
+    data[12] = 0x6d
+    data[13] = 0x6e
+    data[14] = 0x74
+    data[15] = 0x72
     // Color space at offset 16-19: "RGB "
-    data[16] = 0x52; data[17] = 0x47; data[18] = 0x42; data[19] = 0x20
+    data[16] = 0x52
+    data[17] = 0x47
+    data[18] = 0x42
+    data[19] = 0x20
     // Tag count at 128-131: 0
-    data[128] = 0; data[129] = 0; data[130] = 0; data[131] = 0
+    data[128] = 0
+    data[129] = 0
+    data[130] = 0
+    data[131] = 0
     const profile = parseICCProfile(data)
     expect(profile.name).toBe('ICC RGB (mntr)')
   })

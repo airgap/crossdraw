@@ -22,10 +22,7 @@ export interface PluginInstance {
 export class PluginEventEmitter {
   private listeners = new Map<string, Set<(event: unknown) => void>>()
 
-  on<T extends PluginEventType>(
-    event: T,
-    callback: (event: PluginEventMap[T]) => void,
-  ): () => void {
+  on<T extends PluginEventType>(event: T, callback: (event: PluginEventMap[T]) => void): () => void {
     if (!this.listeners.has(event)) {
       this.listeners.set(event, new Set())
     }
@@ -35,10 +32,7 @@ export class PluginEventEmitter {
     }
   }
 
-  once<T extends PluginEventType>(
-    event: T,
-    callback: (event: PluginEventMap[T]) => void,
-  ): void {
+  once<T extends PluginEventType>(event: T, callback: (event: PluginEventMap[T]) => void): void {
     const unsub = this.on(event, (e) => {
       unsub()
       callback(e)
@@ -183,7 +177,7 @@ export class PluginRuntime {
    * Get plugins filtered by status.
    */
   getPluginsByStatus(status: PluginStatus): PluginInstance[] {
-    return this.getAllPlugins().filter(p => p.status === status)
+    return this.getAllPlugins().filter((p) => p.status === status)
   }
 
   /**
@@ -198,7 +192,10 @@ export class PluginRuntime {
   /**
    * Get all tool contributions from active plugins.
    */
-  getToolContributions(): Array<{ pluginId: string; tool: NonNullable<PluginManifest['contributes']>['tools'] extends (infer T)[] | undefined ? T : never }> {
+  getToolContributions(): Array<{
+    pluginId: string
+    tool: NonNullable<PluginManifest['contributes']>['tools'] extends (infer T)[] | undefined ? T : never
+  }> {
     const tools: Array<{ pluginId: string; tool: { id: string; label: string; icon?: string; shortcut?: string } }> = []
     for (const [id, instance] of this.plugins) {
       if (instance.status !== 'active') continue
@@ -226,7 +223,9 @@ export class PluginRuntime {
   /**
    * Get all importer contributions from active plugins.
    */
-  getImporterForExtension(ext: string): { pluginId: string; importer: { id: string; extensions: string[]; label: string } } | null {
+  getImporterForExtension(
+    ext: string,
+  ): { pluginId: string; importer: { id: string; extensions: string[]; label: string } } | null {
     for (const [id, instance] of this.plugins) {
       if (instance.status !== 'active') continue
       for (const importer of instance.manifest.contributes?.importers ?? []) {

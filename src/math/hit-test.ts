@@ -43,11 +43,7 @@ export class SpatialIndex {
    * Hit test at a document-space point.
    * Returns layers from topmost to bottommost.
    */
-  hitTest(
-    x: number,
-    y: number,
-    doc: DesignDocument,
-  ): { layer: Layer; artboard: Artboard }[] {
+  hitTest(x: number, y: number, doc: DesignDocument): { layer: Layer; artboard: Artboard }[] {
     // Phase 1: AABB query
     const candidates = this.tree.search({
       minX: x,
@@ -85,12 +81,7 @@ export class SpatialIndex {
  * Precise hit test: point-in-path for vector layers.
  * Uses an offscreen canvas for isPointInPath/isPointInStroke.
  */
-function preciseHitTest(
-  layer: Layer,
-  artboard: Artboard,
-  docX: number,
-  docY: number,
-): boolean {
+function preciseHitTest(layer: Layer, artboard: Artboard, docX: number, docY: number): boolean {
   if (layer.type === 'raster') {
     // AABB is sufficient for rasters
     return true

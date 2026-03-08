@@ -33,10 +33,14 @@ export function bboxContainsPoint(bbox: BBox, x: number, y: number): boolean {
 
 /** Compute the bounding box of a cubic bezier segment. */
 function cubicBBox(
-  x0: number, y0: number,
-  cp1x: number, cp1y: number,
-  cp2x: number, cp2y: number,
-  x3: number, y3: number,
+  x0: number,
+  y0: number,
+  cp1x: number,
+  cp1y: number,
+  cp2x: number,
+  cp2y: number,
+  x3: number,
+  y3: number,
 ): BBox {
   // Find extrema by solving derivative = 0 for each axis
   const bbox: BBox = {
@@ -46,10 +50,7 @@ function cubicBBox(
     maxY: Math.max(y0, y3),
   }
 
-  for (const [p0, p1, p2, p3, axis] of [
-    [x0, cp1x, cp2x, x3, 'x'] as const,
-    [y0, cp1y, cp2y, y3, 'y'] as const,
-  ]) {
+  for (const [p0, p1, p2, p3, axis] of [[x0, cp1x, cp2x, x3, 'x'] as const, [y0, cp1y, cp2y, y3, 'y'] as const]) {
     // Derivative coefficients: at^2 + bt + c = 0
     const a = -3 * p0 + 9 * p1 - 9 * p2 + 3 * p3
     const b = 6 * p0 - 12 * p1 + 6 * p2
@@ -100,11 +101,7 @@ function cubicAt(p0: number, p1: number, p2: number, p3: number, t: number): num
 }
 
 /** Compute the bounding box of a quadratic bezier segment. */
-function quadraticBBox(
-  x0: number, y0: number,
-  cpx: number, cpy: number,
-  x2: number, y2: number,
-): BBox {
+function quadraticBBox(x0: number, y0: number, cpx: number, cpy: number, x2: number, y2: number): BBox {
   const bbox: BBox = {
     minX: Math.min(x0, x2),
     minY: Math.min(y0, y2),
@@ -113,10 +110,7 @@ function quadraticBBox(
   }
 
   // t = (p0 - p1) / (p0 - 2*p1 + p2) for each axis
-  for (const [p0, p1, p2, axis] of [
-    [x0, cpx, x2, 'x'] as const,
-    [y0, cpy, y2, 'y'] as const,
-  ]) {
+  for (const [p0, p1, p2, axis] of [[x0, cpx, x2, 'x'] as const, [y0, cpy, y2, 'y'] as const]) {
     const denom = p0 - 2 * p1 + p2
     if (Math.abs(denom) < 1e-12) continue
     const t = (p0 - p1) / denom
@@ -219,11 +213,18 @@ export function getLayerBBox(layer: Layer, artboard: Artboard): BBox {
         maxX: artboard.x + artboard.width,
         maxY: artboard.y + artboard.height,
       }
+    default:
+      return {
+        minX: artboard.x,
+        minY: artboard.y,
+        maxX: artboard.x + artboard.width,
+        maxY: artboard.y + artboard.height,
+      }
   }
 }
 
 function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
-  const visibleChildren = group.children.filter(c => c.visible)
+  const visibleChildren = group.children.filter((c) => c.visible)
   if (visibleChildren.length === 0) return { ...EMPTY_BBOX }
 
   let bbox = { ...EMPTY_BBOX }

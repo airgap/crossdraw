@@ -14,17 +14,19 @@ export function App() {
   }, [])
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      width: '100vw',
-      height: '100vh',
-      overflow: 'hidden',
-      background: 'var(--bg-base)',
-      color: 'var(--text-primary)',
-      fontFamily: 'var(--font-body)',
-      fontSize: 'var(--font-size-base)',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        width: '100vw',
+        height: '100vh',
+        overflow: 'hidden',
+        background: 'var(--bg-base)',
+        color: 'var(--text-primary)',
+        fontFamily: 'var(--font-body)',
+        fontSize: 'var(--font-size-base)',
+      }}
+    >
       <MenuBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Toolbar />

@@ -115,11 +115,7 @@ export function applyArtboardResize(
     const constraints = constraintsMap.get(layer.id)
     if (!constraints) continue
 
-    const result = applyConstraints(
-      layer, constraints,
-      artboard.width, artboard.height,
-      newWidth, newHeight,
-    )
+    const result = applyConstraints(layer, constraints, artboard.width, artboard.height, newWidth, newHeight)
 
     updates.push({
       layerId: layer.id,

@@ -20,31 +20,32 @@ export function PanelColumn({ column, side }: PanelColumnProps) {
   // Column edge resize drag
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null)
 
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    resizeRef.current = { startX: e.clientX, startWidth: column.width }
+  const handleResizeMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      resizeRef.current = { startX: e.clientX, startWidth: column.width }
 
-    const onMove = (ev: MouseEvent) => {
-      if (!resizeRef.current) return
-      const delta = side === 'left'
-        ? ev.clientX - resizeRef.current.startX
-        : resizeRef.current.startX - ev.clientX
-      resizeColumn(side, resizeRef.current.startWidth + delta)
-    }
+      const onMove = (ev: MouseEvent) => {
+        if (!resizeRef.current) return
+        const delta = side === 'left' ? ev.clientX - resizeRef.current.startX : resizeRef.current.startX - ev.clientX
+        resizeColumn(side, resizeRef.current.startWidth + delta)
+      }
 
-    const onUp = () => {
-      resizeRef.current = null
-      document.removeEventListener('mousemove', onMove)
-      document.removeEventListener('mouseup', onUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
+      const onUp = () => {
+        resizeRef.current = null
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
 
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', onMove)
-    document.addEventListener('mouseup', onUp)
-  }, [side, column.width, resizeColumn])
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [side, column.width, resizeColumn],
+  )
 
   // Handle drop onto column area (create a new group at the end)
   const handleColumnDragOver = useCallback((e: React.DragEvent) => {
@@ -54,22 +55,27 @@ export function PanelColumn({ column, side }: PanelColumnProps) {
     }
   }, [])
 
-  const handleColumnDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    const tabId = e.dataTransfer.getData('text/panel-tab-id')
-    if (!tabId) return
-    // Add as new group at the end
-    addGroupSplit(tabId, side, column.groups.length)
-  }, [side, column.groups.length, addGroupSplit])
+  const handleColumnDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const tabId = e.dataTransfer.getData('text/panel-tab-id')
+      if (!tabId) return
+      // Add as new group at the end
+      addGroupSplit(tabId, side, column.groups.length)
+    },
+    [side, column.groups.length, addGroupSplit],
+  )
 
   const groupCount = column.groups.length
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'row',
-      height: '100%',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        height: '100%',
+      }}
+    >
       {/* Resize handle (on the edge facing the viewport) */}
       {side === 'left' && (
         <div style={{ order: 2 }}>
@@ -119,12 +125,7 @@ export function PanelColumn({ column, side }: PanelColumnProps) {
 
           return (
             <React.Fragment key={group.id}>
-              <TabGroup
-                group={group}
-                column={side}
-                groupIndex={i}
-                style={groupStyle}
-              />
+              <TabGroup group={group} column={side} groupIndex={i} style={groupStyle} />
               {showDivider && (
                 <GroupDivider
                   aboveGroupId={group.id}
@@ -174,53 +175,56 @@ function GroupDivider({
   const startAboveH = useRef(0)
   const startBelowH = useRef(0)
 
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    // Don't resize if either group is collapsed
-    if (collapsedGroups[aboveGroupId] || collapsedGroups[belowGroupId]) return
+  const handleMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      // Don't resize if either group is collapsed
+      if (collapsedGroups[aboveGroupId] || collapsedGroups[belowGroupId]) return
 
-    e.preventDefault()
-    e.stopPropagation()
-    dragging.current = true
-    startY.current = e.clientY
+      e.preventDefault()
+      e.stopPropagation()
+      dragging.current = true
+      startY.current = e.clientY
 
-    // Measure actual rendered heights of the groups
-    if (containerRef.current) {
-      const groups = containerRef.current.querySelectorAll('[data-panel-group-id]')
-      groups.forEach((el) => {
-        const gid = (el as HTMLElement).dataset.panelGroupId
-        if (gid === aboveGroupId) startAboveH.current = el.getBoundingClientRect().height
-        if (gid === belowGroupId) startBelowH.current = el.getBoundingClientRect().height
-      })
-    }
+      // Measure actual rendered heights of the groups
+      if (containerRef.current) {
+        const groups = containerRef.current.querySelectorAll('[data-panel-group-id]')
+        groups.forEach((el) => {
+          const gid = (el as HTMLElement).dataset.panelGroupId
+          if (gid === aboveGroupId) startAboveH.current = el.getBoundingClientRect().height
+          if (gid === belowGroupId) startBelowH.current = el.getBoundingClientRect().height
+        })
+      }
 
-    // Fallback to stored or default heights
-    if (startAboveH.current === 0) startAboveH.current = groupHeights[aboveGroupId] ?? 200
-    if (startBelowH.current === 0) startBelowH.current = groupHeights[belowGroupId] ?? 200
+      // Fallback to stored or default heights
+      if (startAboveH.current === 0) startAboveH.current = groupHeights[aboveGroupId] ?? 200
+      if (startBelowH.current === 0) startBelowH.current = groupHeights[belowGroupId] ?? 200
 
-    const handleMouseMove = (ev: MouseEvent) => {
-      if (!dragging.current) return
-      const deltaY = ev.clientY - startY.current
-      const totalH = startAboveH.current + startBelowH.current
-      const newAboveH = Math.max(MIN_GROUP_HEIGHT, Math.min(totalH - MIN_GROUP_HEIGHT, startAboveH.current + deltaY))
-      const newBelowH = totalH - newAboveH
+      const handleMouseMove = (ev: MouseEvent) => {
+        if (!dragging.current) return
+        const deltaY = ev.clientY - startY.current
+        const totalH = startAboveH.current + startBelowH.current
+        const newAboveH = Math.max(MIN_GROUP_HEIGHT, Math.min(totalH - MIN_GROUP_HEIGHT, startAboveH.current + deltaY))
+        const newBelowH = totalH - newAboveH
 
-      setGroupHeight(aboveGroupId, newAboveH)
-      setGroupHeight(belowGroupId, newBelowH)
-    }
+        setGroupHeight(aboveGroupId, newAboveH)
+        setGroupHeight(belowGroupId, newBelowH)
+      }
 
-    const handleMouseUp = () => {
-      dragging.current = false
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
+      const handleMouseUp = () => {
+        dragging.current = false
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+        document.body.style.cursor = ''
+        document.body.style.userSelect = ''
+      }
 
-    document.body.style.cursor = 'row-resize'
-    document.body.style.userSelect = 'none'
-    document.addEventListener('mousemove', handleMouseMove)
-    document.addEventListener('mouseup', handleMouseUp)
-  }, [aboveGroupId, belowGroupId, containerRef, groupHeights, collapsedGroups, setGroupHeight])
+      document.body.style.cursor = 'row-resize'
+      document.body.style.userSelect = 'none'
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+    },
+    [aboveGroupId, belowGroupId, containerRef, groupHeights, collapsedGroups, setGroupHeight],
+  )
 
   const handleDoubleClick = useCallback(() => {
     resetGroupHeight(aboveGroupId)
@@ -246,14 +250,16 @@ function GroupDivider({
       }}
     >
       {/* Wider hit area for easier grabbing */}
-      <div style={{
-        position: 'absolute',
-        top: -3,
-        left: 0,
-        right: 0,
-        height: 10,
-        cursor: 'row-resize',
-      }} />
+      <div
+        style={{
+          position: 'absolute',
+          top: -3,
+          left: 0,
+          right: 0,
+          height: 10,
+          cursor: 'row-resize',
+        }}
+      />
     </div>
   )
 }

@@ -49,13 +49,7 @@ export interface Artboard {
   slices?: ExportSlice[]
 }
 
-export type Layer =
-  | VectorLayer
-  | RasterLayer
-  | GroupLayer
-  | AdjustmentLayer
-  | TextLayer
-  | SymbolInstanceLayer
+export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | TextLayer | SymbolInstanceLayer
 
 export interface BaseLayer {
   id: string
@@ -238,7 +232,7 @@ export interface Gradient {
   dithering: DitheringConfig
   /** Optional transform applied to the gradient (rotate, scale, skew). */
   gradientTransform?: {
-    rotate?: number  // degrees
+    rotate?: number // degrees
     scaleX?: number
     scaleY?: number
     translateX?: number
@@ -256,13 +250,7 @@ export interface GradientStop {
 
 export interface DitheringConfig {
   enabled: boolean
-  algorithm:
-    | 'none'
-    | 'bayer'
-    | 'floyd-steinberg'
-    | 'atkinson'
-    | 'jarvis'
-    | 'stucki'
+  algorithm: 'none' | 'bayer' | 'floyd-steinberg' | 'atkinson' | 'jarvis' | 'stucki'
   strength: number // 0-1
   seed: number
 }
@@ -398,12 +386,12 @@ export interface CropRegion {
 // --- Brush settings ---
 
 export interface BrushSettings {
-  size: number      // diameter in pixels
-  hardness: number  // 0-1 (0 = soft, 1 = hard)
-  opacity: number   // 0-1
-  flow: number      // 0-1
-  color: string     // hex color
-  spacing: number   // 0.1-2.0 (fraction of brush size between dabs)
+  size: number // diameter in pixels
+  hardness: number // 0-1 (0 = soft, 1 = hard)
+  opacity: number // 0-1
+  flow: number // 0-1
+  color: string // hex color
+  spacing: number // 0.1-2.0 (fraction of brush size between dabs)
 }
 
 export interface ViewportState {

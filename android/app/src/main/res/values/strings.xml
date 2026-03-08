@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Crossdraw</string>
+    <string name="title_activity_main">Crossdraw</string>
+    <string name="package_name">com.crossdraw.app</string>
+    <string name="custom_url_scheme">com.crossdraw.app</string>
+</resources>

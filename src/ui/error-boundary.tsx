@@ -19,7 +19,7 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: { componentStack?: string }) {
-    console.error('Uncaught error in Designer:', error, info.componentStack)
+    console.error('Uncaught error in Crossdraw:', error, info.componentStack)
   }
 
   handleSaveRecovery = async () => {
@@ -53,36 +53,38 @@ export class ErrorBoundary extends Component<Props, State> {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100vh',
-          background: '#1a1a1a',
-          color: '#ddd',
-          fontFamily: 'system-ui, sans-serif',
-          padding: 40,
-          textAlign: 'center',
-        }}>
-          <h1 style={{ fontSize: 24, marginBottom: 8, color: '#ff6b6b' }}>
-            Something went wrong
-          </h1>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            height: '100vh',
+            background: '#1a1a1a',
+            color: '#ddd',
+            fontFamily: 'system-ui, sans-serif',
+            padding: 40,
+            textAlign: 'center',
+          }}
+        >
+          <h1 style={{ fontSize: 24, marginBottom: 8, color: '#ff6b6b' }}>Something went wrong</h1>
           <p style={{ fontSize: 14, color: '#aaa', marginBottom: 24, maxWidth: 500 }}>
-            Designer encountered an unexpected error. You can try to save a recovery file
-            with your current work, then reload the application.
+            Crossdraw encountered an unexpected error. You can try to save a recovery file with your current work, then
+            reload the application.
           </p>
-          <pre style={{
-            fontSize: 12,
-            color: '#888',
-            background: '#222',
-            padding: 16,
-            borderRadius: 6,
-            maxWidth: 600,
-            overflow: 'auto',
-            marginBottom: 24,
-            textAlign: 'left',
-          }}>
+          <pre
+            style={{
+              fontSize: 12,
+              color: '#888',
+              background: '#222',
+              padding: 16,
+              borderRadius: 6,
+              maxWidth: 600,
+              overflow: 'auto',
+              marginBottom: 24,
+              textAlign: 'left',
+            }}
+          >
             {this.state.error?.message}
             {'\n'}
             {this.state.error?.stack?.split('\n').slice(0, 5).join('\n')}

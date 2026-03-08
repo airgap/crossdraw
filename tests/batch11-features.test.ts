@@ -1,38 +1,56 @@
 import { describe, test, expect } from 'bun:test'
 import type { Artboard, VectorLayer } from '@/types'
 import {
-  DEVICE_PRESETS, getPresetsByCategory, getPresetById,
-  computeResponsiveLayout, calcPreviewScale,
-  type DevicePreset,
+  DEVICE_PRESETS,
+  getPresetsByCategory,
+  getPresetById,
+  computeResponsiveLayout,
+  calcPreviewScale,
 } from '@/ui/device-preview'
-import {
-  validateManifest, parseManifest,
-  type PluginManifest,
-} from '@/plugins/manifest'
+import { validateManifest, parseManifest, type PluginManifest } from '@/plugins/manifest'
 import { createScopedAPI, type PluginAPI } from '@/plugins/api'
-import {
-  PluginRuntime, PluginEventEmitter,
-} from '@/plugins/runtime'
+import { PluginRuntime, PluginEventEmitter } from '@/plugins/runtime'
 
 // --- Helpers ---
 
 function makeArtboard(w: number, h: number): Artboard {
   return {
-    id: 'a1', name: 'Main', x: 0, y: 0, width: w, height: h,
+    id: 'a1',
+    name: 'Main',
+    x: 0,
+    y: 0,
+    width: w,
+    height: h,
     backgroundColor: '#ffffff',
     layers: [
       {
-        id: 'l1', name: 'BG', type: 'vector', visible: true, locked: false,
-        opacity: 1, blendMode: 'normal',
+        id: 'l1',
+        name: 'BG',
+        type: 'vector',
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal',
         transform: { x: 50, y: 50, scaleX: 1, scaleY: 1, rotation: 0 },
-        effects: [], paths: [], fill: null, stroke: null,
+        effects: [],
+        paths: [],
+        fill: null,
+        stroke: null,
         constraints: { horizontal: 'left', vertical: 'top' },
       } satisfies VectorLayer,
       {
-        id: 'l2', name: 'Right-pinned', type: 'vector', visible: true, locked: false,
-        opacity: 1, blendMode: 'normal',
+        id: 'l2',
+        name: 'Right-pinned',
+        type: 'vector',
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal',
         transform: { x: 700, y: 50, scaleX: 1, scaleY: 1, rotation: 0 },
-        effects: [], paths: [], fill: null, stroke: null,
+        effects: [],
+        paths: [],
+        fill: null,
+        stroke: null,
         constraints: { horizontal: 'right', vertical: 'top' },
       } satisfies VectorLayer,
     ],
@@ -57,7 +75,12 @@ function makeValidManifest(): PluginManifest {
 function makeMockAPI(): PluginAPI {
   return {
     document: {
-      getDocument: () => ({ id: 'd1', metadata: {} as any, artboards: [], assets: { gradients: [], patterns: [], colors: [] } }),
+      getDocument: () => ({
+        id: 'd1',
+        metadata: {} as any,
+        artboards: [],
+        assets: { gradients: [], patterns: [], colors: [] },
+      }),
       getArtboard: () => null,
       getArtboards: () => [],
       getLayer: () => null,
@@ -101,9 +124,9 @@ function makeMockAPI(): PluginAPI {
 
 describe('LYK-140: responsive device preview', () => {
   test('DEVICE_PRESETS has phone, tablet, and desktop entries', () => {
-    const phones = DEVICE_PRESETS.filter(p => p.category === 'phone')
-    const tablets = DEVICE_PRESETS.filter(p => p.category === 'tablet')
-    const desktops = DEVICE_PRESETS.filter(p => p.category === 'desktop')
+    const phones = DEVICE_PRESETS.filter((p) => p.category === 'phone')
+    const tablets = DEVICE_PRESETS.filter((p) => p.category === 'tablet')
+    const desktops = DEVICE_PRESETS.filter((p) => p.category === 'desktop')
     expect(phones.length).toBeGreaterThanOrEqual(3)
     expect(tablets.length).toBeGreaterThanOrEqual(2)
     expect(desktops.length).toBeGreaterThanOrEqual(2)
@@ -119,17 +142,17 @@ describe('LYK-140: responsive device preview', () => {
   })
 
   test('preset IDs are unique', () => {
-    const ids = DEVICE_PRESETS.map(p => p.id)
+    const ids = DEVICE_PRESETS.map((p) => p.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
 
   test('getPresetsByCategory filters correctly', () => {
     const phones = getPresetsByCategory('phone')
-    expect(phones.every(p => p.category === 'phone')).toBe(true)
+    expect(phones.every((p) => p.category === 'phone')).toBe(true)
     expect(phones.length).toBeGreaterThan(0)
 
     const tablets = getPresetsByCategory('tablet')
-    expect(tablets.every(p => p.category === 'tablet')).toBe(true)
+    expect(tablets.every((p) => p.category === 'tablet')).toBe(true)
   })
 
   test('getPresetById returns correct preset', () => {
@@ -154,14 +177,14 @@ describe('LYK-140: responsive device preview', () => {
   test('left-pinned layer keeps x position', () => {
     const artboard = makeArtboard(800, 600)
     const layout = computeResponsiveLayout(artboard, 400, 600)
-    const leftLayer = layout.find(l => l.layerId === 'l1')!
+    const leftLayer = layout.find((l) => l.layerId === 'l1')!
     expect(leftLayer.x).toBe(50) // left constraint preserves x
   })
 
   test('right-pinned layer adjusts for new width', () => {
     const artboard = makeArtboard(800, 600)
     const layout = computeResponsiveLayout(artboard, 1200, 600)
-    const rightLayer = layout.find(l => l.layerId === 'l2')!
+    const rightLayer = layout.find((l) => l.layerId === 'l2')!
     // right constraint: newWidth - (oldWidth - x) = 1200 - (800 - 700) = 1100
     expect(rightLayer.x).toBe(1100)
   })
@@ -221,14 +244,14 @@ describe('LYK-141: plugin manifest', () => {
     const m = { ...makeValidManifest(), id: '' }
     const result = validateManifest(m)
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('id'))).toBe(true)
+    expect(result.errors.some((e) => e.includes('id'))).toBe(true)
   })
 
   test('validateManifest rejects invalid version', () => {
     const m = { ...makeValidManifest(), version: 'not-semver' }
     const result = validateManifest(m)
     expect(result.valid).toBe(false)
-    expect(result.errors.some(e => e.includes('version'))).toBe(true)
+    expect(result.errors.some((e) => e.includes('version'))).toBe(true)
   })
 
   test('validateManifest rejects missing permissions', () => {
@@ -335,7 +358,9 @@ describe('LYK-141: plugin event emitter', () => {
       received = e.layerIds
     })
     emitter.emit('selectionChange', {
-      type: 'selectionChange', timestamp: Date.now(), layerIds: ['l1', 'l2'],
+      type: 'selectionChange',
+      timestamp: Date.now(),
+      layerIds: ['l1', 'l2'],
     })
     expect(received).toEqual(['l1', 'l2'])
   })
@@ -343,7 +368,9 @@ describe('LYK-141: plugin event emitter', () => {
   test('on returns unsubscribe function', () => {
     const emitter = new PluginEventEmitter()
     let count = 0
-    const unsub = emitter.on('toolChange', () => { count++ })
+    const unsub = emitter.on('toolChange', () => {
+      count++
+    })
     emitter.emit('toolChange', { type: 'toolChange', timestamp: Date.now(), tool: 'pen' })
     expect(count).toBe(1)
     unsub()
@@ -354,7 +381,9 @@ describe('LYK-141: plugin event emitter', () => {
   test('once fires only once', () => {
     const emitter = new PluginEventEmitter()
     let count = 0
-    emitter.once('documentChange', () => { count++ })
+    emitter.once('documentChange', () => {
+      count++
+    })
     emitter.emit('documentChange', { type: 'documentChange', timestamp: Date.now(), description: 'a' })
     emitter.emit('documentChange', { type: 'documentChange', timestamp: Date.now(), description: 'b' })
     expect(count).toBe(1)

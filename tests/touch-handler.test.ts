@@ -3,7 +3,7 @@ import { useEditorStore } from '../src/store/editor.store'
 
 // Polyfill ImageData for bun:test (no DOM)
 if (typeof globalThis.ImageData === 'undefined') {
-  (globalThis as any).ImageData = class ImageData {
+  ;(globalThis as any).ImageData = class ImageData {
     data: Uint8ClampedArray
     width: number
     height: number
@@ -15,7 +15,7 @@ if (typeof globalThis.ImageData === 'undefined') {
       } else {
         this.data = arg1
         this.width = w!
-        this.height = h ?? (arg1.length / 4 / w!)
+        this.height = h ?? arg1.length / 4 / w!
       }
     }
   }
@@ -61,11 +61,11 @@ describe('Touch mode store', () => {
     useEditorStore.getState().toggleTouchMode()
     expect(useEditorStore.getState().touchMode).toBe(true)
 
-    const stored = localStorage.getItem('designer:touch-mode')
+    const stored = localStorage.getItem('crossdraw:touch-mode')
     expect(stored).toBe('true')
 
     useEditorStore.getState().toggleTouchMode()
-    const stored2 = localStorage.getItem('designer:touch-mode')
+    const stored2 = localStorage.getItem('crossdraw:touch-mode')
     expect(stored2).toBe('false')
   })
 })
@@ -80,7 +80,14 @@ describe('Brush pressure support', () => {
   test('paintStroke accepts pressure parameter', () => {
     const { paintStroke } = require('../src/tools/brush')
     // Should not throw
-    paintStroke([{ x: 50, y: 50 }, { x: 60, y: 60 }], undefined, 0.5)
+    paintStroke(
+      [
+        { x: 50, y: 50 },
+        { x: 60, y: 60 },
+      ],
+      undefined,
+      0.5,
+    )
   })
 
   test('createBrushDab with full opacity returns opaque pixels', () => {
@@ -92,8 +99,8 @@ describe('Brush pressure support', () => {
     const cx = Math.floor(10 / 2)
     const idx = (cx * 10 + cx) * 4
     expect(dab.data[idx]).toBe(255) // R
-    expect(dab.data[idx + 1]).toBe(0)  // G
-    expect(dab.data[idx + 2]).toBe(0)  // B
+    expect(dab.data[idx + 1]).toBe(0) // G
+    expect(dab.data[idx + 2]).toBe(0) // B
     expect(dab.data[idx + 3]).toBe(255) // A
   })
 
@@ -106,11 +113,14 @@ describe('Brush pressure support', () => {
 
   test('paintStroke with default pressure (1) works normally', () => {
     const { paintStroke } = require('../src/tools/brush')
-    paintStroke([{ x: 50, y: 50 }, { x: 52, y: 52 }])
+    paintStroke([
+      { x: 50, y: 50 },
+      { x: 52, y: 52 },
+    ])
     // Should create a raster layer
     const state = useEditorStore.getState()
     const artboard = state.document.artboards[0]!
-    const rasterLayers = artboard.layers.filter(l => l.type === 'raster')
+    const rasterLayers = artboard.layers.filter((l) => l.type === 'raster')
     expect(rasterLayers.length).toBeGreaterThan(0)
   })
 })

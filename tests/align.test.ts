@@ -3,7 +3,10 @@ import { describe, test, expect } from 'bun:test'
 // Test alignment and distribution math directly without store dependencies
 
 interface BBox {
-  minX: number; minY: number; maxX: number; maxY: number
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
 }
 
 interface Item {
@@ -19,33 +22,33 @@ function makeItems(bboxes: BBox[]): Item[] {
 
 // Replicate alignment logic
 function alignLeftLogic(items: Item[]): Item[] {
-  const targetX = Math.min(...items.map(i => i.bbox.minX))
-  return items.map(i => ({ ...i, dx: targetX - i.bbox.minX }))
+  const targetX = Math.min(...items.map((i) => i.bbox.minX))
+  return items.map((i) => ({ ...i, dx: targetX - i.bbox.minX }))
 }
 
 function alignRightLogic(items: Item[]): Item[] {
-  const targetX = Math.max(...items.map(i => i.bbox.maxX))
-  return items.map(i => ({ ...i, dx: targetX - i.bbox.maxX }))
+  const targetX = Math.max(...items.map((i) => i.bbox.maxX))
+  return items.map((i) => ({ ...i, dx: targetX - i.bbox.maxX }))
 }
 
 function alignCenterHLogic(items: Item[]): Item[] {
-  const allMinX = Math.min(...items.map(i => i.bbox.minX))
-  const allMaxX = Math.max(...items.map(i => i.bbox.maxX))
+  const allMinX = Math.min(...items.map((i) => i.bbox.minX))
+  const allMaxX = Math.max(...items.map((i) => i.bbox.maxX))
   const targetCx = (allMinX + allMaxX) / 2
-  return items.map(i => {
+  return items.map((i) => {
     const cx = (i.bbox.minX + i.bbox.maxX) / 2
     return { ...i, dx: targetCx - cx }
   })
 }
 
 function alignTopLogic(items: Item[]): Item[] {
-  const targetY = Math.min(...items.map(i => i.bbox.minY))
-  return items.map(i => ({ ...i, dy: targetY - i.bbox.minY }))
+  const targetY = Math.min(...items.map((i) => i.bbox.minY))
+  return items.map((i) => ({ ...i, dy: targetY - i.bbox.minY }))
 }
 
 function alignBottomLogic(items: Item[]): Item[] {
-  const targetY = Math.max(...items.map(i => i.bbox.maxY))
-  return items.map(i => ({ ...i, dy: targetY - i.bbox.maxY }))
+  const targetY = Math.max(...items.map((i) => i.bbox.maxY))
+  return items.map((i) => ({ ...i, dy: targetY - i.bbox.maxY }))
 }
 
 function distributeHLogic(items: Item[]): Item[] {
@@ -79,7 +82,7 @@ function distributeSpacingHLogic(items: Item[]): Item[] {
   return sorted.map((item, i) => {
     if (i === 0 || i === sorted.length - 1) return { ...item, dx: 0 }
     const dx = x - item.bbox.minX
-    x += (item.bbox.maxX - item.bbox.minX) + gap
+    x += item.bbox.maxX - item.bbox.minX + gap
     return { ...item, dx }
   })
 }
@@ -143,16 +146,16 @@ describe('align', () => {
     const result = alignBottomLogic(items)
     expect(result[0]!.dy).toBe(20) // 80 - 60
     expect(result[1]!.dy).toBe(30) // 80 - 50
-    expect(result[2]!.dy).toBe(0)  // already at 80
+    expect(result[2]!.dy).toBe(0) // already at 80
   })
 })
 
 describe('distribute', () => {
   test('distribute H evenly spaces centers', () => {
     const items = makeItems([
-      { minX: 0, minY: 0, maxX: 20, maxY: 10 },   // center = 10
-      { minX: 30, minY: 0, maxX: 50, maxY: 10 },   // center = 40
-      { minX: 80, minY: 0, maxX: 100, maxY: 10 },  // center = 90
+      { minX: 0, minY: 0, maxX: 20, maxY: 10 }, // center = 10
+      { minX: 30, minY: 0, maxX: 50, maxY: 10 }, // center = 40
+      { minX: 80, minY: 0, maxX: 100, maxY: 10 }, // center = 90
     ])
     const result = distributeHLogic(items)
     // First and last stay. Step = (90 - 10) / 2 = 40. Middle target = 10 + 40 = 50
@@ -166,7 +169,7 @@ describe('distribute', () => {
     // 3 items: widths 20, 20, 20. Span = 100 - 0 = 100. Total width = 60. Total gap = 40. Gap each = 20.
     const items = makeItems([
       { minX: 0, minY: 0, maxX: 20, maxY: 10 },
-      { minX: 25, minY: 0, maxX: 45, maxY: 10 },  // should move to x=40
+      { minX: 25, minY: 0, maxX: 45, maxY: 10 }, // should move to x=40
       { minX: 80, minY: 0, maxX: 100, maxY: 10 },
     ])
     const result = distributeSpacingHLogic(items)

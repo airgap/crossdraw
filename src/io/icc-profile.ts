@@ -22,15 +22,21 @@ export function parseICCProfile(data: Uint8Array): ICCProfile {
     const tagOffset = 132 + i * 12
     if (tagOffset + 12 > data.length) break
     const sig = String.fromCharCode(data[tagOffset]!, data[tagOffset + 1]!, data[tagOffset + 2]!, data[tagOffset + 3]!)
-    const offset = (data[tagOffset + 4]! << 24) | (data[tagOffset + 5]! << 16) | (data[tagOffset + 6]! << 8) | data[tagOffset + 7]!
-    const length = (data[tagOffset + 8]! << 24) | (data[tagOffset + 9]! << 16) | (data[tagOffset + 10]! << 8) | data[tagOffset + 11]!
+    const offset =
+      (data[tagOffset + 4]! << 24) | (data[tagOffset + 5]! << 16) | (data[tagOffset + 6]! << 8) | data[tagOffset + 7]!
+    const length =
+      (data[tagOffset + 8]! << 24) | (data[tagOffset + 9]! << 16) | (data[tagOffset + 10]! << 8) | data[tagOffset + 11]!
 
     if (sig === 'desc' && offset + length <= data.length) {
       // Try to extract ASCII description
       // 'desc' type: bytes 0-3 = 'desc', 4-7 = reserved, 8-11 = ASCII count, 12+ = ASCII string
       const descTypeOffset = offset + 8
       if (descTypeOffset + 4 <= data.length) {
-        const asciiLen = (data[descTypeOffset]! << 24) | (data[descTypeOffset + 1]! << 16) | (data[descTypeOffset + 2]! << 8) | data[descTypeOffset + 3]!
+        const asciiLen =
+          (data[descTypeOffset]! << 24) |
+          (data[descTypeOffset + 1]! << 16) |
+          (data[descTypeOffset + 2]! << 8) |
+          data[descTypeOffset + 3]!
         if (asciiLen > 0 && descTypeOffset + 4 + asciiLen <= data.length) {
           const bytes = data.slice(descTypeOffset + 4, descTypeOffset + 4 + asciiLen - 1)
           name = new TextDecoder('ascii').decode(bytes)
@@ -59,7 +65,7 @@ export function iccColorSpaceToDocColorspace(iccSpace: string): 'srgb' | 'p3' | 
 export function extractICCFromPNG(data: Uint8Array): ICCProfile | null {
   // PNG signature: 8 bytes
   if (data.length < 8) return null
-  const sig = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]
+  const sig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]
   for (let i = 0; i < 8; i++) {
     if (data[i] !== sig[i]) return null
   }

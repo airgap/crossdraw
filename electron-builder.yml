@@ -1,5 +1,5 @@
-appId: com.designer.app
-productName: Designer
+appId: com.crossdraw.app
+productName: Crossdraw
 directories:
   output: release
   buildResources: build
@@ -12,20 +12,39 @@ asar: true
 mac:
   category: public.app-category.graphics-design
   target:
-    - dmg
-    - zip
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+    - target: zip
+      arch:
+        - x64
+        - arm64
   icon: build/icon.icns
+  hardenedRuntime: true
+  gatekeeperAssess: false
 
 win:
   target:
-    - nsis
-    - portable
+    - target: nsis
+      arch:
+        - x64
+        - arm64
+    - target: portable
+      arch:
+        - x64
   icon: build/icon.ico
 
 linux:
   target:
-    - AppImage
-    - deb
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+    - target: deb
+      arch:
+        - x64
+        - arm64
   category: Graphics
   icon: build/icon.png
 
@@ -36,5 +55,7 @@ nsis:
 fileAssociations:
   - ext: design
     name: Design File
-    description: Designer project file
+    description: Crossdraw project file
     role: Editor
+
+publish: null

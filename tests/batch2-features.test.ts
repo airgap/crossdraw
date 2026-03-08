@@ -43,8 +43,7 @@ describe('LYK-89: text alignment', () => {
 
 describe('LYK-121: marquee selection', () => {
   function bboxIntersectsRect(bbox: BBox, rx: number, ry: number, rw: number, rh: number): boolean {
-    return bbox.maxX >= rx && bbox.minX <= rx + rw &&
-           bbox.maxY >= ry && bbox.minY <= ry + rh
+    return bbox.maxX >= rx && bbox.minX <= rx + rw && bbox.maxY >= ry && bbox.minY <= ry + rh
   }
 
   test('bbox fully inside marquee', () => {
@@ -78,8 +77,10 @@ describe('LYK-121: marquee selection', () => {
   })
 
   test('marquee start/end normalization (drag right-to-left)', () => {
-    const startX = 50, startY = 50
-    const endX = 10, endY = 10
+    const startX = 50,
+      startY = 50
+    const endX = 10,
+      endY = 10
     const mx = Math.min(startX, endX)
     const my = Math.min(startY, endY)
     const mw = Math.abs(endX - startX)
@@ -121,9 +122,18 @@ describe('LYK-91: fill/stroke opacity independence', () => {
 describe('LYK-126: context menu', () => {
   test('menu entries include expected actions', () => {
     const labels = [
-      'Cut', 'Copy', 'Paste', 'Delete', 'Duplicate',
-      'Bring to Front', 'Bring Forward', 'Send Backward', 'Send to Back',
-      'Flip Horizontal', 'Flip Vertical', 'Select All',
+      'Cut',
+      'Copy',
+      'Paste',
+      'Delete',
+      'Duplicate',
+      'Bring to Front',
+      'Bring Forward',
+      'Send Backward',
+      'Send to Back',
+      'Flip Horizontal',
+      'Flip Vertical',
+      'Select All',
     ]
     expect(labels.length).toBe(12)
     expect(labels.includes('Cut')).toBe(true)

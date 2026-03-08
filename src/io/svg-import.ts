@@ -30,7 +30,8 @@ export function importSVG(svgString: string): DesignDocument {
 
   // Parse viewBox if present
   const viewBox = svgEl.getAttribute('viewBox')
-  let vbW = width, vbH = height
+  let vbW = width,
+    vbH = height
   if (viewBox) {
     const parts = viewBox.split(/[\s,]+/).map(Number)
     if (parts.length === 4) {
@@ -120,9 +121,77 @@ function resolveClassStyles(el: SVGElement, styleMap: Map<string, Record<string,
   return merged
 }
 
+function parseInlineStyle(el: SVGElement): Record<string, string> {
+  const styleAttr = el.getAttribute('style')
+  if (!styleAttr) return {}
+  const props: Record<string, string> = {}
+  for (const decl of styleAttr.split(';')) {
+    const colonIdx = decl.indexOf(':')
+    if (colonIdx === -1) continue
+    const prop = decl.substring(0, colonIdx).trim()
+    const val = decl.substring(colonIdx + 1).trim()
+    if (prop && val) props[prop] = val
+  }
+  return props
+}
+
+/** SVG presentation attributes that inherit from parent elements per the SVG spec. */
+const INHERITABLE_ATTRS = new Set([
+  'fill',
+  'fill-opacity',
+  'fill-rule',
+  'stroke',
+  'stroke-width',
+  'stroke-opacity',
+  'stroke-linecap',
+  'stroke-linejoin',
+  'stroke-miterlimit',
+  'stroke-dasharray',
+  'opacity',
+  'font-family',
+  'font-size',
+  'font-weight',
+  'font-style',
+  'color',
+  'visibility',
+  'direction',
+  'letter-spacing',
+  'word-spacing',
+])
+
 function getStyleAttr(el: SVGElement, attr: string, classStyles: Record<string, string>): string | null {
-  // Inline attribute takes precedence over class style
-  return el.getAttribute(attr) ?? classStyles[attr] ?? null
+  // Precedence: inline style > presentation attribute > class style > inherited from ancestors
+  const inlineStyles = parseInlineStyle(el)
+  const direct = inlineStyles[attr] ?? el.getAttribute(attr) ?? classStyles[attr]
+  if (direct != null) return resolveCurrentColor(direct, el)
+
+  // Walk up the tree for inheritable attributes
+  if (INHERITABLE_ATTRS.has(attr)) {
+    let ancestor = el.parentElement as SVGElement | null
+    while (ancestor) {
+      const ancestorInline = parseInlineStyle(ancestor)
+      const val = ancestorInline[attr] ?? ancestor.getAttribute(attr)
+      if (val != null) return resolveCurrentColor(val, el)
+      ancestor = ancestor.parentElement as SVGElement | null
+    }
+  }
+
+  return null
+}
+
+/** Resolve `currentColor` to a concrete color value. Walks up the tree for CSS `color`. */
+function resolveCurrentColor(value: string, el: SVGElement): string {
+  if (value !== 'currentColor') return value
+  // Look for an explicit `color` property on the element or its ancestors
+  let node: SVGElement | null = el
+  while (node) {
+    const inline = parseInlineStyle(node)
+    const c = inline['color'] ?? node.getAttribute('color')
+    if (c && c !== 'currentColor') return c
+    node = node.parentElement as SVGElement | null
+  }
+  // SVG spec: currentColor with no color property defaults to black
+  return '#000000'
 }
 
 function parseSVGElement(
@@ -240,7 +309,10 @@ function parseStroke(el: SVGElement, classStyles: Record<string, string>): Strok
 
 function parseDashArray(str: string | null): number[] | undefined {
   if (!str || str === 'none') return undefined
-  const vals = str.split(/[\s,]+/).map(Number).filter(n => !isNaN(n))
+  const vals = str
+    .split(/[\s,]+/)
+    .map(Number)
+    .filter((n) => !isNaN(n))
   return vals.length > 0 ? vals : undefined
 }
 
@@ -394,11 +466,16 @@ function parseLine(
   return {
     ...makeBaseLayer(el, 'Line'),
     type: 'vector',
-    paths: [{
-      id: uuid(),
-      segments: [{ type: 'move', x: x1, y: y1 }, { type: 'line', x: x2, y: y2 }],
-      closed: false,
-    }],
+    paths: [
+      {
+        id: uuid(),
+        segments: [
+          { type: 'move', x: x1, y: y1 },
+          { type: 'line', x: x2, y: y2 },
+        ],
+        closed: false,
+      },
+    ],
     fill: null,
     stroke: parseStroke(el, classStyles),
   }
@@ -412,7 +489,10 @@ function parsePolyShape(
 ): VectorLayer {
   const classStyles = resolveClassStyles(el, styleMap)
   const pointsStr = el.getAttribute('points') ?? ''
-  const coords = pointsStr.trim().split(/[\s,]+/).map(Number)
+  const coords = pointsStr
+    .trim()
+    .split(/[\s,]+/)
+    .map(Number)
   const segments: Segment[] = []
 
   for (let i = 0; i < coords.length - 1; i += 2) {
@@ -431,10 +511,7 @@ function parsePolyShape(
   }
 }
 
-function parseText(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-): TextLayer {
+function parseText(el: SVGElement, styleMap: Map<string, Record<string, string>>): TextLayer {
   const classStyles = resolveClassStyles(el, styleMap)
   const x = parseFloat(el.getAttribute('x') ?? '0')
   const y = parseFloat(el.getAttribute('y') ?? '0')
@@ -468,8 +545,16 @@ export function parseSVGPathD(d: string): Segment[] {
   const segments: Segment[] = []
   // Tokenize: split into commands with their parameters
   const tokens = tokenizePathD(d)
-  let cx = 0, cy = 0 // current point
-  let startX = 0, startY = 0 // start of current subpath
+  let cx = 0,
+    cy = 0 // current point
+  let startX = 0,
+    startY = 0 // start of current subpath
+  // Track last control point for S/T smooth curve reflection
+  let lastCp2x = 0,
+    lastCp2y = 0 // last cubic cp2
+  let lastQpx = 0,
+    lastQpy = 0 // last quadratic cp
+  let lastCmd = ''
 
   for (const token of tokens) {
     const cmd = token.cmd
@@ -480,24 +565,35 @@ export function parseSVGPathD(d: string): Segment[] {
     switch (CMD) {
       case 'M': {
         for (let i = 0; i < args.length; i += 2) {
-          let x = args[i]!, y = args[i + 1]!
-          if (isRelative) { x += cx; y += cy }
+          let x = args[i]!,
+            y = args[i + 1]!
+          if (isRelative) {
+            x += cx
+            y += cy
+          }
           if (i === 0) {
             segments.push({ type: 'move', x, y })
-            startX = x; startY = y
+            startX = x
+            startY = y
           } else {
             segments.push({ type: 'line', x, y })
           }
-          cx = x; cy = y
+          cx = x
+          cy = y
         }
         break
       }
       case 'L': {
         for (let i = 0; i < args.length; i += 2) {
-          let x = args[i]!, y = args[i + 1]!
-          if (isRelative) { x += cx; y += cy }
+          let x = args[i]!,
+            y = args[i + 1]!
+          if (isRelative) {
+            x += cx
+            y += cy
+          }
           segments.push({ type: 'line', x, y })
-          cx = x; cy = y
+          cx = x
+          cy = y
         }
         break
       }
@@ -519,51 +615,130 @@ export function parseSVGPathD(d: string): Segment[] {
       }
       case 'C': {
         for (let i = 0; i < args.length; i += 6) {
-          let cp1x = args[i]!, cp1y = args[i + 1]!
-          let cp2x = args[i + 2]!, cp2y = args[i + 3]!
-          let x = args[i + 4]!, y = args[i + 5]!
+          let cp1x = args[i]!,
+            cp1y = args[i + 1]!
+          let cp2x = args[i + 2]!,
+            cp2y = args[i + 3]!
+          let x = args[i + 4]!,
+            y = args[i + 5]!
           if (isRelative) {
-            cp1x += cx; cp1y += cy
-            cp2x += cx; cp2y += cy
-            x += cx; y += cy
+            cp1x += cx
+            cp1y += cy
+            cp2x += cx
+            cp2y += cy
+            x += cx
+            y += cy
           }
           segments.push({ type: 'cubic', x, y, cp1x, cp1y, cp2x, cp2y })
-          cx = x; cy = y
+          lastCp2x = cp2x
+          lastCp2y = cp2y
+          cx = x
+          cy = y
+        }
+        break
+      }
+      case 'S': {
+        // Smooth cubic: reflects previous cp2 to get cp1
+        for (let i = 0; i < args.length; i += 4) {
+          let cp2x = args[i]!,
+            cp2y = args[i + 1]!
+          let x = args[i + 2]!,
+            y = args[i + 3]!
+          if (isRelative) {
+            cp2x += cx
+            cp2y += cy
+            x += cx
+            y += cy
+          }
+          // cp1 is reflection of last cp2 around current point
+          let cp1x: number, cp1y: number
+          if (lastCmd === 'C' || lastCmd === 'S') {
+            cp1x = 2 * cx - lastCp2x
+            cp1y = 2 * cy - lastCp2y
+          } else {
+            cp1x = cx
+            cp1y = cy
+          }
+          segments.push({ type: 'cubic', x, y, cp1x, cp1y, cp2x, cp2y })
+          lastCp2x = cp2x
+          lastCp2y = cp2y
+          cx = x
+          cy = y
         }
         break
       }
       case 'Q': {
         for (let i = 0; i < args.length; i += 4) {
-          let cpx = args[i]!, cpy = args[i + 1]!
-          let x = args[i + 2]!, y = args[i + 3]!
+          let cpx = args[i]!,
+            cpy = args[i + 1]!
+          let x = args[i + 2]!,
+            y = args[i + 3]!
           if (isRelative) {
-            cpx += cx; cpy += cy
-            x += cx; y += cy
+            cpx += cx
+            cpy += cy
+            x += cx
+            y += cy
           }
           segments.push({ type: 'quadratic', x, y, cpx, cpy })
-          cx = x; cy = y
+          lastQpx = cpx
+          lastQpy = cpy
+          cx = x
+          cy = y
+        }
+        break
+      }
+      case 'T': {
+        // Smooth quadratic: reflects previous control point
+        for (let i = 0; i < args.length; i += 2) {
+          let x = args[i]!,
+            y = args[i + 1]!
+          if (isRelative) {
+            x += cx
+            y += cy
+          }
+          let cpx: number, cpy: number
+          if (lastCmd === 'Q' || lastCmd === 'T') {
+            cpx = 2 * cx - lastQpx
+            cpy = 2 * cy - lastQpy
+          } else {
+            cpx = cx
+            cpy = cy
+          }
+          segments.push({ type: 'quadratic', x, y, cpx, cpy })
+          lastQpx = cpx
+          lastQpy = cpy
+          cx = x
+          cy = y
         }
         break
       }
       case 'A': {
         for (let i = 0; i < args.length; i += 7) {
-          const rx = args[i]!, ry = args[i + 1]!
+          const rx = args[i]!,
+            ry = args[i + 1]!
           const rotation = args[i + 2]!
           const largeArc = args[i + 3]! !== 0
           const sweep = args[i + 4]! !== 0
-          let x = args[i + 5]!, y = args[i + 6]!
-          if (isRelative) { x += cx; y += cy }
+          let x = args[i + 5]!,
+            y = args[i + 6]!
+          if (isRelative) {
+            x += cx
+            y += cy
+          }
           segments.push({ type: 'arc', x, y, rx, ry, rotation, largeArc, sweep })
-          cx = x; cy = y
+          cx = x
+          cy = y
         }
         break
       }
       case 'Z': {
         segments.push({ type: 'close' })
-        cx = startX; cy = startY
+        cx = startX
+        cy = startY
         break
       }
     }
+    lastCmd = CMD
   }
 
   return segments
@@ -574,22 +749,141 @@ interface PathToken {
   args: number[]
 }
 
+/**
+ * Tokenize an SVG path `d` string into command+args tokens.
+ *
+ * Handles tricky SVG path spec edge cases:
+ *   - Numbers separated only by a second decimal point: ".5.5" → [0.5, 0.5]
+ *   - Arc flag compression: "0 00-4.5-1.5" → [0, 0, 0, -4.5, -1.5]
+ *   - Scientific notation: "1e-5"
+ *   - Negative sign as separator: "10-20" → [10, -20]
+ */
 function tokenizePathD(d: string): PathToken[] {
   const tokens: PathToken[] = []
-  // Match command letters followed by optional numbers
-  const cmdRegex = /([MmLlHhVvCcSsQqTtAaZz])/g
-  const parts = d.split(cmdRegex).filter(Boolean)
-
+  let i = 0
+  const len = d.length
   let currentCmd = ''
-  for (const part of parts) {
-    if (/^[MmLlHhVvCcSsQqTtAaZz]$/.test(part)) {
-      currentCmd = part
-      if (part.toUpperCase() === 'Z') {
+
+  function skipWhitespaceComma() {
+    while (i < len && (d[i] === ' ' || d[i] === '\t' || d[i] === '\n' || d[i] === '\r' || d[i] === ',')) i++
+  }
+
+  function parseNumber(): number | null {
+    skipWhitespaceComma()
+    if (i >= len) return null
+    const start = i
+    // Optional sign
+    if (d[i] === '+' || d[i] === '-') i++
+    // Integer or decimal part
+    let hasDot = false
+    let hasDigit = false
+    while (i < len && ((d[i]! >= '0' && d[i]! <= '9') || d[i] === '.')) {
+      if (d[i] === '.') {
+        if (hasDot) break // second dot starts new number
+        hasDot = true
+      } else {
+        hasDigit = true
+      }
+      i++
+    }
+    if (!hasDigit && !hasDot) {
+      i = start
+      return null
+    }
+    if (!hasDigit) {
+      i = start
+      return null
+    }
+    // Optional exponent
+    if (i < len && (d[i] === 'e' || d[i] === 'E')) {
+      i++
+      if (i < len && (d[i] === '+' || d[i] === '-')) i++
+      while (i < len && d[i]! >= '0' && d[i]! <= '9') i++
+    }
+    return parseFloat(d.substring(start, i))
+  }
+
+  function parseFlag(): number | null {
+    skipWhitespaceComma()
+    if (i < len && (d[i] === '0' || d[i] === '1')) {
+      return parseInt(d[i++]!)
+    }
+    return null
+  }
+
+  while (i < len) {
+    skipWhitespaceComma()
+    if (i >= len) break
+
+    const ch = d[i]!
+    if (/[MmLlHhVvCcSsQqTtAaZz]/.test(ch)) {
+      currentCmd = ch
+      i++
+      if (ch === 'Z' || ch === 'z') {
         tokens.push({ cmd: currentCmd, args: [] })
+        continue
+      }
+    }
+
+    // Parse arguments for the current command
+    const args: number[] = []
+    const isArc = currentCmd === 'A' || currentCmd === 'a'
+
+    if (isArc) {
+      // Arc: (rx ry rotation large-arc-flag sweep-flag x y)+
+      while (true) {
+        const saved = i
+        const rx = parseNumber()
+        if (rx === null) {
+          i = saved
+          break
+        }
+        const ry = parseNumber()
+        if (ry === null) {
+          i = saved
+          break
+        }
+        const rotation = parseNumber()
+        if (rotation === null) {
+          i = saved
+          break
+        }
+        const largeArc = parseFlag()
+        if (largeArc === null) {
+          i = saved
+          break
+        }
+        const sweep = parseFlag()
+        if (sweep === null) {
+          i = saved
+          break
+        }
+        const x = parseNumber()
+        if (x === null) {
+          i = saved
+          break
+        }
+        const y = parseNumber()
+        if (y === null) {
+          i = saved
+          break
+        }
+        args.push(rx, ry, rotation, largeArc, sweep, x, y)
       }
     } else {
-      const nums = part.match(/-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g)
-      const args = nums ? nums.map(Number) : []
+      // Non-arc commands: just parse numbers
+      while (true) {
+        const saved = i
+        const n = parseNumber()
+        if (n === null) {
+          i = saved
+          break
+        }
+        args.push(n)
+      }
+    }
+
+    if (args.length > 0) {
       tokens.push({ cmd: currentCmd, args })
     }
   }
@@ -599,47 +893,110 @@ function tokenizePathD(d: string): PathToken[] {
 
 // --- Transform attribute parser ---
 
+/**
+ * Parse an SVG transform attribute string into a decomposed Transform.
+ * Supports chained transforms: "translate(10,20) rotate(45) scale(2)"
+ * All functions are composed left-to-right via matrix multiplication,
+ * then decomposed into translate, scale, rotation.
+ */
 export function parseTransformAttr(attr: string | null): Transform {
-  const t: Transform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }
-  if (!attr) return t
+  const identity: Transform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }
+  if (!attr) return identity
 
-  // Parse translate
-  const translateMatch = attr.match(/translate\(\s*([-\d.]+)[\s,]*([-\d.]*)\s*\)/)
-  if (translateMatch) {
-    t.x = parseFloat(translateMatch[1]!)
-    t.y = parseFloat(translateMatch[2] || '0')
+  // Accumulate as a 3x2 affine matrix [a, b, c, d, e, f]
+  // Represents: | a c e |
+  //             | b d f |
+  //             | 0 0 1 |
+  let m: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0]
+
+  // Match all transform functions in order
+  const fnRegex = /(translate|scale|rotate|matrix|skewX|skewY)\s*\(([^)]*)\)/gi
+  let match: RegExpExecArray | null
+  while ((match = fnRegex.exec(attr)) !== null) {
+    const fn = match[1]!.toLowerCase()
+    const nums = match[2]!.match(/-?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?/g)
+    const args = nums ? nums.map(Number) : []
+
+    let fm: [number, number, number, number, number, number]
+
+    switch (fn) {
+      case 'translate': {
+        const tx = args[0] ?? 0
+        const ty = args[1] ?? 0
+        fm = [1, 0, 0, 1, tx, ty]
+        break
+      }
+      case 'scale': {
+        const sx = args[0] ?? 1
+        const sy = args[1] ?? sx
+        fm = [sx, 0, 0, sy, 0, 0]
+        break
+      }
+      case 'rotate': {
+        const angle = args[0] ?? 0
+        const rcx = args[1] ?? 0
+        const rcy = args[2] ?? 0
+        const rad = (angle * Math.PI) / 180
+        const cos = Math.cos(rad)
+        const sin = Math.sin(rad)
+        if (rcx !== 0 || rcy !== 0) {
+          // rotate(a, cx, cy) = translate(cx,cy) * rotate(a) * translate(-cx,-cy)
+          fm = [cos, sin, -sin, cos, rcx * (1 - cos) + rcy * sin, rcy * (1 - cos) - rcx * sin]
+        } else {
+          fm = [cos, sin, -sin, cos, 0, 0]
+        }
+        break
+      }
+      case 'skewx': {
+        const rad = ((args[0] ?? 0) * Math.PI) / 180
+        fm = [1, 0, Math.tan(rad), 1, 0, 0]
+        break
+      }
+      case 'skewy': {
+        const rad = ((args[0] ?? 0) * Math.PI) / 180
+        fm = [1, Math.tan(rad), 0, 1, 0, 0]
+        break
+      }
+      case 'matrix': {
+        fm = [args[0] ?? 1, args[1] ?? 0, args[2] ?? 0, args[3] ?? 1, args[4] ?? 0, args[5] ?? 0]
+        break
+      }
+      default:
+        continue
+    }
+
+    // Multiply: m = m * fm
+    m = multiplyMatrix(m, fm)
   }
 
-  // Parse scale
-  const scaleMatch = attr.match(/scale\(\s*([-\d.]+)[\s,]*([-\d.]*)\s*\)/)
-  if (scaleMatch) {
-    t.scaleX = parseFloat(scaleMatch[1]!)
-    t.scaleY = parseFloat(scaleMatch[2] || scaleMatch[1]!)
-  }
+  return decomposeMatrix(m)
+}
 
-  // Parse rotate
-  const rotateMatch = attr.match(/rotate\(\s*([-\d.]+)/)
-  if (rotateMatch) {
-    t.rotation = parseFloat(rotateMatch[1]!)
-  }
+/** Multiply two 3x2 affine matrices. */
+function multiplyMatrix(
+  a: [number, number, number, number, number, number],
+  b: [number, number, number, number, number, number],
+): [number, number, number, number, number, number] {
+  return [
+    a[0] * b[0] + a[2] * b[1],
+    a[1] * b[0] + a[3] * b[1],
+    a[0] * b[2] + a[2] * b[3],
+    a[1] * b[2] + a[3] * b[3],
+    a[0] * b[4] + a[2] * b[5] + a[4],
+    a[1] * b[4] + a[3] * b[5] + a[5],
+  ]
+}
 
-  // Parse matrix(a,b,c,d,e,f) - extract translate, scale, rotation
-  const matrixMatch = attr.match(/matrix\(\s*([-\d.]+)[\s,]+([-\d.]+)[\s,]+([-\d.]+)[\s,]+([-\d.]+)[\s,]+([-\d.]+)[\s,]+([-\d.]+)\s*\)/)
-  if (matrixMatch) {
-    const a = parseFloat(matrixMatch[1]!)
-    const b = parseFloat(matrixMatch[2]!)
-    const c = parseFloat(matrixMatch[3]!)
-    const d = parseFloat(matrixMatch[4]!)
-    const e = parseFloat(matrixMatch[5]!)
-    const f = parseFloat(matrixMatch[6]!)
-    t.x = e
-    t.y = f
-    t.scaleX = Math.sqrt(a * a + b * b)
-    t.scaleY = Math.sqrt(c * c + d * d)
-    t.rotation = Math.atan2(b, a) * (180 / Math.PI)
+/** Decompose a 3x2 affine matrix into translate, scale, rotation. */
+function decomposeMatrix(m: [number, number, number, number, number, number]): Transform {
+  const [a, b, c, d, e, f] = m
+  return {
+    x: e,
+    y: f,
+    scaleX: Math.sqrt(a * a + b * b),
+    scaleY: Math.sqrt(c * c + d * d),
+    rotation: Math.atan2(b, a) * (180 / Math.PI),
   }
-
-  return t
 }
 
 // --- Gradient defs parser ---
@@ -685,7 +1042,12 @@ function parseGradientDefs(defs: Element, gradientMap: Map<string, Gradient>) {
 function parseGradientStops(el: Element): GradientStop[] {
   const stops: GradientStop[] = []
   for (const stop of el.querySelectorAll('stop')) {
-    const offset = parseFloat(stop.getAttribute('offset') ?? '0')
+    const offsetStr = stop.getAttribute('offset') ?? '0'
+    // Normalize percentage values (e.g. "40%" → 0.4) to 0–1 range
+    let offset = parseFloat(offsetStr)
+    if (offsetStr.includes('%')) {
+      offset /= 100
+    }
     const color = stop.getAttribute('stop-color') ?? '#000000'
     const opacity = parseFloat(stop.getAttribute('stop-opacity') ?? '1')
     stops.push({ offset, color, opacity })

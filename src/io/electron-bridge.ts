@@ -2,6 +2,7 @@ import { useEditorStore } from '@/store/editor.store'
 import { encodeDocument, decodeDocument } from '@/io/file-format'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
+import { openFileAsDocument } from '@/io/open-file'
 
 /**
  * Returns true if running inside Electron (preload script loaded).
@@ -57,17 +58,33 @@ export function setupElectronBridge() {
   })
 
   // File opened from main process (File > Open)
-  api.onFileOpened((data: ArrayBuffer, filePath: string) => {
+  api.onFileOpened(async (data: ArrayBuffer, filePath: string) => {
     try {
-      const doc = decodeDocument(data)
-      useEditorStore.setState({
-        document: doc,
-        history: [],
-        historyIndex: -1,
-        selection: { layerIds: [] },
-        isDirty: false,
-        filePath: filePath || null,
-      })
+      const ext = filePath.split('.').pop()?.toLowerCase()
+
+      if (ext === 'design') {
+        const doc = decodeDocument(data)
+        useEditorStore.setState({
+          document: doc,
+          history: [],
+          historyIndex: -1,
+          selection: { layerIds: [] },
+          isDirty: false,
+          filePath: filePath || null,
+        })
+      } else {
+        const name = filePath.split(/[/\\]/).pop() || 'file'
+        const mimeMap: Record<string, string> = {
+          png: 'image/png',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          gif: 'image/gif',
+          webp: 'image/webp',
+          svg: 'image/svg+xml',
+        }
+        const file = new File([data], name, { type: mimeMap[ext || ''] || '' })
+        await openFileAsDocument(file)
+      }
     } catch (err) {
       console.error('Failed to open file:', err)
       alert(`Failed to open file: ${err instanceof Error ? err.message : 'Unknown error'}`)
@@ -139,15 +156,33 @@ export async function electronOpen() {
   if (!result) return
 
   try {
-    const doc = decodeDocument(result.data)
-    useEditorStore.setState({
-      document: doc,
-      history: [],
-      historyIndex: -1,
-      selection: { layerIds: [] },
-      isDirty: false,
-      filePath: result.filePath || null,
-    })
+    const filePath = result.filePath || ''
+    const ext = filePath.split('.').pop()?.toLowerCase()
+
+    if (ext === 'design') {
+      const doc = decodeDocument(result.data)
+      useEditorStore.setState({
+        document: doc,
+        history: [],
+        historyIndex: -1,
+        selection: { layerIds: [] },
+        isDirty: false,
+        filePath: filePath || null,
+      })
+    } else {
+      // PNG, JPEG, SVG, etc. — route through openFileAsDocument
+      const name = filePath.split(/[/\\]/).pop() || 'file'
+      const mimeMap: Record<string, string> = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        svg: 'image/svg+xml',
+      }
+      const file = new File([result.data], name, { type: mimeMap[ext || ''] || '' })
+      await openFileAsDocument(file)
+    }
   } catch (err) {
     alert(`Failed to open file: ${err instanceof Error ? err.message : 'Unknown error'}`)
   }

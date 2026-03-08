@@ -14,22 +14,25 @@ export function MiniMap({ viewportWidth, viewportHeight }: { viewportWidth: numb
   const setPan = useEditorStore((s) => s.setPan)
   const mapRef = useRef<HTMLDivElement>(null)
 
-  const handleClick = useCallback((e: React.MouseEvent) => {
-    if (!artboard || !mapRef.current) return
-    const rect = mapRef.current.getBoundingClientRect()
-    const mx = e.clientX - rect.left
-    const my = e.clientY - rect.top
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (!artboard || !mapRef.current) return
+      const rect = mapRef.current.getBoundingClientRect()
+      const mx = e.clientX - rect.left
+      const my = e.clientY - rect.top
 
-    // Convert minimap coords to document coords
-    const scale = Math.min(MINIMAP_WIDTH / artboard.width, MINIMAP_HEIGHT / artboard.height)
-    const docX = mx / scale
-    const docY = my / scale
+      // Convert minimap coords to document coords
+      const scale = Math.min(MINIMAP_WIDTH / artboard.width, MINIMAP_HEIGHT / artboard.height)
+      const docX = mx / scale
+      const docY = my / scale
 
-    // Center viewport on this point
-    const newPanX = viewportWidth / 2 - docX * viewport.zoom
-    const newPanY = viewportHeight / 2 - docY * viewport.zoom
-    setPan(newPanX, newPanY)
-  }, [artboard, viewport.zoom, viewportWidth, viewportHeight, setPan])
+      // Center viewport on this point
+      const newPanX = viewportWidth / 2 - docX * viewport.zoom
+      const newPanY = viewportHeight / 2 - docY * viewport.zoom
+      setPan(newPanX, newPanY)
+    },
+    [artboard, viewport.zoom, viewportWidth, viewportHeight, setPan],
+  )
 
   if (!artboard) return null
 
@@ -63,44 +66,53 @@ export function MiniMap({ viewportWidth, viewportHeight }: { viewportWidth: numb
       }}
     >
       {/* Artboard representation */}
-      <div style={{
-        position: 'absolute',
-        left: (MINIMAP_WIDTH - mapW) / 2,
-        top: (MINIMAP_HEIGHT - mapH) / 2,
-        width: mapW,
-        height: mapH,
-        background: artboard.backgroundColor,
-        border: '1px solid var(--border-subtle)',
-      }}>
+      <div
+        style={{
+          position: 'absolute',
+          left: (MINIMAP_WIDTH - mapW) / 2,
+          top: (MINIMAP_HEIGHT - mapH) / 2,
+          width: mapW,
+          height: mapH,
+          background: artboard.backgroundColor,
+          border: '1px solid var(--border-subtle)',
+        }}
+      >
         {/* Layer representations (simplified dots/rects) */}
-        {artboard.layers.filter(l => l.visible).map(layer => {
-          const lx = layer.transform.x * scale
-          const ly = layer.transform.y * scale
-          return (
-            <div key={layer.id} style={{
-              position: 'absolute',
-              left: lx,
-              top: ly,
-              width: Math.max(2, 4),
-              height: Math.max(2, 4),
-              background: 'var(--text-secondary)',
-              borderRadius: 1,
-            }} />
-          )
-        })}
+        {artboard.layers
+          .filter((l) => l.visible)
+          .map((layer) => {
+            const lx = layer.transform.x * scale
+            const ly = layer.transform.y * scale
+            return (
+              <div
+                key={layer.id}
+                style={{
+                  position: 'absolute',
+                  left: lx,
+                  top: ly,
+                  width: Math.max(2, 4),
+                  height: Math.max(2, 4),
+                  background: 'var(--text-secondary)',
+                  borderRadius: 1,
+                }}
+              />
+            )
+          })}
       </div>
 
       {/* Viewport indicator */}
-      <div style={{
-        position: 'absolute',
-        left: (MINIMAP_WIDTH - mapW) / 2 + vpX,
-        top: (MINIMAP_HEIGHT - mapH) / 2 + vpY,
-        width: Math.min(vpW, MINIMAP_WIDTH),
-        height: Math.min(vpH, MINIMAP_HEIGHT),
-        border: '1.5px solid var(--accent)',
-        borderRadius: 1,
-        pointerEvents: 'none',
-      }} />
+      <div
+        style={{
+          position: 'absolute',
+          left: (MINIMAP_WIDTH - mapW) / 2 + vpX,
+          top: (MINIMAP_HEIGHT - mapH) / 2 + vpY,
+          width: Math.min(vpW, MINIMAP_WIDTH),
+          height: Math.min(vpH, MINIMAP_HEIGHT),
+          border: '1.5px solid var(--accent)',
+          borderRadius: 1,
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   )
 }
@@ -109,10 +121,15 @@ export function MiniMap({ viewportWidth, viewportHeight }: { viewportWidth: numb
  * Calculate the minimap viewport indicator dimensions.
  */
 export function calcMinimapViewport(
-  artboardW: number, artboardH: number,
-  viewportW: number, viewportH: number,
-  zoom: number, panX: number, panY: number,
-  mapW: number, mapH: number,
+  artboardW: number,
+  artboardH: number,
+  viewportW: number,
+  viewportH: number,
+  zoom: number,
+  panX: number,
+  panY: number,
+  mapW: number,
+  mapH: number,
 ): { x: number; y: number; w: number; h: number } {
   const scale = Math.min(mapW / artboardW, mapH / artboardH)
   return {

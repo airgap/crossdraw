@@ -35,7 +35,21 @@ export interface EditorState {
   historyIndex: number // points to last applied entry (-1 = empty)
   viewport: ViewportState
   selection: SelectionState
-  activeTool: 'select' | 'pen' | 'node' | 'rectangle' | 'ellipse' | 'polygon' | 'star' | 'text' | 'gradient' | 'eyedropper' | 'hand' | 'measure' | 'brush' | 'crop'
+  activeTool:
+    | 'select'
+    | 'pen'
+    | 'node'
+    | 'rectangle'
+    | 'ellipse'
+    | 'polygon'
+    | 'star'
+    | 'text'
+    | 'gradient'
+    | 'eyedropper'
+    | 'hand'
+    | 'measure'
+    | 'brush'
+    | 'crop'
   showRulers: boolean
   showGrid: boolean
   snapEnabled: boolean
@@ -209,15 +223,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
   /**
    * Apply a mutation to `document` via Immer, record patches for undo/redo.
    */
-  function mutateDocument(
-    description: string,
-    recipe: (draft: DesignDocument) => void,
-  ) {
+  function mutateDocument(description: string, recipe: (draft: DesignDocument) => void) {
     const state = get()
-    const [nextDoc, patches, inversePatches] = produceWithPatches(
-      state.document,
-      recipe,
-    )
+    const [nextDoc, patches, inversePatches] = produceWithPatches(state.document, recipe)
     if (patches.length === 0) return // no-op
 
     // Truncate any future history (if we undid and then made a new change)
@@ -270,11 +278,13 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     snapThreshold: 5,
     touchMode: (() => {
       try {
-        const stored = localStorage.getItem('designer:touch-mode')
+        const stored = localStorage.getItem('crossdraw:touch-mode')
         if (stored !== null) return stored === 'true'
         // Auto-detect touch capability
         return typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
-      } catch { return false }
+      } catch {
+        return false
+      }
     })(),
 
     // Document
@@ -416,7 +426,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (!artboard) return
         const idx = findLayerIndex(artboard, layerId)
         if (idx === -1) return
-        const group = artboard.layers.find(l => l.id === groupId)
+        const group = artboard.layers.find((l) => l.id === groupId)
         if (!group || group.type !== 'group') return
         // Prevent circular: can't move a group into itself or its descendants
         if (layerId === groupId) return
@@ -440,9 +450,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       mutateDocument('Move layer out of group', (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (!artboard) return
-        const group = artboard.layers.find(l => l.id === groupId)
+        const group = artboard.layers.find((l) => l.id === groupId)
         if (!group || group.type !== 'group') return
-        const childIdx = group.children.findIndex(c => c.id === layerId)
+        const childIdx = group.children.findIndex((c) => c.id === layerId)
         if (childIdx === -1) return
         const [removed] = group.children.splice(childIdx, 1)
         artboard.layers.splice(targetIndex, 0, removed!)
@@ -614,7 +624,16 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     addAdjustmentLayer(artboardId, adjustmentType) {
       const defaults: Record<AdjustmentParams['adjustmentType'], AdjustmentParams> = {
         levels: { adjustmentType: 'levels', params: { blackPoint: 0, whitePoint: 255, gamma: 1 } },
-        curves: { adjustmentType: 'curves', params: { points: [[0, 0], [128, 128], [255, 255]] } },
+        curves: {
+          adjustmentType: 'curves',
+          params: {
+            points: [
+              [0, 0],
+              [128, 128],
+              [255, 255],
+            ],
+          },
+        },
         'hue-sat': { adjustmentType: 'hue-sat', params: { hue: 0, saturation: 0, lightness: 0 } },
         'color-balance': { adjustmentType: 'color-balance', params: { shadows: 0, midtones: 0, highlights: 0 } },
       }
@@ -686,10 +705,18 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       set({ activeTool: tool })
     },
 
-    toggleRulers() { set({ showRulers: !get().showRulers }) },
-    toggleGrid() { set({ showGrid: !get().showGrid }) },
-    toggleSnap() { set({ snapEnabled: !get().snapEnabled }) },
-    setGridSize(size) { set({ gridSize: Math.max(1, size) }) },
+    toggleRulers() {
+      set({ showRulers: !get().showRulers })
+    },
+    toggleGrid() {
+      set({ showGrid: !get().showGrid })
+    },
+    toggleSnap() {
+      set({ snapEnabled: !get().snapEnabled })
+    },
+    setGridSize(size) {
+      set({ gridSize: Math.max(1, size) })
+    },
 
     addGuide(artboardId, axis, position) {
       mutateDocument('Add guide', (draft) => {
@@ -782,10 +809,12 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
           if ('showSaveFilePicker' in window) {
             const handle = await (window as any).showSaveFilePicker({
               suggestedName,
-              types: [{
-                description: 'Design files',
-                accept: { 'application/octet-stream': ['.design'] },
-              }],
+              types: [
+                {
+                  description: 'Design files',
+                  accept: { 'application/octet-stream': ['.design'] },
+                },
+              ],
             })
             const writable = await handle.createWritable()
             await writable.write(buffer)
@@ -834,10 +863,12 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
           if ('showSaveFilePicker' in window) {
             const handle = await (window as any).showSaveFilePicker({
               suggestedName,
-              types: [{
-                description: 'Design files',
-                accept: { 'application/octet-stream': ['.design'] },
-              }],
+              types: [
+                {
+                  description: 'Design files',
+                  accept: { 'application/octet-stream': ['.design'] },
+                },
+              ],
             })
             const writable = await handle.createWritable()
             await writable.write(buffer)
@@ -868,19 +899,35 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       set({ activeSnapLines: lines })
     },
 
-    toggleSnapToGrid() { set({ snapToGrid: !get().snapToGrid }) },
-    toggleSnapToGuides() { set({ snapToGuides: !get().snapToGuides }) },
-    toggleSnapToLayers() { set({ snapToLayers: !get().snapToLayers }) },
-    toggleSnapToArtboard() { set({ snapToArtboard: !get().snapToArtboard }) },
-    toggleSnapToPixel() { set({ snapToPixel: !get().snapToPixel }) },
+    toggleSnapToGrid() {
+      set({ snapToGrid: !get().snapToGrid })
+    },
+    toggleSnapToGuides() {
+      set({ snapToGuides: !get().snapToGuides })
+    },
+    toggleSnapToLayers() {
+      set({ snapToLayers: !get().snapToLayers })
+    },
+    toggleSnapToArtboard() {
+      set({ snapToArtboard: !get().snapToArtboard })
+    },
+    toggleSnapToPixel() {
+      set({ snapToPixel: !get().snapToPixel })
+    },
 
-    openExportModal() { set({ showExportModal: true }) },
-    closeExportModal() { set({ showExportModal: false }) },
+    openExportModal() {
+      set({ showExportModal: true })
+    },
+    closeExportModal() {
+      set({ showExportModal: false })
+    },
 
     toggleTouchMode() {
       const next = !get().touchMode
       set({ touchMode: next })
-      try { localStorage.setItem('designer:touch-mode', String(next)) } catch {}
+      try {
+        localStorage.setItem('crossdraw:touch-mode', String(next))
+      } catch {}
       // Toggle CSS class on root element
       if (typeof document !== 'undefined') {
         document.documentElement.classList.toggle('touch-mode', next)

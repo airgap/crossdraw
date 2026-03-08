@@ -12,13 +12,8 @@ export interface BatchExportResult {
 /**
  * Export all slices from an artboard as individual files.
  */
-export async function batchExportSlices(
-  doc: DesignDocument,
-  artboardId?: string,
-): Promise<BatchExportResult[]> {
-  const artboard = artboardId
-    ? doc.artboards.find(a => a.id === artboardId)
-    : doc.artboards[0]
+export async function batchExportSlices(doc: DesignDocument, artboardId?: string): Promise<BatchExportResult[]> {
+  const artboard = artboardId ? doc.artboards.find((a) => a.id === artboardId) : doc.artboards[0]
 
   if (!artboard) throw new Error('No artboard found')
   if (!artboard.slices || artboard.slices.length === 0) {
@@ -40,11 +35,7 @@ export async function batchExportSlices(
   return results
 }
 
-async function exportSlice(
-  doc: DesignDocument,
-  artboard: Artboard,
-  slice: ExportSlice,
-): Promise<Blob> {
+async function exportSlice(doc: DesignDocument, artboard: Artboard, slice: ExportSlice): Promise<Blob> {
   if (slice.format === 'svg') {
     // For SVG we export the full artboard (slicing individual SVG regions is complex)
     const svgString = exportArtboardToSVG(doc, artboard.id)
@@ -59,10 +50,7 @@ async function exportSlice(
   )
 
   // If slice covers entire artboard, return as-is
-  if (
-    slice.x === 0 && slice.y === 0 &&
-    slice.width === artboard.width && slice.height === artboard.height
-  ) {
+  if (slice.x === 0 && slice.y === 0 && slice.width === artboard.width && slice.height === artboard.height) {
     return fullBlob
   }
 
@@ -73,10 +61,14 @@ async function exportSlice(
   const ctx = cropCanvas.getContext('2d')!
   ctx.drawImage(
     bitmap,
-    slice.x * scale, slice.y * scale,
-    slice.width * scale, slice.height * scale,
-    0, 0,
-    slice.width * scale, slice.height * scale,
+    slice.x * scale,
+    slice.y * scale,
+    slice.width * scale,
+    slice.height * scale,
+    0,
+    0,
+    slice.width * scale,
+    slice.height * scale,
   )
   bitmap.close()
 
@@ -118,7 +110,10 @@ export function createSlice(
   return {
     id: crypto.randomUUID(),
     name,
-    x, y, width, height,
+    x,
+    y,
+    width,
+    height,
     format,
     scale,
   }

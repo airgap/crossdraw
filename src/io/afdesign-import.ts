@@ -4,32 +4,32 @@ import type { DesignDocument, Artboard, VectorLayer } from '@/types'
 /**
  * Magic bytes for .afdesign format: 00 FF 4B 41
  */
-const AFDESIGN_MAGIC = new Uint8Array([0x00, 0xFF, 0x4B, 0x41])
+const AFDESIGN_MAGIC = new Uint8Array([0x00, 0xff, 0x4b, 0x41])
 
 /**
  * Zstandard frame magic number
  */
-const ZSTD_MAGIC = new Uint8Array([0x28, 0xB5, 0x2F, 0xFD])
+const ZSTD_MAGIC = new Uint8Array([0x28, 0xb5, 0x2f, 0xfd])
 
 /**
  * Known reversed-string tag names used in afdesign format.
  */
 export const AFDESIGN_TAGS: Record<string, string> = {
-  'ephS': 'Shape',
-  'edoN': 'Node',
-  'nsrP': 'Person',
-  'tcjO': 'Object',
-  'txeT': 'Text',
-  'puorG': 'Group',
-  'egamI': 'Image',
-  'evrC': 'Curve',
-  'tniP': 'Point',
-  'bmyS': 'Symbol',
-  'rlyL': 'Layer',
-  'ICCL': 'ICC',
-  'PCCI': 'ICC Profile',
+  ephS: 'Shape',
+  edoN: 'Node',
+  nsrP: 'Person',
+  tcjO: 'Object',
+  txeT: 'Text',
+  puorG: 'Group',
+  egamI: 'Image',
+  evrC: 'Curve',
+  tniP: 'Point',
+  bmyS: 'Symbol',
+  rlyL: 'Layer',
+  ICCL: 'ICC',
+  PCCI: 'ICC Profile',
   '1pOxE': 'Export',
-  'cSxE': 'Export Config',
+  cSxE: 'Export Config',
 }
 
 /**
@@ -44,10 +44,12 @@ export function reverseString(s: string): string {
  */
 export function isAfdesignFile(data: Uint8Array): boolean {
   if (data.length < 4) return false
-  return data[0] === AFDESIGN_MAGIC[0] &&
-         data[1] === AFDESIGN_MAGIC[1] &&
-         data[2] === AFDESIGN_MAGIC[2] &&
-         data[3] === AFDESIGN_MAGIC[3]
+  return (
+    data[0] === AFDESIGN_MAGIC[0] &&
+    data[1] === AFDESIGN_MAGIC[1] &&
+    data[2] === AFDESIGN_MAGIC[2] &&
+    data[3] === AFDESIGN_MAGIC[3]
+  )
 }
 
 /**
@@ -56,10 +58,12 @@ export function isAfdesignFile(data: Uint8Array): boolean {
 export function findZstdBlocks(data: Uint8Array): number[] {
   const offsets: number[] = []
   for (let i = 0; i < data.length - 3; i++) {
-    if (data[i] === ZSTD_MAGIC[0] &&
-        data[i + 1] === ZSTD_MAGIC[1] &&
-        data[i + 2] === ZSTD_MAGIC[2] &&
-        data[i + 3] === ZSTD_MAGIC[3]) {
+    if (
+      data[i] === ZSTD_MAGIC[0] &&
+      data[i + 1] === ZSTD_MAGIC[1] &&
+      data[i + 2] === ZSTD_MAGIC[2] &&
+      data[i + 3] === ZSTD_MAGIC[3]
+    ) {
       offsets.push(i)
     }
   }
@@ -184,7 +188,7 @@ export function extractASCIIStrings(data: Uint8Array, minLength: number = 4): st
 
   for (let i = 0; i < data.length; i++) {
     const byte = data[i]!
-    if (byte >= 0x20 && byte <= 0x7E) {
+    if (byte >= 0x20 && byte <= 0x7e) {
       current += String.fromCharCode(byte)
     } else {
       if (current.length >= minLength) {

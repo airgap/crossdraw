@@ -1,13 +1,34 @@
 import { describe, test, expect } from 'bun:test'
 import {
-  hexToRgba, rgbaToHex, rgbaToHsla, hslaToRgba,
-  rgbaToCmyk, cmykToRgba, hexToHsla, hslaToHex,
-  hexToCmyk, cmykToHex, parseHsla, hslaToString,
+  hexToRgba,
+  rgbaToHex,
+  rgbaToHsla,
+  hslaToRgba,
+  rgbaToCmyk,
+  cmykToRgba,
+  hexToHsla,
+  hslaToHex,
+  hexToCmyk,
+  cmykToHex,
+  parseHsla,
+  hslaToString,
 } from '@/math/color'
 
 describe('LYK-102: hand/pan tool', () => {
   test('hand tool is a valid activeTool value', () => {
-    const tools = ['select', 'pen', 'node', 'rectangle', 'ellipse', 'polygon', 'star', 'text', 'gradient', 'eyedropper', 'hand']
+    const tools = [
+      'select',
+      'pen',
+      'node',
+      'rectangle',
+      'ellipse',
+      'polygon',
+      'star',
+      'text',
+      'gradient',
+      'eyedropper',
+      'hand',
+    ]
     expect(tools).toContain('hand')
   })
 
@@ -70,7 +91,7 @@ describe('LYK-128: transparency checkerboard', () => {
 describe('LYK-132: clipboard paste images', () => {
   test('image blob type detection', () => {
     const types = ['image/png', 'image/jpeg', 'text/plain']
-    const imageItems = types.filter(t => t.startsWith('image/'))
+    const imageItems = types.filter((t) => t.startsWith('image/'))
     expect(imageItems.length).toBe(2)
   })
 })
@@ -223,7 +244,15 @@ describe('LYK-88: color space conversions', () => {
 
 describe('LYK-120: skew/shear transform', () => {
   test('skewX defaults to 0 when undefined', () => {
-    const transform: { x: number; y: number; scaleX: number; scaleY: number; rotation: number; skewX?: number; skewY?: number } = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }
+    const transform: {
+      x: number
+      y: number
+      scaleX: number
+      scaleY: number
+      rotation: number
+      skewX?: number
+      skewY?: number
+    } = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }
     expect(transform.skewX ?? 0).toBe(0)
   })
 
@@ -235,13 +264,13 @@ describe('LYK-120: skew/shear transform', () => {
 
   test('skew to radians conversion', () => {
     const skewDeg = 45
-    const skewRad = Math.tan(skewDeg * Math.PI / 180)
+    const skewRad = Math.tan((skewDeg * Math.PI) / 180)
     expect(skewRad).toBeCloseTo(1, 5)
   })
 
   test('zero skew produces identity-like transform', () => {
-    const sx = Math.tan(0 * Math.PI / 180)
-    const sy = Math.tan(0 * Math.PI / 180)
+    const sx = Math.tan((0 * Math.PI) / 180)
+    const sy = Math.tan((0 * Math.PI) / 180)
     // transform(1, sy, sx, 1, 0, 0) with sx=0, sy=0 is identity
     expect(sx).toBe(0)
     expect(sy).toBe(0)

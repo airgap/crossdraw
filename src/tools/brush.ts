@@ -44,7 +44,7 @@ export function createBrushDab(size: number, hardness: number, color: string, op
         alpha = 1
       } else {
         const edge = 1 - hardness
-        alpha = dist < (1 - edge) ? 1 : Math.max(0, 1 - (dist - (1 - edge)) / edge)
+        alpha = dist < 1 - edge ? 1 : Math.max(0, 1 - (dist - (1 - edge)) / edge)
       }
       alpha *= opacity
 
@@ -81,7 +81,7 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
   const p = Math.max(0, Math.min(1, pressure))
   const b = {
     ...raw,
-    size: raw.size * (0.3 + 0.7 * p),   // size ranges from 30%-100% based on pressure
+    size: raw.size * (0.3 + 0.7 * p), // size ranges from 30%-100% based on pressure
     opacity: raw.opacity * p,
   }
   const store = useEditorStore.getState()
@@ -92,7 +92,7 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
   let rasterLayer: RasterLayer | undefined
   const selectedId = store.selection.layerIds[0]
   if (selectedId) {
-    const layer = artboard.layers.find(l => l.id === selectedId)
+    const layer = artboard.layers.find((l) => l.id === selectedId)
     if (layer?.type === 'raster') rasterLayer = layer
   }
 
@@ -176,9 +176,15 @@ function stampDab(target: ImageData, dab: ImageData, dabSize: number, ox: number
       const outAlpha = dabAlpha + tgtAlpha * (1 - dabAlpha)
       if (outAlpha === 0) continue
 
-      target.data[tgtIdx] = Math.round((dab.data[dabIdx]! * dabAlpha + target.data[tgtIdx]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
-      target.data[tgtIdx + 1] = Math.round((dab.data[dabIdx + 1]! * dabAlpha + target.data[tgtIdx + 1]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
-      target.data[tgtIdx + 2] = Math.round((dab.data[dabIdx + 2]! * dabAlpha + target.data[tgtIdx + 2]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
+      target.data[tgtIdx] = Math.round(
+        (dab.data[dabIdx]! * dabAlpha + target.data[tgtIdx]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
+      )
+      target.data[tgtIdx + 1] = Math.round(
+        (dab.data[dabIdx + 1]! * dabAlpha + target.data[tgtIdx + 1]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
+      )
+      target.data[tgtIdx + 2] = Math.round(
+        (dab.data[dabIdx + 2]! * dabAlpha + target.data[tgtIdx + 2]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
+      )
       target.data[tgtIdx + 3] = Math.round(outAlpha * 255)
     }
   }

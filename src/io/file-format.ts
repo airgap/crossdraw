@@ -68,9 +68,7 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   // Version
   const version = view.getUint32(6, true)
   if (version > FORMAT_VERSION) {
-    throw new Error(
-      `Unsupported .design version ${version} (max supported: ${FORMAT_VERSION})`,
-    )
+    throw new Error(`Unsupported .design version ${version} (max supported: ${FORMAT_VERSION})`)
   }
 
   // Flags
@@ -85,9 +83,7 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   // Apply migrations if needed
   if (version < FORMAT_VERSION) {
     if (!canMigrate(version, FORMAT_VERSION)) {
-      throw new Error(
-        `Cannot migrate .design file from version ${version} to ${FORMAT_VERSION}`,
-      )
+      throw new Error(`Cannot migrate .design file from version ${version} to ${FORMAT_VERSION}`)
     }
     raw = migrateData(raw, version, FORMAT_VERSION)
   }

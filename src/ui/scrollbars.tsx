@@ -78,14 +78,16 @@ export function ViewportScrollbars({ viewportWidth, viewportHeight }: ScrollbarP
   return (
     <>
       {/* Horizontal scrollbar */}
-      <div style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 6,
-        height: 6,
-        pointerEvents: 'none',
-      }}>
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 6,
+          height: 6,
+          pointerEvents: 'none',
+        }}
+      >
         <div
           onMouseDown={handleHDrag}
           style={{
@@ -100,14 +102,16 @@ export function ViewportScrollbars({ viewportWidth, viewportHeight }: ScrollbarP
       </div>
 
       {/* Vertical scrollbar */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        bottom: 6,
-        width: 6,
-        pointerEvents: 'none',
-      }}>
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          bottom: 6,
+          width: 6,
+          pointerEvents: 'none',
+        }}
+      >
         <div
           onMouseDown={handleVDrag}
           style={{

@@ -17,26 +17,22 @@ export function PanelShell({ children }: PanelShellProps) {
   const floatingPanels = usePanelLayoutStore((s) => s.floatingPanels)
 
   return (
-    <div style={{
-      display: 'flex',
-      flex: 1,
-      overflow: 'hidden',
-      position: 'relative',
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flex: 1,
+        overflow: 'hidden',
+        position: 'relative',
+      }}
+    >
       {/* Left column */}
-      {leftColumn && leftColumn.groups.length > 0 && (
-        <PanelColumn column={leftColumn} side="left" />
-      )}
+      {leftColumn && leftColumn.groups.length > 0 && <PanelColumn column={leftColumn} side="left" />}
 
       {/* Center viewport area */}
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        {children}
-      </div>
+      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>{children}</div>
 
       {/* Right column */}
-      {rightColumn && rightColumn.groups.length > 0 && (
-        <PanelColumn column={rightColumn} side="right" />
-      )}
+      {rightColumn && rightColumn.groups.length > 0 && <PanelColumn column={rightColumn} side="right" />}
 
       {/* Floating panels portal layer */}
       {floatingPanels.length > 0 && (

@@ -35,7 +35,7 @@ export interface PanelLayoutState {
 
 // ── Constants ──
 
-const STORAGE_KEY = 'designer:panel-layout'
+const STORAGE_KEY = 'crossdraw:panel-layout'
 const MIN_COLUMN_WIDTH = 180
 const MAX_COLUMN_WIDTH = 400
 export const MIN_GROUP_HEIGHT = 80
@@ -66,14 +66,18 @@ function loadFromStorage(): PanelLayoutState | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) return JSON.parse(raw)
-  } catch { /* empty */ }
+  } catch {
+    /* empty */
+  }
   return null
 }
 
 function saveToStorage(state: PanelLayoutState) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  } catch { /* empty */ }
+  } catch {
+    /* empty */
+  }
 }
 
 // ── Validation ──
@@ -87,9 +91,7 @@ function validateGroup(group: TabGroup, validIds: string[]): TabGroup | null {
 
 function validateColumn(col: PanelColumn | null, validIds: string[]): PanelColumn | null {
   if (!col) return null
-  const groups = col.groups
-    .map((g) => validateGroup(g, validIds))
-    .filter((g): g is TabGroup => g !== null)
+  const groups = col.groups.map((g) => validateGroup(g, validIds)).filter((g): g is TabGroup => g !== null)
   if (groups.length === 0) return null
   return {
     groups,
@@ -101,9 +103,7 @@ function validateLayout(layout: PanelLayoutState): PanelLayoutState {
   const validIds = getAllPanelIds()
   const rightColumn = validateColumn(layout.rightColumn, validIds)
   const leftColumn = validateColumn(layout.leftColumn, validIds)
-  const floatingPanels = (layout.floatingPanels ?? []).filter(
-    (p) => validIds.includes(p.tabId)
-  )
+  const floatingPanels = (layout.floatingPanels ?? []).filter((p) => validIds.includes(p.tabId))
   const collapsedGroups = layout.collapsedGroups ?? {}
   const groupHeights = layout.groupHeights ?? {}
   // Ensure rightColumn always exists — fall back to defaults
@@ -156,12 +156,14 @@ type PanelLayoutStore = PanelLayoutState & PanelLayoutActions
 function removeTabFromAll(state: PanelLayoutState, tabId: string): PanelLayoutState {
   const removeFromColumn = (col: PanelColumn | null): PanelColumn | null => {
     if (!col) return null
-    const groups = col.groups.map((g) => {
-      if (!g.tabs.includes(tabId)) return g
-      const tabs = g.tabs.filter((t) => t !== tabId)
-      const activeTab = g.activeTab === tabId ? (tabs[0] ?? '') : g.activeTab
-      return { ...g, tabs, activeTab }
-    }).filter((g) => g.tabs.length > 0)
+    const groups = col.groups
+      .map((g) => {
+        if (!g.tabs.includes(tabId)) return g
+        const tabs = g.tabs.filter((t) => t !== tabId)
+        const activeTab = g.activeTab === tabId ? (tabs[0] ?? '') : g.activeTab
+        return { ...g, tabs, activeTab }
+      })
+      .filter((g) => g.tabs.length > 0)
     if (groups.length === 0) return null
     return { ...col, groups }
   }
@@ -346,9 +348,7 @@ export const usePanelLayoutStore = create<PanelLayoutStore>((set, get) => ({
     const state = get()
     const next: PanelLayoutState = {
       ...state,
-      floatingPanels: state.floatingPanels.map((p) =>
-        p.tabId === tabId ? { ...p, x, y } : p
-      ),
+      floatingPanels: state.floatingPanels.map((p) => (p.tabId === tabId ? { ...p, x, y } : p)),
     }
     persist(next)
     set(next)
@@ -365,7 +365,7 @@ export const usePanelLayoutStore = create<PanelLayoutStore>((set, get) => ({
               width: Math.max(MIN_FLOAT_WIDTH, width),
               height: Math.max(MIN_FLOAT_HEIGHT, height),
             }
-          : p
+          : p,
       ),
     }
     persist(next)

@@ -1,5 +1,5 @@
 /**
- * Touch / stylus handler for the Designer canvas.
+ * Touch / stylus handler for the Crossdraw canvas.
  *
  * Gesture detection:
  * - Single finger  → routed to current tool (touch ↔ mouse translation)
@@ -27,7 +27,14 @@ export interface TouchPoint {
 export interface TouchHandlerCallbacks {
   /** Translate a pointer event into a synthetic MouseEvent-like object and
    *  forward it to the viewport mouse-down handler. */
-  onPointerDown: (x: number, y: number, button: number, shiftKey: boolean, pressure: number, pointerType: string) => void
+  onPointerDown: (
+    x: number,
+    y: number,
+    button: number,
+    shiftKey: boolean,
+    pressure: number,
+    pointerType: string,
+  ) => void
   onPointerMove: (x: number, y: number, shiftKey: boolean, pressure: number, pointerType: string) => void
   onPointerUp: (pressure: number, pointerType: string) => void
   onContextMenu: (x: number, y: number) => void
@@ -172,7 +179,9 @@ function onPointerDown(e: PointerEvent) {
 
   // Capture pointer for reliable tracking
   if (currentCanvas) {
-    try { currentCanvas.setPointerCapture(e.pointerId) } catch {}
+    try {
+      currentCanvas.setPointerCapture(e.pointerId)
+    } catch {}
   }
 
   const count = activeTouches.size
@@ -265,7 +274,9 @@ function onPointerUp(e: PointerEvent) {
   clearLongPress()
 
   if (currentCanvas) {
-    try { currentCanvas.releasePointerCapture(e.pointerId) } catch {}
+    try {
+      currentCanvas.releasePointerCapture(e.pointerId)
+    } catch {}
   }
 
   if (activeTouches.size === 0) {

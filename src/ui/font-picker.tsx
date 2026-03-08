@@ -55,7 +55,9 @@ export function getBuiltinFonts(): FontEntry[] {
 export async function enumerateSystemFonts(): Promise<FontEntry[]> {
   if ('queryLocalFonts' in window) {
     try {
-      const fonts = await (window as unknown as { queryLocalFonts: () => Promise<Array<{ family: string; style: string }>> }).queryLocalFonts()
+      const fonts = await (
+        window as unknown as { queryLocalFonts: () => Promise<Array<{ family: string; style: string }>> }
+      ).queryLocalFonts()
       const familyMap = new Map<string, Set<number>>()
       for (const font of fonts) {
         if (!familyMap.has(font.family)) {
@@ -103,10 +105,10 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
   const filtered = useMemo(() => {
     if (!search) return fonts
     const q = search.toLowerCase()
-    return fonts.filter(f => f.family.toLowerCase().includes(q))
+    return fonts.filter((f) => f.family.toLowerCase().includes(q))
   }, [fonts, search])
 
-  const currentFont = fonts.find(f => f.family === value)
+  const currentFont = fonts.find((f) => f.family === value)
   const availableWeights = currentFont?.weights ?? [400, 700]
 
   return (
@@ -147,29 +149,33 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             height: 'var(--height-button)',
           }}
         >
-          {availableWeights.map(w => (
-            <option key={w} value={w}>{getWeightName(w)}</option>
+          {availableWeights.map((w) => (
+            <option key={w} value={w}>
+              {getWeightName(w)}
+            </option>
           ))}
         </select>
       </div>
 
       {isOpen && (
-        <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          zIndex: 100,
-          background: 'var(--bg-overlay)',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-md)',
-          boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.2)',
-          maxHeight: 240,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          marginTop: 2,
-        }}>
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            background: 'var(--bg-overlay)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.2)',
+            maxHeight: 240,
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            marginTop: 2,
+          }}
+        >
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -186,7 +192,7 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             }}
           />
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {filtered.map(font => (
+            {filtered.map((font) => (
               <button
                 key={font.family}
                 onClick={() => {
@@ -214,7 +220,13 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
                 }}
               >
                 {font.family}
-                <span style={{ fontSize: 'var(--font-size-xs)', color: font.family === value ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)', marginLeft: 8 }}>
+                <span
+                  style={{
+                    fontSize: 'var(--font-size-xs)',
+                    color: font.family === value ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
+                    marginLeft: 8,
+                  }}
+                >
                   {font.category}
                 </span>
               </button>

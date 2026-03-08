@@ -48,7 +48,9 @@ export function rgbaToHex(c: RGBA): string {
   const g = Math.round(c.g).toString(16).padStart(2, '0')
   const b = Math.round(c.b).toString(16).padStart(2, '0')
   if (c.a < 1) {
-    const a = Math.round(c.a * 255).toString(16).padStart(2, '0')
+    const a = Math.round(c.a * 255)
+      .toString(16)
+      .padStart(2, '0')
     return `#${r}${g}${b}${a}`
   }
   return `#${r}${g}${b}`
@@ -168,9 +170,7 @@ export function cmykToHex(c: CMYK): string {
  * Format HSLA as CSS string.
  */
 export function hslaToString(c: HSLA): string {
-  return c.a < 1
-    ? `hsla(${c.h}, ${c.s}%, ${c.l}%, ${c.a})`
-    : `hsl(${c.h}, ${c.s}%, ${c.l}%)`
+  return c.a < 1 ? `hsla(${c.h}, ${c.s}%, ${c.l}%, ${c.a})` : `hsl(${c.h}, ${c.s}%, ${c.l}%)`
 }
 
 /**

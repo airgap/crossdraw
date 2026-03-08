@@ -3,7 +3,10 @@ import { rdpSimplify } from '@/tools/boolean-ops'
 
 describe('rdpSimplify', () => {
   it('returns same points when <= 2', () => {
-    const pts = [{ x: 0, y: 0 }, { x: 10, y: 10 }]
+    const pts = [
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ]
     expect(rdpSimplify(pts, 1)).toEqual(pts)
   })
 

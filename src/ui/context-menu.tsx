@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { copyLayers, pasteLayers, cutLayers, hasClipboard } from '@/tools/clipboard'
-import {
-  bringToFront, bringForward, sendBackward, sendToBack,
-  flipHorizontal, flipVertical,
-} from '@/tools/layer-ops'
+import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
 
 interface MenuItem {
   label: string
@@ -60,12 +57,38 @@ export function CanvasContextMenu() {
   if (!menu.visible) return null
 
   const entries: MenuEntry[] = [
-    { label: 'Cut', shortcut: 'Ctrl+X', action: () => { cutLayers(); close() }, disabled: !hasSelection },
-    { label: 'Copy', shortcut: 'Ctrl+C', action: () => { copyLayers(); close() }, disabled: !hasSelection },
-    { label: 'Paste', shortcut: 'Ctrl+V', action: () => { pasteLayers(); close() }, disabled: !hasClipboard() },
+    {
+      label: 'Cut',
+      shortcut: 'Ctrl+X',
+      action: () => {
+        cutLayers()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    {
+      label: 'Copy',
+      shortcut: 'Ctrl+C',
+      action: () => {
+        copyLayers()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    {
+      label: 'Paste',
+      shortcut: 'Ctrl+V',
+      action: () => {
+        pasteLayers()
+        close()
+      },
+      disabled: !hasClipboard(),
+    },
     { separator: true },
     {
-      label: 'Delete', shortcut: 'Del', disabled: !hasSelection,
+      label: 'Delete',
+      shortcut: 'Del',
+      disabled: !hasSelection,
       action: () => {
         const store = useEditorStore.getState()
         const artboard = store.document.artboards[0]
@@ -79,7 +102,9 @@ export function CanvasContextMenu() {
       },
     },
     {
-      label: 'Duplicate', shortcut: 'Ctrl+D', disabled: !hasSelection,
+      label: 'Duplicate',
+      shortcut: 'Ctrl+D',
+      disabled: !hasSelection,
       action: () => {
         const store = useEditorStore.getState()
         const artboard = store.document.artboards[0]
@@ -92,16 +117,65 @@ export function CanvasContextMenu() {
       },
     },
     { separator: true },
-    { label: 'Bring to Front', shortcut: 'Ctrl+Shift+]', action: () => { bringToFront(); close() }, disabled: !hasSelection },
-    { label: 'Bring Forward', shortcut: 'Ctrl+]', action: () => { bringForward(); close() }, disabled: !hasSelection },
-    { label: 'Send Backward', shortcut: 'Ctrl+[', action: () => { sendBackward(); close() }, disabled: !hasSelection },
-    { label: 'Send to Back', shortcut: 'Ctrl+Shift+[', action: () => { sendToBack(); close() }, disabled: !hasSelection },
-    { separator: true },
-    { label: 'Flip Horizontal', shortcut: 'Shift+H', action: () => { flipHorizontal(); close() }, disabled: !hasSelection },
-    { label: 'Flip Vertical', shortcut: 'Shift+V', action: () => { flipVertical(); close() }, disabled: !hasSelection },
+    {
+      label: 'Bring to Front',
+      shortcut: 'Ctrl+Shift+]',
+      action: () => {
+        bringToFront()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    {
+      label: 'Bring Forward',
+      shortcut: 'Ctrl+]',
+      action: () => {
+        bringForward()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    {
+      label: 'Send Backward',
+      shortcut: 'Ctrl+[',
+      action: () => {
+        sendBackward()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    {
+      label: 'Send to Back',
+      shortcut: 'Ctrl+Shift+[',
+      action: () => {
+        sendToBack()
+        close()
+      },
+      disabled: !hasSelection,
+    },
     { separator: true },
     {
-      label: 'Select All', shortcut: 'Ctrl+A',
+      label: 'Flip Horizontal',
+      shortcut: 'Shift+H',
+      action: () => {
+        flipHorizontal()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    {
+      label: 'Flip Vertical',
+      shortcut: 'Shift+V',
+      action: () => {
+        flipVertical()
+        close()
+      },
+      disabled: !hasSelection,
+    },
+    { separator: true },
+    {
+      label: 'Select All',
+      shortcut: 'Ctrl+A',
       action: () => {
         const store = useEditorStore.getState()
         const artboard = store.document.artboards[0]
@@ -154,7 +228,7 @@ export function CanvasContextMenu() {
               if (!entry.disabled) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover)'
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLDivElement).style.background = 'transparent'
+              ;(e.currentTarget as HTMLDivElement).style.background = 'transparent'
             }}
           >
             <span>{entry.label}</span>
@@ -174,6 +248,6 @@ export function CanvasContextMenu() {
 export function openCanvasContextMenu(x: number, y: number) {
   const fn = (window as unknown as Record<string, unknown>).__openCanvasContextMenu
   if (typeof fn === 'function') {
-    (fn as (x: number, y: number) => void)(x, y)
+    ;(fn as (x: number, y: number) => void)(x, y)
   }
 }

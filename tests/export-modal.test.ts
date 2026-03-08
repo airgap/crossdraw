@@ -41,8 +41,12 @@ describe('Export Settings', () => {
       const store: Record<string, string> = {}
       ;(globalThis as any).localStorage = {
         getItem: (key: string) => store[key] ?? null,
-        setItem: (key: string, val: string) => { store[key] = val },
-        removeItem: (key: string) => { delete store[key] },
+        setItem: (key: string, val: string) => {
+          store[key] = val
+        },
+        removeItem: (key: string) => {
+          delete store[key]
+        },
       }
     }
     const custom: ExportSettings = {
@@ -57,7 +61,7 @@ describe('Export Settings', () => {
     expect(loaded.scale).toBe(3)
     expect(loaded.quality).toBe(60)
     // Restore default
-    localStorage.removeItem('designer:export-settings')
+    localStorage.removeItem('crossdraw:export-settings')
   })
 })
 

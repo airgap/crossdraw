@@ -32,7 +32,7 @@ export function migrateData(
     if (!migrator) {
       throw new Error(
         `No migrator registered for version ${v} → ${v + 1}. ` +
-        `Cannot open file saved with format version ${fromVersion}.`,
+          `Cannot open file saved with format version ${fromVersion}.`,
       )
     }
     current = migrator(current)

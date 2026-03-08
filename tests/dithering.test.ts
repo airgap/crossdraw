@@ -96,7 +96,10 @@ describe('applyDithering', () => {
     // They should produce different results
     let same = true
     for (let i = 0; i < fs.data.length; i++) {
-      if (fs.data[i] !== atk.data[i]) { same = false; break }
+      if (fs.data[i] !== atk.data[i]) {
+        same = false
+        break
+      }
     }
     expect(same).toBe(false)
   })

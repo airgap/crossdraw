@@ -60,10 +60,7 @@ describe('raster data store', () => {
     const doc = {
       artboards: [
         {
-          layers: [
-            { type: 'raster', imageChunkId: 'chunk-a' },
-            { type: 'vector' },
-          ],
+          layers: [{ type: 'raster', imageChunkId: 'chunk-a' }, { type: 'vector' }],
         },
       ],
     }

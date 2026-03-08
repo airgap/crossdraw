@@ -4,11 +4,7 @@ import { pathBBox, mergeBBox, getLayerBBox, type BBox } from '@/math/bbox'
 import type { Transform, VectorLayer } from '@/types'
 import { snapBBox } from '@/tools/snap'
 
-export type HandleType =
-  | 'nw' | 'n' | 'ne'
-  | 'w' | 'e'
-  | 'sw' | 's' | 'se'
-  | 'rotation' | 'body'
+export type HandleType = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se' | 'rotation' | 'body'
 
 interface DragState {
   handle: HandleType
@@ -50,18 +46,12 @@ export function getHandlePositions(bbox: BBox, zoom: number) {
   }
 }
 
-export function hitTestHandles(
-  docPoint: Point,
-  bbox: BBox,
-  zoom: number,
-): HandleType | null {
+export function hitTestHandles(docPoint: Point, bbox: BBox, zoom: number): HandleType | null {
   const handles = getHandlePositions(bbox, zoom)
   const radius = 6 / zoom
   const r2 = radius * radius
 
-  const order: Exclude<HandleType, 'body'>[] = [
-    'rotation', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e',
-  ]
+  const order: Exclude<HandleType, 'body'>[] = ['rotation', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e']
 
   for (const type of order) {
     const h = handles[type]
@@ -70,22 +60,14 @@ export function hitTestHandles(
     if (dx * dx + dy * dy <= r2) return type
   }
 
-  if (
-    docPoint.x >= bbox.minX && docPoint.x <= bbox.maxX &&
-    docPoint.y >= bbox.minY && docPoint.y <= bbox.maxY
-  ) {
+  if (docPoint.x >= bbox.minX && docPoint.x <= bbox.maxX && docPoint.y >= bbox.minY && docPoint.y <= bbox.maxY) {
     return 'body'
   }
 
   return null
 }
 
-export function beginTransform(
-  handle: HandleType,
-  docPoint: Point,
-  layerId: string,
-  artboardId: string,
-) {
+export function beginTransform(handle: HandleType, docPoint: Point, layerId: string, artboardId: string) {
   const store = useEditorStore.getState()
   const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
@@ -159,10 +141,7 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
     const centerX = artboard.x + orig.x + ((lb.minX + lb.maxX) / 2) * orig.scaleX
     const centerY = artboard.y + orig.y + ((lb.minY + lb.maxY) / 2) * orig.scaleY
 
-    const startAngle = Math.atan2(
-      d.startDocPoint.y - centerY,
-      d.startDocPoint.x - centerX,
-    )
+    const startAngle = Math.atan2(d.startDocPoint.y - centerY, d.startDocPoint.x - centerX)
     const curAngle = Math.atan2(docPoint.y - centerY, docPoint.x - centerX)
     let rotation = orig.rotation + (curAngle - startAngle) * (180 / Math.PI)
 
@@ -228,9 +207,15 @@ export function endTransform() {
   store.setActiveSnapLines(null)
 
   const artboard = store.document.artboards.find((a) => a.id === d.artboardId)
-  if (!artboard) { drag = null; return }
+  if (!artboard) {
+    drag = null
+    return
+  }
   const layer = artboard.layers.find((l) => l.id === d.layerId)
-  if (!layer) { drag = null; return }
+  if (!layer) {
+    drag = null
+    return
+  }
 
   const finalTransform = { ...layer.transform }
 

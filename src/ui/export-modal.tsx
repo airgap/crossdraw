@@ -37,22 +37,25 @@ export function ExportModal() {
   const dims = estimateExportDimensions(settings, artboardW, artboardH)
 
   // Update settings helper
-  const update = useCallback((partial: Partial<ExportSettings>) => {
-    setSettings((prev) => {
-      const next = { ...prev, ...partial }
+  const update = useCallback(
+    (partial: Partial<ExportSettings>) => {
+      setSettings((prev) => {
+        const next = { ...prev, ...partial }
 
-      // Handle linked dimensions
-      if (next.linkedDimensions && partial.width && prev.width) {
-        const ratio = artboardH / artboardW
-        next.height = Math.round(partial.width * ratio)
-      } else if (next.linkedDimensions && partial.height && prev.height) {
-        const ratio = artboardW / artboardH
-        next.width = Math.round(partial.height * ratio)
-      }
+        // Handle linked dimensions
+        if (next.linkedDimensions && partial.width && prev.width) {
+          const ratio = artboardH / artboardW
+          next.height = Math.round(partial.width * ratio)
+        } else if (next.linkedDimensions && partial.height && prev.height) {
+          const ratio = artboardW / artboardH
+          next.width = Math.round(partial.height * ratio)
+        }
 
-      return next
-    })
-  }, [artboardW, artboardH])
+        return next
+      })
+    },
+    [artboardW, artboardH],
+  )
 
   // Generate preview when settings change
   useEffect(() => {
@@ -72,23 +75,11 @@ export function ExportModal() {
 
         if (settings.format === 'svg') {
           // For SVG, render as PNG for preview
-          previewBlob = await exportArtboardToBlob(
-            doc,
-            { format: 'png', scale: previewScale },
-            artboard.id,
-          )
+          previewBlob = await exportArtboardToBlob(doc, { format: 'png', scale: previewScale }, artboard.id)
         } else if (settings.format === 'pdf') {
-          previewBlob = await exportArtboardToBlob(
-            doc,
-            { format: 'png', scale: previewScale },
-            artboard.id,
-          )
+          previewBlob = await exportArtboardToBlob(doc, { format: 'png', scale: previewScale }, artboard.id)
         } else {
-          previewBlob = await exportArtboardToBlob(
-            doc,
-            { format: 'png', scale: previewScale },
-            artboard.id,
-          )
+          previewBlob = await exportArtboardToBlob(doc, { format: 'png', scale: previewScale }, artboard.id)
         }
 
         // Also generate actual-size blob for file size estimate
@@ -109,7 +100,15 @@ export function ExportModal() {
         clearTimeout(previewTimeoutRef.current)
       }
     }
-  }, [showExportModal, settings.format, settings.scale, settings.quality, settings.transparent, settings.webpLossless, settings.pdfDPI])
+  }, [
+    showExportModal,
+    settings.format,
+    settings.scale,
+    settings.quality,
+    settings.transparent,
+    settings.webpLossless,
+    settings.pdfDPI,
+  ])
 
   // Cleanup preview URL on unmount
   useEffect(() => {
@@ -142,7 +141,11 @@ export function ExportModal() {
       const title = doc.metadata.title || 'Untitled'
       const scaleSuffix = settings.scale !== 1 ? `@${settings.scale}x` : ''
       const extMap: Record<ExportFormatType, string> = {
-        png: 'png', jpeg: 'jpg', svg: 'svg', pdf: 'pdf', webp: 'webp',
+        png: 'png',
+        jpeg: 'jpg',
+        svg: 'svg',
+        pdf: 'pdf',
+        webp: 'webp',
       }
       const filename = `${title}${scaleSuffix}.${extMap[settings.format]}`
 
@@ -169,14 +172,8 @@ export function ExportModal() {
     try {
       saveExportSettings(settings)
       // Always copy as PNG for clipboard
-      const blob = await exportArtboardToBlob(
-        doc,
-        { format: 'png', scale: settings.scale },
-        artboard.id,
-      )
-      await navigator.clipboard.write([
-        new ClipboardItem({ 'image/png': blob }),
-      ])
+      const blob = await exportArtboardToBlob(doc, { format: 'png', scale: settings.scale }, artboard.id)
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       console.log('Copied to clipboard')
     } catch (err) {
       console.error('Copy to clipboard failed:', err)
@@ -224,28 +221,22 @@ export function ExportModal() {
             {settings.format === 'png' && (
               <PNGOptions settings={settings} update={update} dims={dims} artboardW={artboardW} artboardH={artboardH} />
             )}
-            {settings.format === 'jpeg' && (
-              <JPEGOptions settings={settings} update={update} />
-            )}
-            {settings.format === 'svg' && (
-              <SVGOptions settings={settings} update={update} />
-            )}
-            {settings.format === 'pdf' && (
-              <PDFOptions settings={settings} update={update} />
-            )}
-            {settings.format === 'webp' && (
-              <WebPOptions settings={settings} update={update} />
-            )}
+            {settings.format === 'jpeg' && <JPEGOptions settings={settings} update={update} />}
+            {settings.format === 'svg' && <SVGOptions settings={settings} update={update} />}
+            {settings.format === 'pdf' && <PDFOptions settings={settings} update={update} />}
+            {settings.format === 'webp' && <WebPOptions settings={settings} update={update} />}
 
             {/* Export region */}
             <div style={sectionStyle}>
               <label style={labelStyle}>Export Region</label>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {([
-                  ['artboard', 'Full Artboard'],
-                  ['selection', 'Selection'],
-                  ['all-artboards', 'All Artboards'],
-                ] as [ExportRegion, string][]).map(([value, label]) => (
+                {(
+                  [
+                    ['artboard', 'Full Artboard'],
+                    ['selection', 'Selection'],
+                    ['all-artboards', 'All Artboards'],
+                  ] as [ExportRegion, string][]
+                ).map(([value, label]) => (
                   <label key={value} style={radioLabelStyle}>
                     <input
                       type="radio"
@@ -277,9 +268,7 @@ export function ExportModal() {
                   }}
                 />
               ) : (
-                <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
-                  Generating preview...
-                </div>
+                <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Generating preview...</div>
               )}
             </div>
 
@@ -304,19 +293,11 @@ export function ExportModal() {
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
             {canCopyToClipboard && (
-              <button
-                style={secondaryButtonStyle}
-                onClick={handleCopyToClipboard}
-                disabled={exporting}
-              >
+              <button style={secondaryButtonStyle} onClick={handleCopyToClipboard} disabled={exporting}>
                 Copy to Clipboard
               </button>
             )}
-            <button
-              style={primaryButtonStyle}
-              onClick={handleExport}
-              disabled={exporting}
-            >
+            <button style={primaryButtonStyle} onClick={handleExport} disabled={exporting}>
               {exporting ? 'Exporting...' : 'Export'}
             </button>
           </div>
@@ -349,7 +330,9 @@ function PNGOptions({
           style={selectStyle}
         >
           {SCALE_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}x</option>
+            <option key={s} value={s}>
+              {s}x
+            </option>
           ))}
         </select>
       </div>
@@ -385,31 +368,17 @@ function PNGOptions({
       </div>
 
       <div style={sectionStyle}>
-        <ToggleRow
-          label="Transparency"
-          checked={settings.transparent}
-          onChange={(v) => update({ transparent: v })}
-        />
+        <ToggleRow label="Transparency" checked={settings.transparent} onChange={(v) => update({ transparent: v })} />
       </div>
 
       <div style={sectionStyle}>
-        <ToggleRow
-          label="Embed ICC Profile"
-          checked={settings.embedICC}
-          onChange={(v) => update({ embedICC: v })}
-        />
+        <ToggleRow label="Embed ICC Profile" checked={settings.embedICC} onChange={(v) => update({ embedICC: v })} />
       </div>
     </>
   )
 }
 
-function JPEGOptions({
-  settings,
-  update,
-}: {
-  settings: ExportSettings
-  update: (p: Partial<ExportSettings>) => void
-}) {
+function JPEGOptions({ settings, update }: { settings: ExportSettings; update: (p: Partial<ExportSettings>) => void }) {
   return (
     <>
       <div style={sectionStyle}>
@@ -431,35 +400,23 @@ function JPEGOptions({
 
       <div style={sectionStyle}>
         <label style={labelStyle}>Scale</label>
-        <select
-          value={settings.scale}
-          onChange={(e) => update({ scale: Number(e.target.value) })}
-          style={selectStyle}
-        >
+        <select value={settings.scale} onChange={(e) => update({ scale: Number(e.target.value) })} style={selectStyle}>
           {SCALE_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}x</option>
+            <option key={s} value={s}>
+              {s}x
+            </option>
           ))}
         </select>
       </div>
 
       <div style={sectionStyle}>
-        <ToggleRow
-          label="Progressive"
-          checked={settings.progressive}
-          onChange={(v) => update({ progressive: v })}
-        />
+        <ToggleRow label="Progressive" checked={settings.progressive} onChange={(v) => update({ progressive: v })} />
       </div>
     </>
   )
 }
 
-function SVGOptions({
-  settings,
-  update,
-}: {
-  settings: ExportSettings
-  update: (p: Partial<ExportSettings>) => void
-}) {
+function SVGOptions({ settings, update }: { settings: ExportSettings; update: (p: Partial<ExportSettings>) => void }) {
   return (
     <>
       <div style={sectionStyle}>
@@ -470,17 +427,15 @@ function SVGOptions({
           style={selectStyle}
         >
           {SVG_PRECISION_OPTIONS.map((p) => (
-            <option key={p} value={p}>{p}</option>
+            <option key={p} value={p}>
+              {p}
+            </option>
           ))}
         </select>
       </div>
 
       <div style={sectionStyle}>
-        <ToggleRow
-          label="Minify"
-          checked={settings.svgMinify}
-          onChange={(v) => update({ svgMinify: v })}
-        />
+        <ToggleRow label="Minify" checked={settings.svgMinify} onChange={(v) => update({ svgMinify: v })} />
       </div>
 
       <div style={sectionStyle}>
@@ -494,36 +449,22 @@ function SVGOptions({
   )
 }
 
-function PDFOptions({
-  settings,
-  update,
-}: {
-  settings: ExportSettings
-  update: (p: Partial<ExportSettings>) => void
-}) {
+function PDFOptions({ settings, update }: { settings: ExportSettings; update: (p: Partial<ExportSettings>) => void }) {
   return (
     <div style={sectionStyle}>
       <label style={labelStyle}>DPI</label>
-      <select
-        value={settings.pdfDPI}
-        onChange={(e) => update({ pdfDPI: Number(e.target.value) })}
-        style={selectStyle}
-      >
+      <select value={settings.pdfDPI} onChange={(e) => update({ pdfDPI: Number(e.target.value) })} style={selectStyle}>
         {DPI_OPTIONS.map((d) => (
-          <option key={d} value={d}>{d}</option>
+          <option key={d} value={d}>
+            {d}
+          </option>
         ))}
       </select>
     </div>
   )
 }
 
-function WebPOptions({
-  settings,
-  update,
-}: {
-  settings: ExportSettings
-  update: (p: Partial<ExportSettings>) => void
-}) {
+function WebPOptions({ settings, update }: { settings: ExportSettings; update: (p: Partial<ExportSettings>) => void }) {
   return (
     <>
       <div style={sectionStyle}>
@@ -545,22 +486,16 @@ function WebPOptions({
       </div>
 
       <div style={sectionStyle}>
-        <ToggleRow
-          label="Lossless"
-          checked={settings.webpLossless}
-          onChange={(v) => update({ webpLossless: v })}
-        />
+        <ToggleRow label="Lossless" checked={settings.webpLossless} onChange={(v) => update({ webpLossless: v })} />
       </div>
 
       <div style={sectionStyle}>
         <label style={labelStyle}>Scale</label>
-        <select
-          value={settings.scale}
-          onChange={(e) => update({ scale: Number(e.target.value) })}
-          style={selectStyle}
-        >
+        <select value={settings.scale} onChange={(e) => update({ scale: Number(e.target.value) })} style={selectStyle}>
           {SCALE_OPTIONS.map((s) => (
-            <option key={s} value={s}>{s}x</option>
+            <option key={s} value={s}>
+              {s}x
+            </option>
           ))}
         </select>
       </div>
@@ -570,15 +505,7 @@ function WebPOptions({
 
 // ────────────────────── Toggle Row Component ──────────────────────
 
-function ToggleRow({
-  label,
-  checked,
-  onChange,
-}: {
-  label: string
-  checked: boolean
-  onChange: (v: boolean) => void
-}) {
+function ToggleRow({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
       <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{label}</span>

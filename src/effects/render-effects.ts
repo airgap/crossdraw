@@ -5,10 +5,7 @@ import type { Effect, BlurParams, ShadowParams, GlowParams, InnerShadowParams, B
  * and compositing back. Returns the OffscreenCanvas with effects applied,
  * or null if no effects need a separate pass.
  */
-export function applyEffects(
-  sourceCanvas: OffscreenCanvas,
-  effects: Effect[],
-): OffscreenCanvas {
+export function applyEffects(sourceCanvas: OffscreenCanvas, effects: Effect[]): OffscreenCanvas {
   let current = sourceCanvas
 
   for (const effect of effects) {
@@ -36,11 +33,7 @@ export function applyEffects(
   return current
 }
 
-function applyBlur(
-  source: OffscreenCanvas,
-  params: BlurParams,
-  opacity: number,
-): OffscreenCanvas {
+function applyBlur(source: OffscreenCanvas, params: BlurParams, opacity: number): OffscreenCanvas {
   if (params.radius <= 0) return source
 
   // Expand canvas to accommodate blur overflow
@@ -57,13 +50,11 @@ function applyBlur(
   return out
 }
 
-function applyShadow(
-  source: OffscreenCanvas,
-  params: ShadowParams,
-  _opacity: number,
-): OffscreenCanvas {
+function applyShadow(source: OffscreenCanvas, params: ShadowParams, _opacity: number): OffscreenCanvas {
   // Expand canvas to accommodate shadow
-  const pad = Math.ceil(params.blurRadius * 3 + Math.max(Math.abs(params.offsetX), Math.abs(params.offsetY)) + params.spread)
+  const pad = Math.ceil(
+    params.blurRadius * 3 + Math.max(Math.abs(params.offsetX), Math.abs(params.offsetY)) + params.spread,
+  )
   const out = new OffscreenCanvas(source.width + pad * 2, source.height + pad * 2)
   const ctx = out.getContext('2d')!
 
@@ -86,11 +77,7 @@ function applyShadow(
   return out
 }
 
-function applyOuterGlow(
-  source: OffscreenCanvas,
-  params: GlowParams,
-  _opacity: number,
-): OffscreenCanvas {
+function applyOuterGlow(source: OffscreenCanvas, params: GlowParams, _opacity: number): OffscreenCanvas {
   const pad = Math.ceil((params.radius + params.spread) * 3)
   const out = new OffscreenCanvas(source.width + pad * 2, source.height + pad * 2)
   const ctx = out.getContext('2d')!
@@ -118,11 +105,7 @@ function applyOuterGlow(
   return out
 }
 
-function applyInnerShadow(
-  source: OffscreenCanvas,
-  params: InnerShadowParams,
-  _opacity: number,
-): OffscreenCanvas {
+function applyInnerShadow(source: OffscreenCanvas, params: InnerShadowParams, _opacity: number): OffscreenCanvas {
   const out = new OffscreenCanvas(source.width, source.height)
   const ctx = out.getContext('2d')!
 
@@ -154,10 +137,7 @@ function applyInnerShadow(
   return out
 }
 
-function applyBackgroundBlur(
-  source: OffscreenCanvas,
-  params: BackgroundBlurParams,
-): OffscreenCanvas {
+function applyBackgroundBlur(source: OffscreenCanvas, params: BackgroundBlurParams): OffscreenCanvas {
   if (params.radius <= 0) return source
 
   const out = new OffscreenCanvas(source.width, source.height)

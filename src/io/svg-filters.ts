@@ -128,10 +128,7 @@ export function parseSVGFilterDefs(svgEl: Element): Map<string, Effect[]> {
 /**
  * Resolve a filter reference (e.g. "url(#shadow1)") to effects.
  */
-export function resolveFilterReference(
-  filterAttr: string | null,
-  filterMap: Map<string, Effect[]>,
-): Effect[] {
+export function resolveFilterReference(filterAttr: string | null, filterMap: Map<string, Effect[]>): Effect[] {
   if (!filterAttr) return []
   const match = filterAttr.match(/url\(#([^)]+)\)/)
   if (!match) return []

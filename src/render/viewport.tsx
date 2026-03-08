@@ -27,16 +27,27 @@ import {
   getHandleCursor,
 } from '@/tools/transform'
 import { importImageFile, importImageFromBlob } from '@/tools/import-image'
+import { openFileAsDocument } from '@/io/open-file'
 import { beginShapeDrag, updateShapeDrag, endShapeDrag, isShapeDragging } from '@/tools/shapes'
 import {
-  getNodeState, nodeMouseDown, nodeMouseDrag, nodeMouseUp,
-  deleteSelectedNodes, hitTestSegmentEdge, insertPointOnSegment,
-  toggleNodeSmooth, hitTestNode,
+  getNodeState,
+  nodeMouseDown,
+  nodeMouseDrag,
+  nodeMouseUp,
+  deleteSelectedNodes,
+  hitTestSegmentEdge,
+  insertPointOnSegment,
+  toggleNodeSmooth,
+  hitTestNode,
 } from '@/tools/node'
 import { sampleColor, applyColorToSelection, renderLoupe } from '@/tools/eyedropper'
 import {
-  getTextEditState, beginTextEdit, endTextEdit,
-  createAndEditText, textEditKeyDown, renderTextEditOverlay,
+  getTextEditState,
+  beginTextEdit,
+  endTextEdit,
+  createAndEditText,
+  textEditKeyDown,
+  renderTextEditOverlay,
   setTextEditRenderCallback,
 } from '@/tools/text-edit'
 import { renderRulers, renderGuides, renderGrid, RULER_SIZE } from '@/render/rulers'
@@ -48,7 +59,9 @@ import type { VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer, 
 
 /** Resolve `currentColor` keyword to a concrete color. Default fallback is black. */
 let _currentColor = '#000000'
-export function setCurrentColor(color: string) { _currentColor = color }
+export function setCurrentColor(color: string) {
+  _currentColor = color
+}
 function resolveColor(color: string): string {
   return color === 'currentColor' ? _currentColor : color
 }
@@ -164,7 +177,7 @@ export function Viewport() {
       const dx = ml.endX - ml.startX
       const dy = ml.endY - ml.startY
       const dist = Math.sqrt(dx * dx + dy * dy)
-      const angle = Math.atan2(dy, dx) * 180 / Math.PI
+      const angle = (Math.atan2(dy, dx) * 180) / Math.PI
       const midX = (ml.startX + ml.endX) / 2
       const midY = (ml.startY + ml.endY) / 2
       ctx.save()
@@ -186,7 +199,7 @@ export function Viewport() {
     // Text editing overlay (cursor, selection)
     if (getTextEditState().active) {
       const textState = getTextEditState()
-      const artboard = document.artboards.find(a => a.id === textState.artboardId)
+      const artboard = document.artboards.find((a) => a.id === textState.artboardId)
       if (artboard) {
         renderTextEditOverlay(ctx, artboard.x, artboard.y, viewport.zoom)
       }
@@ -314,11 +327,17 @@ export function Viewport() {
     const handleDrop = async (e: DragEvent) => {
       e.preventDefault()
       const files = e.dataTransfer?.files
-      if (!files) return
-      for (const file of Array.from(files)) {
-        if (file.type.startsWith('image/')) {
-          await importImageFile(file)
-        }
+      if (!files || files.length === 0) return
+
+      const file = files[0]!
+      const name = file.name.toLowerCase()
+
+      // SVG and .design files open as new documents
+      if (name.endsWith('.design') || name.endsWith('.svg') || file.type === 'image/svg+xml') {
+        await openFileAsDocument(file)
+      } else if (file.type.startsWith('image/')) {
+        // Raster images import into the current canvas
+        await importImageFile(file)
       }
     }
 
@@ -361,12 +380,25 @@ export function Viewport() {
       onPointerDown(x, y, button, shiftKey, pressure, _pointerType) {
         // Create a synthetic event-like object and call handleMouseDown logic
         brushPressure.current = pressure
-        const synth = { clientX: x, clientY: y, button, shiftKey, nativeEvent: { clientX: x, clientY: y, button, shiftKey, altKey: false }, preventDefault() {} } as unknown as React.MouseEvent
+        const synth = {
+          clientX: x,
+          clientY: y,
+          button,
+          shiftKey,
+          nativeEvent: { clientX: x, clientY: y, button, shiftKey, altKey: false },
+          preventDefault() {},
+        } as unknown as React.MouseEvent
         handleMouseDown(synth)
       },
       onPointerMove(x, y, shiftKey, pressure, _pointerType) {
         brushPressure.current = pressure
-        const synth = { clientX: x, clientY: y, shiftKey, altKey: false, nativeEvent: { clientX: x, clientY: y, shiftKey, altKey: false } } as unknown as React.MouseEvent
+        const synth = {
+          clientX: x,
+          clientY: y,
+          shiftKey,
+          altKey: false,
+          nativeEvent: { clientX: x, clientY: y, shiftKey, altKey: false },
+        } as unknown as React.MouseEvent
         handleMouseMove(synth)
       },
       onPointerUp(_pressure, _pointerType) {
@@ -425,18 +457,18 @@ export function Viewport() {
     e.preventDefault()
     const rect = getCanvasRect()
 
-    if (e.ctrlKey || e.metaKey) {
+    if (e.shiftKey) {
+      // Shift + scroll = horizontal pan (left/right)
+      setPan(viewport.panX - e.deltaY, viewport.panY)
+    } else if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd + scroll = vertical pan (up/down)
+      setPan(viewport.panX, viewport.panY - e.deltaY)
+    } else {
+      // Default scroll = zoom in/out
       const delta = -e.deltaY * 0.002
-      const newViewport = zoomAtPoint(
-        viewport,
-        { x: e.clientX, y: e.clientY },
-        rect,
-        delta,
-      )
+      const newViewport = zoomAtPoint(viewport, { x: e.clientX, y: e.clientY }, rect, delta)
       setZoom(newViewport.zoom)
       setPan(newViewport.panX, newViewport.panY)
-    } else {
-      setPan(viewport.panX - e.deltaX, viewport.panY - e.deltaY)
     }
   }
 
@@ -493,10 +525,10 @@ export function Viewport() {
     if (activeTool === 'rectangle' || activeTool === 'ellipse' || activeTool === 'polygon' || activeTool === 'star') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       // Find which artboard was clicked
-      const artboard = document.artboards.find((a) =>
-        docPoint.x >= a.x && docPoint.x <= a.x + a.width &&
-        docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-      ) ?? document.artboards[0]
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
       if (artboard) {
         beginShapeDrag(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
@@ -512,10 +544,10 @@ export function Viewport() {
         endTextEdit()
       }
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards.find((a) =>
-        docPoint.x >= a.x && docPoint.x <= a.x + a.width &&
-        docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-      ) ?? document.artboards[0]
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
       if (artboard) {
         createAndEditText(docPoint.x, docPoint.y, artboard.id)
       }
@@ -526,8 +558,10 @@ export function Viewport() {
     if (activeTool === 'measure') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       measureLine.current = {
-        startX: docPoint.x, startY: docPoint.y,
-        endX: docPoint.x, endY: docPoint.y,
+        startX: docPoint.x,
+        startY: docPoint.y,
+        endX: docPoint.x,
+        endY: docPoint.y,
       }
       isDragging.current = true
       return
@@ -563,11 +597,7 @@ export function Viewport() {
     }
 
     if (activeTool === 'select') {
-      const docPoint = screenToDocument(
-        { x: e.clientX, y: e.clientY },
-        viewport,
-        rect,
-      )
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
 
       // Check transform handles first
       if (selection.layerIds.length > 0) {
@@ -644,11 +674,7 @@ export function Viewport() {
     }
 
     if (activeTool === 'select' && isDragging.current && isTransformDragging()) {
-      const docPoint = screenToDocument(
-        { x: e.clientX, y: e.clientY },
-        viewport,
-        rect,
-      )
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       updateTransform(docPoint, e.shiftKey)
       return
     }
@@ -680,11 +706,7 @@ export function Viewport() {
 
     // Update cursor for select tool handle hover
     if (activeTool === 'select' && !isDragging.current && canvasRef.current) {
-      const docPoint = screenToDocument(
-        { x: e.clientX, y: e.clientY },
-        viewport,
-        rect,
-      )
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       const bbox = getSelectedLayerBBox()
       if (bbox) {
         const handle = hitTestHandles(docPoint, bbox, viewport.zoom)
@@ -719,7 +741,7 @@ export function Viewport() {
     if (isPanning.current) {
       isPanning.current = false
       if (canvasRef.current) {
-        canvasRef.current.style.cursor = (activeTool === 'hand' || spaceHeld.current) ? 'grab' : ''
+        canvasRef.current.style.cursor = activeTool === 'hand' || spaceHeld.current ? 'grab' : ''
       }
       return
     }
@@ -763,8 +785,7 @@ export function Viewport() {
             const bbox = getLayerBBox(layer, artboard)
             if (bbox.minX === Infinity) continue
             // Check bbox intersection with marquee
-            if (bbox.maxX >= mx && bbox.minX <= mx + mw &&
-                bbox.maxY >= my && bbox.minY <= my + mh) {
+            if (bbox.maxX >= mx && bbox.minX <= mx + mw && bbox.maxY >= my && bbox.minY <= my + mh) {
               selectLayer(layer.id, true)
             }
           }
@@ -871,24 +892,30 @@ export function Viewport() {
   return (
     <canvas
       ref={canvasRef}
-      style={{ width: '100%', height: '100%', display: 'block', cursor: cursor ?? undefined, touchAction: touchMode ? 'none' : undefined }}
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'block',
+        cursor: cursor ?? undefined,
+        touchAction: touchMode ? 'none' : undefined,
+      }}
       onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
       onDoubleClick={handleDoubleClick}
-      onContextMenu={(e) => { e.preventDefault(); openCanvasContextMenu(e.clientX, e.clientY) }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        openCanvasContextMenu(e.clientX, e.clientY)
+      }}
     />
   )
 }
 
 // ─── Layer rendering ──────────────────────────────────────────
 
-function renderLayer(
-  ctx: CanvasRenderingContext2D,
-  layer: Layer,
-) {
+function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
   if (!layer.visible) return
 
   ctx.save()
@@ -914,13 +941,16 @@ function renderLayer(
   ctx.restore()
 }
 
-function applyTransform(ctx: CanvasRenderingContext2D, t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number; skewX?: number; skewY?: number }) {
+function applyTransform(
+  ctx: CanvasRenderingContext2D,
+  t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number; skewX?: number; skewY?: number },
+) {
   ctx.translate(t.x, t.y)
   ctx.scale(t.scaleX, t.scaleY)
   if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
   if (t.skewX || t.skewY) {
-    const sx = Math.tan((t.skewX ?? 0) * Math.PI / 180)
-    const sy = Math.tan((t.skewY ?? 0) * Math.PI / 180)
+    const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
+    const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
     ctx.transform(1, sy, sx, 1, 0, 0)
   }
 }
@@ -961,10 +991,14 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
   applyTransform(ctx, layer.transform)
 
   // Compute bounding box for gradient sizing
-  let bboxW = 100, bboxH = 100
+  let bboxW = 100,
+    bboxH = 100
   if (layer.fill?.type === 'gradient' && layer.fill.gradient) {
     // Approximate bbox from paths
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
     for (const p of layer.paths) {
       for (const seg of p.segments) {
         if ('x' in seg) {
@@ -987,8 +1021,7 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
 
     if (layer.fill) {
       ctx.globalAlpha = layer.opacity * layer.fill.opacity
-      const fillColor = layer.fill.type === 'solid' && layer.fill.color
-        ? resolveColor(layer.fill.color) : null
+      const fillColor = layer.fill.type === 'solid' && layer.fill.color ? resolveColor(layer.fill.color) : null
       if (fillColor) {
         ctx.fillStyle = fillColor
         ctx.fill(path2d, fillRule)
@@ -1087,10 +1120,14 @@ function renderRasterLayer(ctx: CanvasRenderingContext2D, layer: RasterLayer) {
 }
 
 function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
-  // Render group children with the group's composite settings
+  ctx.save()
+  applyTransform(ctx, group.transform)
+
   for (const child of group.children) {
     renderLayer(ctx, child)
   }
+
+  ctx.restore()
 }
 
 function renderLayerWithEffects(
@@ -1197,11 +1234,7 @@ function getCheckerboardPattern(ctx: CanvasRenderingContext2D): CanvasPattern {
   return checkerboardPattern
 }
 
-function renderArtboard(
-  ctx: CanvasRenderingContext2D,
-  artboard: Artboard,
-  selectedLayerIds: string[],
-) {
+function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
   // Transparency checkerboard behind artboard
   ctx.save()
   ctx.fillStyle = getCheckerboardPattern(ctx)
@@ -1232,11 +1265,7 @@ function renderArtboard(
   }
 }
 
-function renderArtboardDirect(
-  ctx: CanvasRenderingContext2D,
-  artboard: Artboard,
-  selectedLayerIds: string[],
-) {
+function renderArtboardDirect(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
   ctx.save()
   ctx.translate(artboard.x, artboard.y)
   ctx.beginPath()
@@ -1258,11 +1287,7 @@ function renderArtboardDirect(
   ctx.restore()
 }
 
-function renderArtboardWithAdjustments(
-  ctx: CanvasRenderingContext2D,
-  artboard: Artboard,
-  selectedLayerIds: string[],
-) {
+function renderArtboardWithAdjustments(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
   // Render to offscreen canvas so we can apply pixel-level adjustments
   const offscreen = new OffscreenCanvas(artboard.width, artboard.height)
   const offCtx = offscreen.getContext('2d')!
@@ -1280,12 +1305,7 @@ function renderArtboardWithAdjustments(
       offCtx.putImageData(imageData, 0, 0)
     } else {
       // Render layer using the offscreen context (cast is safe — same drawing API)
-      renderLayerWithEffects(
-        offCtx as unknown as CanvasRenderingContext2D,
-        layer,
-        artboard.width,
-        artboard.height,
-      )
+      renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, artboard.width, artboard.height)
     }
   }
 
@@ -1409,9 +1429,7 @@ function renderPenPreview(ctx: CanvasRenderingContext2D) {
   const preview = getPenPreviewState()
   if (!pen.isDrawing || pen.currentPath.length === 0) return
 
-  const artboard = useEditorStore.getState().document.artboards.find(
-    (a) => a.id === pen.artboardId,
-  )
+  const artboard = useEditorStore.getState().document.artboards.find((a) => a.id === pen.artboardId)
   if (!artboard) return
 
   const zoom = useEditorStore.getState().viewport.zoom
@@ -1514,11 +1532,7 @@ function renderPenPreview(ctx: CanvasRenderingContext2D) {
     if (preview.lastHandle) {
       // Previous point had a handle — draw cubic preview
       // cp1 = the outgoing handle (the drag direction itself)
-      ctx.bezierCurveTo(
-        preview.lastHandle.x, preview.lastHandle.y,
-        pp.x, pp.y,
-        pp.x, pp.y,
-      )
+      ctx.bezierCurveTo(preview.lastHandle.x, preview.lastHandle.y, pp.x, pp.y, pp.x, pp.y)
     } else {
       // No previous handle — straight line preview
       ctx.lineTo(pp.x, pp.y)
@@ -1531,12 +1545,7 @@ function renderPenPreview(ctx: CanvasRenderingContext2D) {
   ctx.restore()
 }
 
-function drawHandle(
-  ctx: CanvasRenderingContext2D,
-  px: number, py: number,
-  hx: number, hy: number,
-  radius: number,
-) {
+function drawHandle(ctx: CanvasRenderingContext2D, px: number, py: number, hx: number, hy: number, radius: number) {
   ctx.strokeStyle = '#4a7dff88'
   ctx.lineWidth = 1 / useEditorStore.getState().viewport.zoom
   ctx.beginPath()
@@ -1563,7 +1572,7 @@ function renderNodeToolOverlay(
   const nodeState = getNodeState()
 
   for (const artboard of doc.artboards) {
-    const layer = artboard.layers.find(l => l.id === selectedLayerId)
+    const layer = artboard.layers.find((l) => l.id === selectedLayerId)
     if (!layer || layer.type !== 'vector') continue
 
     ctx.save()
@@ -1611,10 +1620,15 @@ function renderNodeToolOverlay(
             ctx.stroke()
 
             // Also draw cp1
-            let prevX = 0, prevY = 0
+            let prevX = 0,
+              prevY = 0
             for (let j = i - 1; j >= 0; j--) {
               const prev = path.segments[j]!
-              if (prev.type !== 'close') { prevX = prev.x; prevY = prev.y; break }
+              if (prev.type !== 'close') {
+                prevX = prev.x
+                prevY = prev.y
+                break
+              }
             }
             ctx.strokeStyle = '#4a7dff88'
             ctx.beginPath()

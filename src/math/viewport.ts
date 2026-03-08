@@ -6,11 +6,7 @@ export interface Point {
 }
 
 /** Convert a screen-space point to document-space. */
-export function screenToDocument(
-  screenPoint: Point,
-  viewport: ViewportState,
-  canvasRect: DOMRect,
-): Point {
+export function screenToDocument(screenPoint: Point, viewport: ViewportState, canvasRect: DOMRect): Point {
   return {
     x: (screenPoint.x - canvasRect.left - viewport.panX) / viewport.zoom,
     y: (screenPoint.y - canvasRect.top - viewport.panY) / viewport.zoom,
@@ -18,11 +14,7 @@ export function screenToDocument(
 }
 
 /** Convert a document-space point to screen-space. */
-export function documentToScreen(
-  docPoint: Point,
-  viewport: ViewportState,
-  canvasRect: DOMRect,
-): Point {
+export function documentToScreen(docPoint: Point, viewport: ViewportState, canvasRect: DOMRect): Point {
   return {
     x: docPoint.x * viewport.zoom + viewport.panX + canvasRect.left,
     y: docPoint.y * viewport.zoom + viewport.panY + canvasRect.top,
@@ -46,7 +38,7 @@ export function zoomAtPoint(
   return {
     ...viewport,
     zoom: newZoom,
-    panX: (screenPoint.x - canvasRect.left) - docX * newZoom,
-    panY: (screenPoint.y - canvasRect.top) - docY * newZoom,
+    panX: screenPoint.x - canvasRect.left - docX * newZoom,
+    panY: screenPoint.y - canvasRect.top - docY * newZoom,
   }
 }

@@ -7,12 +7,14 @@ export function HistoryPanel() {
   const redo = useEditorStore((s) => s.redo)
 
   return (
-    <div style={{
-      display: 'flex',
-      flexDirection: 'column',
-      overflow: 'hidden',
-      flex: 1,
-    }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        flex: 1,
+      }}
+    >
       {/* Header provided by Sidebar wrapper */}
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-1)' }}>

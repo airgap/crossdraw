@@ -1,34 +1,36 @@
 import { describe, test, expect } from 'bun:test'
 import type { TextLayer, VectorLayer } from '@/types'
 import {
-  isAfdesignFile, reverseString, findZstdBlocks,
-  parseAfdesignHeader, AFDESIGN_TAGS, extractASCIIStrings, findTags,
+  isAfdesignFile,
+  reverseString,
+  findZstdBlocks,
+  parseAfdesignHeader,
+  AFDESIGN_TAGS,
+  extractASCIIStrings,
+  findTags,
 } from '@/io/afdesign-import'
+import { applyConstraints, DEFAULT_CONSTRAINTS } from '@/tools/constraints'
 import {
-  applyConstraints, DEFAULT_CONSTRAINTS,
-  type Constraints,
-} from '@/tools/constraints'
-import {
-  getPointOnPolyline, polylineLength, flattenSegments, layoutTextOnPath,
+  getPointOnPolyline,
+  polylineLength,
+  flattenSegments,
+  layoutTextOnPath,
   type TextOnPathConfig,
 } from '@/tools/text-on-path'
-import {
-  calcDistanceLabels, detectEqualSpacing,
-  type DistanceLabel, type EqualSpacingIndicator,
-} from '@/render/smart-guides'
+import { calcDistanceLabels, detectEqualSpacing } from '@/render/smart-guides'
 import { getScrollThumbPosition } from '@/ui/scrollbars'
 import { calcMinimapViewport } from '@/ui/minimap'
 
 describe('LYK-81: afdesign import', () => {
   test('isAfdesignFile detects magic bytes', () => {
-    const valid = new Uint8Array([0x00, 0xFF, 0x4B, 0x41, 0, 0, 0, 0])
+    const valid = new Uint8Array([0x00, 0xff, 0x4b, 0x41, 0, 0, 0, 0])
     expect(isAfdesignFile(valid)).toBe(true)
-    const invalid = new Uint8Array([0x89, 0x50, 0x4E, 0x47])
+    const invalid = new Uint8Array([0x89, 0x50, 0x4e, 0x47])
     expect(isAfdesignFile(invalid)).toBe(false)
   })
 
   test('isAfdesignFile rejects short data', () => {
-    expect(isAfdesignFile(new Uint8Array([0x00, 0xFF]))).toBe(false)
+    expect(isAfdesignFile(new Uint8Array([0x00, 0xff]))).toBe(false)
   })
 
   test('reverseString works correctly', () => {
@@ -46,8 +48,14 @@ describe('LYK-81: afdesign import', () => {
 
   test('findZstdBlocks finds compressed blocks', () => {
     const data = new Uint8Array(20)
-    data[5] = 0x28; data[6] = 0xB5; data[7] = 0x2F; data[8] = 0xFD
-    data[14] = 0x28; data[15] = 0xB5; data[16] = 0x2F; data[17] = 0xFD // second block - need index 14+3 < 20
+    data[5] = 0x28
+    data[6] = 0xb5
+    data[7] = 0x2f
+    data[8] = 0xfd
+    data[14] = 0x28
+    data[15] = 0xb5
+    data[16] = 0x2f
+    data[17] = 0xfd // second block - need index 14+3 < 20
     const blocks = findZstdBlocks(data)
     expect(blocks.length).toBe(2)
     expect(blocks[0]).toBe(5)
@@ -56,8 +64,14 @@ describe('LYK-81: afdesign import', () => {
 
   test('parseAfdesignHeader extracts version and block count', () => {
     const data = new Uint8Array(20)
-    data[0] = 0x00; data[1] = 0xFF; data[2] = 0x4B; data[3] = 0x41
-    data[4] = 2; data[5] = 0; data[6] = 0; data[7] = 0 // version 2
+    data[0] = 0x00
+    data[1] = 0xff
+    data[2] = 0x4b
+    data[3] = 0x41
+    data[4] = 2
+    data[5] = 0
+    data[6] = 0
+    data[7] = 0 // version 2
     const header = parseAfdesignHeader(data)
     expect(header.magic).toBe(true)
     expect(header.version).toBe(2)
@@ -84,10 +98,18 @@ describe('LYK-81: afdesign import', () => {
 
 describe('LYK-111: constraints and pinning', () => {
   const makeLayer = (x: number, y: number): VectorLayer => ({
-    id: '1', name: 'Test', type: 'vector', visible: true, locked: false,
-    opacity: 1, blendMode: 'normal',
+    id: '1',
+    name: 'Test',
+    type: 'vector',
+    visible: true,
+    locked: false,
+    opacity: 1,
+    blendMode: 'normal',
     transform: { x, y, scaleX: 1, scaleY: 1, rotation: 0 },
-    effects: [], paths: [], fill: null, stroke: null,
+    effects: [],
+    paths: [],
+    fill: null,
+    stroke: null,
     shapeParams: { shapeType: 'rectangle', width: 100, height: 50 },
   })
 
@@ -125,17 +147,27 @@ describe('LYK-111: constraints and pinning', () => {
 
 describe('LYK-110: text on path', () => {
   test('polylineLength calculates correctly', () => {
-    const points = [{ x: 0, y: 0 }, { x: 3, y: 4 }]
+    const points = [
+      { x: 0, y: 0 },
+      { x: 3, y: 4 },
+    ]
     expect(polylineLength(points)).toBe(5)
   })
 
   test('polylineLength of multi-segment path', () => {
-    const points = [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]
+    const points = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+    ]
     expect(polylineLength(points)).toBe(20)
   })
 
   test('getPointOnPolyline at start', () => {
-    const points = [{ x: 0, y: 0 }, { x: 100, y: 0 }]
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ]
     const pt = getPointOnPolyline(points, 0)!
     expect(pt.x).toBe(0)
     expect(pt.y).toBe(0)
@@ -143,7 +175,10 @@ describe('LYK-110: text on path', () => {
   })
 
   test('getPointOnPolyline at midpoint', () => {
-    const points = [{ x: 0, y: 0 }, { x: 100, y: 0 }]
+    const points = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ]
     const pt = getPointOnPolyline(points, 50)!
     expect(pt.x).toBe(50)
     expect(pt.y).toBe(0)
@@ -183,8 +218,11 @@ describe('LYK-110: text on path', () => {
       { type: 'line' as const, x: 500, y: 0 },
     ]
     const config: TextOnPathConfig = {
-      pathReference: 'p1', pathOffset: 0,
-      pathAlign: 'left', flipSide: false, perpendicularOffset: 0,
+      pathReference: 'p1',
+      pathOffset: 0,
+      pathAlign: 'left',
+      flipSide: false,
+      perpendicularOffset: 0,
     }
     const chars = layoutTextOnPath('Hello', segments, config, 16)
     expect(chars.length).toBe(5)
@@ -195,14 +233,26 @@ describe('LYK-110: text on path', () => {
 
   test('TextLayer supports pathReference', () => {
     const layer: TextLayer = {
-      id: '1', name: 'Path Text', type: 'text',
-      visible: true, locked: false, opacity: 1, blendMode: 'normal',
+      id: '1',
+      name: 'Path Text',
+      type: 'text',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
       transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
-      effects: [], text: 'Hello',
-      fontFamily: 'Arial', fontSize: 16, fontWeight: 'normal',
-      fontStyle: 'normal', textAlign: 'left', lineHeight: 1.4,
-      letterSpacing: 0, color: '#000',
-      pathReference: 'path-layer-1', pathOffset: 0.5,
+      effects: [],
+      text: 'Hello',
+      fontFamily: 'Arial',
+      fontSize: 16,
+      fontWeight: 'normal',
+      fontStyle: 'normal',
+      textAlign: 'left',
+      lineHeight: 1.4,
+      letterSpacing: 0,
+      color: '#000',
+      pathReference: 'path-layer-1',
+      pathOffset: 0.5,
     }
     expect(layer.pathReference).toBe('path-layer-1')
     expect(layer.pathOffset).toBe(0.5)
@@ -212,7 +262,10 @@ describe('LYK-110: text on path', () => {
 describe('LYK-124: symbols UI operations', () => {
   test('symbol definition can hold layers', () => {
     const sym = {
-      id: 's1', name: 'Button', width: 200, height: 50,
+      id: 's1',
+      name: 'Button',
+      width: 200,
+      height: 50,
       layers: [
         { id: 'l1', name: 'BG', type: 'vector' },
         { id: 'l2', name: 'Label', type: 'text' },
@@ -286,7 +339,7 @@ describe('LYK-139: smart guides polish', () => {
     const b = { x: 200, y: 50, w: 100, h: 50 }
     const labels = calcDistanceLabels(a, b)
     expect(labels.length).toBeGreaterThan(0)
-    const hLabel = labels.find(l => l.axis === 'horizontal')!
+    const hLabel = labels.find((l) => l.axis === 'horizontal')!
     expect(hLabel.distance).toBe(100) // gap between 100 and 200
   })
 
@@ -294,7 +347,7 @@ describe('LYK-139: smart guides polish', () => {
     const a = { x: 50, y: 0, w: 100, h: 50 }
     const b = { x: 50, y: 100, w: 100, h: 50 }
     const labels = calcDistanceLabels(a, b)
-    const vLabel = labels.find(l => l.axis === 'vertical')!
+    const vLabel = labels.find((l) => l.axis === 'vertical')!
     expect(vLabel.distance).toBe(50) // gap between 50 and 100
   })
 

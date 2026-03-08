@@ -37,9 +37,9 @@ export function getRasterCanvas(id: string): OffscreenCanvas | undefined {
 }
 
 /** Collect all raster chunks referenced by a document (for serialization). */
-export function collectRasterChunks(
-  doc: { artboards: { layers: { type: string; imageChunkId?: string }[] }[] },
-): Record<string, { width: number; height: number; data: Uint8Array }> {
+export function collectRasterChunks(doc: {
+  artboards: { layers: { type: string; imageChunkId?: string }[] }[]
+}): Record<string, { width: number; height: number; data: Uint8Array }> {
   const chunks: Record<string, { width: number; height: number; data: Uint8Array }> = {}
   for (const artboard of doc.artboards) {
     for (const layer of artboard.layers) {
@@ -59,9 +59,7 @@ export function collectRasterChunks(
 }
 
 /** Restore raster chunks from deserialized data into the store. */
-export function restoreRasterChunks(
-  chunks: Record<string, { width: number; height: number; data: Uint8Array }>,
-) {
+export function restoreRasterChunks(chunks: Record<string, { width: number; height: number; data: Uint8Array }>) {
   for (const [id, chunk] of Object.entries(chunks)) {
     const pixelData = new Uint8ClampedArray(chunk.data)
     let imageData: ImageData
@@ -69,7 +67,12 @@ export function restoreRasterChunks(
       imageData = new ImageData(pixelData, chunk.width, chunk.height)
     } else {
       // Polyfill for non-browser environments (bun test)
-      imageData = { data: pixelData, width: chunk.width, height: chunk.height, colorSpace: 'srgb' } as unknown as ImageData
+      imageData = {
+        data: pixelData,
+        width: chunk.width,
+        height: chunk.height,
+        colorSpace: 'srgb',
+      } as unknown as ImageData
     }
     storeRasterData(id, imageData)
   }

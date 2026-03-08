@@ -38,10 +38,7 @@ function layerHash(layer: { id: string; [key: string]: unknown }): string {
 /**
  * Get a cached canvas for a layer, or null if cache is stale/missing.
  */
-export function getCachedLayer(
-  layerId: string,
-  layer: { id: string; [key: string]: unknown },
-): OffscreenCanvas | null {
+export function getCachedLayer(layerId: string, layer: { id: string; [key: string]: unknown }): OffscreenCanvas | null {
   const entry = cache.get(layerId)
   if (!entry) return null
 

@@ -126,10 +126,14 @@ function findPreviousPoint(segments: Segment[], index: number): { x: number; y: 
 }
 
 function cubicPoint(
-  x0: number, y0: number,
-  cp1x: number, cp1y: number,
-  cp2x: number, cp2y: number,
-  x: number, y: number,
+  x0: number,
+  y0: number,
+  cp1x: number,
+  cp1y: number,
+  cp2x: number,
+  cp2y: number,
+  x: number,
+  y: number,
   t: number,
 ): { x: number; y: number } {
   const mt = 1 - t
@@ -153,19 +157,20 @@ function clipperPathToSegments(cp: ClipperLib.Path): Segment[] {
 
 function opToClipType(op: BooleanOp): number {
   switch (op) {
-    case 'union': return ClipperLib.ClipType.ctUnion
-    case 'subtract': return ClipperLib.ClipType.ctDifference
-    case 'intersect': return ClipperLib.ClipType.ctIntersection
-    case 'xor': return ClipperLib.ClipType.ctXor
-    default: return ClipperLib.ClipType.ctUnion
+    case 'union':
+      return ClipperLib.ClipType.ctUnion
+    case 'subtract':
+      return ClipperLib.ClipType.ctDifference
+    case 'intersect':
+      return ClipperLib.ClipType.ctIntersection
+    case 'xor':
+      return ClipperLib.ClipType.ctXor
+    default:
+      return ClipperLib.ClipType.ctUnion
   }
 }
 
-function clipperExecute(
-  subject: ClipperLib.Paths,
-  clip: ClipperLib.Paths,
-  clipType: number,
-): ClipperLib.Paths {
+function clipperExecute(subject: ClipperLib.Paths, clip: ClipperLib.Paths, clipType: number): ClipperLib.Paths {
   const clipper = new ClipperLib.Clipper()
   clipper.AddPaths(subject, ClipperLib.PolyType.ptSubject, true)
   clipper.AddPaths(clip, ClipperLib.PolyType.ptClip, true)
@@ -299,10 +304,7 @@ export function simplifyPath(artboardId: string, layerId: string, tolerance = 2)
 /**
  * Ramer-Douglas-Peucker line simplification.
  */
-export function rdpSimplify(
-  points: { x: number; y: number }[],
-  epsilon: number,
-): { x: number; y: number }[] {
+export function rdpSimplify(points: { x: number; y: number }[], epsilon: number): { x: number; y: number }[] {
   if (points.length <= 2) return points
 
   let maxDist = 0

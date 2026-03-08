@@ -2,10 +2,19 @@ import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { quickExport } from '@/ui/quick-export'
-import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical, nudgeSelection } from '@/tools/layer-ops'
+import {
+  bringToFront,
+  bringForward,
+  sendBackward,
+  sendToBack,
+  flipHorizontal,
+  flipVertical,
+  nudgeSelection,
+} from '@/tools/layer-ops'
 import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
+import { openFile } from '@/io/open-file'
 
 /**
  * Keyboard shortcut registry with customization support.
@@ -30,7 +39,7 @@ export interface ShortcutBinding {
   action: () => void
 }
 
-const STORAGE_KEY = 'designer:shortcuts'
+const STORAGE_KEY = 'crossdraw:shortcuts'
 
 let bindings: ShortcutBinding[] = []
 let cleanupFn: (() => void) | null = null
@@ -47,7 +56,7 @@ function parseCombo(combo: string) {
     alt: parts.includes('alt'),
     meta: parts.includes('meta'),
     // The key is the last part that isn't a modifier
-    key: parts.filter(p => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).pop() ?? '',
+    key: parts.filter((p) => !['ctrl', 'shift', 'alt', 'meta'].includes(p)).pop() ?? '',
   }
 }
 
@@ -73,7 +82,11 @@ function buildDefaultBindings(): ShortcutBinding[] {
   const store = () => useEditorStore.getState()
 
   const toolShortcut = (id: string, label: string, key: string, tool: EditorState['activeTool']): ShortcutBinding => ({
-    id, label, category: 'tool', defaultKey: key, key,
+    id,
+    label,
+    category: 'tool',
+    defaultKey: key,
+    key,
     action: () => store().setActiveTool(tool),
   })
 
@@ -95,33 +108,79 @@ function buildDefaultBindings(): ShortcutBinding[] {
 
     // File
     {
-      id: 'file.save', label: 'Save', category: 'edit', defaultKey: 'ctrl+s', key: 'ctrl+s',
-      action: () => { store().save() },
+      id: 'file.open',
+      label: 'Open',
+      category: 'edit',
+      defaultKey: 'ctrl+o',
+      key: 'ctrl+o',
+      action: () => {
+        openFile()
+      },
     },
     {
-      id: 'file.saveAs', label: 'Save As', category: 'edit', defaultKey: 'ctrl+shift+s', key: 'ctrl+shift+s',
-      action: () => { store().saveAs() },
+      id: 'file.save',
+      label: 'Save',
+      category: 'edit',
+      defaultKey: 'ctrl+s',
+      key: 'ctrl+s',
+      action: () => {
+        store().save()
+      },
     },
     {
-      id: 'file.export', label: 'Export', category: 'edit', defaultKey: 'ctrl+e', key: 'ctrl+e',
-      action: () => { store().openExportModal() },
+      id: 'file.saveAs',
+      label: 'Save As',
+      category: 'edit',
+      defaultKey: 'ctrl+shift+s',
+      key: 'ctrl+shift+s',
+      action: () => {
+        store().saveAs()
+      },
     },
     {
-      id: 'file.quickExport', label: 'Quick Export', category: 'edit', defaultKey: 'ctrl+shift+e', key: 'ctrl+shift+e',
-      action: () => { quickExport() },
+      id: 'file.export',
+      label: 'Export',
+      category: 'edit',
+      defaultKey: 'ctrl+e',
+      key: 'ctrl+e',
+      action: () => {
+        store().openExportModal()
+      },
+    },
+    {
+      id: 'file.quickExport',
+      label: 'Quick Export',
+      category: 'edit',
+      defaultKey: 'ctrl+shift+e',
+      key: 'ctrl+shift+e',
+      action: () => {
+        quickExport()
+      },
     },
 
     // Edit
     {
-      id: 'edit.undo', label: 'Undo', category: 'edit', defaultKey: 'ctrl+z', key: 'ctrl+z',
+      id: 'edit.undo',
+      label: 'Undo',
+      category: 'edit',
+      defaultKey: 'ctrl+z',
+      key: 'ctrl+z',
       action: () => store().undo(),
     },
     {
-      id: 'edit.redo', label: 'Redo', category: 'edit', defaultKey: 'ctrl+shift+z', key: 'ctrl+shift+z',
+      id: 'edit.redo',
+      label: 'Redo',
+      category: 'edit',
+      defaultKey: 'ctrl+shift+z',
+      key: 'ctrl+shift+z',
       action: () => store().redo(),
     },
     {
-      id: 'edit.selectAll', label: 'Select All', category: 'edit', defaultKey: 'ctrl+a', key: 'ctrl+a',
+      id: 'edit.selectAll',
+      label: 'Select All',
+      category: 'edit',
+      defaultKey: 'ctrl+a',
+      key: 'ctrl+a',
       action: () => {
         const s = store()
         const artboard = s.document.artboards[0]
@@ -133,14 +192,22 @@ function buildDefaultBindings(): ShortcutBinding[] {
       },
     },
     {
-      id: 'edit.deselect', label: 'Deselect', category: 'edit', defaultKey: 'escape', key: 'escape',
+      id: 'edit.deselect',
+      label: 'Deselect',
+      category: 'edit',
+      defaultKey: 'escape',
+      key: 'escape',
       action: () => {
         const s = store()
         if (s.activeTool === 'select') s.deselectAll()
       },
     },
     {
-      id: 'edit.delete', label: 'Delete Selection', category: 'edit', defaultKey: 'delete', key: 'delete',
+      id: 'edit.delete',
+      label: 'Delete Selection',
+      category: 'edit',
+      defaultKey: 'delete',
+      key: 'delete',
       action: () => {
         const s = store()
         const artboard = s.document.artboards[0]
@@ -155,7 +222,11 @@ function buildDefaultBindings(): ShortcutBinding[] {
 
     // Layer
     {
-      id: 'layer.duplicate', label: 'Duplicate Layer', category: 'layer', defaultKey: 'ctrl+d', key: 'ctrl+d',
+      id: 'layer.duplicate',
+      label: 'Duplicate Layer',
+      category: 'layer',
+      defaultKey: 'ctrl+d',
+      key: 'ctrl+d',
       action: () => {
         const s = store()
         const artboard = s.document.artboards[0]
@@ -167,7 +238,11 @@ function buildDefaultBindings(): ShortcutBinding[] {
       },
     },
     {
-      id: 'layer.group', label: 'Group Layers', category: 'layer', defaultKey: 'ctrl+g', key: 'ctrl+g',
+      id: 'layer.group',
+      label: 'Group Layers',
+      category: 'layer',
+      defaultKey: 'ctrl+g',
+      key: 'ctrl+g',
       action: () => {
         const s = store()
         const artboard = s.document.artboards[0]
@@ -177,7 +252,11 @@ function buildDefaultBindings(): ShortcutBinding[] {
       },
     },
     {
-      id: 'layer.ungroup', label: 'Ungroup Layers', category: 'layer', defaultKey: 'ctrl+shift+g', key: 'ctrl+shift+g',
+      id: 'layer.ungroup',
+      label: 'Ungroup Layers',
+      category: 'layer',
+      defaultKey: 'ctrl+shift+g',
+      key: 'ctrl+shift+g',
       action: () => {
         const s = store()
         const artboard = s.document.artboards[0]
@@ -193,114 +272,206 @@ function buildDefaultBindings(): ShortcutBinding[] {
 
     // Copy/paste
     {
-      id: 'edit.copy', label: 'Copy', category: 'edit', defaultKey: 'ctrl+c', key: 'ctrl+c',
+      id: 'edit.copy',
+      label: 'Copy',
+      category: 'edit',
+      defaultKey: 'ctrl+c',
+      key: 'ctrl+c',
       action: () => copyLayers(),
     },
     {
-      id: 'edit.paste', label: 'Paste', category: 'edit', defaultKey: 'ctrl+v', key: 'ctrl+v',
+      id: 'edit.paste',
+      label: 'Paste',
+      category: 'edit',
+      defaultKey: 'ctrl+v',
+      key: 'ctrl+v',
       action: () => pasteLayers(),
     },
     {
-      id: 'edit.cut', label: 'Cut', category: 'edit', defaultKey: 'ctrl+x', key: 'ctrl+x',
+      id: 'edit.cut',
+      label: 'Cut',
+      category: 'edit',
+      defaultKey: 'ctrl+x',
+      key: 'ctrl+x',
       action: () => cutLayers(),
     },
 
     // Style copy/paste
     {
-      id: 'edit.copyStyle', label: 'Copy Style', category: 'edit', defaultKey: 'ctrl+alt+c', key: 'ctrl+alt+c',
+      id: 'edit.copyStyle',
+      label: 'Copy Style',
+      category: 'edit',
+      defaultKey: 'ctrl+alt+c',
+      key: 'ctrl+alt+c',
       action: () => copyStyle(),
     },
     {
-      id: 'edit.pasteStyle', label: 'Paste Style', category: 'edit', defaultKey: 'ctrl+alt+v', key: 'ctrl+alt+v',
+      id: 'edit.pasteStyle',
+      label: 'Paste Style',
+      category: 'edit',
+      defaultKey: 'ctrl+alt+v',
+      key: 'ctrl+alt+v',
       action: () => pasteStyle(),
     },
 
     // Flip
     {
-      id: 'edit.flipH', label: 'Flip Horizontal', category: 'edit', defaultKey: 'shift+h', key: 'shift+h',
+      id: 'edit.flipH',
+      label: 'Flip Horizontal',
+      category: 'edit',
+      defaultKey: 'shift+h',
+      key: 'shift+h',
       action: () => flipHorizontal(),
     },
     {
-      id: 'edit.flipV', label: 'Flip Vertical', category: 'edit', defaultKey: 'shift+v', key: 'shift+v',
+      id: 'edit.flipV',
+      label: 'Flip Vertical',
+      category: 'edit',
+      defaultKey: 'shift+v',
+      key: 'shift+v',
       action: () => flipVertical(),
     },
 
     // Arrow nudge
     {
-      id: 'edit.nudgeLeft', label: 'Nudge Left', category: 'edit', defaultKey: 'arrowleft', key: 'arrowleft',
+      id: 'edit.nudgeLeft',
+      label: 'Nudge Left',
+      category: 'edit',
+      defaultKey: 'arrowleft',
+      key: 'arrowleft',
       action: () => nudgeSelection(-1, 0),
     },
     {
-      id: 'edit.nudgeRight', label: 'Nudge Right', category: 'edit', defaultKey: 'arrowright', key: 'arrowright',
+      id: 'edit.nudgeRight',
+      label: 'Nudge Right',
+      category: 'edit',
+      defaultKey: 'arrowright',
+      key: 'arrowright',
       action: () => nudgeSelection(1, 0),
     },
     {
-      id: 'edit.nudgeUp', label: 'Nudge Up', category: 'edit', defaultKey: 'arrowup', key: 'arrowup',
+      id: 'edit.nudgeUp',
+      label: 'Nudge Up',
+      category: 'edit',
+      defaultKey: 'arrowup',
+      key: 'arrowup',
       action: () => nudgeSelection(0, -1),
     },
     {
-      id: 'edit.nudgeDown', label: 'Nudge Down', category: 'edit', defaultKey: 'arrowdown', key: 'arrowdown',
+      id: 'edit.nudgeDown',
+      label: 'Nudge Down',
+      category: 'edit',
+      defaultKey: 'arrowdown',
+      key: 'arrowdown',
       action: () => nudgeSelection(0, 1),
     },
     {
-      id: 'edit.nudgeLeftBig', label: 'Nudge Left 10px', category: 'edit', defaultKey: 'shift+arrowleft', key: 'shift+arrowleft',
+      id: 'edit.nudgeLeftBig',
+      label: 'Nudge Left 10px',
+      category: 'edit',
+      defaultKey: 'shift+arrowleft',
+      key: 'shift+arrowleft',
       action: () => nudgeSelection(-10, 0),
     },
     {
-      id: 'edit.nudgeRightBig', label: 'Nudge Right 10px', category: 'edit', defaultKey: 'shift+arrowright', key: 'shift+arrowright',
+      id: 'edit.nudgeRightBig',
+      label: 'Nudge Right 10px',
+      category: 'edit',
+      defaultKey: 'shift+arrowright',
+      key: 'shift+arrowright',
       action: () => nudgeSelection(10, 0),
     },
     {
-      id: 'edit.nudgeUpBig', label: 'Nudge Up 10px', category: 'edit', defaultKey: 'shift+arrowup', key: 'shift+arrowup',
+      id: 'edit.nudgeUpBig',
+      label: 'Nudge Up 10px',
+      category: 'edit',
+      defaultKey: 'shift+arrowup',
+      key: 'shift+arrowup',
       action: () => nudgeSelection(0, -10),
     },
     {
-      id: 'edit.nudgeDownBig', label: 'Nudge Down 10px', category: 'edit', defaultKey: 'shift+arrowdown', key: 'shift+arrowdown',
+      id: 'edit.nudgeDownBig',
+      label: 'Nudge Down 10px',
+      category: 'edit',
+      defaultKey: 'shift+arrowdown',
+      key: 'shift+arrowdown',
       action: () => nudgeSelection(0, 10),
     },
 
     // Layer ordering
     {
-      id: 'layer.bringToFront', label: 'Bring to Front', category: 'layer', defaultKey: 'ctrl+shift+]', key: 'ctrl+shift+]',
+      id: 'layer.bringToFront',
+      label: 'Bring to Front',
+      category: 'layer',
+      defaultKey: 'ctrl+shift+]',
+      key: 'ctrl+shift+]',
       action: () => bringToFront(),
     },
     {
-      id: 'layer.bringForward', label: 'Bring Forward', category: 'layer', defaultKey: 'ctrl+]', key: 'ctrl+]',
+      id: 'layer.bringForward',
+      label: 'Bring Forward',
+      category: 'layer',
+      defaultKey: 'ctrl+]',
+      key: 'ctrl+]',
       action: () => bringForward(),
     },
     {
-      id: 'layer.sendBackward', label: 'Send Backward', category: 'layer', defaultKey: 'ctrl+[', key: 'ctrl+[',
+      id: 'layer.sendBackward',
+      label: 'Send Backward',
+      category: 'layer',
+      defaultKey: 'ctrl+[',
+      key: 'ctrl+[',
       action: () => sendBackward(),
     },
     {
-      id: 'layer.sendToBack', label: 'Send to Back', category: 'layer', defaultKey: 'ctrl+shift+[', key: 'ctrl+shift+[',
+      id: 'layer.sendToBack',
+      label: 'Send to Back',
+      category: 'layer',
+      defaultKey: 'ctrl+shift+[',
+      key: 'ctrl+shift+[',
       action: () => sendToBack(),
     },
 
     // View
     {
-      id: 'view.zoomIn', label: 'Zoom In', category: 'view', defaultKey: 'ctrl+=', key: 'ctrl+=',
+      id: 'view.zoomIn',
+      label: 'Zoom In',
+      category: 'view',
+      defaultKey: 'ctrl+=',
+      key: 'ctrl+=',
       action: () => {
         const s = store()
         s.setZoom(s.viewport.zoom * 1.25)
       },
     },
     {
-      id: 'view.zoomOut', label: 'Zoom Out', category: 'view', defaultKey: 'ctrl+-', key: 'ctrl+-',
+      id: 'view.zoomOut',
+      label: 'Zoom Out',
+      category: 'view',
+      defaultKey: 'ctrl+-',
+      key: 'ctrl+-',
       action: () => {
         const s = store()
         s.setZoom(s.viewport.zoom / 1.25)
       },
     },
     {
-      id: 'view.zoomFit', label: 'Zoom to Fit', category: 'view', defaultKey: 'ctrl+0', key: 'ctrl+0',
+      id: 'view.zoomFit',
+      label: 'Zoom to Fit',
+      category: 'view',
+      defaultKey: 'ctrl+0',
+      key: 'ctrl+0',
       action: () => {
         store().setZoom(1)
         store().setPan(0, 0)
       },
     },
     {
-      id: 'view.zoomToSelection', label: 'Zoom to Selection', category: 'view', defaultKey: 'ctrl+shift+0', key: 'ctrl+shift+0',
+      id: 'view.zoomToSelection',
+      label: 'Zoom to Selection',
+      category: 'view',
+      defaultKey: 'ctrl+shift+0',
+      key: 'ctrl+shift+0',
       action: () => {
         const s = store()
         if (s.selection.layerIds.length === 0) return
@@ -327,19 +498,35 @@ function buildDefaultBindings(): ShortcutBinding[] {
       },
     },
     {
-      id: 'view.toggleGrid', label: 'Toggle Grid', category: 'view', defaultKey: "ctrl+'", key: "ctrl+'",
+      id: 'view.toggleGrid',
+      label: 'Toggle Grid',
+      category: 'view',
+      defaultKey: "ctrl+'",
+      key: "ctrl+'",
       action: () => store().toggleGrid(),
     },
     {
-      id: 'view.toggleSnap', label: 'Toggle Snap', category: 'view', defaultKey: 'ctrl+;', key: 'ctrl+;',
+      id: 'view.toggleSnap',
+      label: 'Toggle Snap',
+      category: 'view',
+      defaultKey: 'ctrl+;',
+      key: 'ctrl+;',
       action: () => store().toggleSnap(),
     },
     {
-      id: 'view.toggleRulers', label: 'Toggle Rulers', category: 'view', defaultKey: 'ctrl+r', key: 'ctrl+r',
+      id: 'view.toggleRulers',
+      label: 'Toggle Rulers',
+      category: 'view',
+      defaultKey: 'ctrl+r',
+      key: 'ctrl+r',
       action: () => store().toggleRulers(),
     },
     {
-      id: 'view.pixelPreview', label: 'Pixel Preview', category: 'view', defaultKey: 'ctrl+alt+y', key: 'ctrl+alt+y',
+      id: 'view.pixelPreview',
+      label: 'Pixel Preview',
+      category: 'view',
+      defaultKey: 'ctrl+alt+y',
+      key: 'ctrl+alt+y',
       action: () => store().togglePixelPreview(),
     },
   ]
@@ -354,7 +541,7 @@ function loadCustomBindings(defaults: ShortcutBinding[]): ShortcutBinding[] {
     if (!stored) return defaults
 
     const overrides: Record<string, string> = JSON.parse(stored)
-    return defaults.map(b => ({
+    return defaults.map((b) => ({
       ...b,
       key: overrides[b.id] ?? b.key,
     }))
@@ -419,7 +606,7 @@ export function getBindings(): ShortcutBinding[] {
  * Rebind a shortcut action to a new key combo.
  */
 export function rebindShortcut(actionId: string, newKey: string) {
-  const binding = bindings.find(b => b.id === actionId)
+  const binding = bindings.find((b) => b.id === actionId)
   if (binding) {
     binding.key = newKey.toLowerCase()
     saveCustomBindings()
@@ -430,7 +617,7 @@ export function rebindShortcut(actionId: string, newKey: string) {
  * Reset a single shortcut to its default.
  */
 export function resetShortcut(actionId: string) {
-  const binding = bindings.find(b => b.id === actionId)
+  const binding = bindings.find((b) => b.id === actionId)
   if (binding) {
     binding.key = binding.defaultKey
     saveCustomBindings()

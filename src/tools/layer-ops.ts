@@ -9,7 +9,7 @@ function getSelectedLayerAndArtboard() {
   const artboard = store.document.artboards[0]
   if (!artboard || store.selection.layerIds.length === 0) return null
   const layerId = store.selection.layerIds[0]!
-  const idx = artboard.layers.findIndex(l => l.id === layerId)
+  const idx = artboard.layers.findIndex((l) => l.id === layerId)
   if (idx === -1) return null
   return { artboard, layerId, idx, store }
 }
@@ -60,7 +60,7 @@ export function flipHorizontal() {
   if (!artboard || store.selection.layerIds.length === 0) return
 
   for (const layerId of store.selection.layerIds) {
-    const layer = artboard.layers.find(l => l.id === layerId)
+    const layer = artboard.layers.find((l) => l.id === layerId)
     if (!layer) continue
     store.updateLayer(artboard.id, layerId, {
       transform: {
@@ -77,7 +77,7 @@ export function flipVertical() {
   if (!artboard || store.selection.layerIds.length === 0) return
 
   for (const layerId of store.selection.layerIds) {
-    const layer = artboard.layers.find(l => l.id === layerId)
+    const layer = artboard.layers.find((l) => l.id === layerId)
     if (!layer) continue
     store.updateLayer(artboard.id, layerId, {
       transform: {
@@ -96,7 +96,7 @@ export function nudgeSelection(dx: number, dy: number) {
   if (!artboard || store.selection.layerIds.length === 0) return
 
   for (const layerId of store.selection.layerIds) {
-    const layer = artboard.layers.find(l => l.id === layerId)
+    const layer = artboard.layers.find((l) => l.id === layerId)
     if (!layer) continue
     store.updateLayer(artboard.id, layerId, {
       transform: {

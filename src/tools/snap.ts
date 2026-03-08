@@ -2,10 +2,10 @@ import { useEditorStore } from '@/store/editor.store'
 import { getLayerBBox, type BBox } from '@/math/bbox'
 
 export interface SnapResult {
-  x: number | null  // snapped X or null if no snap
-  y: number | null  // snapped Y or null if no snap
-  snapLinesH: number[]  // horizontal snap lines to render
-  snapLinesV: number[]  // vertical snap lines to render
+  x: number | null // snapped X or null if no snap
+  y: number | null // snapped Y or null if no snap
+  snapLinesH: number[] // horizontal snap lines to render
+  snapLinesV: number[] // vertical snap lines to render
 }
 
 /**
@@ -13,11 +13,7 @@ export interface SnapResult {
  * Respects granular snap preferences from the store.
  * Returns the snapped coordinates and snap lines for rendering.
  */
-export function snapPoint(
-  docX: number,
-  docY: number,
-  excludeLayerIds: string[] = [],
-): SnapResult {
+export function snapPoint(docX: number, docY: number, excludeLayerIds: string[] = []): SnapResult {
   const store = useEditorStore.getState()
   if (!store.snapEnabled) return { x: null, y: null, snapLinesH: [], snapLinesV: [] }
 
@@ -220,11 +216,7 @@ export function snapBBox(
 /**
  * Render snap lines (magenta dashed) on the canvas in document space.
  */
-export function renderSnapLines(
-  ctx: CanvasRenderingContext2D,
-  lines: { h: number[]; v: number[] },
-  zoom: number,
-) {
+export function renderSnapLines(ctx: CanvasRenderingContext2D, lines: { h: number[]; v: number[] }, zoom: number) {
   ctx.save()
   ctx.strokeStyle = '#ff00ff'
   ctx.lineWidth = 1 / zoom

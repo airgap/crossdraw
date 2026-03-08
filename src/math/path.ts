@@ -12,9 +12,7 @@ export function segmentsToSVGPath(segments: Segment[]): string {
         parts.push(`L${seg.x} ${seg.y}`)
         break
       case 'cubic':
-        parts.push(
-          `C${seg.cp1x} ${seg.cp1y} ${seg.cp2x} ${seg.cp2y} ${seg.x} ${seg.y}`,
-        )
+        parts.push(`C${seg.cp1x} ${seg.cp1y} ${seg.cp2x} ${seg.cp2y} ${seg.x} ${seg.y}`)
         break
       case 'quadratic':
         parts.push(`Q${seg.cpx} ${seg.cpy} ${seg.x} ${seg.y}`)

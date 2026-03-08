@@ -63,27 +63,35 @@ export function StatusBar() {
   const selCount = selection.layerIds.length
 
   return (
-    <div style={{
-      height: 24,
-      background: 'var(--bg-surface)',
-      borderTop: '1px solid var(--border-subtle)',
-      display: 'flex',
-      alignItems: 'center',
-      padding: '0 var(--space-2)',
-      fontSize: 'var(--font-size-xs)',
-      color: 'var(--text-secondary)',
-      gap: 'var(--space-4)',
-      flexShrink: 0,
-    }}>
+    <div
+      style={{
+        height: 24,
+        background: 'var(--bg-surface)',
+        borderTop: '1px solid var(--border-subtle)',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '0 var(--space-2)',
+        fontSize: 'var(--font-size-xs)',
+        color: 'var(--text-secondary)',
+        gap: 'var(--space-4)',
+        flexShrink: 0,
+      }}
+    >
       <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '-0.2px' }}>
         X: {cursorPos.x} Y: {cursorPos.y}
       </span>
       <button
         onClick={() => setZoom(viewport.zoom / 1.25)}
         style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 'var(--font-size-base)' }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-      >-</button>
+        onMouseEnter={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'none'
+        }}
+      >
+        -
+      </button>
       {editingZoom ? (
         <input
           autoFocus
@@ -125,24 +133,48 @@ export function StatusBar() {
             borderRadius: 'var(--radius-sm)',
             padding: '0 2px',
           }}
-          onClick={() => { setEditingZoom(true); setZoomInput(String(Math.round(viewport.zoom * 100))) }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
-        >{Math.round(viewport.zoom * 100)}%</span>
+          onClick={() => {
+            setEditingZoom(true)
+            setZoomInput(String(Math.round(viewport.zoom * 100)))
+          }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        >
+          {Math.round(viewport.zoom * 100)}%
+        </span>
       )}
       <button
         onClick={() => setZoom(viewport.zoom * 1.25)}
         style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 'var(--font-size-base)' }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-      >+</button>
+        onMouseEnter={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'none'
+        }}
+      >
+        +
+      </button>
       <button
-        onClick={() => { setZoom(1); setPan(0, 0) }}
+        onClick={() => {
+          setZoom(1)
+          setPan(0, 0)
+        }}
         title="Reset zoom"
         style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 9 }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-      >1:1</button>
+        onMouseEnter={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'none'
+        }}
+      >
+        1:1
+      </button>
       <button
         onClick={toggleSnap}
         title={snapEnabled ? 'Snapping enabled (click to disable)' : 'Snapping disabled (click to enable)'}
@@ -151,11 +183,15 @@ export function StatusBar() {
           color: snapEnabled ? 'var(--accent)' : 'var(--text-secondary)',
           opacity: snapEnabled ? 1 : 0.5,
         }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+        onMouseEnter={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+        }}
+        onMouseLeave={(e) => {
+          ;(e.currentTarget as HTMLElement).style.background = 'none'
+        }}
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1C8.55 1 9 1.45 9 2V5.17C9.93 5.5 10.69 6.13 11.12 6.96L13.5 5.59C13.98 5.31 14.59 5.48 14.87 5.96C15.15 6.44 14.98 7.05 14.5 7.33L12.15 8.68C12.22 9.1 12.22 9.53 12.15 9.95L14.5 11.3C14.98 11.58 15.15 12.19 14.87 12.67C14.59 13.15 13.98 13.32 13.5 13.04L11.12 11.67C10.69 12.5 9.93 13.13 9 13.46V15.63C9 16.18 8.55 16.63 8 16.63C7.45 16.63 7 16.18 7 15.63V13.46C6.07 13.13 5.31 12.5 4.88 11.67L2.5 13.04C2.02 13.32 1.41 13.15 1.13 12.67C0.85 12.19 1.02 11.58 1.5 11.3L3.85 9.95C3.78 9.53 3.78 9.1 3.85 8.68L1.5 7.33C1.02 7.05 0.85 6.44 1.13 5.96C1.41 5.48 2.02 5.31 2.5 5.59L4.88 6.96C5.31 6.13 6.07 5.5 7 5.17V2C7 1.45 7.45 1 8 1ZM8 7.5C6.9 7.5 6 8.4 6 9.5C6 10.6 6.9 11.5 8 11.5C9.1 11.5 10 10.6 10 9.5C10 8.4 9.1 7.5 8 7.5Z"/>
+          <path d="M8 1C8.55 1 9 1.45 9 2V5.17C9.93 5.5 10.69 6.13 11.12 6.96L13.5 5.59C13.98 5.31 14.59 5.48 14.87 5.96C15.15 6.44 14.98 7.05 14.5 7.33L12.15 8.68C12.22 9.1 12.22 9.53 12.15 9.95L14.5 11.3C14.98 11.58 15.15 12.19 14.87 12.67C14.59 13.15 13.98 13.32 13.5 13.04L11.12 11.67C10.69 12.5 9.93 13.13 9 13.46V15.63C9 16.18 8.55 16.63 8 16.63C7.45 16.63 7 16.18 7 15.63V13.46C6.07 13.13 5.31 12.5 4.88 11.67L2.5 13.04C2.02 13.32 1.41 13.15 1.13 12.67C0.85 12.19 1.02 11.58 1.5 11.3L3.85 9.95C3.78 9.53 3.78 9.1 3.85 8.68L1.5 7.33C1.02 7.05 0.85 6.44 1.13 5.96C1.41 5.48 2.02 5.31 2.5 5.59L4.88 6.96C5.31 6.13 6.07 5.5 7 5.17V2C7 1.45 7.45 1 8 1ZM8 7.5C6.9 7.5 6 8.4 6 9.5C6 10.6 6.9 11.5 8 11.5C9.1 11.5 10 10.6 10 9.5C10 8.4 9.1 7.5 8 7.5Z" />
         </svg>
       </button>
       <span style={{ fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -163,7 +199,9 @@ export function StatusBar() {
       </span>
       <span style={{ flex: 1 }} />
       <span>{selCount > 0 ? `${selCount} selected` : `${layerCount} layers`}</span>
-      <span>{document.artboards.length} artboard{document.artboards.length !== 1 ? 's' : ''}</span>
+      <span>
+        {document.artboards.length} artboard{document.artboards.length !== 1 ? 's' : ''}
+      </span>
 
       {/* Settings gear button with dropdown */}
       <div ref={settingsRef} style={{ position: 'relative' }}>
@@ -174,28 +212,43 @@ export function StatusBar() {
             ...statusBtnStyle,
             color: settingsOpen ? 'var(--accent)' : 'var(--text-secondary)',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'none'
+          }}
         >
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
           </svg>
         </button>
         {settingsOpen && (
-          <div style={{
-            position: 'absolute',
-            bottom: '100%',
-            right: 0,
-            marginBottom: 4,
-            background: 'var(--bg-overlay)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '6px 0',
-            minWidth: 180,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-            zIndex: 1000,
-          }}>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              right: 0,
+              marginBottom: 4,
+              background: 'var(--bg-overlay)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '6px 0',
+              minWidth: 180,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              zIndex: 1000,
+            }}
+          >
             <label
               style={{
                 display: 'flex',
@@ -206,8 +259,12 @@ export function StatusBar() {
                 fontSize: 11,
                 color: 'var(--text-primary)',
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+              }}
             >
               <input
                 type="checkbox"
@@ -217,7 +274,17 @@ export function StatusBar() {
               />
               <span>Touch Mode</span>
               {touchMode && (
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ marginLeft: 'auto', color: 'var(--accent)' }}>
+                <svg
+                  width="10"
+                  height="10"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ marginLeft: 'auto', color: 'var(--accent)' }}
+                >
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               )}

@@ -41,14 +41,14 @@ export const DEVICE_PRESETS: DevicePreset[] = [
  * Get device presets filtered by category.
  */
 export function getPresetsByCategory(category: DevicePreset['category']): DevicePreset[] {
-  return DEVICE_PRESETS.filter(p => p.category === category)
+  return DEVICE_PRESETS.filter((p) => p.category === category)
 }
 
 /**
  * Find a device preset by ID.
  */
 export function getPresetById(id: string): DevicePreset | undefined {
-  return DEVICE_PRESETS.find(p => p.id === id)
+  return DEVICE_PRESETS.find((p) => p.id === id)
 }
 
 /**
@@ -63,14 +63,7 @@ export function computeResponsiveLayout(
 
   for (const layer of artboard.layers) {
     const constraints = (layer as BaseLayer).constraints ?? { horizontal: 'left', vertical: 'top' }
-    const result = applyConstraints(
-      layer,
-      constraints,
-      artboard.width,
-      artboard.height,
-      targetWidth,
-      targetHeight,
-    )
+    const result = applyConstraints(layer, constraints, artboard.width, artboard.height, targetWidth, targetHeight)
     results.push({ layerId: layer.id, ...result })
   }
 
@@ -113,29 +106,39 @@ export function DevicePreview({
   const [selectedCategory, setSelectedCategory] = useState<DevicePreset['category'] | 'all'>('all')
 
   const presets = useMemo(() => {
-    return presetIds
-      .map(id => getPresetById(id))
-      .filter((p): p is DevicePreset => p != null)
+    return presetIds.map((id) => getPresetById(id)).filter((p): p is DevicePreset => p != null)
   }, [presetIds])
 
   const filteredPresets = useMemo(() => {
     if (selectedCategory === 'all') return presets
-    return presets.filter(p => p.category === selectedCategory)
+    return presets.filter((p) => p.category === selectedCategory)
   }, [presets, selectedCategory])
 
   const layouts = useMemo(() => {
-    return filteredPresets.map(preset => ({
+    return filteredPresets.map((preset) => ({
       preset,
       layout: computeResponsiveLayout(artboard, preset.width, preset.height),
-      scale: calcPreviewScale(preset.width, preset.height, containerWidth / Math.max(1, filteredPresets.length), containerHeight),
+      scale: calcPreviewScale(
+        preset.width,
+        preset.height,
+        containerWidth / Math.max(1, filteredPresets.length),
+        containerHeight,
+      ),
     }))
   }, [filteredPresets, artboard, containerWidth, containerHeight])
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Category filter */}
-      <div style={{ display: 'flex', gap: 'var(--space-2)', padding: 'var(--space-2)', borderBottom: '1px solid var(--border-subtle)' }}>
-        {(['all', 'phone', 'tablet', 'desktop'] as const).map(cat => (
+      <div
+        style={{
+          display: 'flex',
+          gap: 'var(--space-2)',
+          padding: 'var(--space-2)',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
+      >
+        {(['all', 'phone', 'tablet', 'desktop'] as const).map((cat) => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
@@ -156,20 +159,20 @@ export function DevicePreview({
       </div>
 
       {/* Preview area */}
-      <div style={{
-        display: 'flex',
-        gap: 16,
-        padding: 16,
-        overflow: 'auto',
-        flex: 1,
-        alignItems: 'flex-start',
-        justifyContent: 'center',
-      }}>
+      <div
+        style={{
+          display: 'flex',
+          gap: 16,
+          padding: 16,
+          overflow: 'auto',
+          flex: 1,
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+        }}
+      >
         {layouts.map(({ preset, scale }) => (
           <div key={preset.id} style={{ textAlign: 'center', flexShrink: 0 }}>
-            <div style={{ fontSize: 11, marginBottom: 4, color: 'var(--text-secondary)' }}>
-              {preset.name}
-            </div>
+            <div style={{ fontSize: 11, marginBottom: 4, color: 'var(--text-secondary)' }}>{preset.name}</div>
             <div style={{ fontSize: 'var(--font-size-xs)', marginBottom: 8, color: 'var(--text-disabled)' }}>
               {preset.width} x {preset.height}
             </div>
@@ -185,15 +188,17 @@ export function DevicePreview({
               }}
             >
               {/* Placeholder for rendered preview content */}
-              <div style={{
-                position: 'absolute',
-                inset: 0,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 10 * Math.max(scale, 0.5),
-                color: 'var(--text-disabled)',
-              }}>
+              <div
+                style={{
+                  position: 'absolute',
+                  inset: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10 * Math.max(scale, 0.5),
+                  color: 'var(--text-disabled)',
+                }}
+              >
                 Preview
               </div>
             </div>

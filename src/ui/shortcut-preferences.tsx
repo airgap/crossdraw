@@ -41,7 +41,7 @@ export function ShortcutPreferences({ onClose }: Props) {
 
       rebindShortcut(rebindRef.current, combo)
       setRebinding(null)
-      forceUpdate(n => n + 1)
+      forceUpdate((n) => n + 1)
     }
 
     window.addEventListener('keydown', handler, true)
@@ -76,24 +76,32 @@ export function ShortcutPreferences({ onClose }: Props) {
           overflow: 'hidden',
           boxShadow: '0 16px 48px rgba(0,0,0,0.4), 0 4px 16px rgba(0,0,0,0.2)',
         }}
-        onClick={e => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{
-          padding: 'var(--space-3) var(--space-4)',
-          borderBottom: '1px solid var(--border-subtle)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-        }}>
-          <span style={{ fontSize: 'var(--font-size-lg)', fontWeight: 'var(--font-weight-semibold)', color: 'var(--text-primary)' }}>
+        <div
+          style={{
+            padding: 'var(--space-3) var(--space-4)',
+            borderBottom: '1px solid var(--border-subtle)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <span
+            style={{
+              fontSize: 'var(--font-size-lg)',
+              fontWeight: 'var(--font-weight-semibold)',
+              color: 'var(--text-primary)',
+            }}
+          >
             Keyboard Shortcuts
           </span>
           <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
             <button
               onClick={() => {
                 resetAllShortcuts()
-                forceUpdate(n => n + 1)
+                forceUpdate((n) => n + 1)
               }}
               style={{
                 background: 'var(--bg-input)',
@@ -105,8 +113,12 @@ export function ShortcutPreferences({ onClose }: Props) {
                 cursor: 'pointer',
                 height: 'var(--height-button-sm)',
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-input)' }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-input)'
+              }}
             >
               Reset All
             </button>
@@ -126,8 +138,12 @@ export function ShortcutPreferences({ onClose }: Props) {
                 justifyContent: 'center',
                 borderRadius: 'var(--radius-sm)',
               }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+              onMouseEnter={(e) => {
+                ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+              }}
+              onMouseLeave={(e) => {
+                ;(e.currentTarget as HTMLElement).style.background = 'none'
+              }}
             >
               {'\u00D7'}
             </button>
@@ -136,23 +152,25 @@ export function ShortcutPreferences({ onClose }: Props) {
 
         {/* Bindings list */}
         <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-2) var(--space-4)' }}>
-          {categories.map(cat => {
-            const catBindings = bindings.filter(b => b.category === cat.id)
+          {categories.map((cat) => {
+            const catBindings = bindings.filter((b) => b.category === cat.id)
             if (catBindings.length === 0) return null
 
             return (
               <div key={cat.id} style={{ marginBottom: 'var(--space-3)' }}>
-                <div style={{
-                  fontSize: 'var(--font-size-xs)',
-                  fontWeight: 'var(--font-weight-semibold)',
-                  textTransform: 'uppercase',
-                  color: 'var(--text-secondary)',
-                  marginBottom: 6,
-                  letterSpacing: '0.5px',
-                }}>
+                <div
+                  style={{
+                    fontSize: 'var(--font-size-xs)',
+                    fontWeight: 'var(--font-weight-semibold)',
+                    textTransform: 'uppercase',
+                    color: 'var(--text-secondary)',
+                    marginBottom: 6,
+                    letterSpacing: '0.5px',
+                  }}
+                >
                   {cat.label}
                 </div>
-                {catBindings.map(binding => (
+                {catBindings.map((binding) => (
                   <ShortcutRow
                     key={binding.id}
                     binding={binding}
@@ -160,7 +178,7 @@ export function ShortcutPreferences({ onClose }: Props) {
                     onStartRebind={() => setRebinding(binding.id)}
                     onReset={() => {
                       resetShortcut(binding.id)
-                      forceUpdate(n => n + 1)
+                      forceUpdate((n) => n + 1)
                     }}
                   />
                 ))}
@@ -170,12 +188,14 @@ export function ShortcutPreferences({ onClose }: Props) {
         </div>
 
         {/* Footer hint */}
-        <div style={{
-          padding: 'var(--space-2) var(--space-4)',
-          borderTop: '1px solid var(--border-subtle)',
-          fontSize: 'var(--font-size-sm)',
-          color: 'var(--text-secondary)',
-        }}>
+        <div
+          style={{
+            padding: 'var(--space-2) var(--space-4)',
+            borderTop: '1px solid var(--border-subtle)',
+            fontSize: 'var(--font-size-sm)',
+            color: 'var(--text-secondary)',
+          }}
+        >
           Click a shortcut key to rebind it. Press Escape to cancel.
         </div>
       </div>
@@ -197,17 +217,21 @@ function ShortcutRow({
   const isCustom = binding.key !== binding.defaultKey
 
   return (
-    <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      gap: 'var(--space-2)',
-      padding: '4px 0',
-    }}>
-      <span style={{
-        flex: 1,
-        fontSize: 'var(--font-size-base)',
-        color: 'var(--text-primary)',
-      }}>
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 'var(--space-2)',
+        padding: '4px 0',
+      }}
+    >
+      <span
+        style={{
+          flex: 1,
+          fontSize: 'var(--font-size-base)',
+          color: 'var(--text-primary)',
+        }}
+      >
         {binding.label}
       </span>
       <button
@@ -240,8 +264,12 @@ function ShortcutRow({
             cursor: 'pointer',
             padding: '0 2px',
           }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)' }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'
+          }}
         >
           {'\u21BA'}
         </button>
@@ -253,7 +281,7 @@ function ShortcutRow({
 function formatCombo(combo: string): string {
   return combo
     .split('+')
-    .map(part => {
+    .map((part) => {
       if (part === 'ctrl') return 'Ctrl'
       if (part === 'shift') return 'Shift'
       if (part === 'alt') return 'Alt'

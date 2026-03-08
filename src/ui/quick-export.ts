@@ -3,7 +3,7 @@ import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToPDF } from '@/io/pdf-export'
 
-const STORAGE_KEY = 'designer:export-settings'
+const STORAGE_KEY = 'crossdraw:export-settings'
 
 export type ExportFormatType = 'png' | 'jpeg' | 'svg' | 'pdf' | 'webp'
 export type ExportRegion = 'artboard' | 'selection' | 'all-artboards'
@@ -70,21 +70,14 @@ function getExportFilename(title: string, settings: ExportSettings): string {
   return `${title || 'Untitled'}${scaleSuffix}.${extMap[settings.format]}`
 }
 
-export async function performExport(
-  settings: ExportSettings,
-  artboardId?: string,
-): Promise<Blob> {
+export async function performExport(settings: ExportSettings, artboardId?: string): Promise<Blob> {
   const store = useEditorStore.getState()
   const doc = store.document
   const targetArtboardId = artboardId ?? doc.artboards[0]?.id
 
   switch (settings.format) {
     case 'png': {
-      const blob = await exportArtboardToBlob(
-        doc,
-        { format: 'png', scale: settings.scale },
-        targetArtboardId,
-      )
+      const blob = await exportArtboardToBlob(doc, { format: 'png', scale: settings.scale }, targetArtboardId)
       // If transparency is off, composite on white
       if (!settings.transparent) {
         return compositeOnWhite(blob)
@@ -100,11 +93,7 @@ export async function performExport(
     }
     case 'webp': {
       // Use OffscreenCanvas convertToBlob with webp type
-      const pngBlob = await exportArtboardToBlob(
-        doc,
-        { format: 'png', scale: settings.scale },
-        targetArtboardId,
-      )
+      const pngBlob = await exportArtboardToBlob(doc, { format: 'png', scale: settings.scale }, targetArtboardId)
       const bitmap = await createImageBitmap(pngBlob)
       const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
       const ctx = canvas.getContext('2d')!

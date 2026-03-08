@@ -5,16 +5,13 @@ import { describe, test, expect } from 'bun:test'
 const SNAP_THRESHOLD = 5
 
 interface BBox {
-  minX: number; minY: number; maxX: number; maxY: number
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
 }
 
-function snapPointToTargets(
-  docX: number,
-  docY: number,
-  targetsX: number[],
-  targetsY: number[],
-  threshold: number,
-) {
+function snapPointToTargets(docX: number, docY: number, targetsX: number[], targetsY: number[], threshold: number) {
   let bestX: number | null = null
   let bestDistX = threshold
   for (const cx of targetsX) {

@@ -6,31 +6,24 @@ import { contextBridge, ipcRenderer } from 'electron'
  */
 contextBridge.exposeInMainWorld('electronAPI', {
   // File operations
-  fileSave: (filePath: string, data: ArrayBuffer): Promise<boolean> =>
-    ipcRenderer.invoke('file:save', filePath, data),
+  fileSave: (filePath: string, data: ArrayBuffer): Promise<boolean> => ipcRenderer.invoke('file:save', filePath, data),
 
-  fileOpenDialog: (): Promise<{ filePath: string; data: ArrayBuffer } | null> =>
-    ipcRenderer.invoke('file:open-dialog'),
+  fileOpenDialog: (): Promise<{ filePath: string; data: ArrayBuffer } | null> => ipcRenderer.invoke('file:open-dialog'),
 
-  fileSaveDialog: (): Promise<string | null> =>
-    ipcRenderer.invoke('file:save-dialog'),
+  fileSaveDialog: (): Promise<string | null> => ipcRenderer.invoke('file:save-dialog'),
 
-  fileRead: (filePath: string): Promise<ArrayBuffer> =>
-    ipcRenderer.invoke('file:read', filePath),
+  fileRead: (filePath: string): Promise<ArrayBuffer> => ipcRenderer.invoke('file:read', filePath),
 
   // Recent files
-  getRecentFiles: (): Promise<string[]> =>
-    ipcRenderer.invoke('recent-files:get'),
+  getRecentFiles: (): Promise<string[]> => ipcRenderer.invoke('recent-files:get'),
 
   // Auto-save
-  autosaveWrite: (data: ArrayBuffer): Promise<string> =>
-    ipcRenderer.invoke('autosave:write', data),
+  autosaveWrite: (data: ArrayBuffer): Promise<string> => ipcRenderer.invoke('autosave:write', data),
 
   autosaveCheck: (): Promise<{ exists: boolean; data?: ArrayBuffer; path?: string }> =>
     ipcRenderer.invoke('autosave:check'),
 
-  autosaveClear: (): Promise<void> =>
-    ipcRenderer.invoke('autosave:clear'),
+  autosaveClear: (): Promise<void> => ipcRenderer.invoke('autosave:clear'),
 
   // Menu events (main → renderer)
   onMenuNew: (callback: () => void) => {

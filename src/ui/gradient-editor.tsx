@@ -36,21 +36,13 @@ const btnStyle: React.CSSProperties = {
 
 const gradientTypes = ['linear', 'radial', 'conical', 'box'] as const
 
-export function GradientEditor({
-  gradient,
-  onChange,
-}: {
-  gradient: Gradient
-  onChange: (g: Gradient) => void
-}) {
+export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onChange: (g: Gradient) => void }) {
   const [selectedStop, setSelectedStop] = useState(0)
 
   const cssGradient = buildCSSPreview(gradient)
 
   function updateStop(index: number, updates: Partial<GradientStop>) {
-    const stops = gradient.stops.map((s, i) =>
-      i === index ? { ...s, ...updates } : s,
-    )
+    const stops = gradient.stops.map((s, i) => (i === index ? { ...s, ...updates } : s))
     onChange({ ...gradient, stops })
   }
 
@@ -80,7 +72,9 @@ export function GradientEditor({
           onChange={(e) => onChange({ ...gradient, type: e.target.value as Gradient['type'] })}
         >
           {gradientTypes.map((t) => (
-            <option key={t} value={t}>{t}</option>
+            <option key={t} value={t}>
+              {t}
+            </option>
           ))}
         </select>
       </div>
@@ -141,11 +135,18 @@ export function GradientEditor({
       {gradient.stops[selectedStop] && (
         <div style={{ padding: 4, background: '#222', borderRadius: 3, marginBottom: 4 }}>
           <div style={rowStyle}>
-            <div style={{
-              width: 20, height: 20, borderRadius: 2, border: '1px solid #555',
-              background: gradient.stops[selectedStop]!.color,
-              position: 'relative', overflow: 'hidden', flexShrink: 0,
-            }}>
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 2,
+                border: '1px solid #555',
+                background: gradient.stops[selectedStop]!.color,
+                position: 'relative',
+                overflow: 'hidden',
+                flexShrink: 0,
+              }}
+            >
               <input
                 type="color"
                 value={gradient.stops[selectedStop]!.color}
@@ -162,24 +163,38 @@ export function GradientEditor({
                 }
               }}
             />
-            <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
+            <button
+              style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
               onClick={() => removeStop(selectedStop)}
-              disabled={gradient.stops.length <= 2}>×</button>
+              disabled={gradient.stops.length <= 2}
+            >
+              ×
+            </button>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: '#888', width: 30 }}>Pos</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
               value={Math.round(gradient.stops[selectedStop]!.offset * 100)}
-              onChange={(e) => updateStop(selectedStop, { offset: Number(e.target.value) / 100 })} />
+              onChange={(e) => updateStop(selectedStop, { offset: Number(e.target.value) / 100 })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(gradient.stops[selectedStop]!.offset * 100)}%
             </span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: '#888', width: 30 }}>Alpha</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }}
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
               value={Math.round(gradient.stops[selectedStop]!.opacity * 100)}
-              onChange={(e) => updateStop(selectedStop, { opacity: Number(e.target.value) / 100 })} />
+              onChange={(e) => updateStop(selectedStop, { opacity: Number(e.target.value) / 100 })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(gradient.stops[selectedStop]!.opacity * 100)}%
             </span>
@@ -187,18 +202,23 @@ export function GradientEditor({
         </div>
       )}
 
-      <button style={{ ...btnStyle, marginBottom: 4 }} onClick={addStop}>+ Add Stop</button>
+      <button style={{ ...btnStyle, marginBottom: 4 }} onClick={addStop}>
+        + Add Stop
+      </button>
 
       {/* Angle (linear/conical) */}
       {(gradient.type === 'linear' || gradient.type === 'conical') && (
         <div style={rowStyle}>
           <span style={{ fontSize: 10, color: '#888', width: 30 }}>Angle</span>
-          <input type="range" min="0" max="360" style={{ flex: 1 }}
+          <input
+            type="range"
+            min="0"
+            max="360"
+            style={{ flex: 1 }}
             value={gradient.angle ?? 0}
-            onChange={(e) => onChange({ ...gradient, angle: Number(e.target.value) })} />
-          <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
-            {gradient.angle ?? 0}°
-          </span>
+            onChange={(e) => onChange({ ...gradient, angle: Number(e.target.value) })}
+          />
+          <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{gradient.angle ?? 0}°</span>
         </div>
       )}
 
@@ -206,9 +226,14 @@ export function GradientEditor({
       {(gradient.type === 'radial' || gradient.type === 'box') && (
         <div style={rowStyle}>
           <span style={{ fontSize: 10, color: '#888', width: 30 }}>Radius</span>
-          <input type="range" min="10" max="200" style={{ flex: 1 }}
+          <input
+            type="range"
+            min="10"
+            max="200"
+            style={{ flex: 1 }}
             value={Math.round((gradient.radius ?? 0.5) * 100)}
-            onChange={(e) => onChange({ ...gradient, radius: Number(e.target.value) / 100 })} />
+            onChange={(e) => onChange({ ...gradient, radius: Number(e.target.value) / 100 })}
+          />
           <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
             {Math.round((gradient.radius ?? 0.5) * 100)}%
           </span>
@@ -218,22 +243,28 @@ export function GradientEditor({
       {/* Center position */}
       <div style={rowStyle}>
         <span style={{ fontSize: 10, color: '#888', width: 14 }}>X</span>
-        <input type="number" step="0.05" style={smallInputStyle}
+        <input
+          type="number"
+          step="0.05"
+          style={smallInputStyle}
           value={Math.round(gradient.x * 100) / 100}
-          onChange={(e) => onChange({ ...gradient, x: Number(e.target.value) })} />
+          onChange={(e) => onChange({ ...gradient, x: Number(e.target.value) })}
+        />
         <span style={{ fontSize: 10, color: '#888', width: 14 }}>Y</span>
-        <input type="number" step="0.05" style={smallInputStyle}
+        <input
+          type="number"
+          step="0.05"
+          style={smallInputStyle}
           value={Math.round(gradient.y * 100) / 100}
-          onChange={(e) => onChange({ ...gradient, y: Number(e.target.value) })} />
+          onChange={(e) => onChange({ ...gradient, y: Number(e.target.value) })}
+        />
       </div>
     </div>
   )
 }
 
 function buildCSSPreview(grad: Gradient): string {
-  const stops = grad.stops
-    .map((s) => `${s.color} ${Math.round(s.offset * 100)}%`)
-    .join(', ')
+  const stops = grad.stops.map((s) => `${s.color} ${Math.round(s.offset * 100)}%`).join(', ')
 
   switch (grad.type) {
     case 'linear':

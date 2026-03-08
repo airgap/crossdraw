@@ -96,14 +96,21 @@ describe('buildCurveLUT', () => {
   })
 
   it('identity with diagonal points', () => {
-    const lut = buildCurveLUT([[0, 0], [255, 255]])
+    const lut = buildCurveLUT([
+      [0, 0],
+      [255, 255],
+    ])
     for (let i = 0; i < 256; i++) {
       expect(lut[i]).toBe(i)
     }
   })
 
   it('clamps and interpolates midpoint', () => {
-    const lut = buildCurveLUT([[0, 0], [128, 255], [255, 255]])
+    const lut = buildCurveLUT([
+      [0, 0],
+      [128, 255],
+      [255, 255],
+    ])
     expect(lut[0]).toBe(0)
     expect(lut[128]).toBe(255)
     expect(lut[255]).toBe(255)

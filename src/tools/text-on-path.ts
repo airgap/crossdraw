@@ -77,16 +77,19 @@ export function polylineLength(points: Array<{ x: number; y: number }>): number 
  */
 export function flattenSegments(segments: Segment[], resolution: number = 10): Array<{ x: number; y: number }> {
   const points: Array<{ x: number; y: number }> = []
-  let cx = 0, cy = 0
+  let cx = 0,
+    cy = 0
 
   for (const seg of segments) {
     switch (seg.type) {
       case 'move':
-        cx = seg.x; cy = seg.y
+        cx = seg.x
+        cy = seg.y
         points.push({ x: cx, y: cy })
         break
       case 'line':
-        cx = seg.x; cy = seg.y
+        cx = seg.x
+        cy = seg.y
         points.push({ x: cx, y: cy })
         break
       case 'cubic':
@@ -101,7 +104,8 @@ export function flattenSegments(segments: Segment[], resolution: number = 10): A
           const y = inv3 * cy + 3 * inv2 * u * seg.cp1y + 3 * inv * u2 * seg.cp2y + u3 * seg.y
           points.push({ x, y })
         }
-        cx = seg.x; cy = seg.y
+        cx = seg.x
+        cy = seg.y
         break
       case 'quadratic':
         for (let t = 1; t <= resolution; t++) {
@@ -111,12 +115,14 @@ export function flattenSegments(segments: Segment[], resolution: number = 10): A
           const y = inv * inv * cy + 2 * inv * u * seg.cpy + u * u * seg.y
           points.push({ x, y })
         }
-        cx = seg.x; cy = seg.y
+        cx = seg.x
+        cy = seg.y
         break
       case 'close':
         if (points.length > 0) {
           points.push({ x: points[0]!.x, y: points[0]!.y })
-          cx = points[0]!.x; cy = points[0]!.y
+          cx = points[0]!.x
+          cy = points[0]!.y
         }
         break
     }

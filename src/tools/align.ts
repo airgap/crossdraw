@@ -14,7 +14,7 @@ function getSelectedLayerBBoxes(): LayerBBox[] {
 
   const results: LayerBBox[] = []
   for (const id of store.selection.layerIds) {
-    const layer = artboard.layers.find(l => l.id === id)
+    const layer = artboard.layers.find((l) => l.id === id)
     if (!layer) continue
     const bbox = getLayerBBox(layer, artboard)
     if (bbox.minX === Infinity) continue
@@ -39,7 +39,7 @@ function moveLayerBy(layerId: string, dx: number, dy: number) {
   const store = useEditorStore.getState()
   const artboard = store.document.artboards[0]
   if (!artboard) return
-  const layer = artboard.layers.find(l => l.id === layerId)
+  const layer = artboard.layers.find((l) => l.id === layerId)
   if (!layer) return
   store.updateLayer(artboard.id, layerId, {
     transform: {
@@ -56,9 +56,7 @@ export function alignLeft(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetX = toArtboard
-    ? (getArtboardBBox()?.minX ?? 0)
-    : Math.min(...items.map(i => i.bbox.minX))
+  const targetX = toArtboard ? (getArtboardBBox()?.minX ?? 0) : Math.min(...items.map((i) => i.bbox.minX))
 
   for (const item of items) {
     const dx = targetX - item.bbox.minX
@@ -76,8 +74,8 @@ export function alignCenterH(toArtboard = false) {
     if (!ab) return
     targetCenterX = (ab.minX + ab.maxX) / 2
   } else {
-    const allMinX = Math.min(...items.map(i => i.bbox.minX))
-    const allMaxX = Math.max(...items.map(i => i.bbox.maxX))
+    const allMinX = Math.min(...items.map((i) => i.bbox.minX))
+    const allMaxX = Math.max(...items.map((i) => i.bbox.maxX))
     targetCenterX = (allMinX + allMaxX) / 2
   }
 
@@ -92,9 +90,7 @@ export function alignRight(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetX = toArtboard
-    ? (getArtboardBBox()?.maxX ?? 0)
-    : Math.max(...items.map(i => i.bbox.maxX))
+  const targetX = toArtboard ? (getArtboardBBox()?.maxX ?? 0) : Math.max(...items.map((i) => i.bbox.maxX))
 
   for (const item of items) {
     const dx = targetX - item.bbox.maxX
@@ -106,9 +102,7 @@ export function alignTop(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetY = toArtboard
-    ? (getArtboardBBox()?.minY ?? 0)
-    : Math.min(...items.map(i => i.bbox.minY))
+  const targetY = toArtboard ? (getArtboardBBox()?.minY ?? 0) : Math.min(...items.map((i) => i.bbox.minY))
 
   for (const item of items) {
     const dy = targetY - item.bbox.minY
@@ -126,8 +120,8 @@ export function alignMiddleV(toArtboard = false) {
     if (!ab) return
     targetCenterY = (ab.minY + ab.maxY) / 2
   } else {
-    const allMinY = Math.min(...items.map(i => i.bbox.minY))
-    const allMaxY = Math.max(...items.map(i => i.bbox.maxY))
+    const allMinY = Math.min(...items.map((i) => i.bbox.minY))
+    const allMaxY = Math.max(...items.map((i) => i.bbox.maxY))
     targetCenterY = (allMinY + allMaxY) / 2
   }
 
@@ -142,9 +136,7 @@ export function alignBottom(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetY = toArtboard
-    ? (getArtboardBBox()?.maxY ?? 0)
-    : Math.max(...items.map(i => i.bbox.maxY))
+  const targetY = toArtboard ? (getArtboardBBox()?.maxY ?? 0) : Math.max(...items.map((i) => i.bbox.maxY))
 
   for (const item of items) {
     const dy = targetY - item.bbox.maxY
@@ -217,7 +209,7 @@ export function distributeSpacingH() {
     const item = items[i]!
     const dx = x - item.bbox.minX
     if (dx !== 0) moveLayerBy(item.layerId, dx, 0)
-    x += (item.bbox.maxX - item.bbox.minX) + gap
+    x += item.bbox.maxX - item.bbox.minX + gap
   }
 }
 
@@ -237,6 +229,6 @@ export function distributeSpacingV() {
     const item = items[i]!
     const dy = y - item.bbox.minY
     if (dy !== 0) moveLayerBy(item.layerId, 0, dy)
-    y += (item.bbox.maxY - item.bbox.minY) + gap
+    y += item.bbox.maxY - item.bbox.minY + gap
   }
 }

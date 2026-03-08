@@ -72,15 +72,21 @@ export function applyColorToSelection(hex: string, opacity: number, shiftKey: bo
     return
   }
 
-  const layer = artboard.layers.find(l => l.id === selectedId)
+  const layer = artboard.layers.find((l) => l.id === selectedId)
   if (!layer) return
 
   if (shiftKey) {
     // Apply to stroke
     if (layer.type === 'vector') {
       const stroke = layer.stroke ?? {
-        width: 1, color: hex, opacity, position: 'center' as const, dasharray: undefined,
-        linecap: 'butt' as const, linejoin: 'miter' as const, miterLimit: 4,
+        width: 1,
+        color: hex,
+        opacity,
+        position: 'center' as const,
+        dasharray: undefined,
+        linecap: 'butt' as const,
+        linejoin: 'miter' as const,
+        miterLimit: 4,
       }
       store.setStroke(artboard.id, layer.id, { ...stroke, color: hex, opacity })
     }

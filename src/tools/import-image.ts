@@ -92,9 +92,7 @@ export async function importImageFromPicker(): Promise<void> {
     input.onchange = async () => {
       const file = input.files?.[0]
       if (file) {
-        const isSvg =
-          file.type === 'image/svg+xml' ||
-          file.name.toLowerCase().endsWith('.svg')
+        const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')
 
         if (isSvg) {
           await importSVGAsMergedLayers(file)

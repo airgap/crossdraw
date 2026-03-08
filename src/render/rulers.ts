@@ -220,9 +220,9 @@ export function renderGrid(p: RulerRenderParams) {
   ctx.globalAlpha = 0.3
 
   // Calculate visible artboard range
-  const startDocX = Math.max(artboardX, (-panX) / zoom)
+  const startDocX = Math.max(artboardX, -panX / zoom)
   const endDocX = Math.min(artboardX + artboardW, (canvasWidth - panX) / zoom)
-  const startDocY = Math.max(artboardY, (-panY) / zoom)
+  const startDocY = Math.max(artboardY, -panY / zoom)
   const endDocY = Math.min(artboardY + artboardH, (canvasHeight - panY) / zoom)
 
   const firstGridX = Math.ceil((startDocX - artboardX) / gridSize) * gridSize + artboardX

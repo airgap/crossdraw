@@ -49,7 +49,7 @@ function getEditingLayer(): { layer: VectorLayer; artboardId: string } | null {
   if (sel.length !== 1) return null
 
   for (const artboard of store.document.artboards) {
-    const layer = artboard.layers.find(l => l.id === sel[0])
+    const layer = artboard.layers.find((l) => l.id === sel[0])
     if (layer && layer.type === 'vector') {
       return { layer, artboardId: artboard.id }
     }
@@ -87,7 +87,12 @@ function dist(ax: number, ay: number, bx: number, by: number): number {
  * Returns the path id and segment index.
  */
 export function hitTestNode(
-  docX: number, docY: number, layer: VectorLayer, artboardX: number, artboardY: number, zoom: number,
+  docX: number,
+  docY: number,
+  layer: VectorLayer,
+  artboardX: number,
+  artboardY: number,
+  zoom: number,
 ): { pathId: string; segIndex: number } | null {
   const threshold = 8 / zoom
   const lx = docX - artboardX - layer.transform.x
@@ -114,7 +119,12 @@ export function hitTestNode(
  * Hit test control handles on selected nodes.
  */
 export function hitTestHandle(
-  docX: number, docY: number, layer: VectorLayer, artboardX: number, artboardY: number, zoom: number,
+  docX: number,
+  docY: number,
+  layer: VectorLayer,
+  artboardX: number,
+  artboardY: number,
+  zoom: number,
 ): { pathId: string; segIndex: number; handle: 'cp1' | 'cp2' | 'cp' } | null {
   const threshold = 8 / zoom
   const lx = docX - artboardX - layer.transform.x
@@ -122,7 +132,7 @@ export function hitTestHandle(
 
   for (const key of state.selectedNodes) {
     const { pathId, segIndex } = parseNodeKey(key)
-    const path = layer.paths.find(p => p.id === pathId)
+    const path = layer.paths.find((p) => p.id === pathId)
     if (!path) continue
     const seg = path.segments[segIndex]
     if (!seg) continue
@@ -146,14 +156,12 @@ export function hitTestHandle(
 /**
  * Handle mousedown for node tool.
  */
-export function nodeMouseDown(
-  docX: number, docY: number, zoom: number, shiftKey: boolean,
-) {
+export function nodeMouseDown(docX: number, docY: number, zoom: number, shiftKey: boolean) {
   const info = getEditingLayer()
   if (!info) return
 
   const { layer, artboardId } = info
-  const artboard = useEditorStore.getState().document.artboards.find(a => a.id === artboardId)
+  const artboard = useEditorStore.getState().document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
 
   state.layerId = layer.id
@@ -199,9 +207,9 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
   if (!state.dragging || !state.dragStart || !state.layerId || !state.artboardId) return
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards.find(a => a.id === state.artboardId)
+  const artboard = store.document.artboards.find((a) => a.id === state.artboardId)
   if (!artboard) return
-  const layer = artboard.layers.find(l => l.id === state.layerId) as VectorLayer | undefined
+  const layer = artboard.layers.find((l) => l.id === state.layerId) as VectorLayer | undefined
   if (!layer) return
 
   let dx = docX - state.dragStart.x
@@ -216,13 +224,13 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
   if (state.draggingHandle) {
     // Move a control handle
     const { pathId, segIndex, handle } = state.draggingHandle
-    const path = layer.paths.find(p => p.id === pathId)
+    const path = layer.paths.find((p) => p.id === pathId)
     if (!path) return
     const seg = path.segments[segIndex]
     if (!seg) return
 
     const updates: Partial<VectorLayer> = { paths: JSON.parse(JSON.stringify(layer.paths)) }
-    const updatedPath = (updates.paths as Path[]).find(p => p.id === pathId)
+    const updatedPath = (updates.paths as Path[]).find((p) => p.id === pathId)
     if (!updatedPath) return
     const updatedSeg = updatedPath.segments[segIndex]!
 
@@ -247,7 +255,7 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
 
     for (const key of state.selectedNodes) {
       const { pathId, segIndex } = parseNodeKey(key)
-      const path = paths.find(p => p.id === pathId)
+      const path = paths.find((p) => p.id === pathId)
       if (!path) continue
       const seg = path.segments[segIndex]
       if (!seg || seg.type === 'close') continue
@@ -281,9 +289,9 @@ export function nodeMouseUp() {
   // Commit as an undo entry
   if (state.layerId && state.artboardId) {
     const store = useEditorStore.getState()
-    const artboard = store.document.artboards.find(a => a.id === state.artboardId)
+    const artboard = store.document.artboards.find((a) => a.id === state.artboardId)
     if (artboard) {
-      const layer = artboard.layers.find(l => l.id === state.layerId) as VectorLayer | undefined
+      const layer = artboard.layers.find((l) => l.id === state.layerId) as VectorLayer | undefined
       if (layer) {
         store.updateLayer(state.artboardId, state.layerId, { paths: JSON.parse(JSON.stringify(layer.paths)) })
       }
@@ -315,7 +323,7 @@ export function deleteSelectedNodes() {
   }
 
   for (const [pathId, indices] of byPath) {
-    const path = newPaths.find(p => p.id === pathId)
+    const path = newPaths.find((p) => p.id === pathId)
     if (!path) continue
     // Remove segments at indices (reverse order to keep indices stable)
     const sorted = [...indices].sort((a, b) => b - a)
@@ -343,14 +351,15 @@ export function insertPointOnSegment(pathId: string, segIndex: number) {
 
   const { layer, artboardId } = info
   const newPaths: Path[] = JSON.parse(JSON.stringify(layer.paths))
-  const path = newPaths.find(p => p.id === pathId)
+  const path = newPaths.find((p) => p.id === pathId)
   if (!path) return
 
   const seg = path.segments[segIndex]
   if (!seg || seg.type === 'close' || seg.type === 'move') return
 
   // Get previous point
-  let prevX = 0, prevY = 0
+  let prevX = 0,
+    prevY = 0
   for (let i = segIndex - 1; i >= 0; i--) {
     const prev = path.segments[i]!
     if (prev.type !== 'close') {
@@ -364,28 +373,48 @@ export function insertPointOnSegment(pathId: string, segIndex: number) {
 
   if (seg.type === 'cubic') {
     // De Casteljau subdivision at t=0.5
-    const p0x = prevX, p0y = prevY
-    const p1x = seg.cp1x, p1y = seg.cp1y
-    const p2x = seg.cp2x, p2y = seg.cp2y
-    const p3x = seg.x, p3y = seg.y
+    const p0x = prevX,
+      p0y = prevY
+    const p1x = seg.cp1x,
+      p1y = seg.cp1y
+    const p2x = seg.cp2x,
+      p2y = seg.cp2y
+    const p3x = seg.x,
+      p3y = seg.y
 
-    const q0x = p0x + t * (p1x - p0x), q0y = p0y + t * (p1y - p0y)
-    const q1x = p1x + t * (p2x - p1x), q1y = p1y + t * (p2y - p1y)
-    const q2x = p2x + t * (p3x - p2x), q2y = p2y + t * (p3y - p2y)
+    const q0x = p0x + t * (p1x - p0x),
+      q0y = p0y + t * (p1y - p0y)
+    const q1x = p1x + t * (p2x - p1x),
+      q1y = p1y + t * (p2y - p1y)
+    const q2x = p2x + t * (p3x - p2x),
+      q2y = p2y + t * (p3y - p2y)
 
-    const r0x = q0x + t * (q1x - q0x), r0y = q0y + t * (q1y - q0y)
-    const r1x = q1x + t * (q2x - q1x), r1y = q1y + t * (q2y - q1y)
+    const r0x = q0x + t * (q1x - q0x),
+      r0y = q0y + t * (q1y - q0y)
+    const r1x = q1x + t * (q2x - q1x),
+      r1y = q1y + t * (q2y - q1y)
 
-    const sx = r0x + t * (r1x - r0x), sy = r0y + t * (r1y - r0y)
+    const sx = r0x + t * (r1x - r0x),
+      sy = r0y + t * (r1y - r0y)
 
     // Replace the original cubic with two cubics
     const firstHalf: Segment = {
-      type: 'cubic', x: sx, y: sy,
-      cp1x: q0x, cp1y: q0y, cp2x: r0x, cp2y: r0y,
+      type: 'cubic',
+      x: sx,
+      y: sy,
+      cp1x: q0x,
+      cp1y: q0y,
+      cp2x: r0x,
+      cp2y: r0y,
     }
     const secondHalf: Segment = {
-      type: 'cubic', x: p3x, y: p3y,
-      cp1x: r1x, cp1y: r1y, cp2x: q2x, cp2y: q2y,
+      type: 'cubic',
+      x: p3x,
+      y: p3y,
+      cp1x: r1x,
+      cp1y: r1y,
+      cp2x: q2x,
+      cp2y: q2y,
     }
 
     path.segments.splice(segIndex, 1, firstHalf, secondHalf)
@@ -398,13 +427,19 @@ export function insertPointOnSegment(pathId: string, segIndex: number) {
     path.segments.splice(segIndex, 1, firstHalf, secondHalf)
   } else if (seg.type === 'quadratic') {
     // Subdivide quadratic at t=0.5
-    const p0x = prevX, p0y = prevY
-    const p1x = seg.cpx, p1y = seg.cpy
-    const p2x = seg.x, p2y = seg.y
+    const p0x = prevX,
+      p0y = prevY
+    const p1x = seg.cpx,
+      p1y = seg.cpy
+    const p2x = seg.x,
+      p2y = seg.y
 
-    const q0x = p0x + t * (p1x - p0x), q0y = p0y + t * (p1y - p0y)
-    const q1x = p1x + t * (p2x - p1x), q1y = p1y + t * (p2y - p1y)
-    const sx = q0x + t * (q1x - q0x), sy = q0y + t * (q1y - q0y)
+    const q0x = p0x + t * (p1x - p0x),
+      q0y = p0y + t * (p1y - p0y)
+    const q1x = p1x + t * (p2x - p1x),
+      q1y = p1y + t * (p2y - p1y)
+    const sx = q0x + t * (q1x - q0x),
+      sy = q0y + t * (q1y - q0y)
 
     const firstHalf: Segment = { type: 'quadratic', x: sx, y: sy, cpx: q0x, cpy: q0y }
     const secondHalf: Segment = { type: 'quadratic', x: p2x, y: p2y, cpx: q1x, cpy: q1y }
@@ -425,7 +460,7 @@ export function toggleNodeSmooth(pathId: string, segIndex: number) {
 
   const { layer, artboardId } = info
   const newPaths: Path[] = JSON.parse(JSON.stringify(layer.paths))
-  const path = newPaths.find(p => p.id === pathId)
+  const path = newPaths.find((p) => p.id === pathId)
   if (!path) return
 
   const seg = path.segments[segIndex]
@@ -440,10 +475,15 @@ export function toggleNodeSmooth(pathId: string, segIndex: number) {
 
     if (handleLen < 0.1) {
       // It's a corner — make it smooth by extending handles along the line direction
-      let prevX = 0, prevY = 0
+      let prevX = 0,
+        prevY = 0
       for (let i = segIndex - 1; i >= 0; i--) {
         const prev = path.segments[i]!
-        if (prev.type !== 'close') { prevX = prev.x; prevY = prev.y; break }
+        if (prev.type !== 'close') {
+          prevX = prev.x
+          prevY = prev.y
+          break
+        }
       }
       const dirX = seg.x - prevX
       const dirY = seg.y - prevY
@@ -469,18 +509,24 @@ export function toggleNodeSmooth(pathId: string, segIndex: number) {
     }
   } else if (seg.type === 'line') {
     // Convert line to cubic with handles at 1/3 and 2/3
-    let prevX = 0, prevY = 0
+    let prevX = 0,
+      prevY = 0
     for (let i = segIndex - 1; i >= 0; i--) {
       const prev = path.segments[i]!
-      if (prev.type !== 'close') { prevX = prev.x; prevY = prev.y; break }
+      if (prev.type !== 'close') {
+        prevX = prev.x
+        prevY = prev.y
+        break
+      }
     }
     const cubic: Segment = {
       type: 'cubic',
-      x: seg.x, y: seg.y,
+      x: seg.x,
+      y: seg.y,
       cp1x: prevX + (seg.x - prevX) / 3,
       cp1y: prevY + (seg.y - prevY) / 3,
-      cp2x: prevX + 2 * (seg.x - prevX) / 3,
-      cp2y: prevY + 2 * (seg.y - prevY) / 3,
+      cp2x: prevX + (2 * (seg.x - prevX)) / 3,
+      cp2y: prevY + (2 * (seg.y - prevY)) / 3,
     }
     path.segments[segIndex] = cubic
   }
@@ -492,7 +538,12 @@ export function toggleNodeSmooth(pathId: string, segIndex: number) {
  * Find the nearest segment (edge) to a point for insertion.
  */
 export function hitTestSegmentEdge(
-  docX: number, docY: number, layer: VectorLayer, artboardX: number, artboardY: number, zoom: number,
+  docX: number,
+  docY: number,
+  layer: VectorLayer,
+  artboardX: number,
+  artboardY: number,
+  zoom: number,
 ): { pathId: string; segIndex: number } | null {
   const threshold = 10 / zoom
   const lx = docX - artboardX - layer.transform.x
@@ -501,11 +552,13 @@ export function hitTestSegmentEdge(
   let best: { pathId: string; segIndex: number } | null = null
 
   for (const path of layer.paths) {
-    let curX = 0, curY = 0
+    let curX = 0,
+      curY = 0
     for (let i = 0; i < path.segments.length; i++) {
       const seg = path.segments[i]!
       if (seg.type === 'move') {
-        curX = seg.x; curY = seg.y
+        curX = seg.x
+        curY = seg.y
         continue
       }
       if (seg.type === 'close') continue
@@ -529,7 +582,8 @@ export function hitTestSegmentEdge(
         }
       }
 
-      curX = seg.x; curY = seg.y
+      curX = seg.x
+      curY = seg.y
     }
   }
 
@@ -537,10 +591,13 @@ export function hitTestSegmentEdge(
 }
 
 function distToLineSegment(px: number, py: number, ax: number, ay: number, bx: number, by: number): number {
-  const abx = bx - ax, aby = by - ay
-  const apx = px - ax, apy = py - ay
+  const abx = bx - ax,
+    aby = by - ay
+  const apx = px - ax,
+    apy = py - ay
   const t = Math.max(0, Math.min(1, (apx * abx + apy * aby) / (abx * abx + aby * aby || 1)))
-  const projX = ax + t * abx, projY = ay + t * aby
+  const projX = ax + t * abx,
+    projY = ay + t * aby
   return dist(px, py, projX, projY)
 }
 

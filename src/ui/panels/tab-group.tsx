@@ -21,13 +21,16 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
 
   const dragTabRef = useRef<string | null>(null)
 
-  const handleDragStart = useCallback((e: React.DragEvent, tabId: string) => {
-    dragTabRef.current = tabId
-    e.dataTransfer.setData('text/panel-tab-id', tabId)
-    e.dataTransfer.setData('text/panel-source-column', column)
-    e.dataTransfer.setData('text/panel-source-group', String(groupIndex))
-    e.dataTransfer.effectAllowed = 'move'
-  }, [column, groupIndex])
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, tabId: string) => {
+      dragTabRef.current = tabId
+      e.dataTransfer.setData('text/panel-tab-id', tabId)
+      e.dataTransfer.setData('text/panel-source-column', column)
+      e.dataTransfer.setData('text/panel-source-group', String(groupIndex))
+      e.dataTransfer.effectAllowed = 'move'
+    },
+    [column, groupIndex],
+  )
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('text/panel-tab-id')) {
@@ -36,49 +39,58 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
     }
   }, [])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    const tabId = e.dataTransfer.getData('text/panel-tab-id')
-    if (!tabId) return
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const tabId = e.dataTransfer.getData('text/panel-tab-id')
+      if (!tabId) return
 
-    // Determine insert position based on drop location within tab bar
-    const target = e.currentTarget as HTMLElement
-    const tabElements = Array.from(target.querySelectorAll('[data-tab-id]'))
-    let insertIndex = group.tabs.length
+      // Determine insert position based on drop location within tab bar
+      const target = e.currentTarget as HTMLElement
+      const tabElements = Array.from(target.querySelectorAll('[data-tab-id]'))
+      let insertIndex = group.tabs.length
 
-    for (let i = 0; i < tabElements.length; i++) {
-      const rect = tabElements[i]!.getBoundingClientRect()
-      if (e.clientX < rect.left + rect.width / 2) {
-        insertIndex = i
-        break
+      for (let i = 0; i < tabElements.length; i++) {
+        const rect = tabElements[i]!.getBoundingClientRect()
+        if (e.clientX < rect.left + rect.width / 2) {
+          insertIndex = i
+          break
+        }
       }
-    }
 
-    // If dropping in same group, just reorder
-    const srcColumn = e.dataTransfer.getData('text/panel-source-column')
-    const srcGroup = e.dataTransfer.getData('text/panel-source-group')
-    if (srcColumn === column && srcGroup === String(groupIndex)) {
-      // Reorder within same group
-      const newOrder = group.tabs.filter((t) => t !== tabId)
-      newOrder.splice(Math.min(insertIndex, newOrder.length), 0, tabId)
-      reorderTabs(column, groupIndex, newOrder)
-    } else {
-      moveTab(tabId, column, groupIndex, insertIndex)
-    }
-  }, [column, groupIndex, group.tabs, reorderTabs, moveTab])
+      // If dropping in same group, just reorder
+      const srcColumn = e.dataTransfer.getData('text/panel-source-column')
+      const srcGroup = e.dataTransfer.getData('text/panel-source-group')
+      if (srcColumn === column && srcGroup === String(groupIndex)) {
+        // Reorder within same group
+        const newOrder = group.tabs.filter((t) => t !== tabId)
+        newOrder.splice(Math.min(insertIndex, newOrder.length), 0, tabId)
+        reorderTabs(column, groupIndex, newOrder)
+      } else {
+        moveTab(tabId, column, groupIndex, insertIndex)
+      }
+    },
+    [column, groupIndex, group.tabs, reorderTabs, moveTab],
+  )
 
-  const handleDropSplit = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    const tabId = e.dataTransfer.getData('text/panel-tab-id')
-    if (!tabId) return
-    addGroupSplit(tabId, column, groupIndex + 1)
-  }, [column, groupIndex, addGroupSplit])
+  const handleDropSplit = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      const tabId = e.dataTransfer.getData('text/panel-tab-id')
+      if (!tabId) return
+      addGroupSplit(tabId, column, groupIndex + 1)
+    },
+    [column, groupIndex, addGroupSplit],
+  )
 
-  const handleTabContextMenu = useCallback((e: React.MouseEvent, tabId: string) => {
-    e.preventDefault()
-    // Pop out on right-click context (simple approach)
-    popOut(tabId, e.clientX, e.clientY)
-  }, [popOut])
+  const handleTabContextMenu = useCallback(
+    (e: React.MouseEvent, tabId: string) => {
+      e.preventDefault()
+      // Pop out on right-click context (simple approach)
+      popOut(tabId, e.clientX, e.clientY)
+    },
+    [popOut],
+  )
 
   const handleCollapseToggle = useCallback(() => {
     toggleGroupCollapse(group.id)
@@ -90,12 +102,26 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
   // Chevron SVG paths for collapse/expand indicator
   const chevronDown = (
     <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0 }}>
-      <path d="M2 3.5L5 6.5L8 3.5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M2 3.5L5 6.5L8 3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
   const chevronRight = (
     <svg width="10" height="10" viewBox="0 0 10 10" style={{ flexShrink: 0 }}>
-      <path d="M3.5 2L6.5 5L3.5 8" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      <path
+        d="M3.5 2L6.5 5L3.5 8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        fill="none"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   )
 
@@ -184,13 +210,17 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
       {/* Content area — hidden when collapsed */}
       {!isCollapsed && (
         <>
-          <div style={{
-            flex: 1,
-            overflow: 'auto',
-            background: 'var(--bg-base)',
-          }}>
+          <div
+            style={{
+              flex: 1,
+              overflow: 'auto',
+              background: 'var(--bg-base)',
+            }}
+          >
             {ActiveComponent && (
-              <Suspense fallback={<div style={{ padding: 8, fontSize: 12, color: 'var(--text-secondary)' }}>Loading...</div>}>
+              <Suspense
+                fallback={<div style={{ padding: 8, fontSize: 12, color: 'var(--text-secondary)' }}>Loading...</div>}
+              >
                 <ActiveComponent />
               </Suspense>
             )}

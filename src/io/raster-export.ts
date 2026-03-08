@@ -17,17 +17,12 @@ export async function exportArtboardToBlob(
   options: ExportOptions,
   artboardId?: string,
 ): Promise<Blob> {
-  const artboard = artboardId
-    ? doc.artboards.find((a) => a.id === artboardId)
-    : doc.artboards[0]
+  const artboard = artboardId ? doc.artboards.find((a) => a.id === artboardId) : doc.artboards[0]
 
   if (!artboard) throw new Error('No artboard found')
 
   const scale = options.scale ?? 1
-  const canvas = new OffscreenCanvas(
-    artboard.width * scale,
-    artboard.height * scale,
-  )
+  const canvas = new OffscreenCanvas(artboard.width * scale, artboard.height * scale)
   const ctx = canvas.getContext('2d')!
   ctx.scale(scale, scale)
 
@@ -64,7 +59,7 @@ export async function exportArtboardToBlob(
 }
 
 function blendToComposite(mode: string): GlobalCompositeOperation {
-  return mode === 'normal' ? 'source-over' : mode as GlobalCompositeOperation
+  return mode === 'normal' ? 'source-over' : (mode as GlobalCompositeOperation)
 }
 
 function renderLayerWithMask(
@@ -148,10 +143,7 @@ function renderLayerContent(ctx: OffscreenCanvasRenderingContext2D, layer: Layer
   }
 }
 
-function renderVectorLayer(
-  ctx: OffscreenCanvasRenderingContext2D,
-  layer: VectorLayer,
-) {
+function renderVectorLayer(ctx: OffscreenCanvasRenderingContext2D, layer: VectorLayer) {
   ctx.save()
   const t = layer.transform
   ctx.translate(t.x, t.y)
@@ -159,9 +151,13 @@ function renderVectorLayer(
   if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
 
   // Compute bounding box for gradient sizing
-  let bboxW = 100, bboxH = 100
+  let bboxW = 100,
+    bboxH = 100
   if (layer.fill?.type === 'gradient' && layer.fill.gradient) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    let minX = Infinity,
+      minY = Infinity,
+      maxX = -Infinity,
+      maxY = -Infinity
     for (const p of layer.paths) {
       for (const seg of p.segments) {
         if ('x' in seg) {
@@ -219,10 +215,7 @@ function renderVectorLayer(
   ctx.restore()
 }
 
-function renderRasterLayer(
-  ctx: OffscreenCanvasRenderingContext2D,
-  layer: RasterLayer,
-) {
+function renderRasterLayer(ctx: OffscreenCanvasRenderingContext2D, layer: RasterLayer) {
   const rasterCanvas = getRasterCanvas(layer.imageChunkId)
   if (!rasterCanvas) return
 
@@ -235,19 +228,13 @@ function renderRasterLayer(
   ctx.restore()
 }
 
-function renderGroupLayer(
-  ctx: OffscreenCanvasRenderingContext2D,
-  group: GroupLayer,
-) {
+function renderGroupLayer(ctx: OffscreenCanvasRenderingContext2D, group: GroupLayer) {
   for (const child of group.children) {
     renderLayer(ctx, child)
   }
 }
 
-function renderTextLayer(
-  ctx: OffscreenCanvasRenderingContext2D,
-  layer: TextLayer,
-) {
+function renderTextLayer(ctx: OffscreenCanvasRenderingContext2D, layer: TextLayer) {
   ctx.save()
   const t = layer.transform
   ctx.translate(t.x, t.y)

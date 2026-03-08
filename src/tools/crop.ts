@@ -8,10 +8,10 @@ import type { CropRegion, RasterLayer } from '@/types'
  */
 export function applyCrop(artboardId: string, layerId: string, region: CropRegion) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards.find(a => a.id === artboardId)
+  const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
 
-  const layer = artboard.layers.find(l => l.id === layerId) as RasterLayer | undefined
+  const layer = artboard.layers.find((l) => l.id === layerId) as RasterLayer | undefined
   if (!layer || layer.type !== 'raster') return
 
   const imageData = getRasterData(layer.imageChunkId)
@@ -30,10 +30,7 @@ export function applyCrop(artboardId: string, layerId: string, region: CropRegio
   for (let row = 0; row < h; row++) {
     const srcOffset = ((y + row) * imageData.width + x) * 4
     const dstOffset = row * w * 4
-    cropped.data.set(
-      imageData.data.subarray(srcOffset, srcOffset + w * 4),
-      dstOffset,
-    )
+    cropped.data.set(imageData.data.subarray(srcOffset, srcOffset + w * 4), dstOffset)
   }
 
   // Store cropped data

@@ -128,7 +128,10 @@ describe('SVG export', () => {
         paths: [
           {
             id: 'p1',
-            segments: [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 50, y: 0 }],
+            segments: [
+              { type: 'move', x: 0, y: 0 },
+              { type: 'line', x: 50, y: 0 },
+            ],
             closed: false,
           },
         ],
@@ -159,7 +162,10 @@ describe('SVG export', () => {
         paths: [
           {
             id: 'p1',
-            segments: [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 50, y: 50 }],
+            segments: [
+              { type: 'move', x: 0, y: 0 },
+              { type: 'line', x: 50, y: 50 },
+            ],
             closed: false,
           },
         ],

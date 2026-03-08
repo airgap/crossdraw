@@ -10,7 +10,9 @@ const storage = new Map<string, string>()
   setItem: (key: string, value: string) => storage.set(key, value),
   removeItem: (key: string) => storage.delete(key),
   clear: () => storage.clear(),
-  get length() { return storage.size },
+  get length() {
+    return storage.size
+  },
   key: (_i: number) => null,
 }
 
@@ -35,15 +37,18 @@ describe('Sidebar Layout Customization (LYK-142)', () => {
         'group-2': false,
         'group-3': true,
       }
-      storage.set('designer:panel-layout', JSON.stringify({
-        leftColumn: null,
-        rightColumn: { groups: [], width: 260 },
-        floatingPanels: [],
-        collapsedGroups: collapseState,
-        groupHeights: {},
-      }))
+      storage.set(
+        'crossdraw:panel-layout',
+        JSON.stringify({
+          leftColumn: null,
+          rightColumn: { groups: [], width: 260 },
+          floatingPanels: [],
+          collapsedGroups: collapseState,
+          groupHeights: {},
+        }),
+      )
 
-      const raw = storage.get('designer:panel-layout')
+      const raw = storage.get('crossdraw:panel-layout')
       expect(raw).toBeTruthy()
       const parsed = JSON.parse(raw!)
       expect(parsed.collapsedGroups).toEqual(collapseState)
@@ -58,15 +63,18 @@ describe('Sidebar Layout Customization (LYK-142)', () => {
         'group-a': 200,
         'group-b': 150,
       }
-      storage.set('designer:panel-layout', JSON.stringify({
-        leftColumn: null,
-        rightColumn: { groups: [], width: 260 },
-        floatingPanels: [],
-        collapsedGroups: {},
-        groupHeights: heights,
-      }))
+      storage.set(
+        'crossdraw:panel-layout',
+        JSON.stringify({
+          leftColumn: null,
+          rightColumn: { groups: [], width: 260 },
+          floatingPanels: [],
+          collapsedGroups: {},
+          groupHeights: heights,
+        }),
+      )
 
-      const raw = storage.get('designer:panel-layout')
+      const raw = storage.get('crossdraw:panel-layout')
       const parsed = JSON.parse(raw!)
       expect(parsed.groupHeights).toEqual(heights)
       expect(parsed.groupHeights['group-a']).toBe(200)
@@ -95,9 +103,9 @@ describe('Sidebar Layout Customization (LYK-142)', () => {
         collapsedGroups: {},
         groupHeights: {},
       }
-      storage.set('designer:panel-layout', JSON.stringify(layout))
+      storage.set('crossdraw:panel-layout', JSON.stringify(layout))
 
-      const parsed = JSON.parse(storage.get('designer:panel-layout')!)
+      const parsed = JSON.parse(storage.get('crossdraw:panel-layout')!)
       expect(parsed.rightColumn.width).toBe(300)
     })
 
@@ -135,9 +143,7 @@ describe('Sidebar Layout Customization (LYK-142)', () => {
       // When a group is collapsed, its style should be:
       // { flex: 'none', minHeight: 'auto' }
       const isCollapsed = true
-      const style = isCollapsed
-        ? { flex: 'none', minHeight: 'auto' }
-        : { flex: 1, minHeight: MIN_GROUP_HEIGHT }
+      const style = isCollapsed ? { flex: 'none', minHeight: 'auto' } : { flex: 1, minHeight: MIN_GROUP_HEIGHT }
 
       expect(style.flex).toBe('none')
       expect(style.minHeight).toBe('auto')

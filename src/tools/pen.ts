@@ -66,9 +66,7 @@ function getDocPoint(e: MouseEvent, canvasRect: DOMRect): Point {
   const viewport = useEditorStore.getState().viewport
   const doc = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, canvasRect)
   // Subtract artboard offset
-  const artboard = useEditorStore.getState().document.artboards.find(
-    (a) => a.id === penState.artboardId,
-  )
+  const artboard = useEditorStore.getState().document.artboards.find((a) => a.id === penState.artboardId)
   if (artboard) {
     return { x: doc.x - artboard.x, y: doc.y - artboard.y }
   }
@@ -90,7 +88,15 @@ export function penMouseDown(e: MouseEvent, canvasRect: DOMRect) {
     // Create a new vector layer for this path
     const layer = createDefaultVectorLayer(`Path ${Date.now()}`)
     // Pen paths need a visible stroke (default layer has stroke: null)
-    layer.stroke = { width: 2, color: '#000000', opacity: 1, position: 'center', linecap: 'round', linejoin: 'round', miterLimit: 4 }
+    layer.stroke = {
+      width: 2,
+      color: '#000000',
+      opacity: 1,
+      position: 'center',
+      linecap: 'round',
+      linejoin: 'round',
+      miterLimit: 4,
+    }
     layer.fill = null
     penState.layerId = layer.id
     useEditorStore.getState().addLayer(artboardId, layer)
@@ -239,7 +245,7 @@ function commitCurrentPath() {
   const existingPath = layer.paths.find((p) => p.id === pathId)
 
   // Deep-clone segments so Immer's freeze doesn't make penState's objects readonly
-  const clonedSegments = currentPath.map(seg => ({ ...seg }))
+  const clonedSegments = currentPath.map((seg) => ({ ...seg }))
 
   if (existingPath) {
     store.updatePath(artboardId, layerId, pathId, {

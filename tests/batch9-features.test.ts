@@ -2,17 +2,24 @@ import { describe, test, expect } from 'bun:test'
 import type { Effect, BlurParams, ShadowParams, GlowParams } from '@/types'
 import { effectToSVGFilter } from '@/io/svg-filters'
 import {
-  createRectSelection, createEllipseSelection,
-  selectAll, invertSelection, clearSelection,
-  getSelectedPixelCount, getSelectionBounds,
+  createRectSelection,
+  createEllipseSelection,
+  selectAll,
+  invertSelection,
+  clearSelection,
+  getSelectedPixelCount,
+  getSelectionBounds,
   type SelectionMask,
 } from '@/tools/raster-selection'
-import { getWeightName, getBuiltinFonts, type FontEntry } from '@/ui/font-picker'
+import { getWeightName, getBuiltinFonts } from '@/ui/font-picker'
 
 describe('LYK-94: SVG filter primitives', () => {
   test('effectToSVGFilter generates blur filter', () => {
     const effect: Effect = {
-      id: 'e1', type: 'blur', enabled: true, opacity: 1,
+      id: 'e1',
+      type: 'blur',
+      enabled: true,
+      opacity: 1,
       params: { kind: 'blur', radius: 4, quality: 'medium' } as BlurParams,
     }
     const svg = effectToSVGFilter(effect)
@@ -22,8 +29,19 @@ describe('LYK-94: SVG filter primitives', () => {
 
   test('effectToSVGFilter generates drop-shadow filter', () => {
     const effect: Effect = {
-      id: 'e2', type: 'shadow', enabled: true, opacity: 1,
-      params: { kind: 'shadow', offsetX: 2, offsetY: 4, blurRadius: 6, spread: 0, color: '#000', opacity: 0.5 } as ShadowParams,
+      id: 'e2',
+      type: 'shadow',
+      enabled: true,
+      opacity: 1,
+      params: {
+        kind: 'shadow',
+        offsetX: 2,
+        offsetY: 4,
+        blurRadius: 6,
+        spread: 0,
+        color: '#000',
+        opacity: 0.5,
+      } as ShadowParams,
     }
     const svg = effectToSVGFilter(effect)
     expect(svg).toContain('feDropShadow')
@@ -33,7 +51,10 @@ describe('LYK-94: SVG filter primitives', () => {
 
   test('effectToSVGFilter generates glow filter with feMerge', () => {
     const effect: Effect = {
-      id: 'e3', type: 'outer-glow', enabled: true, opacity: 1,
+      id: 'e3',
+      type: 'outer-glow',
+      enabled: true,
+      opacity: 1,
       params: { kind: 'glow', radius: 8, spread: 0, color: '#ff0', opacity: 0.8 } as GlowParams,
     }
     const svg = effectToSVGFilter(effect)
@@ -44,7 +65,10 @@ describe('LYK-94: SVG filter primitives', () => {
 
   test('effectToSVGFilter returns null for disabled effect', () => {
     const effect: Effect = {
-      id: 'e4', type: 'blur', enabled: false, opacity: 1,
+      id: 'e4',
+      type: 'blur',
+      enabled: false,
+      opacity: 1,
       params: { kind: 'blur', radius: 4, quality: 'medium' } as BlurParams,
     }
     expect(effectToSVGFilter(effect)).toBeNull()
@@ -52,7 +76,10 @@ describe('LYK-94: SVG filter primitives', () => {
 
   test('effectToSVGFilter returns null for unsupported types', () => {
     const effect: Effect = {
-      id: 'e5', type: 'distort', enabled: true, opacity: 1,
+      id: 'e5',
+      type: 'distort',
+      enabled: true,
+      opacity: 1,
       params: { kind: 'distort', distortType: 'warp', intensity: 1, scale: 1 },
     }
     expect(effectToSVGFilter(effect)).toBeNull()
@@ -93,7 +120,10 @@ describe('LYK-107: raster selection tools', () => {
     expect(mask.data.length).toBe(2500)
     let allSelected = true
     for (let i = 0; i < mask.data.length; i++) {
-      if (mask.data[i] !== 255) { allSelected = false; break }
+      if (mask.data[i] !== 255) {
+        allSelected = false
+        break
+      }
     }
     expect(allSelected).toBe(true)
   })
@@ -174,22 +204,22 @@ describe('LYK-133: font picker', () => {
   test('font search filter works', () => {
     const fonts = getBuiltinFonts()
     const query = 'rob'
-    const filtered = fonts.filter(f => f.family.toLowerCase().includes(query))
+    const filtered = fonts.filter((f) => f.family.toLowerCase().includes(query))
     expect(filtered.length).toBeGreaterThan(0)
     expect(filtered[0]!.family).toBe('Roboto')
   })
 
   test('Montserrat has full weight range', () => {
     const fonts = getBuiltinFonts()
-    const mont = fonts.find(f => f.family === 'Montserrat')!
+    const mont = fonts.find((f) => f.family === 'Montserrat')!
     expect(mont.weights).toEqual([100, 200, 300, 400, 500, 600, 700, 800, 900])
   })
 
   test('category filtering', () => {
     const fonts = getBuiltinFonts()
-    const serif = fonts.filter(f => f.category === 'serif')
+    const serif = fonts.filter((f) => f.category === 'serif')
     expect(serif.length).toBeGreaterThan(0)
-    const mono = fonts.filter(f => f.category === 'monospace')
+    const mono = fonts.filter((f) => f.category === 'monospace')
     expect(mono.length).toBeGreaterThan(0)
   })
 })
@@ -235,7 +265,7 @@ describe('LYK-136: layer search and filter', () => {
       { name: 'background overlay', type: 'vector' },
     ]
     const query = 'background'
-    const filtered = layers.filter(l => l.name.toLowerCase().includes(query.toLowerCase()))
+    const filtered = layers.filter((l) => l.name.toLowerCase().includes(query.toLowerCase()))
     expect(filtered.length).toBe(2)
   })
 
@@ -247,7 +277,7 @@ describe('LYK-136: layer search and filter', () => {
       { name: 'Shape', type: 'vector' },
     ]
     const typeFilter = 'vector'
-    const filtered = layers.filter(l => l.type === typeFilter)
+    const filtered = layers.filter((l) => l.type === typeFilter)
     expect(filtered.length).toBe(2)
   })
 
@@ -259,17 +289,18 @@ describe('LYK-136: layer search and filter', () => {
     ]
     const query = 'red'
     const typeFilter = 'vector'
-    const filtered = layers
-      .filter(l => l.name.toLowerCase().includes(query))
-      .filter(l => l.type === typeFilter)
+    const filtered = layers.filter((l) => l.name.toLowerCase().includes(query)).filter((l) => l.type === typeFilter)
     expect(filtered.length).toBe(1)
     expect(filtered[0]!.name).toBe('Red Circle')
   })
 
   test('empty search returns all layers', () => {
-    const layers = [{ name: 'A', type: 'vector' }, { name: 'B', type: 'text' }]
+    const layers = [
+      { name: 'A', type: 'vector' },
+      { name: 'B', type: 'text' },
+    ]
     const query = ''
-    const filtered = query ? layers.filter(l => l.name.toLowerCase().includes(query)) : layers
+    const filtered = query ? layers.filter((l) => l.name.toLowerCase().includes(query)) : layers
     expect(filtered.length).toBe(2)
   })
 })

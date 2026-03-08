@@ -88,35 +88,28 @@ export function detectEqualSpacing(
   if (bboxes.length < 3) return null
 
   // Sort by position on the relevant axis
-  const sorted = [...bboxes].sort((a, b) =>
-    axis === 'horizontal' ? a.x - b.x : a.y - b.y
-  )
+  const sorted = [...bboxes].sort((a, b) => (axis === 'horizontal' ? a.x - b.x : a.y - b.y))
 
   // Calculate gaps between consecutive elements
   const gaps: number[] = []
   for (let i = 0; i < sorted.length - 1; i++) {
     const curr = sorted[i]!
     const next = sorted[i + 1]!
-    const gap = axis === 'horizontal'
-      ? next.x - (curr.x + curr.w)
-      : next.y - (curr.y + curr.h)
+    const gap = axis === 'horizontal' ? next.x - (curr.x + curr.w) : next.y - (curr.y + curr.h)
     gaps.push(gap)
   }
 
   // Check if all gaps are equal (within tolerance)
   if (gaps.length < 2) return null
   const avgGap = gaps.reduce((s, g) => s + g, 0) / gaps.length
-  const allEqual = gaps.every(g => Math.abs(g - avgGap) <= tolerance)
+  const allEqual = gaps.every((g) => Math.abs(g - avgGap) <= tolerance)
 
   if (!allEqual) return null
 
   // Build the indicator
-  const positions = sorted.map(b =>
-    axis === 'horizontal' ? b.x + b.w / 2 : b.y + b.h / 2
-  )
-  const crossPos = axis === 'horizontal'
-    ? Math.min(...sorted.map(b => b.y)) - 20
-    : Math.min(...sorted.map(b => b.x)) - 20
+  const positions = sorted.map((b) => (axis === 'horizontal' ? b.x + b.w / 2 : b.y + b.h / 2))
+  const crossPos =
+    axis === 'horizontal' ? Math.min(...sorted.map((b) => b.y)) - 20 : Math.min(...sorted.map((b) => b.x)) - 20
 
   return {
     axis,
@@ -129,11 +122,7 @@ export function detectEqualSpacing(
 /**
  * Render a distance label to canvas.
  */
-export function renderDistanceLabel(
-  ctx: CanvasRenderingContext2D,
-  label: DistanceLabel,
-  zoom: number,
-) {
+export function renderDistanceLabel(ctx: CanvasRenderingContext2D, label: DistanceLabel, zoom: number) {
   const text = `${label.distance}px`
   const fontSize = Math.max(10, 11 / zoom)
 
@@ -165,11 +154,7 @@ export function renderDistanceLabel(
 /**
  * Render an equal-spacing indicator line to canvas.
  */
-export function renderEqualSpacing(
-  ctx: CanvasRenderingContext2D,
-  indicator: EqualSpacingIndicator,
-  zoom: number,
-) {
+export function renderEqualSpacing(ctx: CanvasRenderingContext2D, indicator: EqualSpacingIndicator, zoom: number) {
   ctx.save()
   ctx.strokeStyle = '#FF6B00'
   ctx.lineWidth = 1 / zoom

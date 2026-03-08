@@ -29,13 +29,18 @@ export function clearSelection() {
  * Create a rectangular marquee selection.
  */
 export function createRectSelection(
-  x: number, y: number, width: number, height: number,
-  layerWidth: number, layerHeight: number,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  layerWidth: number,
+  layerHeight: number,
   mode: 'replace' | 'add' | 'subtract' = 'replace',
 ): SelectionMask {
-  const mask = mode === 'replace' || !currentMask
-    ? { width: layerWidth, height: layerHeight, data: new Uint8Array(layerWidth * layerHeight) }
-    : { ...currentMask, data: new Uint8Array(currentMask.data) }
+  const mask =
+    mode === 'replace' || !currentMask
+      ? { width: layerWidth, height: layerHeight, data: new Uint8Array(layerWidth * layerHeight) }
+      : { ...currentMask, data: new Uint8Array(currentMask.data) }
 
   const x0 = Math.max(0, Math.round(x))
   const y0 = Math.max(0, Math.round(y))
@@ -61,13 +66,18 @@ export function createRectSelection(
  * Create an elliptical marquee selection.
  */
 export function createEllipseSelection(
-  cx: number, cy: number, rx: number, ry: number,
-  layerWidth: number, layerHeight: number,
+  cx: number,
+  cy: number,
+  rx: number,
+  ry: number,
+  layerWidth: number,
+  layerHeight: number,
   mode: 'replace' | 'add' | 'subtract' = 'replace',
 ): SelectionMask {
-  const mask = mode === 'replace' || !currentMask
-    ? { width: layerWidth, height: layerHeight, data: new Uint8Array(layerWidth * layerHeight) }
-    : { ...currentMask, data: new Uint8Array(currentMask.data) }
+  const mask =
+    mode === 'replace' || !currentMask
+      ? { width: layerWidth, height: layerHeight, data: new Uint8Array(layerWidth * layerHeight) }
+      : { ...currentMask, data: new Uint8Array(currentMask.data) }
 
   const y0 = Math.max(0, Math.floor(cy - ry))
   const y1 = Math.min(layerHeight, Math.ceil(cy + ry))
@@ -111,9 +121,10 @@ export function magicWandSelect(
 
   const w = imageData.width
   const h = imageData.height
-  const mask = mode === 'replace' || !currentMask
-    ? { width: w, height: h, data: new Uint8Array(w * h) }
-    : { ...currentMask, data: new Uint8Array(currentMask.data) }
+  const mask =
+    mode === 'replace' || !currentMask
+      ? { width: w, height: h, data: new Uint8Array(w * h) }
+      : { ...currentMask, data: new Uint8Array(currentMask.data) }
 
   const sx = Math.round(startX)
   const sy = Math.round(startY)
@@ -196,7 +207,8 @@ export function invertSelection(): SelectionMask | null {
  */
 export function selectAll(width: number, height: number): SelectionMask {
   const mask: SelectionMask = {
-    width, height,
+    width,
+    height,
     data: new Uint8Array(width * height).fill(255),
   }
   currentMask = mask
@@ -217,8 +229,13 @@ export function getSelectedPixelCount(mask: SelectionMask): number {
 /**
  * Get the bounding box of the selection.
  */
-export function getSelectionBounds(mask: SelectionMask): { x: number; y: number; width: number; height: number } | null {
-  let minX = mask.width, minY = mask.height, maxX = 0, maxY = 0
+export function getSelectionBounds(
+  mask: SelectionMask,
+): { x: number; y: number; width: number; height: number } | null {
+  let minX = mask.width,
+    minY = mask.height,
+    maxX = 0,
+    maxY = 0
   let hasSelection = false
 
   for (let y = 0; y < mask.height; y++) {

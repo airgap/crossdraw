@@ -8,11 +8,7 @@ export interface FileAdapter {
   open: () => Promise<ArrayBuffer | null>
   save: (data: ArrayBuffer, defaultName: string) => Promise<boolean>
   saveAs: (data: ArrayBuffer, filename: string) => Promise<boolean>
-  exportAs: (
-    data: Blob,
-    filename: string,
-    mimeType: string,
-  ) => Promise<boolean>
+  exportAs: (data: Blob, filename: string, mimeType: string) => Promise<boolean>
   getRecentFiles: () => Promise<RecentFile[]>
 }
 
@@ -95,11 +91,7 @@ export class BrowserFileAdapter implements FileAdapter {
     }
   }
 
-  async exportAs(
-    data: Blob,
-    filename: string,
-    _mimeType: string,
-  ): Promise<boolean> {
+  async exportAs(data: Blob, filename: string, _mimeType: string): Promise<boolean> {
     try {
       if ('showSaveFilePicker' in window) {
         const ext = filename.split('.').pop() ?? ''

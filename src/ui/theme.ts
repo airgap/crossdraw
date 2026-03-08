@@ -46,14 +46,14 @@ export const darkTheme: Theme = {
   name: 'dark',
 
   // Surface hierarchy
-  bgBase: '#1a1a1a',
-  bgSurface: '#222222',
-  bgElevated: '#2a2a2a',
-  bgOverlay: '#333333',
-  bgInput: '#1e1e1e',
-  bgHover: '#2e2e2e',
+  bgBase: '#0e0e0e',
+  bgSurface: '#161616',
+  bgElevated: '#1e1e1e',
+  bgOverlay: '#262626',
+  bgInput: '#121212',
+  bgHover: '#242424',
   bgActive: '#4a9eff',
-  canvasBg: '#2a2a2a',
+  canvasBg: '#1a1a1a',
 
   // Borders
   borderSubtle: 'rgba(255,255,255,0.06)',
@@ -79,8 +79,8 @@ export const darkTheme: Theme = {
   info: '#2196f3',
 
   // Legacy aliases
-  bg: '#1a1a1a',
-  bgPanel: '#222222',
+  bg: '#0e0e0e',
+  bgPanel: '#161616',
   border: 'rgba(255,255,255,0.1)',
   borderLight: 'rgba(255,255,255,0.15)',
   textMuted: '#666666',
@@ -130,14 +130,31 @@ export const lightTheme: Theme = {
   textMuted: '#999999',
 }
 
-let currentTheme: Theme = darkTheme
+const THEME_STORAGE_KEY = 'crossdraw:theme'
+
+function loadSavedTheme(): Theme {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY)
+    if (saved === 'light') return lightTheme
+  }
+  return darkTheme
+}
+
+let currentTheme: Theme = loadSavedTheme()
 
 export function getTheme(): Theme {
   return currentTheme
 }
 
+export function getThemeName(): 'dark' | 'light' {
+  return currentTheme.name
+}
+
 export function setTheme(theme: 'dark' | 'light') {
   currentTheme = theme === 'dark' ? darkTheme : lightTheme
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(THEME_STORAGE_KEY, theme)
+  }
   applyThemeToDOM(currentTheme)
 }
 

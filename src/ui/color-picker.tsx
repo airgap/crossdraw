@@ -13,7 +13,9 @@ interface HSV {
 }
 
 function rgbToHsv(r: number, g: number, b: number): HSV {
-  r /= 255; g /= 255; b /= 255
+  r /= 255
+  g /= 255
+  b /= 255
   const max = Math.max(r, g, b)
   const min = Math.min(r, g, b)
   const d = max - min
@@ -29,17 +31,39 @@ function rgbToHsv(r: number, g: number, b: number): HSV {
 }
 
 function hsvToRgb(h: number, s: number, v: number): { r: number; g: number; b: number } {
-  s /= 100; v /= 100
+  s /= 100
+  v /= 100
   const c = v * s
   const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
   const m = v - c
-  let r = 0, g = 0, b = 0
-  if (h < 60)      { r = c; g = x; b = 0 }
-  else if (h < 120) { r = x; g = c; b = 0 }
-  else if (h < 180) { r = 0; g = c; b = x }
-  else if (h < 240) { r = 0; g = x; b = c }
-  else if (h < 300) { r = x; g = 0; b = c }
-  else              { r = c; g = 0; b = x }
+  let r = 0,
+    g = 0,
+    b = 0
+  if (h < 60) {
+    r = c
+    g = x
+    b = 0
+  } else if (h < 120) {
+    r = x
+    g = c
+    b = 0
+  } else if (h < 180) {
+    r = 0
+    g = c
+    b = x
+  } else if (h < 240) {
+    r = 0
+    g = x
+    b = c
+  } else if (h < 300) {
+    r = x
+    g = 0
+    b = c
+  } else {
+    r = c
+    g = 0
+    b = x
+  }
   return {
     r: Math.round((r + m) * 255),
     g: Math.round((g + m) * 255),
@@ -54,14 +78,16 @@ function hsvToHex(h: number, s: number, v: number): string {
 
 // ─── Recent colors ─────────────────────────────────────────────
 
-const RECENT_KEY = 'designer:recent-colors'
+const RECENT_KEY = 'crossdraw:recent-colors'
 const MAX_RECENT = 12
 
 function loadRecentColors(): string[] {
   try {
     const stored = localStorage.getItem(RECENT_KEY)
     if (stored) return JSON.parse(stored)
-  } catch { /* empty */ }
+  } catch {
+    /* empty */
+  }
   return []
 }
 
@@ -74,14 +100,16 @@ function saveRecentColor(hex: string) {
 
 // ─── Palette integration ───────────────────────────────────────
 
-const PALETTE_KEY = 'designer:palette'
+const PALETTE_KEY = 'crossdraw:palette'
 
 function addToPalette(hex: string) {
   let palette: { id: string; name: string; value: string }[] = []
   try {
     const stored = localStorage.getItem(PALETTE_KEY)
     if (stored) palette = JSON.parse(stored)
-  } catch { /* empty */ }
+  } catch {
+    /* empty */
+  }
   // Don't add duplicates
   if (palette.some((c) => c.value === hex)) return
   palette.push({ id: uuid(), name: 'Custom', value: hex })
@@ -91,8 +119,8 @@ function addToPalette(hex: string) {
 // ─── Types ─────────────────────────────────────────────────────
 
 export interface ColorPickerProps {
-  color: string          // hex color
-  opacity?: number       // 0-1, default 1
+  color: string // hex color
+  opacity?: number // 0-1, default 1
   onChange: (hex: string, opacity: number) => void
 }
 
@@ -176,7 +204,10 @@ const smallBtnStyle: React.CSSProperties = {
 // ─── SV Square Component ───────────────────────────────────────
 
 function SVSquare({
-  hue, saturation, value, onChange,
+  hue,
+  saturation,
+  value,
+  onChange,
 }: {
   hue: number
   saturation: number
@@ -223,23 +254,28 @@ function SVSquare({
     ctx.stroke()
   }, [hue, saturation, value])
 
-  const pick = useCallback((e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = Math.max(0, Math.min(SIZE, e.clientX - rect.left))
-    const y = Math.max(0, Math.min(SIZE, e.clientY - rect.top))
-    const s = (x / SIZE) * 100
-    const v = (1 - y / SIZE) * 100
-    onChange(s, v)
-  }, [onChange])
+  const pick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const x = Math.max(0, Math.min(SIZE, e.clientX - rect.left))
+      const y = Math.max(0, Math.min(SIZE, e.clientY - rect.top))
+      const s = (x / SIZE) * 100
+      const v = (1 - y / SIZE) * 100
+      onChange(s, v)
+    },
+    [onChange],
+  )
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (!dragging.current) return
       pick(e as any)
     }
-    const handleUp = () => { dragging.current = false }
+    const handleUp = () => {
+      dragging.current = false
+    }
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
     return () => {
@@ -271,12 +307,7 @@ function SVSquare({
 
 // ─── Hue Slider Component ──────────────────────────────────────
 
-function HueSlider({
-  hue, onChange,
-}: {
-  hue: number
-  onChange: (h: number) => void
-}) {
+function HueSlider({ hue, onChange }: { hue: number; onChange: (h: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragging = useRef(false)
   const WIDTH = 208
@@ -306,20 +337,25 @@ function HueSlider({
     ctx.stroke()
   }, [hue])
 
-  const pick = useCallback((e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = Math.max(0, Math.min(WIDTH, e.clientX - rect.left))
-    onChange((x / WIDTH) * 360)
-  }, [onChange])
+  const pick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const x = Math.max(0, Math.min(WIDTH, e.clientX - rect.left))
+      onChange((x / WIDTH) * 360)
+    },
+    [onChange],
+  )
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (!dragging.current) return
       pick(e as any)
     }
-    const handleUp = () => { dragging.current = false }
+    const handleUp = () => {
+      dragging.current = false
+    }
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
     return () => {
@@ -345,7 +381,11 @@ function HueSlider({
 // ─── Alpha Slider Component ───────────────────────────────────
 
 function AlphaSlider({
-  hue, saturation, value, alpha, onChange,
+  hue,
+  saturation,
+  value,
+  alpha,
+  onChange,
 }: {
   hue: number
   saturation: number
@@ -367,7 +407,7 @@ function AlphaSlider({
     const checkSize = 4
     for (let y = 0; y < HEIGHT; y += checkSize) {
       for (let x = 0; x < WIDTH; x += checkSize) {
-        const isLight = ((x / checkSize + y / checkSize) % 2) === 0
+        const isLight = (x / checkSize + y / checkSize) % 2 === 0
         ctx.fillStyle = isLight ? '#ddd' : '#aaa'
         ctx.fillRect(x, y, checkSize, checkSize)
       }
@@ -393,20 +433,25 @@ function AlphaSlider({
     ctx.stroke()
   }, [hue, saturation, value, alpha])
 
-  const pick = useCallback((e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    const x = Math.max(0, Math.min(WIDTH, e.clientX - rect.left))
-    onChange(x / WIDTH)
-  }, [onChange])
+  const pick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+      const rect = canvas.getBoundingClientRect()
+      const x = Math.max(0, Math.min(WIDTH, e.clientX - rect.left))
+      onChange(x / WIDTH)
+    },
+    [onChange],
+  )
 
   useEffect(() => {
     const handleMove = (e: MouseEvent) => {
       if (!dragging.current) return
       pick(e as any)
     }
-    const handleUp = () => { dragging.current = false }
+    const handleUp = () => {
+      dragging.current = false
+    }
     window.addEventListener('mousemove', handleMove)
     window.addEventListener('mouseup', handleUp)
     return () => {
@@ -461,73 +506,100 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
   const currentRgb = hsvToRgb(hsv.h, hsv.s, hsv.v)
   const currentHsla = rgbaToHsla({ ...currentRgb, a: 1 })
 
-  const emitChange = useCallback((hex: string, a: number) => {
-    onChange(hex, a)
-    saveRecentColor(hex)
-  }, [onChange])
+  const emitChange = useCallback(
+    (hex: string, a: number) => {
+      onChange(hex, a)
+      saveRecentColor(hex)
+    },
+    [onChange],
+  )
 
-  const handleSVChange = useCallback((s: number, v: number) => {
-    const newHsv = { ...hsv, s, v }
-    setHsv(newHsv)
-    const hex = hsvToHex(newHsv.h, newHsv.s, newHsv.v)
-    emitChange(hex, alpha)
-  }, [hsv, alpha, emitChange])
+  const handleSVChange = useCallback(
+    (s: number, v: number) => {
+      const newHsv = { ...hsv, s, v }
+      setHsv(newHsv)
+      const hex = hsvToHex(newHsv.h, newHsv.s, newHsv.v)
+      emitChange(hex, alpha)
+    },
+    [hsv, alpha, emitChange],
+  )
 
-  const handleHueChange = useCallback((h: number) => {
-    const newHsv = { ...hsv, h }
-    setHsv(newHsv)
-    const hex = hsvToHex(newHsv.h, newHsv.s, newHsv.v)
-    emitChange(hex, alpha)
-  }, [hsv, alpha, emitChange])
+  const handleHueChange = useCallback(
+    (h: number) => {
+      const newHsv = { ...hsv, h }
+      setHsv(newHsv)
+      const hex = hsvToHex(newHsv.h, newHsv.s, newHsv.v)
+      emitChange(hex, alpha)
+    },
+    [hsv, alpha, emitChange],
+  )
 
-  const handleAlphaChange = useCallback((a: number) => {
-    setAlpha(a)
-    emitChange(currentHex, a)
-  }, [currentHex, emitChange])
+  const handleAlphaChange = useCallback(
+    (a: number) => {
+      setAlpha(a)
+      emitChange(currentHex, a)
+    },
+    [currentHex, emitChange],
+  )
 
-  const handleHexInput = useCallback((val: string) => {
-    let hex = val.startsWith('#') ? val : '#' + val
-    if (/^#[0-9a-fA-F]{6}$/i.test(hex)) {
-      hex = hex.toLowerCase()
+  const handleHexInput = useCallback(
+    (val: string) => {
+      let hex = val.startsWith('#') ? val : '#' + val
+      if (/^#[0-9a-fA-F]{6}$/i.test(hex)) {
+        hex = hex.toLowerCase()
+        const r = hexToRgba(hex)
+        const h = rgbToHsv(r.r, r.g, r.b)
+        setHsv(h)
+        emitChange(hex, alpha)
+      }
+    },
+    [alpha, emitChange],
+  )
+
+  const handleRgbInput = useCallback(
+    (channel: 'r' | 'g' | 'b', val: number) => {
+      const clamped = Math.max(0, Math.min(255, Math.round(val)))
+      const rgb = { ...currentRgb, [channel]: clamped }
+      const h = rgbToHsv(rgb.r, rgb.g, rgb.b)
+      setHsv(h)
+      const hex = rgbaToHex({ ...rgb, a: 1 })
+      emitChange(hex, alpha)
+    },
+    [currentRgb, alpha, emitChange],
+  )
+
+  const handleHslInput = useCallback(
+    (channel: 'h' | 's' | 'l', val: number) => {
+      const limits = { h: 360, s: 100, l: 100 }
+      const clamped = Math.max(0, Math.min(limits[channel], Math.round(val)))
+      const hsl: HSLA = { ...currentHsla, [channel]: clamped, a: 1 }
+      const rgba = hslaToRgba(hsl)
+      const h = rgbToHsv(rgba.r, rgba.g, rgba.b)
+      setHsv(h)
+      const hex = rgbaToHex(rgba)
+      emitChange(hex, alpha)
+    },
+    [currentHsla, alpha, emitChange],
+  )
+
+  const handleAlphaInput = useCallback(
+    (pct: number) => {
+      const a = Math.max(0, Math.min(1, pct / 100))
+      setAlpha(a)
+      emitChange(currentHex, a)
+    },
+    [currentHex, emitChange],
+  )
+
+  const handleRecentClick = useCallback(
+    (hex: string) => {
       const r = hexToRgba(hex)
       const h = rgbToHsv(r.r, r.g, r.b)
       setHsv(h)
       emitChange(hex, alpha)
-    }
-  }, [alpha, emitChange])
-
-  const handleRgbInput = useCallback((channel: 'r' | 'g' | 'b', val: number) => {
-    const clamped = Math.max(0, Math.min(255, Math.round(val)))
-    const rgb = { ...currentRgb, [channel]: clamped }
-    const h = rgbToHsv(rgb.r, rgb.g, rgb.b)
-    setHsv(h)
-    const hex = rgbaToHex({ ...rgb, a: 1 })
-    emitChange(hex, alpha)
-  }, [currentRgb, alpha, emitChange])
-
-  const handleHslInput = useCallback((channel: 'h' | 's' | 'l', val: number) => {
-    const limits = { h: 360, s: 100, l: 100 }
-    const clamped = Math.max(0, Math.min(limits[channel], Math.round(val)))
-    const hsl: HSLA = { ...currentHsla, [channel]: clamped, a: 1 }
-    const rgba = hslaToRgba(hsl)
-    const h = rgbToHsv(rgba.r, rgba.g, rgba.b)
-    setHsv(h)
-    const hex = rgbaToHex(rgba)
-    emitChange(hex, alpha)
-  }, [currentHsla, alpha, emitChange])
-
-  const handleAlphaInput = useCallback((pct: number) => {
-    const a = Math.max(0, Math.min(1, pct / 100))
-    setAlpha(a)
-    emitChange(currentHex, a)
-  }, [currentHex, emitChange])
-
-  const handleRecentClick = useCallback((hex: string) => {
-    const r = hexToRgba(hex)
-    const h = rgbToHsv(r.r, r.g, r.b)
-    setHsv(h)
-    emitChange(hex, alpha)
-  }, [alpha, emitChange])
+    },
+    [alpha, emitChange],
+  )
 
   const handleAddToPalette = useCallback(() => {
     addToPalette(currentHex)
@@ -545,12 +617,7 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
   return (
     <div style={pickerContainerStyle} onMouseDown={(e) => e.stopPropagation()}>
       {/* SV Square */}
-      <SVSquare
-        hue={hsv.h}
-        saturation={hsv.s}
-        value={hsv.v}
-        onChange={handleSVChange}
-      />
+      <SVSquare hue={hsv.h} saturation={hsv.s} value={hsv.v} onChange={handleSVChange} />
 
       {/* Hue Slider */}
       <div style={{ marginTop: 8 }}>
@@ -559,20 +626,20 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
 
       {/* Alpha Slider */}
       <div style={{ marginTop: 6 }}>
-        <AlphaSlider
-          hue={hsv.h}
-          saturation={hsv.s}
-          value={hsv.v}
-          alpha={alpha}
-          onChange={handleAlphaChange}
-        />
+        <AlphaSlider hue={hsv.h} saturation={hsv.s} value={hsv.v} alpha={alpha} onChange={handleAlphaChange} />
       </div>
 
       {/* Mode Toggle + Eyedropper */}
       <div style={{ display: 'flex', gap: 3, marginTop: 8, alignItems: 'center' }}>
-        <button style={modeButtonStyle(mode === 'hex')} onClick={() => setMode('hex')}>Hex</button>
-        <button style={modeButtonStyle(mode === 'rgb')} onClick={() => setMode('rgb')}>RGB</button>
-        <button style={modeButtonStyle(mode === 'hsl')} onClick={() => setMode('hsl')}>HSL</button>
+        <button style={modeButtonStyle(mode === 'hex')} onClick={() => setMode('hex')}>
+          Hex
+        </button>
+        <button style={modeButtonStyle(mode === 'rgb')} onClick={() => setMode('rgb')}>
+          RGB
+        </button>
+        <button style={modeButtonStyle(mode === 'hsl')} onClick={() => setMode('hsl')}>
+          HSL
+        </button>
         <div style={{ flex: 1 }} />
         <button
           onClick={handleEyedropper}
@@ -583,7 +650,9 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
             padding: '0 5px',
             lineHeight: '20px',
           }}
-        >&#8916;</button>
+        >
+          &#8916;
+        </button>
       </div>
 
       {/* Input Fields */}
@@ -674,31 +743,26 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
       {/* Recent Colors */}
       {recentColors.length > 0 && (
         <div style={{ marginTop: 8 }}>
-          <div style={{
-            fontSize: 9,
-            fontWeight: 600,
-            textTransform: 'uppercase',
-            color: 'var(--text-secondary)',
-            marginBottom: 4,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}>
+          <div
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary)',
+              marginBottom: 4,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}
+          >
             <span>Recent</span>
-            <button
-              onClick={handleAddToPalette}
-              style={smallBtnStyle}
-              title="Add to palette"
-            >+ Palette</button>
+            <button onClick={handleAddToPalette} style={smallBtnStyle} title="Add to palette">
+              + Palette
+            </button>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
             {recentColors.map((c, i) => (
-              <div
-                key={`${c}-${i}`}
-                style={swatchStyle(c)}
-                title={c}
-                onClick={() => handleRecentClick(c)}
-              />
+              <div key={`${c}-${i}`} style={swatchStyle(c)} title={c} onClick={() => handleRecentClick(c)} />
             ))}
           </div>
         </div>
@@ -707,11 +771,9 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
       {/* Add to palette standalone (if no recent colors) */}
       {recentColors.length === 0 && (
         <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-          <button
-            onClick={handleAddToPalette}
-            style={smallBtnStyle}
-            title="Add to palette"
-          >+ Palette</button>
+          <button onClick={handleAddToPalette} style={smallBtnStyle} title="Add to palette">
+            + Palette
+          </button>
         </div>
       )}
     </div>
@@ -738,8 +800,10 @@ export function ColorSwatch({ color, opacity = 1, onChange, size = 24 }: ColorSw
     if (!open) return
     const handleClick = (e: MouseEvent) => {
       if (
-        containerRef.current && !containerRef.current.contains(e.target as Node) &&
-        popupRef.current && !popupRef.current.contains(e.target as Node)
+        containerRef.current &&
+        !containerRef.current.contains(e.target as Node) &&
+        popupRef.current &&
+        !popupRef.current.contains(e.target as Node)
       ) {
         setOpen(false)
       }
@@ -783,12 +847,13 @@ export function ColorSwatch({ color, opacity = 1, onChange, size = 24 }: ColorSw
   }, [open])
 
   // Display color with alpha for the swatch
-  const displayColor = opacity < 1
-    ? (() => {
-      const rgba = hexToRgba(color)
-      return `rgba(${rgba.r},${rgba.g},${rgba.b},${opacity})`
-    })()
-    : color
+  const displayColor =
+    opacity < 1
+      ? (() => {
+          const rgba = hexToRgba(color)
+          return `rgba(${rgba.r},${rgba.g},${rgba.b},${opacity})`
+        })()
+      : color
 
   return (
     <div ref={containerRef} style={{ position: 'relative', flexShrink: 0 }}>
@@ -803,16 +868,19 @@ export function ColorSwatch({ color, opacity = 1, onChange, size = 24 }: ColorSw
           position: 'relative',
           overflow: 'hidden',
           // Checkerboard behind for alpha visibility
-          backgroundImage: 'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)',
+          backgroundImage:
+            'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)',
           backgroundSize: '8px 8px',
           backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px',
         }}
       >
-        <div style={{
-          position: 'absolute',
-          inset: 0,
-          background: displayColor,
-        }} />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: displayColor,
+          }}
+        />
       </div>
       {open && (
         <div

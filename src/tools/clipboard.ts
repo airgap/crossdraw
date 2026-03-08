@@ -24,7 +24,7 @@ export function copyLayers() {
 
   clipboardLayers = []
   for (const layerId of store.selection.layerIds) {
-    const layer = artboard.layers.find(l => l.id === layerId)
+    const layer = artboard.layers.find((l) => l.id === layerId)
     if (layer) {
       clipboardLayers.push(JSON.parse(JSON.stringify(layer)))
     }

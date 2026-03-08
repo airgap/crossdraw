@@ -3,10 +3,7 @@
  * Plugins run sandboxed and interact with the editor through this API.
  */
 
-import type {
-  DesignDocument, Artboard, Layer, Fill, Stroke,
-  ViewportState,
-} from '@/types'
+import type { DesignDocument, Artboard, Layer, Fill, Stroke, ViewportState } from '@/types'
 import type { PluginPermission } from './manifest'
 
 // --- Event types ---
@@ -151,21 +148,28 @@ export interface PluginAPI {
  * Create a permission-scoped plugin API.
  * Only API methods matching granted permissions are available.
  */
-export function createScopedAPI(
-  fullAPI: PluginAPI,
-  permissions: PluginPermission[],
-): Partial<PluginAPI> {
+export function createScopedAPI(fullAPI: PluginAPI, permissions: PluginPermission[]): Partial<PluginAPI> {
   const scoped: Partial<PluginAPI> = {}
 
   if (permissions.includes('document:read') || permissions.includes('document:write')) {
     const docAPI = { ...fullAPI.document }
     if (!permissions.includes('document:write')) {
       // Read-only: remove mutating methods
-      docAPI.addLayer = () => { throw new Error('Permission denied: document:write') }
-      docAPI.updateLayer = () => { throw new Error('Permission denied: document:write') }
-      docAPI.deleteLayer = () => { throw new Error('Permission denied: document:write') }
-      docAPI.setFill = () => { throw new Error('Permission denied: document:write') }
-      docAPI.setStroke = () => { throw new Error('Permission denied: document:write') }
+      docAPI.addLayer = () => {
+        throw new Error('Permission denied: document:write')
+      }
+      docAPI.updateLayer = () => {
+        throw new Error('Permission denied: document:write')
+      }
+      docAPI.deleteLayer = () => {
+        throw new Error('Permission denied: document:write')
+      }
+      docAPI.setFill = () => {
+        throw new Error('Permission denied: document:write')
+      }
+      docAPI.setStroke = () => {
+        throw new Error('Permission denied: document:write')
+      }
     }
     scoped.document = docAPI
   }
@@ -173,8 +177,12 @@ export function createScopedAPI(
   if (permissions.includes('selection:read') || permissions.includes('selection:write')) {
     const selAPI = { ...fullAPI.selection }
     if (!permissions.includes('selection:write')) {
-      selAPI.selectLayer = () => { throw new Error('Permission denied: selection:write') }
-      selAPI.deselectAll = () => { throw new Error('Permission denied: selection:write') }
+      selAPI.selectLayer = () => {
+        throw new Error('Permission denied: selection:write')
+      }
+      selAPI.deselectAll = () => {
+        throw new Error('Permission denied: selection:write')
+      }
     }
     scoped.selection = selAPI
   }
@@ -182,10 +190,18 @@ export function createScopedAPI(
   if (permissions.includes('viewport:read') || permissions.includes('viewport:write')) {
     const vpAPI = { ...fullAPI.viewport }
     if (!permissions.includes('viewport:write')) {
-      vpAPI.setZoom = () => { throw new Error('Permission denied: viewport:write') }
-      vpAPI.setPan = () => { throw new Error('Permission denied: viewport:write') }
-      vpAPI.zoomToFit = () => { throw new Error('Permission denied: viewport:write') }
-      vpAPI.scrollToLayer = () => { throw new Error('Permission denied: viewport:write') }
+      vpAPI.setZoom = () => {
+        throw new Error('Permission denied: viewport:write')
+      }
+      vpAPI.setPan = () => {
+        throw new Error('Permission denied: viewport:write')
+      }
+      vpAPI.zoomToFit = () => {
+        throw new Error('Permission denied: viewport:write')
+      }
+      vpAPI.scrollToLayer = () => {
+        throw new Error('Permission denied: viewport:write')
+      }
     }
     scoped.viewport = vpAPI
   }
