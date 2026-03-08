@@ -2,6 +2,9 @@
   "name": "crossdraw",
   "version": "0.1.0",
   "private": true,
+  "author": "Nicole Muzzi <nicole@muzz.in>",
+  "homepage": "https://crossdraw.app",
+  "description": "Vector and raster design editor",
   "type": "module",
   "main": "dist-electron/main.js",
   "scripts": {
