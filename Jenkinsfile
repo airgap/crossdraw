@@ -62,7 +62,7 @@ pipeline {
 
                 // ── Electron: macOS ─────────────────────────────
                 stage('Electron macOS') {
-                    agent { label 'mac' }
+                    agent { label 'macos' }
                     environment {
                         // Set these in Jenkins credentials for code signing
                         CSC_LINK = credentials('mac-codesign-cert')
@@ -148,7 +148,7 @@ pipeline {
 
                 // ── Mobile: iOS ─────────────────────────────────
                 stage('iOS') {
-                    agent { label 'mac' }
+                    agent { label 'macos' }
                     steps {
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
