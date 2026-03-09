@@ -1,0 +1,16 @@
+name = "crossdraw"
+main = "worker/index.ts"
+compatibility_date = "2026-03-08"
+
+[assets]
+directory = "dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[r2_buckets]]
+binding = "RELEASES"
+bucket_name = "crossdraw-releases"
+
+[[routes]]
+pattern = "crossdraw.app/*"
+zone_name = "crossdraw.app"

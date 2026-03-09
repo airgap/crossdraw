@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-const R2_BASE = 'https://pub-50f4e082f1ed4208bd1324f74564a835.r2.dev'
+const R2_BASE = '/releases'
 
 interface Release {
   name: string

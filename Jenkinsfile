@@ -195,8 +195,8 @@ pipeline {
                     try { unstash 'electron-linux' } catch (e) { echo 'No Electron Linux artifacts' }
                     try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
                 }
-                // Deploy web app to Cloudflare Pages
-                sh 'export PATH=$HOME/.bun/bin:$PATH && bun --bun x wrangler pages deploy dist --project-name=crossdraw --branch=main --commit-dirty=true'
+                // Deploy Worker + static assets to Cloudflare
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun --bun x wrangler deploy'
                 // Upload release binaries to R2
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
