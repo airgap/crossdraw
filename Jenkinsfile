@@ -127,7 +127,14 @@ pipeline {
                     steps {
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                         unstash 'web-dist'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync android'
+                        // Capacitor CLI requires Node 22+
+                        sh '''
+                            export PATH=$HOME/.bun/bin:$PATH
+                            export NVM_DIR="$HOME/.nvm"
+                            [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                            nvm use 22
+                            bunx cap sync android
+                        '''
                         dir('android') {
                             sh './gradlew assembleDebug'
                         }
