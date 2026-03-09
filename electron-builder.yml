@@ -37,6 +37,7 @@ win:
   icon: build/icon.ico
 
 linux:
+  maintainer: airgap
   target:
     - target: AppImage
       arch:
