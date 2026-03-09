@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
-import { storeRasterData, getRasterData } from '@/store/raster-data'
+import { storeRasterData, getRasterData, updateRasterCache } from '@/store/raster-data'
 import type { RasterLayer, BrushSettings } from '@/types'
 
 const defaultBrush: BrushSettings = {
@@ -14,12 +14,29 @@ const defaultBrush: BrushSettings = {
 
 let currentBrush: BrushSettings = { ...defaultBrush }
 
+// Dab cache — avoids regenerating ImageData on every incremental paint call
+let cachedDab: ImageData | null = null
+let cachedDabKey = ''
+
+function getDabCacheKey(size: number, hardness: number, color: string, opacity: number): string {
+  return `${size.toFixed(2)}_${hardness.toFixed(2)}_${color}_${opacity.toFixed(3)}`
+}
+
+function getCachedDab(size: number, hardness: number, color: string, opacity: number): ImageData {
+  const key = getDabCacheKey(size, hardness, color, opacity)
+  if (cachedDab && cachedDabKey === key) return cachedDab
+  cachedDab = createBrushDab(size, hardness, color, opacity)
+  cachedDabKey = key
+  return cachedDab
+}
+
 export function getBrushSettings(): BrushSettings {
   return { ...currentBrush }
 }
 
 export function setBrushSettings(settings: Partial<BrushSettings>) {
   Object.assign(currentBrush, settings)
+  cachedDab = null // invalidate cache when settings change
 }
 
 /**
@@ -126,7 +143,7 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
   const imageData = getRasterData(rasterLayer.imageChunkId)
   if (!imageData) return
 
-  const dab = createBrushDab(b.size, b.hardness, b.color, b.opacity * b.flow)
+  const dab = getCachedDab(b.size, b.hardness, b.color, b.opacity * b.flow)
   const dabSize = Math.ceil(b.size)
   const halfDab = dabSize / 2
 
@@ -151,8 +168,8 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
     stampDab(imageData, dab, dabSize, pt.x - halfDab, pt.y - halfDab)
   }
 
-  // Update the raster data (invalidates render cache)
-  storeRasterData(rasterLayer.imageChunkId, imageData)
+  // Refresh the render cache in-place (avoids OffscreenCanvas reallocation)
+  updateRasterCache(rasterLayer.imageChunkId)
 }
 
 function stampDab(target: ImageData, dab: ImageData, dabSize: number, ox: number, oy: number) {

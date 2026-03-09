@@ -12,6 +12,22 @@ export function storeRasterData(id: string, data: ImageData) {
   renderCache.delete(id) // invalidate
 }
 
+/** Update raster data in-place and refresh the render cache without reallocating. */
+export function updateRasterCache(id: string) {
+  const data = store.get(id)
+  if (!data) return
+  let cached = renderCache.get(id)
+  if (cached && cached.width === data.width && cached.height === data.height) {
+    const ctx = cached.getContext('2d')!
+    ctx.putImageData(data, 0, 0)
+  } else {
+    cached = new OffscreenCanvas(data.width, data.height)
+    const ctx = cached.getContext('2d')!
+    ctx.putImageData(data, 0, 0)
+    renderCache.set(id, cached)
+  }
+}
+
 export function getRasterData(id: string): ImageData | undefined {
   return store.get(id)
 }

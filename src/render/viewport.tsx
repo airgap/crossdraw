@@ -99,6 +99,7 @@ export function Viewport() {
   const measureLine = useRef<{ startX: number; startY: number; endX: number; endY: number } | null>(null)
   const brushPoints = useRef<Array<{ x: number; y: number }>>([])
   const brushPressure = useRef(1)
+  const brushRafId = useRef(0)
 
   // Rebuild spatial index when document changes
   useEffect(() => {
@@ -673,7 +674,17 @@ export function Viewport() {
     // Track cursor position for ruler markers
     const docPt = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
     mouseDocPos.current = { x: docPt.x, y: docPt.y }
-    if (showRulers || activeTool === 'brush') render()
+    if (activeTool === 'brush' && !isDragging.current) {
+      // Throttle cursor-only redraws to animation frame
+      if (!brushRafId.current) {
+        brushRafId.current = requestAnimationFrame(() => {
+          brushRafId.current = 0
+          render()
+        })
+      }
+    } else if (showRulers) {
+      render()
+    }
 
     if (activeTool === 'node' && isDragging.current && getNodeState().dragging) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -712,7 +723,7 @@ export function Viewport() {
       return
     }
 
-    // Brush tool drag
+    // Brush tool drag — accumulate points, paint on rAF
     if (activeTool === 'brush' && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       const artboard = document.artboards[0]
@@ -720,11 +731,15 @@ export function Viewport() {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         brushPoints.current.push(pt)
         brushPressure.current = touchMode ? currentPressure : 1
-        // Paint incrementally with last two points for smoother strokes
-        if (brushPoints.current.length >= 2) {
-          const pts = brushPoints.current.slice(-2)
-          paintStroke(pts, undefined, brushPressure.current)
-          render()
+        if (!brushRafId.current) {
+          brushRafId.current = requestAnimationFrame(() => {
+            brushRafId.current = 0
+            const len = brushPoints.current.length
+            if (len >= 2) {
+              paintStroke(brushPoints.current.slice(-2), undefined, brushPressure.current)
+              render()
+            }
+          })
         }
       }
       return
