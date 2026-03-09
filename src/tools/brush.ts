@@ -1,7 +1,9 @@
 import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
-import { storeRasterData, getRasterCanvasCtx, syncCanvasToImageData } from '@/store/raster-data'
+import { storeRasterData, getRasterData, getRasterCanvasCtx, syncCanvasToImageData } from '@/store/raster-data'
 import type { RasterLayer, BrushSettings } from '@/types'
+
+const hasOffscreenCanvas = typeof OffscreenCanvas !== 'undefined'
 
 const defaultBrush: BrushSettings = {
   size: 10,
@@ -162,10 +164,17 @@ export function beginStroke(): string | null {
 
 /**
  * Paint dabs along points directly onto the OffscreenCanvas (GPU-accelerated).
+ * Falls back to ImageData compositing in non-browser environments (tests).
  */
 export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Partial<BrushSettings>, pressure = 1) {
+  // Validate active chunk's layer still exists in the current document
+  if (activeChunkId) {
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards[0]
+    const layerExists = artboard?.layers.some((l) => l.type === 'raster' && (l as RasterLayer).imageChunkId === activeChunkId)
+    if (!layerExists) activeChunkId = null
+  }
   if (!activeChunkId) {
-    // Legacy path: auto-begin if not started
     if (!beginStroke()) return
   }
 
@@ -177,28 +186,72 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
     opacity: raw.opacity * p,
   }
 
-  const ctx = getRasterCanvasCtx(activeChunkId!)
-  if (!ctx) return
-
-  const dabCanvas = getCachedDabCanvas(b.size, b.hardness, b.color, b.opacity * b.flow)
   const dabSize = Math.max(1, Math.ceil(b.size))
   const halfDab = dabSize / 2
   const spacingPx = Math.max(1, b.size * b.spacing)
 
-  for (let i = 0; i < points.length; i++) {
-    const pt = points[i]!
-    if (i > 0) {
-      const prev = points[i - 1]!
-      const dx = pt.x - prev.x
-      const dy = pt.y - prev.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      const steps = Math.ceil(dist / spacingPx)
-      for (let s = 0; s < steps; s++) {
-        const t = s / steps
-        ctx.drawImage(dabCanvas, prev.x + dx * t - halfDab, prev.y + dy * t - halfDab)
+  if (hasOffscreenCanvas) {
+    const ctx = getRasterCanvasCtx(activeChunkId!)
+    if (!ctx) return
+    const dabCanvas = getCachedDabCanvas(b.size, b.hardness, b.color, b.opacity * b.flow)
+    for (let i = 0; i < points.length; i++) {
+      const pt = points[i]!
+      if (i > 0) {
+        const prev = points[i - 1]!
+        const dx = pt.x - prev.x
+        const dy = pt.y - prev.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const steps = Math.ceil(dist / spacingPx)
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps
+          ctx.drawImage(dabCanvas, prev.x + dx * t - halfDab, prev.y + dy * t - halfDab)
+        }
       }
+      ctx.drawImage(dabCanvas, pt.x - halfDab, pt.y - halfDab)
     }
-    ctx.drawImage(dabCanvas, pt.x - halfDab, pt.y - halfDab)
+  } else {
+    // Fallback: ImageData compositing (for bun test / non-browser)
+    const imageData = getRasterData(activeChunkId!)
+    if (!imageData) return
+    const dab = createBrushDab(b.size, b.hardness, b.color, b.opacity * b.flow)
+    for (let i = 0; i < points.length; i++) {
+      const pt = points[i]!
+      if (i > 0) {
+        const prev = points[i - 1]!
+        const dx = pt.x - prev.x
+        const dy = pt.y - prev.y
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        const steps = Math.ceil(dist / spacingPx)
+        for (let s = 0; s < steps; s++) {
+          const t = s / steps
+          stampDab(imageData, dab, dabSize, prev.x + dx * t - halfDab, prev.y + dy * t - halfDab)
+        }
+      }
+      stampDab(imageData, dab, dabSize, pt.x - halfDab, pt.y - halfDab)
+    }
+  }
+}
+
+function stampDab(target: ImageData, dab: ImageData, dabSize: number, ox: number, oy: number) {
+  const ix = Math.round(ox)
+  const iy = Math.round(oy)
+  for (let dy = 0; dy < dabSize; dy++) {
+    for (let dx = 0; dx < dabSize; dx++) {
+      const tx = ix + dx
+      const ty = iy + dy
+      if (tx < 0 || ty < 0 || tx >= target.width || ty >= target.height) continue
+      const dabIdx = (dy * dabSize + dx) * 4
+      const tgtIdx = (ty * target.width + tx) * 4
+      const dabAlpha = dab.data[dabIdx + 3]! / 255
+      if (dabAlpha === 0) continue
+      const tgtAlpha = target.data[tgtIdx + 3]! / 255
+      const outAlpha = dabAlpha + tgtAlpha * (1 - dabAlpha)
+      if (outAlpha === 0) continue
+      target.data[tgtIdx] = Math.round((dab.data[dabIdx]! * dabAlpha + target.data[tgtIdx]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
+      target.data[tgtIdx + 1] = Math.round((dab.data[dabIdx + 1]! * dabAlpha + target.data[tgtIdx + 1]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
+      target.data[tgtIdx + 2] = Math.round((dab.data[dabIdx + 2]! * dabAlpha + target.data[tgtIdx + 2]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
+      target.data[tgtIdx + 3] = Math.round(outAlpha * 255)
+    }
   }
 }
 
