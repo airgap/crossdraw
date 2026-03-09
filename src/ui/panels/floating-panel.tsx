@@ -23,82 +23,69 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
   // Drag state
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
 
-  const handleTitleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handleTitlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       e.preventDefault()
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
       dragRef.current = {
         startX: e.clientX,
         startY: e.clientY,
         origX: panel.x,
         origY: panel.y,
       }
-
-      const onMove = (ev: MouseEvent) => {
-        if (!dragRef.current) return
-        const dx = ev.clientX - dragRef.current.startX
-        const dy = ev.clientY - dragRef.current.startY
-        updatePosition(panel.tabId, dragRef.current.origX + dx, dragRef.current.origY + dy)
-      }
-
-      const onUp = () => {
-        dragRef.current = null
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-      }
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
     },
-    [panel.tabId, panel.x, panel.y, updatePosition],
+    [panel.x, panel.y],
   )
+
+  const handleTitlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragRef.current) return
+      const dx = e.clientX - dragRef.current.startX
+      const dy = e.clientY - dragRef.current.startY
+      updatePosition(panel.tabId, dragRef.current.origX + dx, dragRef.current.origY + dy)
+    },
+    [panel.tabId, updatePosition],
+  )
+
+  const handleTitlePointerUp = useCallback(() => {
+    dragRef.current = null
+  }, [])
 
   // Resize from edges/corners
-  const handleResizeMouseDown = useCallback(
-    (e: React.MouseEvent, edge: ResizeEdge) => {
+  const resizeRef = useRef<{ edge: ResizeEdge; startX: number; startY: number; origX: number; origY: number; origW: number; origH: number } | null>(null)
+
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent, edge: ResizeEdge) => {
       e.preventDefault()
       e.stopPropagation()
-
-      const startX = e.clientX
-      const startY = e.clientY
-      const origX = panel.x
-      const origY = panel.y
-      const origW = panel.width
-      const origH = panel.height
-
-      const onMove = (ev: MouseEvent) => {
-        const dx = ev.clientX - startX
-        const dy = ev.clientY - startY
-
-        let newX = origX
-        let newY = origY
-        let newW = origW
-        let newH = origH
-
-        if (edge.includes('e')) newW = Math.max(MIN_WIDTH, origW + dx)
-        if (edge.includes('w')) {
-          newW = Math.max(MIN_WIDTH, origW - dx)
-          newX = origX + origW - newW
-        }
-        if (edge.includes('s')) newH = Math.max(MIN_HEIGHT, origH + dy)
-        if (edge.includes('n')) {
-          newH = Math.max(MIN_HEIGHT, origH - dy)
-          newY = origY + origH - newH
-        }
-
-        updatePosition(panel.tabId, newX, newY)
-        updateSize(panel.tabId, newW, newH)
-      }
-
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove)
-        document.removeEventListener('mouseup', onUp)
-      }
-
-      document.addEventListener('mousemove', onMove)
-      document.addEventListener('mouseup', onUp)
+      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
+      resizeRef.current = { edge, startX: e.clientX, startY: e.clientY, origX: panel.x, origY: panel.y, origW: panel.width, origH: panel.height }
     },
-    [panel, updatePosition, updateSize],
+    [panel],
   )
+
+  const handleResizePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!resizeRef.current) return
+      const { edge, startX, startY, origX, origY, origW, origH } = resizeRef.current
+      const dx = e.clientX - startX
+      const dy = e.clientY - startY
+
+      let newX = origX, newY = origY, newW = origW, newH = origH
+      if (edge.includes('e')) newW = Math.max(MIN_WIDTH, origW + dx)
+      if (edge.includes('w')) { newW = Math.max(MIN_WIDTH, origW - dx); newX = origX + origW - newW }
+      if (edge.includes('s')) newH = Math.max(MIN_HEIGHT, origH + dy)
+      if (edge.includes('n')) { newH = Math.max(MIN_HEIGHT, origH - dy); newY = origY + origH - newH }
+
+      updatePosition(panel.tabId, newX, newY)
+      updateSize(panel.tabId, newW, newH)
+    },
+    [panel.tabId, updatePosition, updateSize],
+  )
+
+  const handleResizePointerUp = useCallback(() => {
+    resizeRef.current = null
+  }, [])
 
   if (!def) return null
 
@@ -124,7 +111,9 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
     >
       {/* Title bar */}
       <div
-        onMouseDown={handleTitleMouseDown}
+        onPointerDown={handleTitlePointerDown}
+        onPointerMove={handleTitlePointerMove}
+        onPointerUp={handleTitlePointerUp}
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -134,6 +123,7 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
           borderBottom: '1px solid var(--border-subtle)',
           cursor: 'grab',
           userSelect: 'none',
+          touchAction: 'none',
           flexShrink: 0,
           minHeight: 28,
         }}
@@ -188,50 +178,26 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
       </div>
 
       {/* Resize edges */}
-      {/* North */}
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'n')}
-        style={{ position: 'absolute', top: 0, left: edgeSize, right: edgeSize, height: edgeSize, cursor: 'n-resize' }}
-      />
-      {/* South */}
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 's')}
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: edgeSize,
-          right: edgeSize,
-          height: edgeSize,
-          cursor: 's-resize',
-        }}
-      />
-      {/* East */}
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'e')}
-        style={{ position: 'absolute', top: edgeSize, right: 0, bottom: edgeSize, width: edgeSize, cursor: 'e-resize' }}
-      />
-      {/* West */}
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'w')}
-        style={{ position: 'absolute', top: edgeSize, left: 0, bottom: edgeSize, width: edgeSize, cursor: 'w-resize' }}
-      />
-      {/* Corners */}
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'nw')}
-        style={{ position: 'absolute', top: 0, left: 0, width: edgeSize, height: edgeSize, cursor: 'nw-resize' }}
-      />
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'ne')}
-        style={{ position: 'absolute', top: 0, right: 0, width: edgeSize, height: edgeSize, cursor: 'ne-resize' }}
-      />
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'sw')}
-        style={{ position: 'absolute', bottom: 0, left: 0, width: edgeSize, height: edgeSize, cursor: 'sw-resize' }}
-      />
-      <div
-        onMouseDown={(e) => handleResizeMouseDown(e, 'se')}
-        style={{ position: 'absolute', bottom: 0, right: 0, width: edgeSize, height: edgeSize, cursor: 'se-resize' }}
-      />
+      {(['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'] as ResizeEdge[]).map((edge) => {
+        const isH = edge === 'n' || edge === 's'
+        const isV = edge === 'e' || edge === 'w'
+        const style: React.CSSProperties = {
+          position: 'absolute', cursor: `${edge}-resize`,
+          ...(isH ? { left: edgeSize, right: edgeSize, height: edgeSize, ...(edge === 'n' ? { top: 0 } : { bottom: 0 }) } :
+            isV ? { top: edgeSize, bottom: edgeSize, width: edgeSize, ...(edge === 'e' ? { right: 0 } : { left: 0 }) } :
+            { width: edgeSize, height: edgeSize,
+              ...(edge.includes('n') ? { top: 0 } : { bottom: 0 }),
+              ...(edge.includes('e') ? { right: 0 } : { left: 0 }) }),
+        }
+        return (
+          <div key={edge}
+            onPointerDown={(e) => handleResizePointerDown(e, edge)}
+            onPointerMove={handleResizePointerMove}
+            onPointerUp={handleResizePointerUp}
+            style={style}
+          />
+        )
+      })}
     </div>
   )
 }
