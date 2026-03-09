@@ -196,12 +196,12 @@ pipeline {
                     try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
                 }
                 // Deploy web app to Cloudflare Pages
-                sh 'export PATH=$HOME/.bun/bin:$PATH && bunx wrangler pages deploy dist --project-name=crossdraw --branch=main'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun --bun x wrangler pages deploy dist --project-name=crossdraw --branch=main'
                 // Upload release binaries to R2
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
                     for f in release/*; do
-                        [ -f "$f" ] && bunx wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f"
+                        [ -f "$f" ] && bun --bun x wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f"
                     done
                 '''
             }
