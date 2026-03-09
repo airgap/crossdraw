@@ -118,31 +118,28 @@ pipeline {
                 //     }
                 // }
 
-                // ── Mobile: Android ─────────────────────────────
-                // Disabled: credentials (android-keystore etc.) not yet configured
-                // stage('Android') {
-                //     agent { label 'linux' }
-                //     environment {
-                //         ANDROID_HOME = "${HOME}/Android/Sdk"
-                //         ANDROID_KEYSTORE = credentials('android-keystore')
-                //         ANDROID_KEYSTORE_PASSWORD = credentials('android-keystore-password')
-                //         ANDROID_KEY_ALIAS = credentials('android-key-alias')
-                //         ANDROID_KEY_PASSWORD = credentials('android-key-password')
-                //     }
-                //     steps {
-                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
-                //         unstash 'web-dist'
-                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync android'
-                //         dir('android') {
-                //             sh './gradlew assembleRelease'
-                //         }
-                //     }
-                //     post {
-                //         success {
-                //             archiveArtifacts artifacts: 'android/app/build/outputs/apk/release/*.apk', fingerprint: true
-                //         }
-                //     }
-                // }
+                // ── Mobile: Android (debug APK, unsigned) ───────
+                stage('Android') {
+                    agent { label 'linux' }
+                    environment {
+                        ANDROID_HOME = "${HOME}/Android/Sdk"
+                    }
+                    steps {
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                        unstash 'web-dist'
+                        sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync android'
+                        dir('android') {
+                            sh './gradlew assembleDebug'
+                        }
+                        sh 'mkdir -p release && cp android/app/build/outputs/apk/debug/app-debug.apk release/crossdraw.apk'
+                    }
+                    post {
+                        success {
+                            stash includes: 'release/crossdraw.apk', name: 'android-apk', allowEmpty: true
+                            archiveArtifacts artifacts: 'release/crossdraw.apk', fingerprint: true
+                        }
+                    }
+                }
 
                 // ── Mobile: iOS ─────────────────────────────────
                 // Disabled: App.xcworkspace not yet generated (needs initial pod install)
@@ -194,6 +191,7 @@ pipeline {
                 script {
                     try { unstash 'electron-linux' } catch (e) { echo 'No Electron Linux artifacts' }
                     try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
+                    try { unstash 'android-apk' } catch (e) { echo 'No Android APK' }
                 }
                 // Deploy Worker + static assets to Cloudflare
                 // Install Node 20 via nvm (wrangler requires Node 20+, Jenkins has 18)
