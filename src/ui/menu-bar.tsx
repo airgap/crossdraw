@@ -44,9 +44,9 @@ function buildMenus(): MenuDef[] {
     label: 'File',
     items: [
       {
-        label: 'New Document',
+        label: 'New Document\u2026',
         shortcut: '',
-        action: () => store().newDocument(),
+        action: () => window.dispatchEvent(new Event('crossdraw:new-document')),
       },
       {
         label: 'Open\u2026',
@@ -457,18 +457,18 @@ export function MenuBar() {
   // Close on click outside
   useEffect(() => {
     if (!openMenu) return
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent | MouseEvent) => {
       if (barRef.current && !barRef.current.contains(e.target as Node)) {
         setOpenMenu(null)
       }
     }
     // Use setTimeout to avoid the same click that opened the menu from closing it
     const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handler)
+      window.addEventListener('pointerdown', handler)
     }, 0)
     return () => {
       clearTimeout(timer)
-      window.removeEventListener('mousedown', handler)
+      window.removeEventListener('pointerdown', handler)
     }
   }, [openMenu])
 
@@ -506,7 +506,7 @@ export function MenuBar() {
         <div key={menu.label} style={{ position: 'relative' }}>
           {/* Menu trigger button */}
           <div
-            onMouseDown={() => handleMenuClick(menu.label)}
+            onPointerDown={() => handleMenuClick(menu.label)}
             onMouseEnter={() => handleMenuHover(menu.label)}
             style={{
               padding: '0 10px',
@@ -640,12 +640,14 @@ function MenuItemRow({ item, disabled, onClick }: { item: MenuItem; disabled: bo
 
   return (
     <div
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         e.preventDefault()
         if (!disabled) onClick()
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
       style={{
         display: 'flex',
         alignItems: 'center',

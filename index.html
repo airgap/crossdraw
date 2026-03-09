@@ -14,6 +14,10 @@
         padding-left: env(safe-area-inset-left);
         padding-right: env(safe-area-inset-right);
       }
+      html {
+        /* Prevent pull-to-refresh and overscroll bounce */
+        overscroll-behavior: none;
+      }
       body {
         background: #1a1a1a;
         color: #e0e0e0;
@@ -22,6 +26,21 @@
         line-height: 1.4;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        /* Prevent text selection on UI chrome (not inputs) */
+        -webkit-user-select: none;
+        user-select: none;
+        /* Prevent elastic overscroll */
+        overscroll-behavior: none;
+        overflow: hidden;
+        /* Kill tap highlight on all elements */
+        -webkit-tap-highlight-color: transparent;
+        /* Prevent long-press callout (save image, copy, etc.) */
+        -webkit-touch-callout: none;
+      }
+      /* Re-enable text selection for text inputs */
+      input, textarea, [contenteditable] {
+        -webkit-user-select: text;
+        user-select: text;
       }
 
       /* ── Scrollbar styling ─────────────────────────── */
@@ -44,11 +63,17 @@
 
       /* ── Transitions ───────────────────────────────── */
       button, [role="button"], input, select, textarea, .interactive {
-        transition: background-color 150ms ease-out,
-                    border-color 150ms ease-out,
-                    opacity 150ms ease-out,
-                    box-shadow 150ms ease-out,
-                    color 150ms ease-out;
+        transition: background-color 80ms ease-out,
+                    border-color 80ms ease-out,
+                    opacity 80ms ease-out,
+                    box-shadow 80ms ease-out,
+                    color 80ms ease-out;
+      }
+
+      /* ── Active press feedback — instant darken ───── */
+      button:active, [role="button"]:active {
+        opacity: 0.7;
+        transition: opacity 0ms;
       }
 
       /* ── Focus visible ring ────────────────────────── */
@@ -58,6 +83,10 @@
       textarea:focus-visible {
         outline: 2px solid #4a9eff;
         outline-offset: -1px;
+      }
+      /* Hide focus ring on touch (only show on keyboard nav) */
+      button:focus:not(:focus-visible) {
+        outline: none;
       }
 
       /* ── Input base ────────────────────────────────── */
@@ -76,6 +105,11 @@
         -moz-appearance: textfield;
       }
 
+      /* Prevent iOS zoom on input focus (font-size < 16px triggers zoom) */
+      .touch-mode input, .touch-mode select, .touch-mode textarea {
+        font-size: 16px !important;
+      }
+
       /* ── Selection highlight ───────────────────────── */
       ::selection {
         background: rgba(74, 158, 255, 0.3);
@@ -89,16 +123,19 @@
       }
       .touch-mode input {
         min-height: 36px;
-        font-size: 14px;
       }
       .touch-mode select {
         min-height: 36px;
-        font-size: 14px;
       }
       .touch-mode label {
         min-height: 36px;
         display: inline-flex;
         align-items: center;
+      }
+
+      /* ── Prevent context menu on long-press in UI chrome ── */
+      button, [role="button"], nav, .toolbar, .menu-bar, .status-bar, .panel-header {
+        -webkit-touch-callout: none;
       }
     </style>
   </head>

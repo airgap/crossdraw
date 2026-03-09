@@ -1,7 +1,7 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
 import { toggleTheme, getTheme } from '@/ui/theme'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { ShortcutPreferences } from '@/ui/shortcut-preferences'
 import { UISettings } from '@/ui/ui-settings'
 import {
@@ -38,14 +38,23 @@ function BrushIcon({ size = 24, strokeWidth = 1.75 }: { size?: number; strokeWid
   )
 }
 
-const tools: { id: EditorState['activeTool']; icon: LucideIcon | ((props: { size?: number; strokeWidth?: number }) => JSX.Element); key: string }[] = [
-  { id: 'select', icon: MousePointer2, key: 'v' },
-  { id: 'node', icon: Spline, key: 'a' },
-  { id: 'pen', icon: PenTool, key: 'p' },
+type ToolIcon = LucideIcon | ((props: { size?: number; strokeWidth?: number }) => JSX.Element)
+type ToolEntry = { id: EditorState['activeTool']; icon: ToolIcon; key: string }
+
+const shapeTools: ToolEntry[] = [
   { id: 'rectangle', icon: Square, key: 'r' },
   { id: 'ellipse', icon: Circle, key: 'e' },
   { id: 'polygon', icon: Hexagon, key: 'y' },
   { id: 'star', icon: Star, key: 's' },
+]
+
+const shapeToolIds = new Set(shapeTools.map((t) => t.id))
+
+const tools: (ToolEntry | 'shapes')[] = [
+  { id: 'select', icon: MousePointer2, key: 'v' },
+  { id: 'node', icon: Spline, key: 'a' },
+  { id: 'pen', icon: PenTool, key: 'p' },
+  'shapes',
   { id: 'text', icon: Type, key: 't' },
   { id: 'eyedropper', icon: Pipette, key: 'i' },
   { id: 'hand', icon: Hand, key: 'h' },
@@ -53,6 +62,167 @@ const tools: { id: EditorState['activeTool']; icon: LucideIcon | ((props: { size
   { id: 'brush', icon: BrushIcon, key: 'b' },
   { id: 'crop', icon: Crop, key: 'c' },
 ]
+
+/** Long-press delay in ms before showing shape picker */
+const LONG_PRESS_MS = 300
+
+function ShapeToolButton({
+  activeTool,
+  setActiveTool,
+}: {
+  activeTool: EditorState['activeTool']
+  setActiveTool: (tool: EditorState['activeTool']) => void
+}) {
+  const [currentShape, setCurrentShape] = useState<EditorState['activeTool']>('rectangle')
+  const [showPicker, setShowPicker] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // If user presses a shape shortcut key, update currentShape to match
+  useEffect(() => {
+    if (shapeToolIds.has(activeTool)) setCurrentShape(activeTool)
+  }, [activeTool])
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!showPicker) return
+    const close = (e: PointerEvent) => {
+      if (containerRef.current?.contains(e.target as Node)) return
+      setShowPicker(false)
+    }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [showPicker])
+
+  const onPointerDown = useCallback(() => {
+    didLongPress.current = false
+    timerRef.current = setTimeout(() => {
+      didLongPress.current = true
+      setShowPicker(true)
+    }, LONG_PRESS_MS)
+  }, [])
+
+  const onPointerUp = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (!didLongPress.current) {
+      setActiveTool(currentShape)
+      setShowPicker(false)
+    }
+  }, [currentShape, setActiveTool])
+
+  const onPointerLeave = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  const isActive = shapeToolIds.has(activeTool)
+  const current = shapeTools.find((t) => t.id === currentShape) || shapeTools[0]!
+  const Icon = current.icon
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <button
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        title={`${current.id} (${current.key.toUpperCase()}) — hold for more`}
+        style={{
+          width: 'var(--height-toolbar)',
+          height: 'var(--height-toolbar)',
+          border: 'none',
+          borderRadius: 'var(--radius-md)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: isActive ? '#fff' : 'var(--text-secondary)',
+          background: isActive ? 'var(--accent)' : 'transparent',
+          position: 'relative',
+        }}
+        onMouseEnter={(e) => {
+          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+        }}
+      >
+        <Icon size={16} strokeWidth={1.75} />
+        {/* Small triangle indicator for flyout */}
+        <svg
+          width={5}
+          height={5}
+          viewBox="0 0 5 5"
+          style={{ position: 'absolute', bottom: 2, right: 2, opacity: 0.6 }}
+          fill="currentColor"
+        >
+          <polygon points="0,5 5,5 5,0" />
+        </svg>
+      </button>
+
+      {showPicker && (
+        <div
+          style={{
+            position: 'absolute',
+            left: '100%',
+            top: 0,
+            marginLeft: 2,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          }}
+        >
+          {shapeTools.map((shape) => {
+            const ShapeIcon = shape.icon
+            const isShapeActive = activeTool === shape.id
+            return (
+              <button
+                key={shape.id}
+                onClick={() => {
+                  setCurrentShape(shape.id)
+                  setActiveTool(shape.id)
+                  setShowPicker(false)
+                }}
+                title={`${shape.id} (${shape.key.toUpperCase()})`}
+                style={{
+                  width: 'var(--height-toolbar)',
+                  height: 'var(--height-toolbar)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isShapeActive ? '#fff' : 'var(--text-secondary)',
+                  background: isShapeActive ? 'var(--accent)' : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isShapeActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isShapeActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+                }}
+              >
+                <ShapeIcon size={16} strokeWidth={1.75} />
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function Toolbar() {
   const activeTool = useEditorStore((s) => s.activeTool)
@@ -88,6 +258,9 @@ export function Toolbar() {
         }}
       >
         {tools.map((tool) => {
+          if (tool === 'shapes') {
+            return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={setActiveTool} />
+          }
           const Icon = tool.icon
           const isActive = activeTool === tool.id
           return (

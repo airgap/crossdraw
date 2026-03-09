@@ -58,14 +58,14 @@ function createDabCanvas(size: number, hardness: number, color: string, opacity:
     } else {
       grad.addColorStop(0, rgba(1))
     }
-    // Smooth curve from solid to transparent using power falloff
+    // Smooth curve from solid to transparent using Gaussian-like falloff
     const fadeStart = Math.max(h, 0.001)
     const steps = 8
     for (let i = 1; i <= steps; i++) {
       const t = i / steps // 0..1 within the fade zone
       const r = fadeStart + (1 - fadeStart) * t
-      // Cubic ease-out for natural soft falloff
-      const alpha = 1 - t * t * t
+      // (1-t)^3 — drops quickly from center for a genuinely soft airbrush
+      const alpha = (1 - t) * (1 - t) * (1 - t)
       grad.addColorStop(Math.min(r, 1), rgba(alpha))
     }
     ctx.fillStyle = grad
@@ -131,6 +131,8 @@ function parseColor(hex: string): { r: number; g: number; b: number } {
 
 // Track current stroke state
 let activeChunkId: string | null = null
+/** Snapshot of ImageData before the stroke started, for undo */
+let preStrokeSnapshot: ImageData | null = null
 /** Last point stamped — prevents double-stamping at segment boundaries */
 let lastStampX = 0
 let lastStampY = 0
@@ -179,6 +181,17 @@ export function beginStroke(): string | null {
   }
 
   activeChunkId = rasterLayer.imageChunkId
+  // Snapshot raster data before painting for undo
+  const existing = getRasterData(activeChunkId)
+  if (existing) {
+    preStrokeSnapshot = new ImageData(
+      new Uint8ClampedArray(existing.data),
+      existing.width,
+      existing.height,
+    )
+  } else {
+    preStrokeSnapshot = null
+  }
   strokeStarted = false
   distRemainder = 0
   return activeChunkId
@@ -305,6 +318,19 @@ function stampDab(target: ImageData, dab: ImageData, dabSize: number, ox: number
 export function endStroke() {
   if (activeChunkId) {
     syncCanvasToImageData(activeChunkId)
+    // Push undo entry — only the dirty region will be stored
+    if (preStrokeSnapshot) {
+      const afterData = getRasterData(activeChunkId)
+      if (afterData) {
+        useEditorStore.getState().pushRasterHistory(
+          'Brush stroke',
+          activeChunkId,
+          preStrokeSnapshot,
+          afterData,
+        )
+      }
+    }
+    preStrokeSnapshot = null
     activeChunkId = null
   }
   strokeStarted = false

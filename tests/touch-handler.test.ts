@@ -34,7 +34,7 @@ if (typeof globalThis.localStorage === 'undefined') {
 
 describe('Touch mode store', () => {
   beforeEach(() => {
-    useEditorStore.getState().newDocument(800, 600)
+    useEditorStore.getState().newDocument({ width: 800, height: 600 })
   })
 
   test('touchMode defaults to a boolean', () => {
@@ -72,7 +72,7 @@ describe('Touch mode store', () => {
 
 describe('Brush pressure support', () => {
   beforeEach(() => {
-    useEditorStore.getState().newDocument(200, 200)
+    useEditorStore.getState().newDocument({ width: 200, height: 200 })
     const { setBrushSettings } = require('../src/tools/brush')
     setBrushSettings({ size: 10, hardness: 1, opacity: 1, flow: 1, color: '#ff0000', spacing: 0.25 })
   })

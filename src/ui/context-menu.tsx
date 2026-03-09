@@ -33,14 +33,14 @@ export function CanvasContextMenu() {
   const close = useCallback(() => setMenu({ visible: false, x: 0, y: 0 }), [])
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
+    const handler = (e: PointerEvent | MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         close()
       }
     }
     if (menu.visible) {
-      window.addEventListener('mousedown', handler)
-      return () => window.removeEventListener('mousedown', handler)
+      window.addEventListener('pointerdown', handler)
+      return () => window.removeEventListener('pointerdown', handler)
     }
   }, [menu.visible, close])
 
@@ -214,7 +214,7 @@ export function CanvasContextMenu() {
         return (
           <div
             key={i}
-            onClick={entry.disabled ? undefined : entry.action}
+            onPointerDown={entry.disabled ? undefined : entry.action}
             style={{
               padding: '6px 12px',
               display: 'flex',
@@ -224,10 +224,10 @@ export function CanvasContextMenu() {
               opacity: entry.disabled ? 0.4 : 1,
               background: 'transparent',
             }}
-            onMouseEnter={(e) => {
+            onPointerEnter={(e) => {
               if (!entry.disabled) (e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover)'
             }}
-            onMouseLeave={(e) => {
+            onPointerLeave={(e) => {
               ;(e.currentTarget as HTMLDivElement).style.background = 'transparent'
             }}
           >

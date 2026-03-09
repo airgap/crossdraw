@@ -16,6 +16,35 @@ window.addEventListener('beforeunload', (e) => {
   }
 })
 
+// ── Native-feel touch behavior ──────────────────────────────────
+// Prevent browser context menu on long-press (app has its own)
+document.addEventListener('contextmenu', (e) => {
+  const target = e.target as HTMLElement
+  // Allow context menu on text inputs for copy/paste
+  if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return
+  e.preventDefault()
+}, { passive: false })
+
+// Prevent double-tap-to-zoom on the entire app
+let lastTouchEnd = 0
+document.addEventListener('touchend', (e) => {
+  const now = Date.now()
+  if (now - lastTouchEnd < 300) {
+    e.preventDefault()
+  }
+  lastTouchEnd = now
+}, { passive: false })
+
+// Prevent pinch-zoom on non-canvas elements (browser chrome zoom)
+document.addEventListener('touchmove', (e) => {
+  if (e.touches.length > 1) {
+    const target = e.target as HTMLElement
+    if (target.tagName !== 'CANVAS') {
+      e.preventDefault()
+    }
+  }
+}, { passive: false })
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <ErrorBoundary>

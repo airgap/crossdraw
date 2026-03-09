@@ -5,11 +5,11 @@ import { importSVG } from '@/io/svg-import'
 import { decodeDocument } from '@/io/file-format'
 import type { RasterLayer } from '@/types'
 
-const OPEN_ACCEPT = '.design,.png,.jpg,.jpeg,.gif,.webp,.svg'
+const OPEN_ACCEPT = '.xd,.png,.jpg,.jpeg,.gif,.webp,.svg'
 
 /**
  * Open a file picker and load the selected file as a new document.
- * Supports .design, PNG, JPEG, GIF, WebP, and SVG.
+ * Supports .xd, PNG, JPEG, GIF, WebP, and SVG.
  */
 export async function openFile(): Promise<void> {
   const input = document.createElement('input')
@@ -35,7 +35,7 @@ export async function openFile(): Promise<void> {
 export async function openFileAsDocument(file: File): Promise<void> {
   const name = file.name.toLowerCase()
 
-  if (name.endsWith('.design')) {
+  if (name.endsWith('.xd')) {
     await openDesignFile(file)
   } else if (name.endsWith('.svg') || file.type === 'image/svg+xml') {
     await openSVGAsDocument(file)

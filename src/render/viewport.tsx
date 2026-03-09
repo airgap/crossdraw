@@ -89,6 +89,23 @@ export function Viewport() {
   const addGuide = useEditorStore((s) => s.addGuide)
   const touchMode = useEditorStore((s) => s.touchMode)
 
+  const lastDocId = useRef<string | null>(null)
+
+  // Zoom-to-fit on initial mount and when the document changes (new/open)
+  useEffect(() => {
+    if (document.id !== lastDocId.current) {
+      lastDocId.current = document.id
+      // Defer to next frame so canvas has its layout dimensions
+      requestAnimationFrame(() => {
+        const canvas = canvasRef.current
+        if (canvas) {
+          const rect = canvas.getBoundingClientRect()
+          useEditorStore.getState().zoomToFit(rect.width, rect.height)
+        }
+      })
+    }
+  }, [document.id])
+
   const isPanning = useRef(false)
   const isDragging = useRef(false)
   const lastMouse = useRef({ x: 0, y: 0 })
@@ -128,7 +145,7 @@ export function Viewport() {
 
     // Render each artboard
     for (const artboard of document.artboards) {
-      renderArtboard(ctx, artboard, selection.layerIds)
+      renderArtboard(ctx, artboard, selection.layerIds, viewport.zoom)
     }
 
     // Transform handles (in document space, outside artboard clip)
@@ -359,8 +376,8 @@ export function Viewport() {
       const file = files[0]!
       const name = file.name.toLowerCase()
 
-      // SVG and .design files open as new documents
-      if (name.endsWith('.design') || name.endsWith('.svg') || file.type === 'image/svg+xml') {
+      // SVG and .xd files open as new documents
+      if (name.endsWith('.xd') || name.endsWith('.svg') || file.type === 'image/svg+xml') {
         await openFileAsDocument(file)
       } else if (file.type.startsWith('image/')) {
         // Raster images import into the current canvas
@@ -1275,7 +1292,7 @@ function getCheckerboardPattern(ctx: CanvasRenderingContext2D): CanvasPattern {
   return checkerboardPattern
 }
 
-function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
+function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[], zoom: number) {
   // Transparency checkerboard behind artboard
   ctx.save()
   ctx.fillStyle = getCheckerboardPattern(ctx)
@@ -1291,10 +1308,13 @@ function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selec
   ctx.lineWidth = 1
   ctx.strokeRect(artboard.x, artboard.y, artboard.width, artboard.height)
 
-  // Artboard label
+  // Artboard label (constant screen size regardless of zoom)
+  ctx.save()
+  const fontSize = 12 / zoom
   ctx.fillStyle = '#888'
-  ctx.font = '14px sans-serif'
-  ctx.fillText(artboard.name, artboard.x, artboard.y - 8)
+  ctx.font = `${fontSize}px sans-serif`
+  ctx.fillText(artboard.name, artboard.x, artboard.y - 6 / zoom)
+  ctx.restore()
 
   // Check if any adjustment layers present
   const hasAdjustments = artboard.layers.some((l) => l.type === 'adjustment' && l.visible)

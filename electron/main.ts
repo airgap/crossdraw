@@ -192,7 +192,7 @@ function buildMenu() {
 async function handleOpen() {
   if (!mainWindow) return
   const result = await dialog.showOpenDialog(mainWindow, {
-    filters: [{ name: 'Design Files', extensions: ['design'] }],
+    filters: [{ name: 'Crossdraw Files', extensions: ['xd'] }],
     properties: ['openFile'],
   })
   if (result.canceled || result.filePaths.length === 0) return
@@ -216,8 +216,8 @@ async function handleSave() {
 async function handleSaveAs() {
   if (!mainWindow) return
   const result = await dialog.showSaveDialog(mainWindow, {
-    filters: [{ name: 'Design Files', extensions: ['design'] }],
-    defaultPath: 'untitled.design',
+    filters: [{ name: 'Crossdraw Files', extensions: ['xd'] }],
+    defaultPath: 'untitled.xd',
   })
   if (result.canceled || !result.filePath) return
   currentFilePath = result.filePath
@@ -237,8 +237,8 @@ ipcMain.handle('file:open-dialog', async () => {
   if (!mainWindow) return null
   const result = await dialog.showOpenDialog(mainWindow, {
     filters: [
-      { name: 'All Supported', extensions: ['design', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] },
-      { name: 'Design Files', extensions: ['design'] },
+      { name: 'All Supported', extensions: ['xd', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'] },
+      { name: 'Crossdraw Files', extensions: ['xd'] },
       { name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] },
       { name: 'SVG', extensions: ['svg'] },
     ],
@@ -256,8 +256,8 @@ ipcMain.handle('file:open-dialog', async () => {
 ipcMain.handle('file:save-dialog', async () => {
   if (!mainWindow) return null
   const result = await dialog.showSaveDialog(mainWindow, {
-    filters: [{ name: 'Design Files', extensions: ['design'] }],
-    defaultPath: 'untitled.design',
+    filters: [{ name: 'Crossdraw Files', extensions: ['xd'] }],
+    defaultPath: 'untitled.xd',
   })
   if (result.canceled || !result.filePath) return null
   currentFilePath = result.filePath
@@ -277,13 +277,13 @@ ipcMain.handle('recent-files:get', async () => {
 
 ipcMain.handle('autosave:write', async (_event, data: ArrayBuffer) => {
   if (!existsSync(AUTOSAVE_DIR)) await mkdir(AUTOSAVE_DIR, { recursive: true })
-  const path = join(AUTOSAVE_DIR, 'recovery.design')
+  const path = join(AUTOSAVE_DIR, 'recovery.xd')
   await writeFile(path, Buffer.from(data))
   return path
 })
 
 ipcMain.handle('autosave:check', async () => {
-  const path = join(AUTOSAVE_DIR, 'recovery.design')
+  const path = join(AUTOSAVE_DIR, 'recovery.xd')
   if (existsSync(path)) {
     const data = await readFile(path)
     return { exists: true, data: data.buffer, path }
@@ -292,7 +292,7 @@ ipcMain.handle('autosave:check', async () => {
 })
 
 ipcMain.handle('autosave:clear', async () => {
-  const path = join(AUTOSAVE_DIR, 'recovery.design')
+  const path = join(AUTOSAVE_DIR, 'recovery.xd')
   try {
     const { unlink } = await import('fs/promises')
     await unlink(path)

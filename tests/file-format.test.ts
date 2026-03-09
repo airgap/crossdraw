@@ -190,7 +190,7 @@ describe('File format round-trip', () => {
     const view = new DataView(encoded)
     view.setUint32(6, 999, true)
 
-    expect(() => decodeDocument(encoded)).toThrow('Unsupported .design version')
+    expect(() => decodeDocument(encoded)).toThrow('Unsupported .xd version')
   })
 
   it('should produce compact binary output', () => {

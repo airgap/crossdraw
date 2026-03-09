@@ -7,7 +7,7 @@ const MAGIC = 'DESIGN'
 const FORMAT_VERSION = 2
 
 /**
- * Encode a DesignDocument to a .design binary buffer.
+ * Encode a DesignDocument to a .xd binary buffer.
  *
  * Layout:
  *   [6 bytes] magic "DESIGN"
@@ -53,7 +53,7 @@ export function encodeDocument(doc: DesignDocument): ArrayBuffer {
 }
 
 /**
- * Decode a .design binary buffer back to a DesignDocument.
+ * Decode a .xd binary buffer back to a DesignDocument.
  */
 export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   const view = new DataView(buffer)
@@ -62,13 +62,13 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   // Verify magic
   const magic = String.fromCharCode(...bytes.slice(0, 6))
   if (magic !== MAGIC) {
-    throw new Error(`Invalid .design file: bad magic "${magic}"`)
+    throw new Error(`Invalid .xd file: bad magic "${magic}"`)
   }
 
   // Version
   const version = view.getUint32(6, true)
   if (version > FORMAT_VERSION) {
-    throw new Error(`Unsupported .design version ${version} (max supported: ${FORMAT_VERSION})`)
+    throw new Error(`Unsupported .xd version ${version} (max supported: ${FORMAT_VERSION})`)
   }
 
   // Flags
@@ -83,7 +83,7 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   // Apply migrations if needed
   if (version < FORMAT_VERSION) {
     if (!canMigrate(version, FORMAT_VERSION)) {
-      throw new Error(`Cannot migrate .design file from version ${version} to ${FORMAT_VERSION}`)
+      throw new Error(`Cannot migrate .xd file from version ${version} to ${FORMAT_VERSION}`)
     }
     raw = migrateData(raw, version, FORMAT_VERSION)
   }

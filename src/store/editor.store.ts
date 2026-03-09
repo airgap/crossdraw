@@ -20,6 +20,8 @@ import type {
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
+import { getRasterData, updateRasterCache } from '@/store/raster-data'
+import { storeSnapshot, getSnapshot, deleteSnapshots } from '@/store/raster-undo'
 
 enablePatches()
 
@@ -27,6 +29,9 @@ export interface HistoryEntry {
   description: string
   patches: Patch[]
   inversePatches: Patch[]
+  /** Reference IDs into the external raster-undo store */
+  rasterBeforeId?: number
+  rasterAfterId?: number
 }
 
 export interface EditorState {
@@ -70,7 +75,7 @@ export interface EditorState {
 
 export interface EditorActions {
   // Document
-  newDocument: (width?: number, height?: number) => void
+  newDocument: (opts?: NewDocumentOptions) => void
 
   // Artboard
   addArtboard: (name: string, width: number, height: number) => void
@@ -124,6 +129,7 @@ export interface EditorActions {
   // Viewport
   setZoom: (zoom: number) => void
   setPan: (x: number, y: number) => void
+  zoomToFit: (viewportWidth: number, viewportHeight: number) => void
   setActiveTool: (tool: EditorState['activeTool']) => void
   toggleRulers: () => void
   toggleGrid: () => void
@@ -138,6 +144,7 @@ export interface EditorActions {
   redo: () => void
   canUndo: () => boolean
   canRedo: () => boolean
+  pushRasterHistory: (description: string, chunkId: string, before: ImageData, after: ImageData) => void
 
   // Dirty
   setDirty: (dirty: boolean) => void
@@ -167,16 +174,32 @@ export interface EditorActions {
   toggleTouchMode: () => void
 }
 
-function createDefaultDocument(width = 1920, height = 1080): DesignDocument {
+interface NewDocumentOptions {
+  title?: string
+  width?: number
+  height?: number
+  colorspace?: 'srgb' | 'p3' | 'adobe-rgb'
+  backgroundColor?: string
+  dpi?: number
+}
+
+function createDefaultDocument(opts: NewDocumentOptions = {}): DesignDocument {
+  const {
+    title = 'Untitled',
+    width = 1920,
+    height = 1080,
+    colorspace = 'srgb',
+    backgroundColor = '#ffffff',
+  } = opts
   const artboardId = uuid()
   return {
     id: uuid(),
     metadata: {
-      title: 'Untitled',
+      title,
       author: '',
       created: new Date().toISOString(),
       modified: new Date().toISOString(),
-      colorspace: 'srgb',
+      colorspace,
       width,
       height,
     },
@@ -188,7 +211,7 @@ function createDefaultDocument(width = 1920, height = 1080): DesignDocument {
         y: 0,
         width,
         height,
-        backgroundColor: '#ffffff',
+        backgroundColor,
         layers: [],
       },
     ],
@@ -218,6 +241,67 @@ function createDefaultVectorLayer(name = 'Layer'): VectorLayer {
 }
 
 const MAX_HISTORY = 200
+
+/** Compute bounding box of pixels that differ between two ImageData buffers. */
+function computeDirtyBBox(a: ImageData, b: ImageData): { x: number; y: number; w: number; h: number } | null {
+  const w = a.width
+  const h = a.height
+  const ad = a.data
+  const bd = b.data
+  let minX = w, minY = h, maxX = -1, maxY = -1
+
+  for (let y = 0; y < h; y++) {
+    const rowOff = y * w * 4
+    for (let x = 0; x < w; x++) {
+      const i = rowOff + x * 4
+      if (ad[i] !== bd[i] || ad[i + 1] !== bd[i + 1] || ad[i + 2] !== bd[i + 2] || ad[i + 3] !== bd[i + 3]) {
+        if (x < minX) minX = x
+        if (x > maxX) maxX = x
+        if (y < minY) minY = y
+        if (y > maxY) maxY = y
+      }
+    }
+  }
+
+  if (maxX < 0) return null // no change
+  return { x: minX, y: minY, w: maxX - minX + 1, h: maxY - minY + 1 }
+}
+
+/** Extract a sub-region of ImageData as a compact snapshot. */
+function extractRegion(
+  chunkId: string,
+  source: ImageData,
+  bbox: { x: number; y: number; w: number; h: number },
+): import('@/store/raster-undo').RasterRegion {
+  const { x, y, w, h } = bbox
+  const data = new Uint8ClampedArray(w * h * 4)
+  const sw = source.width
+  const sd = source.data
+  for (let row = 0; row < h; row++) {
+    const srcOff = ((y + row) * sw + x) * 4
+    const dstOff = row * w * 4
+    data.set(sd.subarray(srcOff, srcOff + w * 4), dstOff)
+  }
+  return { chunkId, x, y, width: w, height: h, data }
+}
+
+/** Apply a raster snapshot region back onto the live ImageData + render cache. */
+function applyRasterSnapshot(snapshotId: number) {
+  const snap = getSnapshot(snapshotId)
+  if (!snap) return
+  const target = getRasterData(snap.chunkId)
+  if (!target) return
+  const td = target.data
+  const tw = target.width
+  const { x, y, width: w, height: h, data: sd } = snap
+  for (let row = 0; row < h; row++) {
+    const dstOff = ((y + row) * tw + x) * 4
+    const srcOff = row * w * 4
+    td.set(sd.subarray(srcOff, srcOff + w * 4), dstOff)
+  }
+  // Refresh in-place (no reallocation)
+  updateRasterCache(snap.chunkId)
+}
 
 export const useEditorStore = create<EditorState & EditorActions>()((set, get) => {
   /**
@@ -288,9 +372,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     })(),
 
     // Document
-    newDocument(width, height) {
+    newDocument(opts) {
       set({
-        document: createDefaultDocument(width, height),
+        document: createDefaultDocument(opts),
         history: [],
         historyIndex: -1,
         selection: { layerIds: [] },
@@ -701,6 +785,24 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       set({ viewport: { ...get().viewport, panX: x, panY: y } })
     },
 
+    zoomToFit(viewportWidth, viewportHeight) {
+      const artboard = get().document.artboards[0]
+      if (!artboard || viewportWidth <= 0 || viewportHeight <= 0) return
+      // Account for ruler gutter (20px on each axis) when rulers are visible
+      const rulerSize = get().showRulers ? 20 : 0
+      const availW = viewportWidth - rulerSize
+      const availH = viewportHeight - rulerSize
+      if (availW <= 0 || availH <= 0) return
+      const scale = Math.min(
+        (availW * 0.8) / artboard.width,
+        (availH * 0.8) / artboard.height,
+        10,
+      )
+      const panX = rulerSize + (availW - artboard.width * scale) / 2 - artboard.x * scale
+      const panY = rulerSize + (availH - artboard.height * scale) / 2 - artboard.y * scale
+      set({ viewport: { ...get().viewport, zoom: scale, panX, panY } })
+    },
+
     setActiveTool(tool) {
       set({ activeTool: tool })
     },
@@ -748,7 +850,15 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const { history, historyIndex, document } = get()
       if (historyIndex < 0) return
       const entry = history[historyIndex]!
-      const nextDoc = applyPatches(document, entry.inversePatches)
+      let nextDoc = document
+      if (entry.patches.length > 0) {
+        nextDoc = applyPatches(document, entry.inversePatches)
+      }
+      if (entry.rasterBeforeId != null) {
+        applyRasterSnapshot(entry.rasterBeforeId)
+        // Force new document reference so viewport re-renders
+        if (nextDoc === document) nextDoc = { ...document }
+      }
       set({
         document: nextDoc,
         historyIndex: historyIndex - 1,
@@ -760,7 +870,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const { history, historyIndex, document } = get()
       if (historyIndex >= history.length - 1) return
       const entry = history[historyIndex + 1]!
-      const nextDoc = applyPatches(document, entry.patches)
+      let nextDoc = document
+      if (entry.patches.length > 0) {
+        nextDoc = applyPatches(document, entry.patches)
+      }
+      if (entry.rasterAfterId != null) {
+        applyRasterSnapshot(entry.rasterAfterId)
+        if (nextDoc === document) nextDoc = { ...document }
+      }
       set({
         document: nextDoc,
         historyIndex: historyIndex + 1,
@@ -775,6 +892,52 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     canRedo() {
       const { history, historyIndex } = get()
       return historyIndex < history.length - 1
+    },
+
+    pushRasterHistory(description, chunkId, beforeData, afterData) {
+      const state = get()
+      // Compute dirty bounding box from the diff
+      const bbox = computeDirtyBBox(beforeData, afterData)
+      if (!bbox) return // no pixels changed
+
+      const beforeId = storeSnapshot(extractRegion(chunkId, beforeData, bbox))
+      const afterId = storeSnapshot(extractRegion(chunkId, afterData, bbox))
+
+      // Truncate future history and collect snapshot IDs to clean up
+      const truncated = state.history.slice(state.historyIndex + 1)
+      const idsToDelete: number[] = []
+      for (const e of truncated) {
+        if (e.rasterBeforeId != null) idsToDelete.push(e.rasterBeforeId)
+        if (e.rasterAfterId != null) idsToDelete.push(e.rasterAfterId)
+      }
+      if (idsToDelete.length > 0) deleteSnapshots(idsToDelete)
+
+      const history = state.history.slice(0, state.historyIndex + 1)
+      history.push({
+        description,
+        patches: [],
+        inversePatches: [],
+        rasterBeforeId: beforeId,
+        rasterAfterId: afterId,
+      })
+
+      // Cap history and clean up evicted entries
+      const overflow = history.length - MAX_HISTORY
+      if (overflow > 0) {
+        const evicted = history.splice(0, overflow)
+        const evictIds: number[] = []
+        for (const e of evicted) {
+          if (e.rasterBeforeId != null) evictIds.push(e.rasterBeforeId)
+          if (e.rasterAfterId != null) evictIds.push(e.rasterAfterId)
+        }
+        if (evictIds.length > 0) deleteSnapshots(evictIds)
+      }
+
+      set({
+        history,
+        historyIndex: history.length - 1,
+        isDirty: true,
+      })
     },
 
     setDirty(dirty) {
@@ -805,14 +968,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         // Browser: use File System Access API or download fallback
         try {
           const buffer = encodeDocument(doc)
-          const suggestedName = `${doc.metadata.title || 'Untitled'}.design`
+          const suggestedName = `${doc.metadata.title || 'Untitled'}.xd`
           if ('showSaveFilePicker' in window) {
             const handle = await (window as any).showSaveFilePicker({
               suggestedName,
               types: [
                 {
-                  description: 'Design files',
-                  accept: { 'application/octet-stream': ['.design'] },
+                  description: 'Crossdraw files',
+                  accept: { 'application/octet-stream': ['.xd'] },
                 },
               ],
             })
@@ -859,14 +1022,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         // Browser: always use showSaveFilePicker / download fallback
         try {
           const buffer = encodeDocument(doc)
-          const suggestedName = `${doc.metadata.title || 'Untitled'}.design`
+          const suggestedName = `${doc.metadata.title || 'Untitled'}.xd`
           if ('showSaveFilePicker' in window) {
             const handle = await (window as any).showSaveFilePicker({
               suggestedName,
               types: [
                 {
-                  description: 'Design files',
-                  accept: { 'application/octet-stream': ['.design'] },
+                  description: 'Crossdraw files',
+                  accept: { 'application/octet-stream': ['.xd'] },
                 },
               ],
             })

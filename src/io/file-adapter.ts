@@ -24,8 +24,8 @@ export class BrowserFileAdapter implements FileAdapter {
         const [handle] = await window.showOpenFilePicker!({
           types: [
             {
-              description: 'Design files',
-              accept: { 'application/x-design': ['.design'] },
+              description: 'Crossdraw files',
+              accept: { 'application/x-crossdraw': ['.xd'] },
             },
           ],
         })
@@ -38,7 +38,7 @@ export class BrowserFileAdapter implements FileAdapter {
       return new Promise((resolve) => {
         const input = document.createElement('input')
         input.type = 'file'
-        input.accept = '.design'
+        input.accept = '.xd'
         input.onchange = async () => {
           const file = input.files?.[0]
           if (!file) return resolve(null)
@@ -72,8 +72,8 @@ export class BrowserFileAdapter implements FileAdapter {
           suggestedName: filename,
           types: [
             {
-              description: 'Design files',
-              accept: { 'application/x-design': ['.design'] },
+              description: 'Crossdraw files',
+              accept: { 'application/x-crossdraw': ['.xd'] },
             },
           ],
         })
