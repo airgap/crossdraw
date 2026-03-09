@@ -3,6 +3,23 @@ export interface Env {
   RELEASES: R2Bucket
 }
 
+const mimeTypes: Record<string, string> = {
+  '.apk': 'application/vnd.android.package-archive',
+  '.dmg': 'application/x-apple-diskimage',
+  '.exe': 'application/vnd.microsoft.portable-executable',
+  '.deb': 'application/vnd.debian.binary-package',
+  '.AppImage': 'application/x-executable',
+  '.zip': 'application/zip',
+}
+
+function getContentType(key: string, r2ContentType?: string): string {
+  if (r2ContentType) return r2ContentType
+  for (const [ext, mime] of Object.entries(mimeTypes)) {
+    if (key.endsWith(ext)) return mime
+  }
+  return 'application/octet-stream'
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
@@ -19,7 +36,7 @@ export default {
 
       return new Response(object.body, {
         headers: {
-          'content-type': object.httpMetadata?.contentType ?? 'application/octet-stream',
+          'content-type': getContentType(key, object.httpMetadata?.contentType),
           'content-disposition': `attachment; filename="${key}"`,
           'cache-control': 'public, max-age=3600',
           etag: object.httpEtag,
