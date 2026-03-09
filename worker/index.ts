@@ -35,8 +35,10 @@ export default {
       if (!object) return new Response('Not found', { status: 404 })
 
       const contentType = getContentType(key, object.httpMetadata?.contentType)
+      const filename = key.split('/').pop() ?? key
       const headers = new Headers({
         'content-type': contentType,
+        'content-disposition': `attachment; filename="${filename}"`,
         'cache-control': 'public, max-age=3600, no-transform',
         'x-content-type-options': 'nosniff',
         etag: object.httpEtag,

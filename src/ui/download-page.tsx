@@ -2,6 +2,34 @@ import { useState } from 'react'
 
 const R2_BASE = '/releases'
 
+const apkMime = 'application/vnd.android.package-archive'
+
+function triggerDownload(filename: string, btn?: HTMLElement | null) {
+  if (btn) btn.textContent = 'Downloading…'
+  const url = `${R2_BASE}/${filename}`
+  fetch(url)
+    .then((r) => r.arrayBuffer())
+    .then((buf) => {
+      const mime = filename.endsWith('.apk') ? apkMime : 'application/octet-stream'
+      const blob = new Blob([buf], { type: mime })
+      const a = document.createElement('a')
+      a.href = URL.createObjectURL(blob)
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      setTimeout(() => {
+        document.body.removeChild(a)
+        URL.revokeObjectURL(a.href)
+      }, 1000)
+      if (btn) btn.textContent = 'Done!'
+    })
+    .catch(() => {
+      if (btn) btn.textContent = 'Failed — try direct link'
+      // Fallback: direct navigation
+      window.location.href = url
+    })
+}
+
 // ── SVG Icons ──
 
 function LinuxIcon({ size = 28 }: { size?: number }) {
@@ -245,8 +273,8 @@ export function DownloadPage() {
       {/* Recommended */}
       {recommended && (
         <div style={{ textAlign: 'center', marginBottom: 60 }}>
-          <a
-            href={`${R2_BASE}/${recommended.filename}`}
+          <button
+            onClick={(e) => triggerDownload(recommended.filename, e.currentTarget)}
             style={{
               display: 'inline-flex',
               alignItems: 'center',
@@ -255,7 +283,8 @@ export function DownloadPage() {
               background: '#2563eb',
               color: '#fff',
               borderRadius: 8,
-              textDecoration: 'none',
+              border: 'none',
+              cursor: 'pointer',
               fontSize: 18,
               fontWeight: 600,
               transition: 'background 0.15s',
@@ -265,7 +294,7 @@ export function DownloadPage() {
           >
             <recommended.icon size={24} />
             Download for {recommended.platform}
-          </a>
+          </button>
           <div style={{ color: '#666', fontSize: 13, marginTop: 8 }}>{recommended.filename}</div>
         </div>
       )}
@@ -378,8 +407,8 @@ function DownloadCard({
 }) {
   const Icon = release.icon
   return (
-    <a
-      href={`${R2_BASE}/${release.filename}`}
+    <button
+      onClick={(e) => triggerDownload(release.filename, e.currentTarget)}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -389,9 +418,11 @@ function DownloadCard({
         border: '1px solid',
         borderColor: hovered ? '#333' : '#1a1a1a',
         borderRadius: 8,
-        textDecoration: 'none',
+        cursor: 'pointer',
         color: '#e0e0e0',
         transition: 'all 0.15s',
+        width: '100%',
+        textAlign: 'left',
       }}
       onMouseEnter={() => onHover(release.filename)}
       onMouseLeave={() => onHover(null)}
@@ -401,6 +432,6 @@ function DownloadCard({
         <div style={{ fontWeight: 600, fontSize: 14 }}>{release.name}</div>
         <div style={{ color: '#666', fontSize: 12 }}>{release.filename}</div>
       </div>
-    </a>
+    </button>
   )
 }
