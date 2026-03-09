@@ -37,28 +37,37 @@ function createDabCanvas(size: number, hardness: number, color: string, opacity:
   const canvas = new OffscreenCanvas(dim, dim)
   const ctx = canvas.getContext('2d')!
   const center = dim / 2
-
-  // Parse color for gradient stops with explicit alpha
   const rgb = parseColor(color)
-  const colorOpaque = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
-  const colorTransparent = `rgba(${rgb.r},${rgb.g},${rgb.b},0)`
 
   if (hardness >= 1) {
-    ctx.fillStyle = colorOpaque
+    ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
     ctx.beginPath()
     ctx.arc(center, center, size / 2, 0, Math.PI * 2)
     ctx.fill()
   } else {
-    // Radial gradient: solid core then smooth falloff to transparent
+    // Radial gradient with smooth Gaussian-like falloff.
+    // hardness controls where the solid core ends and the falloff begins.
+    // Multiple stops approximate a smooth curve rather than a linear ramp.
     const grad = ctx.createRadialGradient(center, center, 0, center, center, size / 2)
-    const solidRadius = hardness // fraction of radius that's fully solid
-    if (solidRadius > 0) {
-      grad.addColorStop(0, colorOpaque)
-      grad.addColorStop(solidRadius, colorOpaque)
+    const h = hardness
+    const rgba = (a: number) => `rgba(${rgb.r},${rgb.g},${rgb.b},${a * opacity})`
+
+    if (h > 0) {
+      grad.addColorStop(0, rgba(1))
+      grad.addColorStop(h, rgba(1))
     } else {
-      grad.addColorStop(0, colorOpaque)
+      grad.addColorStop(0, rgba(1))
     }
-    grad.addColorStop(1, colorTransparent)
+    // Smooth curve from solid to transparent using power falloff
+    const fadeStart = Math.max(h, 0.001)
+    const steps = 8
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps // 0..1 within the fade zone
+      const r = fadeStart + (1 - fadeStart) * t
+      // Cubic ease-out for natural soft falloff
+      const alpha = 1 - t * t * t
+      grad.addColorStop(Math.min(r, 1), rgba(alpha))
+    }
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, dim, dim)
   }
@@ -95,8 +104,8 @@ export function createBrushDab(size: number, hardness: number, color: string, op
       if (hardness >= 1) {
         alpha = 1
       } else {
-        const edge = 1 - hardness
-        alpha = dist < 1 - edge ? 1 : Math.max(0, 1 - (dist - (1 - edge)) / edge)
+        const fade = dist <= hardness ? 1 : 1 - ((dist - hardness) / (1 - hardness))
+        alpha = fade * fade * fade // cubic falloff
       }
       alpha *= opacity
 
@@ -120,8 +129,14 @@ function parseColor(hex: string): { r: number; g: number; b: number } {
   }
 }
 
-// Track current stroke's raster layer for incremental painting
+// Track current stroke state
 let activeChunkId: string | null = null
+/** Last point stamped — prevents double-stamping at segment boundaries */
+let lastStampX = 0
+let lastStampY = 0
+/** Distance remainder from last segment for consistent spacing */
+let distRemainder = 0
+let strokeStarted = false
 
 /**
  * Ensure a raster layer exists and return its chunk ID.
@@ -164,12 +179,15 @@ export function beginStroke(): string | null {
   }
 
   activeChunkId = rasterLayer.imageChunkId
+  strokeStarted = false
+  distRemainder = 0
   return activeChunkId
 }
 
 /**
  * Paint dabs along points directly onto the OffscreenCanvas (GPU-accelerated).
- * Falls back to ImageData compositing in non-browser environments (tests).
+ * Tracks distance accumulator across calls for consistent spacing without
+ * double-stamping at segment boundaries.
  */
 export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Partial<BrushSettings>, pressure = 1) {
   // Validate active chunk's layer still exists in the current document
@@ -199,41 +217,62 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
     const ctx = getRasterCanvasCtx(activeChunkId!)
     if (!ctx) return
     const dabCanvas = getCachedDabCanvas(b.size, b.hardness, b.color, b.opacity * b.flow)
-    for (let i = 0; i < points.length; i++) {
-      const pt = points[i]!
-      if (i > 0) {
-        const prev = points[i - 1]!
-        const dx = pt.x - prev.x
-        const dy = pt.y - prev.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const steps = Math.ceil(dist / spacingPx)
-        for (let s = 0; s < steps; s++) {
-          const t = s / steps
-          ctx.drawImage(dabCanvas, prev.x + dx * t - halfDab, prev.y + dy * t - halfDab)
-        }
-      }
-      ctx.drawImage(dabCanvas, pt.x - halfDab, pt.y - halfDab)
-    }
+    stampPoints(points, spacingPx, halfDab, (x, y) => {
+      ctx.drawImage(dabCanvas, x - halfDab, y - halfDab)
+    })
   } else {
     // Fallback: ImageData compositing (for bun test / non-browser)
     const imageData = getRasterData(activeChunkId!)
     if (!imageData) return
     const dab = createBrushDab(b.size, b.hardness, b.color, b.opacity * b.flow)
-    for (let i = 0; i < points.length; i++) {
-      const pt = points[i]!
-      if (i > 0) {
-        const prev = points[i - 1]!
-        const dx = pt.x - prev.x
-        const dy = pt.y - prev.y
-        const dist = Math.sqrt(dx * dx + dy * dy)
-        const steps = Math.ceil(dist / spacingPx)
-        for (let s = 0; s < steps; s++) {
-          const t = s / steps
-          stampDab(imageData, dab, dabSize, prev.x + dx * t - halfDab, prev.y + dy * t - halfDab)
-        }
-      }
-      stampDab(imageData, dab, dabSize, pt.x - halfDab, pt.y - halfDab)
+    stampPoints(points, spacingPx, halfDab, (x, y) => {
+      stampDab(imageData, dab, dabSize, x - halfDab, y - halfDab)
+    })
+  }
+}
+
+/**
+ * Walk along points with consistent spacing, calling stamp() at each dab position.
+ * Tracks state across incremental calls to avoid double-stamping at boundaries.
+ */
+function stampPoints(
+  points: Array<{ x: number; y: number }>,
+  spacingPx: number,
+  _halfDab: number,
+  stamp: (x: number, y: number) => void,
+) {
+  for (let i = 0; i < points.length; i++) {
+    const pt = points[i]!
+
+    if (!strokeStarted) {
+      // First dab of the entire stroke
+      stamp(pt.x, pt.y)
+      lastStampX = pt.x
+      lastStampY = pt.y
+      distRemainder = 0
+      strokeStarted = true
+      continue
     }
+
+    // Walk from lastStamp to this point with spacing
+    const dx = pt.x - lastStampX
+    const dy = pt.y - lastStampY
+    const segLen = Math.sqrt(dx * dx + dy * dy)
+    if (segLen < 0.5) continue
+
+    const ux = dx / segLen
+    const uy = dy / segLen
+
+    let d = spacingPx - distRemainder
+    while (d <= segLen) {
+      const sx = lastStampX + ux * d
+      const sy = lastStampY + uy * d
+      stamp(sx, sy)
+      d += spacingPx
+    }
+    distRemainder = segLen - (d - spacingPx)
+    lastStampX = pt.x
+    lastStampY = pt.y
   }
 }
 
@@ -268,4 +307,6 @@ export function endStroke() {
     syncCanvasToImageData(activeChunkId)
     activeChunkId = null
   }
+  strokeStarted = false
+  distRemainder = 0
 }
