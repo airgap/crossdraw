@@ -34,10 +34,11 @@ export default {
       const object = await env.RELEASES.get(key)
       if (!object) return new Response('Not found', { status: 404 })
 
+      const contentType = getContentType(key, object.httpMetadata?.contentType)
       const headers = new Headers({
-        'content-type': getContentType(key, object.httpMetadata?.contentType),
-        'content-disposition': `attachment; filename="${key}"`,
+        'content-type': contentType,
         'cache-control': 'public, max-age=3600, no-transform',
+        'x-content-type-options': 'nosniff',
         etag: object.httpEtag,
       })
       if (object.size !== undefined) {
