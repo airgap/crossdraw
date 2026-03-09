@@ -196,12 +196,23 @@ pipeline {
                     try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
                 }
                 // Deploy Worker + static assets to Cloudflare
-                sh 'export PATH=$HOME/.bun/bin:$PATH && bun --bun x wrangler deploy'
+                // Install Node 20 via nvm (wrangler requires Node 20+, Jenkins has 18)
+                sh '''
+                    export PATH=$HOME/.bun/bin:$PATH
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                    if ! nvm ls 20 > /dev/null 2>&1; then nvm install 20; fi
+                    nvm use 20
+                    bunx wrangler deploy
+                '''
                 // Upload release binaries to R2
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                    nvm use 20 2>/dev/null || true
                     for f in release/*; do
-                        [ -f "$f" ] && bun --bun x wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f" --remote || true
+                        [ -f "$f" ] && bunx wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f" --remote || true
                     done
                 '''
             }
