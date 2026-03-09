@@ -536,6 +536,31 @@ export function MenuBar() {
           {openMenu === menu.label && <MenuDropdown items={menu.items} onItemClick={handleItemClick} />}
         </div>
       ))}
+      {/* Right-aligned download link */}
+      <div style={{ marginLeft: 'auto' }}>
+        <a
+          href="#/download"
+          style={{
+            padding: '0 12px',
+            height: 28,
+            display: 'flex',
+            alignItems: 'center',
+            color: 'var(--text-secondary)',
+            textDecoration: 'none',
+            fontSize: 'var(--font-size-base)',
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.background = 'var(--bg-hover)'
+            e.currentTarget.style.color = 'var(--text-primary)'
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--text-secondary)'
+          }}
+        >
+          Downloads
+        </a>
+      </div>
     </div>
   )
 }

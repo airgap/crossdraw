@@ -55,6 +55,7 @@ pipeline {
                     }
                     post {
                         success {
+                            stash includes: 'release/*.AppImage,release/*.deb', name: 'electron-linux', allowEmpty: true
                             archiveArtifacts artifacts: 'release/*.AppImage,release/*.deb', fingerprint: true
                         }
                     }
@@ -76,6 +77,7 @@ pipeline {
                     }
                     post {
                         success {
+                            stash includes: 'release/crossdraw-server-*', name: 'server-binaries'
                             archiveArtifacts artifacts: 'release/crossdraw-server-*', fingerprint: true
                         }
                     }
@@ -92,6 +94,7 @@ pipeline {
                     }
                     post {
                         success {
+                            stash includes: 'release/*.dmg,release/*.zip', name: 'electron-macos', allowEmpty: true
                             archiveArtifacts artifacts: 'release/*.dmg,release/*.zip', fingerprint: true
                         }
                     }
@@ -170,6 +173,37 @@ pipeline {
                 //         }
                 //     }
                 // }
+            }
+        }
+
+        // ────────────────────────────────────────────────────────
+        // Stage 3: Deploy to Cloudflare
+        // ────────────────────────────────────────────────────────
+        stage('Deploy') {
+            agent { label 'linux' }
+            environment {
+                CLOUDFLARE_API_TOKEN = credentials('cloudflare-api-token')
+                CLOUDFLARE_ACCOUNT_ID = credentials('cloudflare-account-id')
+            }
+            steps {
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                unstash 'web-dist'
+                // Collect release binaries from parallel stages
+                sh 'mkdir -p release'
+                unstash 'server-binaries'
+                script {
+                    try { unstash 'electron-linux' } catch (e) { echo 'No Electron Linux artifacts' }
+                    try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
+                }
+                // Deploy web app to Cloudflare Pages
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bunx wrangler pages deploy dist --project-name=crossdraw --branch=main'
+                // Upload release binaries to R2
+                sh '''
+                    export PATH=$HOME/.bun/bin:$PATH
+                    for f in release/*; do
+                        [ -f "$f" ] && bunx wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f"
+                    done
+                '''
             }
         }
     }

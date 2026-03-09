@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Viewport } from '@/render/viewport'
 import { Toolbar } from '@/ui/toolbar'
 import { CanvasContextMenu } from '@/ui/context-menu'
@@ -7,11 +7,26 @@ import { MenuBar } from '@/ui/menu-bar'
 import { setupKeyboardShortcuts } from '@/ui/keyboard'
 import { PanelShell } from '@/ui/panels/panel-shell'
 import { ExportModal } from '@/ui/export-modal'
+import { DownloadPage } from '@/ui/download-page'
+
+function useHashRoute() {
+  const [hash, setHash] = useState(window.location.hash)
+  useEffect(() => {
+    const onHashChange = () => setHash(window.location.hash)
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+  return hash
+}
 
 export function App() {
+  const hash = useHashRoute()
+
   useEffect(() => {
-    setupKeyboardShortcuts()
-  }, [])
+    if (hash !== '#/download') setupKeyboardShortcuts()
+  }, [hash])
+
+  if (hash === '#/download') return <DownloadPage />
 
   return (
     <div
