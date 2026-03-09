@@ -34,14 +34,16 @@ export default {
       const object = await env.RELEASES.get(key)
       if (!object) return new Response('Not found', { status: 404 })
 
-      return new Response(object.body, {
-        headers: {
-          'content-type': getContentType(key, object.httpMetadata?.contentType),
-          'content-disposition': `attachment; filename="${key}"`,
-          'cache-control': 'public, max-age=3600',
-          etag: object.httpEtag,
-        },
+      const headers = new Headers({
+        'content-type': getContentType(key, object.httpMetadata?.contentType),
+        'content-disposition': `attachment; filename="${key}"`,
+        'cache-control': 'public, max-age=3600, no-transform',
+        etag: object.httpEtag,
       })
+      if (object.size !== undefined) {
+        headers.set('content-length', object.size.toString())
+      }
+      return new Response(object.body, { headers })
     }
 
     // Try serving static assets; fall back to index.html for SPA routes
