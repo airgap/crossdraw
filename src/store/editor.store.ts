@@ -24,6 +24,7 @@ import type {
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
 import { getRasterData, updateRasterCache } from '@/store/raster-data'
+import { endTextEdit, getTextEditState } from '@/tools/text-edit'
 import { storeSnapshot, getSnapshot, deleteSnapshots } from '@/store/raster-undo'
 import { applyGaussianNoise, applyUniformNoise, applyFilmGrain } from '@/filters/noise'
 
@@ -809,6 +810,11 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     // Selection
     selectLayer(layerId, multiselect = false) {
+      // End text editing if selecting a different layer
+      const textState = getTextEditState()
+      if (textState.active && textState.layerId !== layerId) {
+        endTextEdit()
+      }
       set((state) => ({
         selection: {
           layerIds: multiselect
@@ -821,6 +827,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     },
 
     deselectAll() {
+      // End text editing when deselecting all layers
+      if (getTextEditState().active) {
+        endTextEdit()
+      }
       set({ selection: { layerIds: [] } })
     },
 
@@ -848,6 +858,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     },
 
     setActiveTool(tool) {
+      // End text editing when switching away from text tool
+      if (tool !== 'text' && getTextEditState().active) {
+        endTextEdit()
+      }
       set({ activeTool: tool })
     },
 

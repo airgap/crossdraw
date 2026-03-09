@@ -17,6 +17,48 @@ import type {
 } from '@/types'
 
 /**
+ * Structured CSS selector entry parsed from <style> blocks.
+ * Supports class (.cls), element (rect), ID (#myId), and descendant (g rect) selectors.
+ */
+export interface CSSRule {
+  /** Original selector string for debugging. */
+  selector: string
+  /** Type of selector match strategy. */
+  type: 'class' | 'element' | 'id' | 'descendant'
+  /** For class selectors: the class name (without dot). */
+  className?: string
+  /** For element selectors: the tag name (lowercased). */
+  tagName?: string
+  /** For ID selectors: the id (without hash). */
+  idName?: string
+  /**
+   * For descendant selectors: the ancestor tag and the descendant tag.
+   * We use simplified matching: the last part determines the target element,
+   * and we check that any ancestor matches the first part.
+   */
+  ancestorTag?: string
+  descendantTag?: string
+  /** Also support descendant with class or id as the last part. */
+  descendantClass?: string
+  descendantId?: string
+  /** The CSS properties. */
+  properties: Record<string, string>
+}
+
+/**
+ * Internal context passed through all parsing functions to avoid
+ * threading many maps through every call site.
+ */
+interface ParseContext {
+  styleMap: Map<string, Record<string, string>>
+  gradientMap: Map<string, Gradient>
+  symbolMap: Map<string, Element>
+  elementByIdMap: Map<string, Element>
+  clipPathMap: Map<string, Element>
+  maskMap: Map<string, Element>
+}
+
+/**
  * Parse an SVG string and convert it to a DesignDocument.
  */
 export function importSVG(svgString: string): DesignDocument {
@@ -43,16 +85,36 @@ export function importSVG(svgString: string): DesignDocument {
   // Parse CSS <style> elements for class-based styling
   const styleMap = parseSVGStyles(svgEl)
 
-  // Parse <defs> for gradients
+  // Parse <defs> for gradients, symbols, clipPaths, and masks
   const gradientMap = new Map<string, Gradient>()
+  const symbolMap = new Map<string, Element>()
+  const clipPathMap = new Map<string, Element>()
+  const maskMap = new Map<string, Element>()
   for (const defs of svgEl.querySelectorAll('defs')) {
     parseGradientDefs(defs, gradientMap)
+    parseSymbolDefs(defs, symbolMap)
+    parseClipPathDefs(defs, clipPathMap)
+    parseMaskDefs(defs, maskMap)
   }
+  // Also collect top-level <symbol> elements (they can appear outside <defs>)
+  for (const sym of svgEl.querySelectorAll('symbol')) {
+    const id = sym.getAttribute('id')
+    if (id && !symbolMap.has(id)) symbolMap.set(id, sym)
+  }
+
+  // Build a map of all elements by id for <use> referencing non-symbol elements
+  const elementByIdMap = new Map<string, Element>()
+  for (const el of svgEl.querySelectorAll('[id]')) {
+    const id = el.getAttribute('id')
+    if (id) elementByIdMap.set(id, el)
+  }
+
+  const ctx: ParseContext = { styleMap, gradientMap, symbolMap, elementByIdMap, clipPathMap, maskMap }
 
   const layers: Layer[] = []
   for (const child of svgEl.children) {
     if (child.tagName === 'defs' || child.tagName === 'style') continue
-    const layer = parseSVGElement(child as SVGElement, styleMap, gradientMap)
+    const layer = parseSVGElement(child as SVGElement, ctx)
     if (layer) layers.push(layer)
   }
 
@@ -182,7 +244,6 @@ function getStyleAttr(el: SVGElement, attr: string, classStyles: Record<string, 
 /** Resolve `currentColor` to a concrete color value. Walks up the tree for CSS `color`. */
 function resolveCurrentColor(value: string, el: SVGElement): string {
   if (value !== 'currentColor') return value
-  // Look for an explicit `color` property on the element or its ancestors
   let node: SVGElement | null = el
   while (node) {
     const inline = parseInlineStyle(node)
@@ -190,48 +251,125 @@ function resolveCurrentColor(value: string, el: SVGElement): string {
     if (c && c !== 'currentColor') return c
     node = node.parentElement as SVGElement | null
   }
-  // SVG spec: currentColor with no color property defaults to black
   return '#000000'
 }
 
-function parseSVGElement(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): Layer | null {
-  const tag = el.tagName.toLowerCase()
+/**
+ * Extract the referenced id from a url(#id) attribute value.
+ */
+function extractUrlId(value: string | null): string | null {
+  if (!value) return null
+  const m = value.match(/url\(\s*#([^)]+)\s*\)/)
+  return m ? m[1]! : null
+}
 
-  switch (tag) {
-    case 'g':
-      return parseGroup(el, styleMap, gradientMap)
-    case 'path':
-      return parsePath(el, styleMap, gradientMap)
-    case 'rect':
-      return parseRect(el, styleMap, gradientMap)
-    case 'circle':
-      return parseCircle(el, styleMap, gradientMap)
-    case 'ellipse':
-      return parseEllipse(el, styleMap, gradientMap)
-    case 'line':
-      return parseLine(el, styleMap, gradientMap)
-    case 'polyline':
-    case 'polygon':
-      return parsePolyShape(el, tag === 'polygon', styleMap, gradientMap)
-    case 'text':
-      return parseText(el, styleMap)
-    default:
-      return null
+/**
+ * Resolve a clip-path or mask reference on an element and attach it to the layer.
+ */
+function applyClipAndMask(el: SVGElement, layer: Layer, ctx: ParseContext): void {
+  const clipPathAttr = el.getAttribute('clip-path') ?? parseInlineStyle(el)['clip-path'] ?? null
+  const clipId = extractUrlId(clipPathAttr)
+  if (clipId) {
+    const clipEl = ctx.clipPathMap.get(clipId)
+    if (clipEl) {
+      const maskLayer = parseClipOrMaskElement(clipEl, ctx)
+      if (maskLayer) {
+        layer.mask = maskLayer
+      }
+    }
+  }
+
+  const maskAttr = el.getAttribute('mask') ?? parseInlineStyle(el)['mask'] ?? null
+  const maskId = extractUrlId(maskAttr)
+  if (maskId) {
+    const maskEl = ctx.maskMap.get(maskId)
+    if (maskEl) {
+      const maskLayer = parseClipOrMaskElement(maskEl, ctx)
+      if (maskLayer) {
+        layer.mask = maskLayer
+      }
+    }
   }
 }
 
-function parseGroup(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): GroupLayer {
+/**
+ * Parse a <clipPath> or <mask> element's children into a single Layer
+ * suitable for use as the `mask` field on BaseLayer.
+ */
+function parseClipOrMaskElement(el: Element, ctx: ParseContext): Layer | null {
   const children: Layer[] = []
   for (const child of el.children) {
-    const layer = parseSVGElement(child as SVGElement, styleMap, gradientMap)
+    const childTag = child.tagName.toLowerCase()
+    if (childTag === 'desc' || childTag === 'title' || childTag === 'metadata') continue
+    const layer = parseSVGElement(child as SVGElement, ctx)
+    if (layer) children.push(layer)
+  }
+
+  if (children.length === 0) return null
+  if (children.length === 1) return children[0]!
+
+  return {
+    id: uuid(),
+    name: el.getAttribute('id') ?? 'Clip/Mask',
+    type: 'group',
+    visible: true,
+    locked: false,
+    opacity: 1,
+    blendMode: 'normal',
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+    effects: [],
+    children,
+  } as GroupLayer
+}
+
+function parseSVGElement(el: SVGElement, ctx: ParseContext): Layer | null {
+  const tag = el.tagName.toLowerCase()
+
+  let layer: Layer | null = null
+  switch (tag) {
+    case 'g':
+      layer = parseGroup(el, ctx)
+      break
+    case 'path':
+      layer = parsePath(el, ctx)
+      break
+    case 'rect':
+      layer = parseRect(el, ctx)
+      break
+    case 'circle':
+      layer = parseCircle(el, ctx)
+      break
+    case 'ellipse':
+      layer = parseEllipse(el, ctx)
+      break
+    case 'line':
+      layer = parseLine(el, ctx)
+      break
+    case 'polyline':
+    case 'polygon':
+      layer = parsePolyShape(el, tag === 'polygon', ctx)
+      break
+    case 'text':
+      layer = parseText(el, ctx)
+      break
+    case 'use':
+      layer = parseUse(el, ctx)
+      break
+    default:
+      return null
+  }
+
+  if (layer) {
+    applyClipAndMask(el, layer, ctx)
+  }
+
+  return layer
+}
+
+function parseGroup(el: SVGElement, ctx: ParseContext): GroupLayer {
+  const children: Layer[] = []
+  for (const child of el.children) {
+    const layer = parseSVGElement(child as SVGElement, ctx)
     if (layer) children.push(layer)
   }
 
@@ -270,7 +408,6 @@ function parseFill(
   const fillStr = getStyleAttr(el, 'fill', classStyles)
   if (!fillStr || fillStr === 'none') return null
 
-  // Check for gradient URL reference
   const urlMatch = fillStr.match(/url\(#([^)]+)\)/)
   if (urlMatch) {
     const gradId = urlMatch[1]!
@@ -316,12 +453,8 @@ function parseDashArray(str: string | null): number[] | undefined {
   return vals.length > 0 ? vals : undefined
 }
 
-function parsePath(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): VectorLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parsePath(el: SVGElement, ctx: ParseContext): VectorLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const d = el.getAttribute('d') ?? ''
   const segments = parseSVGPathD(d)
   const fillRule = (el.getAttribute('fill-rule') ?? classStyles['fill-rule']) as 'nonzero' | 'evenodd' | undefined
@@ -337,17 +470,13 @@ function parsePath(
     ...makeBaseLayer(el, 'Path'),
     type: 'vector',
     paths: [path],
-    fill: parseFill(el, classStyles, gradientMap),
+    fill: parseFill(el, classStyles, ctx.gradientMap),
     stroke: parseStroke(el, classStyles),
   }
 }
 
-function parseRect(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): VectorLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parseRect(el: SVGElement, ctx: ParseContext): VectorLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const x = parseFloat(el.getAttribute('x') ?? '0')
   const y = parseFloat(el.getAttribute('y') ?? '0')
   const w = parseFloat(el.getAttribute('width') ?? '0')
@@ -357,7 +486,6 @@ function parseRect(
 
   let segments: Segment[]
   if (rx > 0 || ry > 0) {
-    // Rounded rectangle via arcs
     const r = Math.min(rx, w / 2, h / 2)
     segments = [
       { type: 'move', x: x + r, y },
@@ -385,41 +513,32 @@ function parseRect(
     ...makeBaseLayer(el, 'Rectangle'),
     type: 'vector',
     paths: [{ id: uuid(), segments, closed: true }],
-    fill: parseFill(el, classStyles, gradientMap),
+    fill: parseFill(el, classStyles, ctx.gradientMap),
     stroke: parseStroke(el, classStyles),
     shapeParams: { shapeType: 'rectangle', width: w, height: h, cornerRadius: rx || undefined },
   }
 }
 
-function parseCircle(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): VectorLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parseCircle(el: SVGElement, ctx: ParseContext): VectorLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const cx = parseFloat(el.getAttribute('cx') ?? '0')
   const cy = parseFloat(el.getAttribute('cy') ?? '0')
   const r = parseFloat(el.getAttribute('r') ?? '0')
 
-  // Approximate circle as 4 cubic Bezier arcs
   const segments = circleToSegments(cx, cy, r, r)
 
   return {
     ...makeBaseLayer(el, 'Circle'),
     type: 'vector',
     paths: [{ id: uuid(), segments, closed: true }],
-    fill: parseFill(el, classStyles, gradientMap),
+    fill: parseFill(el, classStyles, ctx.gradientMap),
     stroke: parseStroke(el, classStyles),
     shapeParams: { shapeType: 'ellipse', width: r * 2, height: r * 2 },
   }
 }
 
-function parseEllipse(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): VectorLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parseEllipse(el: SVGElement, ctx: ParseContext): VectorLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const cx = parseFloat(el.getAttribute('cx') ?? '0')
   const cy = parseFloat(el.getAttribute('cy') ?? '0')
   const rx = parseFloat(el.getAttribute('rx') ?? '0')
@@ -431,14 +550,13 @@ function parseEllipse(
     ...makeBaseLayer(el, 'Ellipse'),
     type: 'vector',
     paths: [{ id: uuid(), segments, closed: true }],
-    fill: parseFill(el, classStyles, gradientMap),
+    fill: parseFill(el, classStyles, ctx.gradientMap),
     stroke: parseStroke(el, classStyles),
     shapeParams: { shapeType: 'ellipse', width: rx * 2, height: ry * 2 },
   }
 }
 
 function circleToSegments(cx: number, cy: number, rx: number, ry: number): Segment[] {
-  // 4 cubic Bezier curves approximation (kappa = 0.5522847498)
   const k = 0.5522847498
   const kx = rx * k
   const ky = ry * k
@@ -452,12 +570,8 @@ function circleToSegments(cx: number, cy: number, rx: number, ry: number): Segme
   ]
 }
 
-function parseLine(
-  el: SVGElement,
-  styleMap: Map<string, Record<string, string>>,
-  _gradientMap: Map<string, Gradient>,
-): VectorLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parseLine(el: SVGElement, ctx: ParseContext): VectorLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const x1 = parseFloat(el.getAttribute('x1') ?? '0')
   const y1 = parseFloat(el.getAttribute('y1') ?? '0')
   const x2 = parseFloat(el.getAttribute('x2') ?? '0')
@@ -481,13 +595,8 @@ function parseLine(
   }
 }
 
-function parsePolyShape(
-  el: SVGElement,
-  closed: boolean,
-  styleMap: Map<string, Record<string, string>>,
-  gradientMap: Map<string, Gradient>,
-): VectorLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parsePolyShape(el: SVGElement, closed: boolean, ctx: ParseContext): VectorLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const pointsStr = el.getAttribute('points') ?? ''
   const coords = pointsStr
     .trim()
@@ -506,13 +615,13 @@ function parsePolyShape(
     ...makeBaseLayer(el, closed ? 'Polygon' : 'Polyline'),
     type: 'vector',
     paths: [{ id: uuid(), segments, closed }],
-    fill: closed ? parseFill(el, classStyles, gradientMap) : null,
+    fill: closed ? parseFill(el, classStyles, ctx.gradientMap) : null,
     stroke: parseStroke(el, classStyles),
   }
 }
 
-function parseText(el: SVGElement, styleMap: Map<string, Record<string, string>>): TextLayer {
-  const classStyles = resolveClassStyles(el, styleMap)
+function parseText(el: SVGElement, ctx: ParseContext): TextLayer {
+  const classStyles = resolveClassStyles(el, ctx.styleMap)
   const x = parseFloat(el.getAttribute('x') ?? '0')
   const y = parseFloat(el.getAttribute('y') ?? '0')
   const text = el.textContent ?? ''
@@ -539,21 +648,193 @@ function parseText(el: SVGElement, styleMap: Map<string, Record<string, string>>
   }
 }
 
+// --- <use> / <symbol> support ---
+
+/**
+ * Parse <symbol> definitions from a <defs> element and store them in the map.
+ */
+function parseSymbolDefs(defs: Element, symbolMap: Map<string, Element>): void {
+  for (const sym of defs.querySelectorAll('symbol')) {
+    const id = sym.getAttribute('id')
+    if (id) symbolMap.set(id, sym)
+  }
+}
+
+/**
+ * Parse a <use> element by resolving its href to a <symbol> or any other element,
+ * cloning the referenced element's content, and applying the <use> element's
+ * x/y/width/height as transform offsets (and viewBox scaling for symbols).
+ */
+function parseUse(el: SVGElement, ctx: ParseContext): Layer | null {
+  // Resolve the referenced element id from href or xlink:href
+  const href = el.getAttribute('href') ?? el.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
+  if (!href) return null
+  const refId = href.startsWith('#') ? href.slice(1) : href
+
+  // Positional offsets from the <use> element
+  const useX = parseFloat(el.getAttribute('x') ?? '0')
+  const useY = parseFloat(el.getAttribute('y') ?? '0')
+  const useWidth = el.getAttribute('width') ? parseFloat(el.getAttribute('width')!) : null
+  const useHeight = el.getAttribute('height') ? parseFloat(el.getAttribute('height')!) : null
+
+  // Check if reference is a <symbol>
+  const symbolEl = ctx.symbolMap.get(refId)
+  if (symbolEl) {
+    return parseUseSymbol(el, symbolEl, useX, useY, useWidth, useHeight, ctx)
+  }
+
+  // Otherwise look up any element by id (g, rect, path, circle, etc.)
+  const refEl = ctx.elementByIdMap.get(refId)
+  if (!refEl) return null
+
+  return parseUseElement(el, refEl as SVGElement, useX, useY, ctx)
+}
+
+/**
+ * Handle <use> referencing a <symbol>.
+ */
+function parseUseSymbol(
+  useEl: SVGElement,
+  symbolEl: Element,
+  useX: number,
+  useY: number,
+  useWidth: number | null,
+  useHeight: number | null,
+  ctx: ParseContext,
+): GroupLayer {
+  const children: Layer[] = []
+  for (const child of symbolEl.children) {
+    const childTag = child.tagName.toLowerCase()
+    if (childTag === 'desc' || childTag === 'title' || childTag === 'metadata') continue
+    const layer = parseSVGElement(child as SVGElement, ctx)
+    if (layer) children.push(layer)
+  }
+
+  const useTransform = parseTransformAttr(useEl.getAttribute('transform'))
+
+  // Check for viewBox on the symbol to compute scaling
+  const viewBox = symbolEl.getAttribute('viewBox')
+  let scaleX = 1
+  let scaleY = 1
+  if (viewBox && (useWidth !== null || useHeight !== null)) {
+    const vbParts = viewBox.split(/[\s,]+/).map(Number)
+    if (vbParts.length === 4) {
+      const vbW = vbParts[2]!
+      const vbH = vbParts[3]!
+      if (vbW > 0 && useWidth !== null) scaleX = useWidth / vbW
+      if (vbH > 0 && useHeight !== null) scaleY = useHeight / vbH
+    }
+  }
+
+  const finalTransform: Transform = {
+    x: useTransform.x + useX,
+    y: useTransform.y + useY,
+    scaleX: useTransform.scaleX * scaleX,
+    scaleY: useTransform.scaleY * scaleY,
+    rotation: useTransform.rotation,
+  }
+  if (useTransform.skewX) finalTransform.skewX = useTransform.skewX
+  if (useTransform.skewY) finalTransform.skewY = useTransform.skewY
+
+  return {
+    id: uuid(),
+    name: useEl.getAttribute('id') ?? symbolEl.getAttribute('id') ?? 'Symbol Instance',
+    type: 'group',
+    visible: true,
+    locked: false,
+    opacity: parseFloat(useEl.getAttribute('opacity') ?? '1'),
+    blendMode: 'normal',
+    transform: finalTransform,
+    effects: [],
+    children,
+  }
+}
+
+/**
+ * Handle <use> referencing a regular element (g, rect, path, etc.).
+ */
+function parseUseElement(
+  useEl: SVGElement,
+  refEl: SVGElement,
+  useX: number,
+  useY: number,
+  ctx: ParseContext,
+): Layer | null {
+  const layer = parseSVGElement(refEl, ctx)
+  if (!layer) return null
+
+  const cloned = deepCloneLayer(layer)
+
+  const useTransform = parseTransformAttr(useEl.getAttribute('transform'))
+  cloned.transform = {
+    x: cloned.transform.x + useX + useTransform.x,
+    y: cloned.transform.y + useY + useTransform.y,
+    scaleX: cloned.transform.scaleX * useTransform.scaleX,
+    scaleY: cloned.transform.scaleY * useTransform.scaleY,
+    rotation: cloned.transform.rotation + useTransform.rotation,
+  }
+
+  const useId = useEl.getAttribute('id')
+  if (useId) cloned.name = useId
+
+  const useOpacity = useEl.getAttribute('opacity')
+  if (useOpacity) cloned.opacity = parseFloat(useOpacity)
+
+  return cloned
+}
+
+/**
+ * Deep clone a Layer, assigning fresh UUIDs to it and all nested children/paths.
+ */
+function deepCloneLayer(layer: Layer): Layer {
+  const cloned = { ...layer, id: uuid() }
+
+  if (cloned.type === 'group') {
+    ;(cloned as GroupLayer).children = (cloned as GroupLayer).children.map((c) => deepCloneLayer(c))
+  }
+  if (cloned.type === 'vector') {
+    ;(cloned as VectorLayer).paths = (cloned as VectorLayer).paths.map((p) => ({
+      ...p,
+      id: uuid(),
+      segments: [...p.segments],
+    }))
+  }
+  if (cloned.mask) {
+    cloned.mask = deepCloneLayer(cloned.mask)
+  }
+
+  return cloned
+}
+
+// --- <clipPath> / <mask> defs parsing ---
+
+function parseClipPathDefs(defs: Element, clipPathMap: Map<string, Element>): void {
+  for (const cp of defs.querySelectorAll('clipPath')) {
+    const id = cp.getAttribute('id')
+    if (id) clipPathMap.set(id, cp)
+  }
+}
+
+function parseMaskDefs(defs: Element, maskMap: Map<string, Element>): void {
+  for (const m of defs.querySelectorAll('mask')) {
+    const id = m.getAttribute('id')
+    if (id) maskMap.set(id, m)
+  }
+}
+
 // --- SVG Path `d` attribute parser ---
 
 export function parseSVGPathD(d: string): Segment[] {
   const segments: Segment[] = []
-  // Tokenize: split into commands with their parameters
   const tokens = tokenizePathD(d)
   let cx = 0,
-    cy = 0 // current point
+    cy = 0
   let startX = 0,
-    startY = 0 // start of current subpath
-  // Track last control point for S/T smooth curve reflection
+    startY = 0
   let lastCp2x = 0,
-    lastCp2y = 0 // last cubic cp2
+    lastCp2y = 0
   let lastQpx = 0,
-    lastQpy = 0 // last quadratic cp
+    lastQpy = 0
   let lastCmd = ''
 
   for (const token of tokens) {
@@ -638,7 +919,6 @@ export function parseSVGPathD(d: string): Segment[] {
         break
       }
       case 'S': {
-        // Smooth cubic: reflects previous cp2 to get cp1
         for (let i = 0; i < args.length; i += 4) {
           let cp2x = args[i]!,
             cp2y = args[i + 1]!
@@ -650,7 +930,6 @@ export function parseSVGPathD(d: string): Segment[] {
             x += cx
             y += cy
           }
-          // cp1 is reflection of last cp2 around current point
           let cp1x: number, cp1y: number
           if (lastCmd === 'C' || lastCmd === 'S') {
             cp1x = 2 * cx - lastCp2x
@@ -688,7 +967,6 @@ export function parseSVGPathD(d: string): Segment[] {
         break
       }
       case 'T': {
-        // Smooth quadratic: reflects previous control point
         for (let i = 0; i < args.length; i += 2) {
           let x = args[i]!,
             y = args[i + 1]!
@@ -749,15 +1027,6 @@ interface PathToken {
   args: number[]
 }
 
-/**
- * Tokenize an SVG path `d` string into command+args tokens.
- *
- * Handles tricky SVG path spec edge cases:
- *   - Numbers separated only by a second decimal point: ".5.5" → [0.5, 0.5]
- *   - Arc flag compression: "0 00-4.5-1.5" → [0, 0, 0, -4.5, -1.5]
- *   - Scientific notation: "1e-5"
- *   - Negative sign as separator: "10-20" → [10, -20]
- */
 function tokenizePathD(d: string): PathToken[] {
   const tokens: PathToken[] = []
   let i = 0
@@ -772,14 +1041,12 @@ function tokenizePathD(d: string): PathToken[] {
     skipWhitespaceComma()
     if (i >= len) return null
     const start = i
-    // Optional sign
     if (d[i] === '+' || d[i] === '-') i++
-    // Integer or decimal part
     let hasDot = false
     let hasDigit = false
     while (i < len && ((d[i]! >= '0' && d[i]! <= '9') || d[i] === '.')) {
       if (d[i] === '.') {
-        if (hasDot) break // second dot starts new number
+        if (hasDot) break
         hasDot = true
       } else {
         hasDigit = true
@@ -794,7 +1061,6 @@ function tokenizePathD(d: string): PathToken[] {
       i = start
       return null
     }
-    // Optional exponent
     if (i < len && (d[i] === 'e' || d[i] === 'E')) {
       i++
       if (i < len && (d[i] === '+' || d[i] === '-')) i++
@@ -825,12 +1091,10 @@ function tokenizePathD(d: string): PathToken[] {
       }
     }
 
-    // Parse arguments for the current command
     const args: number[] = []
     const isArc = currentCmd === 'A' || currentCmd === 'a'
 
     if (isArc) {
-      // Arc: (rx ry rotation large-arc-flag sweep-flag x y)+
       while (true) {
         const saved = i
         const rx = parseNumber()
@@ -871,7 +1135,6 @@ function tokenizePathD(d: string): PathToken[] {
         args.push(rx, ry, rotation, largeArc, sweep, x, y)
       }
     } else {
-      // Non-arc commands: just parse numbers
       while (true) {
         const saved = i
         const n = parseNumber()
@@ -893,23 +1156,12 @@ function tokenizePathD(d: string): PathToken[] {
 
 // --- Transform attribute parser ---
 
-/**
- * Parse an SVG transform attribute string into a decomposed Transform.
- * Supports chained transforms: "translate(10,20) rotate(45) scale(2)"
- * All functions are composed left-to-right via matrix multiplication,
- * then decomposed into translate, scale, rotation.
- */
 export function parseTransformAttr(attr: string | null): Transform {
   const identity: Transform = { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 }
   if (!attr) return identity
 
-  // Accumulate as a 3x2 affine matrix [a, b, c, d, e, f]
-  // Represents: | a c e |
-  //             | b d f |
-  //             | 0 0 1 |
   let m: [number, number, number, number, number, number] = [1, 0, 0, 1, 0, 0]
 
-  // Match all transform functions in order
   const fnRegex = /(translate|scale|rotate|matrix|skewX|skewY)\s*\(([^)]*)\)/gi
   let match: RegExpExecArray | null
   while ((match = fnRegex.exec(attr)) !== null) {
@@ -940,7 +1192,6 @@ export function parseTransformAttr(attr: string | null): Transform {
         const cos = Math.cos(rad)
         const sin = Math.sin(rad)
         if (rcx !== 0 || rcy !== 0) {
-          // rotate(a, cx, cy) = translate(cx,cy) * rotate(a) * translate(-cx,-cy)
           fm = [cos, sin, -sin, cos, rcx * (1 - cos) + rcy * sin, rcy * (1 - cos) - rcx * sin]
         } else {
           fm = [cos, sin, -sin, cos, 0, 0]
@@ -965,14 +1216,12 @@ export function parseTransformAttr(attr: string | null): Transform {
         continue
     }
 
-    // Multiply: m = m * fm
     m = multiplyMatrix(m, fm)
   }
 
   return decomposeMatrix(m)
 }
 
-/** Multiply two 3x2 affine matrices. */
 function multiplyMatrix(
   a: [number, number, number, number, number, number],
   b: [number, number, number, number, number, number],
@@ -987,63 +1236,193 @@ function multiplyMatrix(
   ]
 }
 
-/** Decompose a 3x2 affine matrix into translate, scale, rotation. */
 function decomposeMatrix(m: [number, number, number, number, number, number]): Transform {
   const [a, b, c, d, e, f] = m
-  return {
+
+  const scaleX = Math.sqrt(a * a + b * b)
+  const rotation = Math.atan2(b, a)
+
+  const cos = Math.cos(rotation)
+  const sin = Math.sin(rotation)
+
+  const rc = cos * c + sin * d
+  const rd = -sin * c + cos * d
+  const scaleY = rd
+  const skewX = scaleY !== 0 ? Math.atan(rc / scaleY) * (180 / Math.PI) : 0
+
+  const result: Transform = {
     x: e,
     y: f,
-    scaleX: Math.sqrt(a * a + b * b),
-    scaleY: Math.sqrt(c * c + d * d),
-    rotation: Math.atan2(b, a) * (180 / Math.PI),
+    scaleX,
+    scaleY: Math.abs(scaleY),
+    rotation: rotation * (180 / Math.PI),
   }
+
+  if (Math.abs(skewX) > 1e-6) {
+    result.skewX = skewX
+  }
+
+  return result
 }
 
 // --- Gradient defs parser ---
+// --- Gradient defs parser ---
 
 function parseGradientDefs(defs: Element, gradientMap: Map<string, Gradient>) {
+  // First pass: collect all gradient elements without resolving inheritance
+  const rawGradients = new Map<string, { el: Element; type: 'linear' | 'radial' }>()
+
   for (const el of defs.querySelectorAll('linearGradient')) {
     const id = el.getAttribute('id')
     if (!id) continue
-    const stops = parseGradientStops(el)
-    const defaultDithering: DitheringConfig = { enabled: false, algorithm: 'none', strength: 0, seed: 0 }
-
-    gradientMap.set(id, {
-      id,
-      name: id,
-      type: 'linear',
-      x: parseFloat(el.getAttribute('x1') ?? '0'),
-      y: parseFloat(el.getAttribute('y1') ?? '0'),
-      angle: 0,
-      stops,
-      dithering: defaultDithering,
-    })
+    rawGradients.set(id, { el, type: 'linear' })
   }
 
   for (const el of defs.querySelectorAll('radialGradient')) {
     const id = el.getAttribute('id')
     if (!id) continue
-    const stops = parseGradientStops(el)
-    const defaultDithering: DitheringConfig = { enabled: false, algorithm: 'none', strength: 0, seed: 0 }
+    rawGradients.set(id, { el, type: 'radial' })
+  }
 
-    gradientMap.set(id, {
+  // Second pass: resolve inheritance and build gradient objects
+  for (const [id, { el, type }] of rawGradients) {
+    resolveGradient(id, el, type, rawGradients, gradientMap)
+  }
+}
+
+/**
+ * Resolve a gradient, following href/xlink:href inheritance chains.
+ * Caches the result in gradientMap to avoid re-resolving.
+ */
+function resolveGradient(
+  id: string,
+  el: Element,
+  type: 'linear' | 'radial',
+  rawGradients: Map<string, { el: Element; type: 'linear' | 'radial' }>,
+  gradientMap: Map<string, Gradient>,
+): Gradient {
+  // Already resolved
+  const cached = gradientMap.get(id)
+  if (cached) return cached
+
+  const defaultDithering: DitheringConfig = { enabled: false, algorithm: 'none', strength: 0, seed: 0 }
+
+  // Resolve inheritance via href or xlink:href
+  let inherited: Gradient | null = null
+  const href = el.getAttribute('href') ?? el.getAttributeNS('http://www.w3.org/1999/xlink', 'href')
+  if (href && href.startsWith('#')) {
+    const refId = href.slice(1)
+    const ref = rawGradients.get(refId)
+    if (ref && refId !== id) {
+      inherited = resolveGradient(refId, ref.el, ref.type, rawGradients, gradientMap)
+    }
+  }
+
+  // Parse stops — use own stops if present, otherwise inherit
+  let stops = parseGradientStops(el)
+  if (stops.length === 0 && inherited) {
+    stops = [...inherited.stops]
+  }
+
+  // Parse gradientUnits
+  const unitsAttr = el.getAttribute('gradientUnits')
+  const gradientUnits: 'objectBoundingBox' | 'userSpaceOnUse' | undefined =
+    unitsAttr === 'userSpaceOnUse'
+      ? 'userSpaceOnUse'
+      : unitsAttr === 'objectBoundingBox'
+        ? 'objectBoundingBox'
+        : inherited?.gradientUnits
+
+  // Parse gradientTransform
+  const gtAttr = el.getAttribute('gradientTransform')
+  let gradientTransform = inherited?.gradientTransform
+  if (gtAttr) {
+    const parsed = parseTransformAttr(gtAttr)
+    gradientTransform = {
+      rotate: parsed.rotation !== 0 ? parsed.rotation : undefined,
+      scaleX: parsed.scaleX !== 1 ? parsed.scaleX : undefined,
+      scaleY: parsed.scaleY !== 1 ? parsed.scaleY : undefined,
+      translateX: parsed.x !== 0 ? parsed.x : undefined,
+      translateY: parsed.y !== 0 ? parsed.y : undefined,
+    }
+    // Clean up if all values are undefined
+    if (
+      gradientTransform.rotate === undefined &&
+      gradientTransform.scaleX === undefined &&
+      gradientTransform.scaleY === undefined &&
+      gradientTransform.translateX === undefined &&
+      gradientTransform.translateY === undefined
+    ) {
+      gradientTransform = undefined
+    }
+  }
+
+  let gradient: Gradient
+
+  if (type === 'linear') {
+    // Parse x1, y1, x2, y2 — fall back to inherited values, then SVG defaults
+    const x1 = parseFloatAttr(el, 'x1') ?? (inherited?.x ?? 0)
+    const y1 = parseFloatAttr(el, 'y1') ?? (inherited?.y ?? 0)
+    const x2 = parseFloatAttr(el, 'x2') ?? 1
+    const y2 = parseFloatAttr(el, 'y2') ?? 0
+
+    // Compute angle from the direction vector (x1,y1) -> (x2,y2)
+    const dx = x2 - x1
+    const dy = y2 - y1
+    const angle = Math.atan2(dy, dx) * (180 / Math.PI)
+
+    gradient = {
+      id,
+      name: id,
+      type: 'linear',
+      x: x1,
+      y: y1,
+      angle,
+      stops,
+      dithering: defaultDithering,
+      ...(gradientUnits ? { gradientUnits } : {}),
+      ...(gradientTransform ? { gradientTransform } : {}),
+    }
+  } else {
+    // radialGradient
+    const cx = parseFloatAttr(el, 'cx') ?? (inherited?.x ?? 0.5)
+    const cy = parseFloatAttr(el, 'cy') ?? (inherited?.y ?? 0.5)
+    const r = parseFloatAttr(el, 'r') ?? (inherited?.radius ?? 0.5)
+
+    // Focal point: fx/fy default to cx/cy per SVG spec
+    const fx = parseFloatAttr(el, 'fx') ?? cx
+    const fy = parseFloatAttr(el, 'fy') ?? cy
+
+    gradient = {
       id,
       name: id,
       type: 'radial',
-      x: parseFloat(el.getAttribute('cx') ?? '0.5'),
-      y: parseFloat(el.getAttribute('cy') ?? '0.5'),
-      radius: parseFloat(el.getAttribute('r') ?? '0.5'),
+      x: fx,
+      y: fy,
+      radius: r,
       stops,
       dithering: defaultDithering,
-    })
+      ...(gradientUnits ? { gradientUnits } : {}),
+      ...(gradientTransform ? { gradientTransform } : {}),
+    }
   }
+
+  gradientMap.set(id, gradient)
+  return gradient
+}
+
+/** Parse a float attribute, returning null if not present. */
+function parseFloatAttr(el: Element, attr: string): number | null {
+  const val = el.getAttribute(attr)
+  if (val === null) return null
+  const n = parseFloat(val)
+  return isNaN(n) ? null : n
 }
 
 function parseGradientStops(el: Element): GradientStop[] {
   const stops: GradientStop[] = []
   for (const stop of el.querySelectorAll('stop')) {
     const offsetStr = stop.getAttribute('offset') ?? '0'
-    // Normalize percentage values (e.g. "40%" → 0.4) to 0–1 range
     let offset = parseFloat(offsetStr)
     if (offsetStr.includes('%')) {
       offset /= 100
