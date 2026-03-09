@@ -17,11 +17,46 @@ const releases: Release[] = [
   { name: 'Linux x64 (deb)', platform: 'Linux', arch: 'x64', icon: '🐧', filename: 'Crossdraw.deb', type: 'desktop' },
   { name: 'macOS arm64', platform: 'macOS', arch: 'arm64', icon: '🍎', filename: 'Crossdraw.dmg', type: 'desktop' },
   // Server
-  { name: 'Server Linux x64', platform: 'Linux', arch: 'x64', icon: '🖥️', filename: 'crossdraw-server-linux-x64', type: 'server' },
-  { name: 'Server Linux arm64', platform: 'Linux', arch: 'arm64', icon: '🖥️', filename: 'crossdraw-server-linux-arm64', type: 'server' },
-  { name: 'Server macOS x64', platform: 'macOS', arch: 'x64', icon: '🍎', filename: 'crossdraw-server-darwin-x64', type: 'server' },
-  { name: 'Server macOS arm64', platform: 'macOS', arch: 'arm64', icon: '🍎', filename: 'crossdraw-server-darwin-arm64', type: 'server' },
-  { name: 'Server Windows x64', platform: 'Windows', arch: 'x64', icon: '🪟', filename: 'crossdraw-server-windows-x64.exe', type: 'server' },
+  {
+    name: 'Server Linux x64',
+    platform: 'Linux',
+    arch: 'x64',
+    icon: '🖥️',
+    filename: 'crossdraw-server-linux-x64',
+    type: 'server',
+  },
+  {
+    name: 'Server Linux arm64',
+    platform: 'Linux',
+    arch: 'arm64',
+    icon: '🖥️',
+    filename: 'crossdraw-server-linux-arm64',
+    type: 'server',
+  },
+  {
+    name: 'Server macOS x64',
+    platform: 'macOS',
+    arch: 'x64',
+    icon: '🍎',
+    filename: 'crossdraw-server-darwin-x64',
+    type: 'server',
+  },
+  {
+    name: 'Server macOS arm64',
+    platform: 'macOS',
+    arch: 'arm64',
+    icon: '🍎',
+    filename: 'crossdraw-server-darwin-arm64',
+    type: 'server',
+  },
+  {
+    name: 'Server Windows x64',
+    platform: 'Windows',
+    arch: 'x64',
+    icon: '🪟',
+    filename: 'crossdraw-server-windows-x64.exe',
+    type: 'server',
+  },
 ]
 
 function detectPlatform(): string {
@@ -132,12 +167,7 @@ export function DownloadPage() {
         <h2 style={{ fontSize: 22, fontWeight: 700, color: '#fff', marginBottom: 16 }}>Desktop App</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {desktopReleases.map((r) => (
-            <DownloadCard
-              key={r.filename}
-              release={r}
-              hovered={hovered === r.filename}
-              onHover={setHovered}
-            />
+            <DownloadCard key={r.filename} release={r} hovered={hovered === r.filename} onHover={setHovered} />
           ))}
         </div>
 
@@ -150,12 +180,7 @@ export function DownloadPage() {
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {serverReleases.map((r) => (
-            <DownloadCard
-              key={r.filename}
-              release={r}
-              hovered={hovered === r.filename}
-              onHover={setHovered}
-            />
+            <DownloadCard key={r.filename} release={r} hovered={hovered === r.filename} onHover={setHovered} />
           ))}
         </div>
       </div>
