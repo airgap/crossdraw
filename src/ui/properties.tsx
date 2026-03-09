@@ -20,6 +20,7 @@ import type {
   HueSatParams,
   ColorBalanceParams,
   Layer,
+  TextLayer,
   DitheringConfig,
 } from '@/types'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
@@ -43,6 +44,7 @@ import { applyDithering } from '@/effects/dithering'
 import { performBooleanOp, offsetPath, expandStroke, simplifyPath } from '@/tools/boolean-ops'
 import type { BooleanOp } from '@/tools/boolean-ops'
 import { generateRectangle } from '@/tools/shapes'
+import { WIDTH_PRESETS, WIDTH_PRESET_LABELS, matchWidthPreset } from '@/render/variable-stroke'
 import {
   AlignLeft,
   AlignCenter,
@@ -478,7 +480,44 @@ export function PropertiesPanel() {
                     </button>
                   ))}
                 </div>
+                {selectedLayer.textMode === 'area' && (
+                  <>
+                    <div style={rowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Mode</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-primary)' }}>Area Text</span>
+                    </div>
+                    <div style={rowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>W</span>
+                      <input
+                        type="number"
+                        min="10"
+                        step="1"
+                        style={smallInputStyle}
+                        value={Math.round(selectedLayer.textWidth ?? 100)}
+                        onChange={(e) =>
+                          updateLayer(artboard.id, selectedLayer.id, { textWidth: Number(e.target.value) } as any)
+                        }
+                      />
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>H</span>
+                      <input
+                        type="number"
+                        min="10"
+                        step="1"
+                        style={smallInputStyle}
+                        value={Math.round(selectedLayer.textHeight ?? 100)}
+                        onChange={(e) =>
+                          updateLayer(artboard.id, selectedLayer.id, { textHeight: Number(e.target.value) } as any)
+                        }
+                      />
+                    </div>
+                  </>
+                )}
               </div>
+            )}
+
+            {/* OpenType Features (text only) */}
+            {selectedLayer.type === 'text' && artboard && (
+              <OpenTypeFeaturesSection artboardId={artboard.id} layer={selectedLayer} />
             )}
 
             {/* Corner radius (rectangle shapes only) */}
@@ -494,7 +533,11 @@ export function PropertiesPanel() {
                         2,
                     )}
                     style={{ flex: 1 }}
-                    value={selectedLayer.shapeParams.cornerRadius ?? 0}
+                    value={
+                      typeof selectedLayer.shapeParams.cornerRadius === 'number'
+                        ? selectedLayer.shapeParams.cornerRadius
+                        : (selectedLayer.shapeParams.cornerRadius?.[0] ?? 0)
+                    }
                     onChange={(e) => {
                       const r = Number(e.target.value)
                       const sp = selectedLayer.shapeParams!
@@ -509,7 +552,11 @@ export function PropertiesPanel() {
                     type="number"
                     min="0"
                     style={{ ...smallInputStyle, width: 40 }}
-                    value={selectedLayer.shapeParams.cornerRadius ?? 0}
+                    value={
+                      typeof selectedLayer.shapeParams.cornerRadius === 'number'
+                        ? selectedLayer.shapeParams.cornerRadius
+                        : (selectedLayer.shapeParams.cornerRadius?.[0] ?? 0)
+                    }
                     onChange={(e) => {
                       const r = Math.max(0, Number(e.target.value))
                       const sp = selectedLayer.shapeParams!
@@ -705,6 +752,128 @@ export function PropertiesPanel() {
   )
 }
 
+// ─── OpenType Features section ────────────────────────────────
+
+/** Common OpenType feature tags with human-readable labels. */
+const OPENTYPE_FEATURES: { tag: string; label: string }[] = [
+  { tag: 'liga', label: 'Standard Ligatures' },
+  { tag: 'dlig', label: 'Discretionary Ligatures' },
+  { tag: 'smcp', label: 'Small Caps' },
+  { tag: 'c2sc', label: 'Caps to Small Caps' },
+  { tag: 'onum', label: 'Oldstyle Numerals' },
+  { tag: 'lnum', label: 'Lining Numerals' },
+  { tag: 'tnum', label: 'Tabular Numerals' },
+  { tag: 'pnum', label: 'Proportional Numerals' },
+  { tag: 'frac', label: 'Fractions' },
+  { tag: 'swsh', label: 'Swash' },
+  { tag: 'ss01', label: 'Stylistic Set 1' },
+  { tag: 'ss02', label: 'Stylistic Set 2' },
+  { tag: 'ss03', label: 'Stylistic Set 3' },
+  { tag: 'ss04', label: 'Stylistic Set 4' },
+  { tag: 'ss05', label: 'Stylistic Set 5' },
+  { tag: 'ss06', label: 'Stylistic Set 6' },
+  { tag: 'ss07', label: 'Stylistic Set 7' },
+  { tag: 'ss08', label: 'Stylistic Set 8' },
+  { tag: 'ss09', label: 'Stylistic Set 9' },
+  { tag: 'ss10', label: 'Stylistic Set 10' },
+  { tag: 'ss11', label: 'Stylistic Set 11' },
+  { tag: 'ss12', label: 'Stylistic Set 12' },
+  { tag: 'ss13', label: 'Stylistic Set 13' },
+  { tag: 'ss14', label: 'Stylistic Set 14' },
+  { tag: 'ss15', label: 'Stylistic Set 15' },
+  { tag: 'ss16', label: 'Stylistic Set 16' },
+  { tag: 'ss17', label: 'Stylistic Set 17' },
+  { tag: 'ss18', label: 'Stylistic Set 18' },
+  { tag: 'ss19', label: 'Stylistic Set 19' },
+  { tag: 'ss20', label: 'Stylistic Set 20' },
+]
+
+function OpenTypeFeaturesSection({ artboardId, layer }: { artboardId: string; layer: TextLayer }) {
+  const [expanded, setExpanded] = useState(false)
+  const updateLayer = useEditorStore((s) => s.updateLayer)
+  const features = layer.openTypeFeatures ?? {}
+
+  // Count how many features are currently enabled
+  const enabledCount = Object.values(features).filter(Boolean).length
+
+  function toggleFeature(tag: string) {
+    const current = features[tag] ?? false
+    const updated = { ...features, [tag]: !current }
+    // Remove entries that are false to keep the object clean
+    if (!updated[tag]) delete updated[tag]
+    updateLayer(artboardId, layer.id, { openTypeFeatures: updated } as any)
+  }
+
+  const toggleStyle: React.CSSProperties = {
+    width: 28,
+    height: 16,
+    borderRadius: 8,
+    border: 'none',
+    cursor: 'pointer',
+    position: 'relative',
+    transition: 'background 0.15s',
+    padding: 0,
+    flexShrink: 0,
+  }
+
+  const thumbStyle: React.CSSProperties = {
+    width: 12,
+    height: 12,
+    borderRadius: '50%',
+    background: '#fff',
+    position: 'absolute',
+    top: 2,
+    transition: 'left 0.15s',
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <div
+        style={{ ...labelStyle, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, userSelect: 'none' }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span
+          style={{
+            fontSize: 8,
+            display: 'inline-block',
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.15s',
+          }}
+        >
+          {'\u25B6'}
+        </span>
+        OpenType Features
+        {enabledCount > 0 && (
+          <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 'auto' }}>{enabledCount} on</span>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 4 }}>
+          {OPENTYPE_FEATURES.map(({ tag, label }) => {
+            const isOn = features[tag] ?? false
+            return (
+              <div key={tag} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <button
+                  style={{
+                    ...toggleStyle,
+                    background: isOn ? 'var(--accent)' : '#444',
+                  }}
+                  onClick={() => toggleFeature(tag)}
+                  title={`${tag} - ${label}`}
+                >
+                  <div style={{ ...thumbStyle, left: isOn ? 14 : 2 }} />
+                </button>
+                <span style={{ fontSize: 10, color: 'var(--text-primary)', flex: 1 }}>{label}</span>
+                <span style={{ fontSize: 9, color: 'var(--text-secondary)', fontFamily: 'monospace' }}>{tag}</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Fill section ─────────────────────────────────────────────
 
 function FillSection({
@@ -819,6 +988,22 @@ function FillSection({
 
 // ─── Stroke section ───────────────────────────────────────────
 
+const DASH_PRESETS: { key: string; label: string; value: number[] }[] = [
+  { key: 'solid', label: 'Solid', value: [] },
+  { key: 'dashed', label: 'Dashed', value: [10, 5] },
+  { key: 'dotted', label: 'Dotted', value: [2, 4] },
+  { key: 'dash-dot', label: 'Dash-dot', value: [10, 5, 2, 5] },
+  { key: 'long-dash', label: 'Long dash', value: [20, 10] },
+]
+
+function dashPatternKey(dasharray?: number[]): string {
+  if (!dasharray || dasharray.length === 0) return 'solid'
+  const match = DASH_PRESETS.find(
+    (p) => p.value.length === dasharray.length && p.value.every((v, i) => v === dasharray[i]),
+  )
+  return match ? match.key : 'solid'
+}
+
 function StrokeSection({
   artboardId,
   layer,
@@ -897,6 +1082,34 @@ function StrokeSection({
             <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>px</span>
           </div>
           <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Profile</span>
+            <select
+              style={{ ...inputStyle, width: 'auto', flex: 1 }}
+              value={matchWidthPreset(stroke.widthProfile) ?? 'none'}
+              onChange={(e) => {
+                const key = e.target.value
+                if (key === 'none') {
+                  setStroke(artboardId, layer.id, { ...stroke, widthProfile: undefined })
+                } else {
+                  const preset = WIDTH_PRESETS[key]
+                  if (preset) {
+                    setStroke(artboardId, layer.id, {
+                      ...stroke,
+                      widthProfile: preset.map((p) => [...p] as [number, number]),
+                    })
+                  }
+                }
+              }}
+            >
+              <option value="none">None</option>
+              {Object.keys(WIDTH_PRESETS).map((key) => (
+                <option key={key} value={key}>
+                  {WIDTH_PRESET_LABELS[key] ?? key}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Pos</span>
             <select
               style={{ ...inputStyle, width: 'auto' }}
@@ -935,6 +1148,61 @@ function StrokeSection({
               <option value="bevel">Bevel</option>
               <option value="round">Round</option>
             </select>
+          </div>
+          {stroke.linejoin === 'miter' && (
+            <div style={rowStyle}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Miter</span>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                step="1"
+                style={smallInputStyle}
+                value={stroke.miterLimit}
+                onChange={(e) =>
+                  setStroke(artboardId, layer.id, {
+                    ...stroke,
+                    miterLimit: Math.max(1, Math.min(20, Number(e.target.value))),
+                  })
+                }
+              />
+            </div>
+          )}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Dash</span>
+            <select
+              style={{ ...inputStyle, width: 'auto', flex: 1 }}
+              value={dashPatternKey(stroke.dasharray)}
+              onChange={(e) => {
+                const preset = DASH_PRESETS.find((p) => p.key === e.target.value)
+                if (preset) {
+                  setStroke(artboardId, layer.id, {
+                    ...stroke,
+                    dasharray: preset.value.length ? [...preset.value] : undefined,
+                  })
+                }
+              }}
+            >
+              {DASH_PRESETS.map((p) => (
+                <option key={p.key} value={p.key}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Alpha</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round(stroke.opacity * 100)}
+              onChange={(e) => setStroke(artboardId, layer.id, { ...stroke, opacity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {Math.round(stroke.opacity * 100)}%
+            </span>
           </div>
         </>
       )}

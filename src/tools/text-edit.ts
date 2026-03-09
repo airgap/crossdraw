@@ -118,6 +118,49 @@ export function createAndEditText(docX: number, docY: number, artboardId: string
 }
 
 /**
+ * Create a new area TextLayer (bounded text box) and begin editing it.
+ */
+export function createAreaText(x: number, y: number, width: number, height: number, artboardId: string) {
+  const store = useEditorStore.getState()
+  const artboard = store.document.artboards.find((a) => a.id === artboardId)
+  if (!artboard) return
+
+  const layer: TextLayer = {
+    id: uuid(),
+    name: `Text ${artboard.layers.length + 1}`,
+    type: 'text',
+    visible: true,
+    locked: false,
+    opacity: 1,
+    blendMode: 'normal',
+    transform: {
+      x: x - artboard.x,
+      y: y - artboard.y,
+      scaleX: 1,
+      scaleY: 1,
+      rotation: 0,
+    },
+    effects: [],
+    text: '',
+    fontFamily: 'sans-serif',
+    fontSize: 24,
+    fontWeight: 'normal',
+    fontStyle: 'normal',
+    textAlign: 'left',
+    lineHeight: 1.4,
+    letterSpacing: 0,
+    color: '#000000',
+    textMode: 'area',
+    textWidth: width,
+    textHeight: height,
+  }
+
+  store.addLayer(artboardId, layer)
+  store.selectLayer(layer.id)
+  beginTextEdit(layer.id, artboardId)
+}
+
+/**
  * Exit text editing mode.
  */
 export function endTextEdit(cancel = false) {
@@ -467,6 +510,99 @@ export function textEditKeyDown(e: KeyboardEvent): boolean {
 }
 
 /**
+ * Word-wrap text to fit within a given width for area text.
+ * Returns wrapped display lines and a mapping from each source character index
+ * to its (x, y, lineIdx) position on the wrapped output.
+ */
+function wrapTextForOverlay(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  maxWidth: number,
+  lineH: number,
+): { lines: string[]; charPositions: Array<{ x: number; y: number; lineIdx: number }> } {
+  const paragraphs = text.split('\n')
+  const lines: string[] = []
+  const charPositions: Array<{ x: number; y: number; lineIdx: number }> = []
+  let srcIdx = 0
+
+  for (let pi = 0; pi < paragraphs.length; pi++) {
+    const para = paragraphs[pi]!
+    if (para === '') {
+      // Empty paragraph — still occupies a visual line
+      const li = lines.length
+      lines.push('')
+      charPositions[srcIdx] = { x: 0, y: li * lineH, lineIdx: li }
+      srcIdx++ // advance past the newline character
+      continue
+    }
+
+    const words = para.split(' ')
+    let currentLine = ''
+    let currentLineStartSrc = srcIdx
+
+    for (let wi = 0; wi < words.length; wi++) {
+      const word = words[wi]!
+      const separator = wi > 0 ? ' ' : ''
+      const testLine = currentLine + separator + word
+      const testWidth = ctx.measureText(testLine).width
+
+      if (testWidth > maxWidth && currentLine !== '') {
+        // Emit the current line and start a new one
+        const li = lines.length
+        lines.push(currentLine)
+        // Map char positions for this completed line
+        let x = 0
+        for (let ci = 0; ci < currentLine.length; ci++) {
+          charPositions[currentLineStartSrc + ci] = { x, y: li * lineH, lineIdx: li }
+          x = ctx.measureText(currentLine.slice(0, ci + 1)).width
+        }
+        // End-of-line position
+        charPositions[currentLineStartSrc + currentLine.length] = { x, y: li * lineH, lineIdx: li }
+
+        currentLineStartSrc += currentLine.length
+        // The space that caused the break: we consumed it but it maps to end of prev line
+        if (wi > 0) {
+          // The space before this word is at currentLineStartSrc
+          // It doesn't display, but advance past it
+          currentLineStartSrc++ // skip the space
+        }
+        currentLine = word
+      } else {
+        currentLine = testLine
+      }
+    }
+
+    // Emit remaining text of this paragraph
+    if (currentLine !== '' || lines.length === 0 || pi < paragraphs.length) {
+      const li = lines.length
+      lines.push(currentLine)
+      let x = 0
+      for (let ci = 0; ci < currentLine.length; ci++) {
+        charPositions[currentLineStartSrc + ci] = { x, y: li * lineH, lineIdx: li }
+        x = ctx.measureText(currentLine.slice(0, ci + 1)).width
+      }
+      charPositions[currentLineStartSrc + currentLine.length] = { x, y: li * lineH, lineIdx: li }
+    }
+
+    srcIdx += para.length
+    // Account for the newline between paragraphs (except after last paragraph)
+    if (pi < paragraphs.length - 1) {
+      srcIdx++ // the newline char
+    }
+  }
+
+  // Ensure end position exists
+  if (!charPositions[text.length]) {
+    const lastLine = lines.length - 1
+    const y = lastLine * lineH
+    const x = ctx.measureText(lines[lastLine] ?? '').width
+    charPositions[text.length] = { x, y, lineIdx: lastLine }
+  }
+
+  return { lines, charPositions }
+}
+
+/**
  * Render the text editing cursor and selection overlay.
  */
 export function renderTextEditOverlay(
@@ -494,7 +630,8 @@ export function renderTextEditOverlay(
 
   const text = layer.text
   const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
-  const lines = text.split('\n')
+
+  const isAreaText = layer.textMode === 'area' && layer.textWidth != null && layer.textWidth > 0
 
   // Build per-character (x, y, line) positions
   interface CharPos {
@@ -502,35 +639,48 @@ export function renderTextEditOverlay(
     y: number
     lineIdx: number
   }
-  const charPositions: CharPos[] = []
-  let charIdx = 0
-  for (let li = 0; li < lines.length; li++) {
-    const line = lines[li]!
-    const y = li * lineH
-    let x = 0
-    for (let ci = 0; ci < line.length; ci++) {
-      charPositions[charIdx] = { x, y, lineIdx: li }
-      x = ctx.measureText(line.slice(0, ci + 1)).width
-      charIdx++
-    }
-    // After last char of this line (or newline position)
-    charPositions[charIdx] = { x, y, lineIdx: li }
-    charIdx++ // for the newline char itself (except last line)
-  }
-  // Ensure end position exists
-  if (!charPositions[text.length]) {
-    const lastLine = lines.length - 1
-    const y = lastLine * lineH
-    const x = ctx.measureText(lines[lastLine]!).width
-    charPositions[text.length] = { x, y, lineIdx: lastLine }
-  }
 
-  // Measure max width for bounding box
-  let maxWidth = 0
-  for (const line of lines) {
-    maxWidth = Math.max(maxWidth, ctx.measureText(line).width)
+  let charPositions: CharPos[]
+  let lines: string[]
+  let maxWidth: number
+  let totalHeight: number
+
+  if (isAreaText) {
+    const wrapped = wrapTextForOverlay(ctx, text, layer.textWidth!, lineH)
+    lines = wrapped.lines
+    charPositions = wrapped.charPositions
+    maxWidth = layer.textWidth!
+    totalHeight = layer.textHeight ?? lines.length * lineH
+  } else {
+    lines = text.split('\n')
+    charPositions = []
+    let charIdx = 0
+    for (let li = 0; li < lines.length; li++) {
+      const line = lines[li]!
+      const y = li * lineH
+      let x = 0
+      for (let ci = 0; ci < line.length; ci++) {
+        charPositions[charIdx] = { x, y, lineIdx: li }
+        x = ctx.measureText(line.slice(0, ci + 1)).width
+        charIdx++
+      }
+      // After last char of this line (or newline position)
+      charPositions[charIdx] = { x, y, lineIdx: li }
+      charIdx++ // for the newline char itself (except last line)
+    }
+    // Ensure end position exists
+    if (!charPositions[text.length]) {
+      const lastLine = lines.length - 1
+      const y = lastLine * lineH
+      const x = ctx.measureText(lines[lastLine]!).width
+      charPositions[text.length] = { x, y, lineIdx: lastLine }
+    }
+    maxWidth = 0
+    for (const line of lines) {
+      maxWidth = Math.max(maxWidth, ctx.measureText(line).width)
+    }
+    totalHeight = lines.length * lineH
   }
-  const totalHeight = lines.length * lineH
 
   // Draw selection highlight
   if (hasSelection()) {
@@ -552,7 +702,12 @@ export function renderTextEditOverlay(
   ctx.strokeStyle = '#4a7dff'
   ctx.lineWidth = 1 / zoom / t.scaleX
   ctx.setLineDash([4 / zoom / t.scaleX, 3 / zoom / t.scaleX])
-  ctx.strokeRect(-2, -2, maxWidth + 4, totalHeight + 4)
+  if (isAreaText) {
+    // For area text, draw the actual text box bounds
+    ctx.strokeRect(0, 0, layer.textWidth!, layer.textHeight ?? totalHeight)
+  } else {
+    ctx.strokeRect(-2, -2, maxWidth + 4, totalHeight + 4)
+  }
   ctx.setLineDash([])
 
   // Draw cursor

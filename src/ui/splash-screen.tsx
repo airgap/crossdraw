@@ -85,12 +85,8 @@ export function SplashScreen({ onReady }: { onReady: () => void }) {
               background: dragging ? 'rgba(var(--accent-rgb, 59,130,246), 0.05)' : 'transparent',
             }}
           >
-            <p style={{ margin: 0, fontSize: 'var(--font-size-base)' }}>
-              Drop a file here to open
-            </p>
-            <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.7 }}>
-              .xd, .svg, .png, .jpg, .gif, .webp
-            </p>
+            <p style={{ margin: 0, fontSize: 'var(--font-size-base)' }}>Drop a file here to open</p>
+            <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.7 }}>.xd, .svg, .png, .jpg, .gif, .webp</p>
           </div>
         </div>
       </div>

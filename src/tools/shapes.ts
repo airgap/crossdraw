@@ -2,13 +2,27 @@ import { v4 as uuid } from 'uuid'
 import type { Segment, VectorLayer } from '@/types'
 import { useEditorStore } from '@/store/editor.store'
 import { snapPoint } from '@/tools/snap'
+import { getShapeDefaults } from '@/ui/tool-options-state'
 
 /**
  * Generate a rectangle path from origin + size.
  * If shift is held, constrains to a square.
  */
-export function generateRectangle(x: number, y: number, w: number, h: number, cornerRadius = 0): Segment[] {
-  if (cornerRadius <= 0) {
+export function generateRectangle(
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  cornerRadius: number | [number, number, number, number] = 0,
+): Segment[] {
+  // Normalize to per-corner array [TL, TR, BR, BL]
+  const radii =
+    typeof cornerRadius === 'number' ? [cornerRadius, cornerRadius, cornerRadius, cornerRadius] : cornerRadius
+
+  const maxR = Math.min(Math.abs(w) / 2, Math.abs(h) / 2)
+  const [tl, tr, br, bl] = radii.map((r) => Math.min(Math.max(r, 0), maxR)) as [number, number, number, number]
+
+  if (tl <= 0 && tr <= 0 && br <= 0 && bl <= 0) {
     return [
       { type: 'move', x, y },
       { type: 'line', x: x + w, y },
@@ -18,28 +32,62 @@ export function generateRectangle(x: number, y: number, w: number, h: number, co
     ]
   }
 
-  const r = Math.min(cornerRadius, Math.abs(w) / 2, Math.abs(h) / 2)
   const k = 0.5522847498 // cubic bezier approximation of quarter circle
-  return [
-    { type: 'move', x: x + r, y },
-    { type: 'line', x: x + w - r, y },
-    { type: 'cubic', x: x + w, y: y + r, cp1x: x + w - r + r * k, cp1y: y, cp2x: x + w, cp2y: y + r - r * k },
-    { type: 'line', x: x + w, y: y + h - r },
-    {
+  const segs: Segment[] = []
+
+  // Start at top-left corner, after TL radius
+  segs.push({ type: 'move', x: x + tl, y })
+
+  // Top edge → TR corner
+  segs.push({ type: 'line', x: x + w - tr, y })
+  if (tr > 0) {
+    segs.push({
       type: 'cubic',
-      x: x + w - r,
+      x: x + w,
+      y: y + tr,
+      cp1x: x + w - tr + tr * k,
+      cp1y: y,
+      cp2x: x + w,
+      cp2y: y + tr - tr * k,
+    })
+  }
+
+  // Right edge → BR corner
+  segs.push({ type: 'line', x: x + w, y: y + h - br })
+  if (br > 0) {
+    segs.push({
+      type: 'cubic',
+      x: x + w - br,
       y: y + h,
       cp1x: x + w,
-      cp1y: y + h - r + r * k,
-      cp2x: x + w - r + r * k,
+      cp1y: y + h - br + br * k,
+      cp2x: x + w - br + br * k,
       cp2y: y + h,
-    },
-    { type: 'line', x: x + r, y: y + h },
-    { type: 'cubic', x, y: y + h - r, cp1x: x + r - r * k, cp1y: y + h, cp2x: x, cp2y: y + h - r + r * k },
-    { type: 'line', x, y: y + r },
-    { type: 'cubic', x: x + r, y, cp1x: x, cp1y: y + r - r * k, cp2x: x + r - r * k, cp2y: y },
-    { type: 'close' },
-  ]
+    })
+  }
+
+  // Bottom edge → BL corner
+  segs.push({ type: 'line', x: x + bl, y: y + h })
+  if (bl > 0) {
+    segs.push({
+      type: 'cubic',
+      x,
+      y: y + h - bl,
+      cp1x: x + bl - bl * k,
+      cp1y: y + h,
+      cp2x: x,
+      cp2y: y + h - bl + bl * k,
+    })
+  }
+
+  // Left edge → TL corner
+  segs.push({ type: 'line', x, y: y + tl })
+  if (tl > 0) {
+    segs.push({ type: 'cubic', x: x + tl, y, cp1x: x, cp1y: y + tl - tl * k, cp2x: x + tl - tl * k, cp2y: y })
+  }
+
+  segs.push({ type: 'close' })
+  return segs
 }
 
 /**
@@ -178,19 +226,28 @@ export function updateShapeDrag(docX: number, docY: number, shift: boolean, alt:
   const localX = originX - artboard.x
   const localY = originY - artboard.y
 
+  // Read tool option defaults from the tool options bar state
+  const shapeDefs = getShapeDefaults()
+
   let segments: Segment[]
   switch (tool) {
     case 'rectangle':
-      segments = generateRectangle(0, 0, w, h)
+      segments = generateRectangle(0, 0, w, h, shapeDefs.cornerRadius)
       break
     case 'ellipse':
       segments = generateEllipse(w / 2, h / 2, Math.abs(w) / 2, Math.abs(h) / 2)
       break
     case 'polygon':
-      segments = generatePolygon(w / 2, h / 2, Math.max(Math.abs(w), Math.abs(h)) / 2, 6)
+      segments = generatePolygon(w / 2, h / 2, Math.max(Math.abs(w), Math.abs(h)) / 2, shapeDefs.polygonSides)
       break
     case 'star':
-      segments = generateStar(w / 2, h / 2, Math.max(Math.abs(w), Math.abs(h)) / 2, 0.4, 5)
+      segments = generateStar(
+        w / 2,
+        h / 2,
+        Math.max(Math.abs(w), Math.abs(h)) / 2,
+        shapeDefs.starInnerRatio,
+        shapeDefs.starPoints,
+      )
       break
     default:
       return
@@ -201,10 +258,10 @@ export function updateShapeDrag(docX: number, docY: number, shift: boolean, alt:
     shapeType: tool as 'rectangle' | 'ellipse' | 'polygon' | 'star',
     width: w,
     height: h,
-    cornerRadius: 0,
-    sides: tool === 'polygon' ? 6 : undefined,
-    points: tool === 'star' ? 5 : undefined,
-    innerRatio: tool === 'star' ? 0.4 : undefined,
+    cornerRadius: tool === 'rectangle' ? shapeDefs.cornerRadius : 0,
+    sides: tool === 'polygon' ? shapeDefs.polygonSides : undefined,
+    points: tool === 'star' ? shapeDefs.starPoints : undefined,
+    innerRatio: tool === 'star' ? shapeDefs.starInnerRatio : undefined,
   }
 
   if (!dragState.layerId) {

@@ -128,6 +128,8 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
   return (
     <div
       data-panel-group-id={group.id}
+      role="region"
+      aria-label={activePanel?.label ?? 'Panel'}
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -139,6 +141,8 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
     >
       {/* Tab bar with collapse toggle */}
       <div
+        role="tablist"
+        aria-label="Panel tabs"
         style={{
           display: 'flex',
           alignItems: 'center',
@@ -154,6 +158,8 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
         {/* Collapse/expand toggle button */}
         <button
           onClick={handleCollapseToggle}
+          aria-label={isCollapsed ? 'Expand panel' : 'Collapse panel'}
+          aria-expanded={!isCollapsed}
           style={{
             background: 'none',
             border: 'none',
@@ -178,12 +184,23 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
             <div
               key={tabId}
               data-tab-id={tabId}
+              role="tab"
+              tabIndex={isActive ? 0 : -1}
+              aria-selected={isActive}
+              aria-label={def.label}
               draggable
               onDragStart={(e) => handleDragStart(e, tabId)}
               onClick={() => {
                 focusTab(tabId)
                 // Auto-expand when clicking a tab
                 if (isCollapsed) toggleGroupCollapse(group.id)
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  focusTab(tabId)
+                  if (isCollapsed) toggleGroupCollapse(group.id)
+                }
               }}
               onContextMenu={(e) => handleTabContextMenu(e, tabId)}
               style={{
@@ -200,7 +217,9 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
                 gap: 4,
               }}
             >
-              <span style={{ fontSize: 13 }}>{def.icon}</span>
+              <span style={{ fontSize: 13 }} aria-hidden="true">
+                {def.icon}
+              </span>
               {def.label}
             </div>
           )
@@ -211,6 +230,8 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
       {!isCollapsed && (
         <>
           <div
+            role="tabpanel"
+            aria-label={activePanel?.label ?? 'Panel content'}
             style={{
               flex: 1,
               overflow: 'auto',

@@ -28,7 +28,7 @@ export interface ExportSlice {
   y: number
   width: number
   height: number
-  format: 'png' | 'jpeg' | 'svg'
+  format: 'png' | 'jpeg' | 'svg' | 'webp' | 'gif' | 'tiff'
   scale: number
 }
 
@@ -81,7 +81,7 @@ export interface VectorLayer extends BaseLayer {
     shapeType: 'rectangle' | 'ellipse' | 'polygon' | 'star'
     width: number
     height: number
-    cornerRadius?: number
+    cornerRadius?: number | [number, number, number, number]
     sides?: number
     points?: number
     innerRatio?: number
@@ -156,6 +156,14 @@ export interface TextLayer extends BaseLayer {
   pathReference?: string | null
   /** Position along the path (0-1). */
   pathOffset?: number
+  /** Text mode: 'point' for click-to-place (default), 'area' for bounded text box. */
+  textMode?: 'point' | 'area'
+  /** Bounding box width for area text (only used when textMode === 'area'). */
+  textWidth?: number
+  /** Bounding box height for area text (only used when textMode === 'area'). */
+  textHeight?: number
+  /** OpenType feature settings. Keys are 4-character OT tags (e.g. 'liga', 'smcp', 'onum'). */
+  openTypeFeatures?: Record<string, boolean>
 }
 
 export interface CharacterStyleRange {
@@ -218,18 +226,35 @@ export interface Stroke {
   linecap: 'butt' | 'round' | 'square'
   linejoin: 'miter' | 'bevel' | 'round'
   miterLimit: number
+  /** Variable width profile. Each entry is [position (0-1 along path), width multiplier]. */
+  widthProfile?: [number, number][]
+}
+
+export interface MeshPoint {
+  x: number // position 0-1 (within bounding box)
+  y: number // position 0-1
+  color: string // hex color at this point
+  opacity: number // 0-1
+}
+
+export interface MeshGradientData {
+  rows: number // grid rows (2-8)
+  cols: number // grid columns (2-8)
+  points: MeshPoint[] // rows * cols control points
 }
 
 export interface Gradient {
   id: string
   name: string
-  type: 'linear' | 'radial' | 'conical' | 'box'
+  type: 'linear' | 'radial' | 'conical' | 'box' | 'mesh'
   angle?: number
   x: number
   y: number
   radius?: number
   stops: GradientStop[]
   dithering: DitheringConfig
+  /** Mesh gradient data (only used when type === 'mesh'). */
+  mesh?: MeshGradientData
   /** Optional transform applied to the gradient (rotate, scale, skew). */
   gradientTransform?: {
     rotate?: number // degrees

@@ -2,9 +2,12 @@ import { segmentsToPath2D } from '@/math/path'
 import { getRasterCanvas } from '@/store/raster-data'
 import { applyAdjustment } from '@/effects/adjustments'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
+import { renderMeshGradient } from '@/render/mesh-gradient'
+import { encodeGIF } from '@/io/gif-encoder'
+import { encodeTIFF } from '@/io/tiff-encoder'
 import type { DesignDocument, Layer, VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer } from '@/types'
 
-export type ExportFormat = 'png' | 'jpeg'
+export type ExportFormat = 'png' | 'jpeg' | 'webp' | 'gif' | 'tiff'
 
 export interface ExportOptions {
   format: ExportFormat
@@ -51,10 +54,29 @@ export async function exportArtboardToBlob(
     }
   }
 
-  const mimeType = options.format === 'jpeg' ? 'image/jpeg' : 'image/png'
+  // GIF and TIFF need pixel-level access; encode from ImageData
+  if (options.format === 'gif') {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const gifBytes = encodeGIF(imgData)
+    return new Blob([gifBytes.buffer as ArrayBuffer], { type: 'image/gif' })
+  }
+
+  if (options.format === 'tiff') {
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+    const tiffBytes = encodeTIFF(imgData)
+    return new Blob([tiffBytes.buffer as ArrayBuffer], { type: 'image/tiff' })
+  }
+
+  // PNG, JPEG, and WebP are natively supported by canvas
+  const mimeMap: Record<string, string> = {
+    png: 'image/png',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+  }
+  const mimeType = mimeMap[options.format] ?? 'image/png'
   return canvas.convertToBlob({
     type: mimeType,
-    quality: options.quality ?? (options.format === 'jpeg' ? 0.92 : undefined),
+    quality: options.quality ?? (options.format === 'jpeg' ? 0.92 : options.format === 'webp' ? 0.9 : undefined),
   })
 }
 
@@ -151,7 +173,9 @@ function renderVectorLayer(ctx: OffscreenCanvasRenderingContext2D, layer: Vector
   if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
 
   // Compute bounding box for gradient sizing
-  let bboxW = 100,
+  let bboxX = 0,
+    bboxY = 0,
+    bboxW = 100,
     bboxH = 100
   if (layer.fill?.type === 'gradient' && layer.fill.gradient) {
     let minX = Infinity,
@@ -169,6 +193,8 @@ function renderVectorLayer(ctx: OffscreenCanvasRenderingContext2D, layer: Vector
       }
     }
     if (minX !== Infinity) {
+      bboxX = minX
+      bboxY = minY
       bboxW = maxX - minX || 100
       bboxH = maxY - minY || 100
     }
@@ -184,7 +210,17 @@ function renderVectorLayer(ctx: OffscreenCanvasRenderingContext2D, layer: Vector
         ctx.fill(path2d)
       } else if (layer.fill.type === 'gradient' && layer.fill.gradient) {
         const grad = layer.fill.gradient
-        if (grad.type === 'box') {
+        if (grad.type === 'mesh' && grad.mesh) {
+          ctx.save()
+          ctx.clip(path2d)
+          renderMeshGradient(ctx as unknown as CanvasRenderingContext2D, grad.mesh, {
+            x: bboxX,
+            y: bboxY,
+            width: bboxW,
+            height: bboxH,
+          })
+          ctx.restore()
+        } else if (grad.type === 'box') {
           const boxCanvas = renderBoxGradient(ctx, grad, bboxW, bboxH)
           ctx.save()
           ctx.clip(path2d)

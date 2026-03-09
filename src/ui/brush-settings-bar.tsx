@@ -40,7 +40,9 @@ function Slider({
         onChange={(e) => onChange(Number(e.target.value))}
         style={{ width: 80, accentColor: 'var(--accent)' }}
       />
-      <span style={{ minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}>
+      <span
+        style={{ minWidth: 32, textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: 'var(--text-primary)' }}
+      >
         {format ? format(value) : value}
       </span>
     </label>
@@ -76,7 +78,15 @@ export function BrushSettingsBar() {
         overflowX: 'auto',
       }}
     >
-      <Slider label="Size" value={settings.size} min={1} max={200} step={1} format={(v) => `${v}px`} onChange={(v) => update({ size: v })} />
+      <Slider
+        label="Size"
+        value={settings.size}
+        min={1}
+        max={200}
+        step={1}
+        format={(v) => `${v}px`}
+        onChange={(v) => update({ size: v })}
+      />
       <Slider
         label="Hardness"
         value={settings.hardness}

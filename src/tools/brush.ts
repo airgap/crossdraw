@@ -104,7 +104,7 @@ export function createBrushDab(size: number, hardness: number, color: string, op
       if (hardness >= 1) {
         alpha = 1
       } else {
-        const fade = dist <= hardness ? 1 : 1 - ((dist - hardness) / (1 - hardness))
+        const fade = dist <= hardness ? 1 : 1 - (dist - hardness) / (1 - hardness)
         alpha = fade * fade * fade // cubic falloff
       }
       alpha *= opacity
@@ -184,11 +184,7 @@ export function beginStroke(): string | null {
   // Snapshot raster data before painting for undo
   const existing = getRasterData(activeChunkId)
   if (existing) {
-    preStrokeSnapshot = new ImageData(
-      new Uint8ClampedArray(existing.data),
-      existing.width,
-      existing.height,
-    )
+    preStrokeSnapshot = new ImageData(new Uint8ClampedArray(existing.data), existing.width, existing.height)
   } else {
     preStrokeSnapshot = null
   }
@@ -207,7 +203,9 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
   if (activeChunkId) {
     const store = useEditorStore.getState()
     const artboard = store.document.artboards[0]
-    const layerExists = artboard?.layers.some((l) => l.type === 'raster' && (l as RasterLayer).imageChunkId === activeChunkId)
+    const layerExists = artboard?.layers.some(
+      (l) => l.type === 'raster' && (l as RasterLayer).imageChunkId === activeChunkId,
+    )
     if (!layerExists) activeChunkId = null
   }
   if (!activeChunkId) {
@@ -304,9 +302,15 @@ function stampDab(target: ImageData, dab: ImageData, dabSize: number, ox: number
       const tgtAlpha = target.data[tgtIdx + 3]! / 255
       const outAlpha = dabAlpha + tgtAlpha * (1 - dabAlpha)
       if (outAlpha === 0) continue
-      target.data[tgtIdx] = Math.round((dab.data[dabIdx]! * dabAlpha + target.data[tgtIdx]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
-      target.data[tgtIdx + 1] = Math.round((dab.data[dabIdx + 1]! * dabAlpha + target.data[tgtIdx + 1]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
-      target.data[tgtIdx + 2] = Math.round((dab.data[dabIdx + 2]! * dabAlpha + target.data[tgtIdx + 2]! * tgtAlpha * (1 - dabAlpha)) / outAlpha)
+      target.data[tgtIdx] = Math.round(
+        (dab.data[dabIdx]! * dabAlpha + target.data[tgtIdx]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
+      )
+      target.data[tgtIdx + 1] = Math.round(
+        (dab.data[dabIdx + 1]! * dabAlpha + target.data[tgtIdx + 1]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
+      )
+      target.data[tgtIdx + 2] = Math.round(
+        (dab.data[dabIdx + 2]! * dabAlpha + target.data[tgtIdx + 2]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
+      )
       target.data[tgtIdx + 3] = Math.round(outAlpha * 255)
     }
   }
@@ -322,12 +326,7 @@ export function endStroke() {
     if (preStrokeSnapshot) {
       const afterData = getRasterData(activeChunkId)
       if (afterData) {
-        useEditorStore.getState().pushRasterHistory(
-          'Brush stroke',
-          activeChunkId,
-          preStrokeSnapshot,
-          afterData,
-        )
+        useEditorStore.getState().pushRasterHistory('Brush stroke', activeChunkId, preStrokeSnapshot, afterData)
       }
     }
     preStrokeSnapshot = null

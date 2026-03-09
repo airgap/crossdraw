@@ -137,6 +137,83 @@
       button, [role="button"], nav, .toolbar, .menu-bar, .status-bar, .panel-header {
         -webkit-touch-callout: none;
       }
+
+      /* ── Screen reader only (visually hidden) ───────── */
+      .sr-only {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+      /* Show when focused (skip navigation link) */
+      .focus\:not-sr-only:focus {
+        position: fixed;
+        top: 4px;
+        left: 4px;
+        width: auto;
+        height: auto;
+        padding: 8px 16px;
+        margin: 0;
+        overflow: visible;
+        clip: auto;
+        white-space: normal;
+        z-index: 10000;
+        background: var(--bg-overlay, #2a2a2a);
+        color: #fff;
+        border: 2px solid #4a9eff;
+        border-radius: 4px;
+        font-size: 14px;
+        text-decoration: none;
+        outline: none;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+      }
+
+      /* ── High contrast mode support ──────────────────── */
+      @media (prefers-contrast: high) {
+        :root {
+          --border-subtle: rgba(255,255,255,0.5);
+          --border-default: rgba(255,255,255,0.7);
+        }
+        button, [role="button"], [role="tab"], [role="menuitem"] {
+          border: 1px solid rgba(255,255,255,0.4) !important;
+        }
+        button:focus-visible,
+        [role="tab"]:focus-visible,
+        [role="menuitem"]:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+          outline: 3px solid #4a9eff;
+          outline-offset: 1px;
+        }
+        [role="toolbar"] {
+          border-right: 2px solid rgba(255,255,255,0.5) !important;
+        }
+        [role="menubar"] {
+          border-bottom: 2px solid rgba(255,255,255,0.5) !important;
+        }
+        [role="menu"] {
+          border: 2px solid rgba(255,255,255,0.6) !important;
+        }
+        [role="region"] {
+          border: 1px solid rgba(255,255,255,0.3) !important;
+        }
+        [role="tablist"] {
+          border-bottom: 2px solid rgba(255,255,255,0.4) !important;
+        }
+        [aria-pressed="true"] {
+          outline: 2px solid #fff !important;
+          outline-offset: -2px;
+        }
+        [aria-selected="true"] {
+          border-bottom: 2px solid #4a9eff !important;
+        }
+      }
     </style>
   </head>
   <body>

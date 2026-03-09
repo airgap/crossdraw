@@ -52,14 +52,30 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
   }, [])
 
   // Resize from edges/corners
-  const resizeRef = useRef<{ edge: ResizeEdge; startX: number; startY: number; origX: number; origY: number; origW: number; origH: number } | null>(null)
+  const resizeRef = useRef<{
+    edge: ResizeEdge
+    startX: number
+    startY: number
+    origX: number
+    origY: number
+    origW: number
+    origH: number
+  } | null>(null)
 
   const handleResizePointerDown = useCallback(
     (e: React.PointerEvent, edge: ResizeEdge) => {
       e.preventDefault()
       e.stopPropagation()
       ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-      resizeRef.current = { edge, startX: e.clientX, startY: e.clientY, origX: panel.x, origY: panel.y, origW: panel.width, origH: panel.height }
+      resizeRef.current = {
+        edge,
+        startX: e.clientX,
+        startY: e.clientY,
+        origX: panel.x,
+        origY: panel.y,
+        origW: panel.width,
+        origH: panel.height,
+      }
     },
     [panel],
   )
@@ -71,11 +87,20 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
       const dx = e.clientX - startX
       const dy = e.clientY - startY
 
-      let newX = origX, newY = origY, newW = origW, newH = origH
+      let newX = origX,
+        newY = origY,
+        newW = origW,
+        newH = origH
       if (edge.includes('e')) newW = Math.max(MIN_WIDTH, origW + dx)
-      if (edge.includes('w')) { newW = Math.max(MIN_WIDTH, origW - dx); newX = origX + origW - newW }
+      if (edge.includes('w')) {
+        newW = Math.max(MIN_WIDTH, origW - dx)
+        newX = origX + origW - newW
+      }
       if (edge.includes('s')) newH = Math.max(MIN_HEIGHT, origH + dy)
-      if (edge.includes('n')) { newH = Math.max(MIN_HEIGHT, origH - dy); newY = origY + origH - newH }
+      if (edge.includes('n')) {
+        newH = Math.max(MIN_HEIGHT, origH - dy)
+        newY = origY + origH - newH
+      }
 
       updatePosition(panel.tabId, newX, newY)
       updateSize(panel.tabId, newW, newH)
@@ -182,15 +207,22 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
         const isH = edge === 'n' || edge === 's'
         const isV = edge === 'e' || edge === 'w'
         const style: React.CSSProperties = {
-          position: 'absolute', cursor: `${edge}-resize`,
-          ...(isH ? { left: edgeSize, right: edgeSize, height: edgeSize, ...(edge === 'n' ? { top: 0 } : { bottom: 0 }) } :
-            isV ? { top: edgeSize, bottom: edgeSize, width: edgeSize, ...(edge === 'e' ? { right: 0 } : { left: 0 }) } :
-            { width: edgeSize, height: edgeSize,
-              ...(edge.includes('n') ? { top: 0 } : { bottom: 0 }),
-              ...(edge.includes('e') ? { right: 0 } : { left: 0 }) }),
+          position: 'absolute',
+          cursor: `${edge}-resize`,
+          ...(isH
+            ? { left: edgeSize, right: edgeSize, height: edgeSize, ...(edge === 'n' ? { top: 0 } : { bottom: 0 }) }
+            : isV
+              ? { top: edgeSize, bottom: edgeSize, width: edgeSize, ...(edge === 'e' ? { right: 0 } : { left: 0 }) }
+              : {
+                  width: edgeSize,
+                  height: edgeSize,
+                  ...(edge.includes('n') ? { top: 0 } : { bottom: 0 }),
+                  ...(edge.includes('e') ? { right: 0 } : { left: 0 }),
+                }),
         }
         return (
-          <div key={edge}
+          <div
+            key={edge}
             onPointerDown={(e) => handleResizePointerDown(e, edge)}
             onPointerMove={handleResizePointerMove}
             onPointerUp={handleResizePointerUp}

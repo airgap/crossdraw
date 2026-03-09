@@ -17,11 +17,15 @@ import type {
   Path,
   Segment,
   Effect,
+  SymbolDefinition,
+  SymbolInstanceLayer,
+  NamedColor,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
 import { getRasterData, updateRasterCache } from '@/store/raster-data'
 import { storeSnapshot, getSnapshot, deleteSnapshots } from '@/store/raster-undo'
+import { applyGaussianNoise, applyUniformNoise, applyFilmGrain } from '@/filters/noise'
 
 enablePatches()
 
@@ -55,6 +59,17 @@ export interface EditorState {
     | 'measure'
     | 'brush'
     | 'crop'
+    | 'line'
+    | 'pencil'
+    | 'eraser'
+    | 'fill'
+    | 'zoom'
+    | 'lasso'
+    | 'marquee'
+    | 'knife'
+    | 'artboard'
+    | 'slice'
+    | 'clone-stamp'
   showRulers: boolean
   showGrid: boolean
   snapEnabled: boolean
@@ -81,6 +96,7 @@ export interface EditorActions {
   addArtboard: (name: string, width: number, height: number) => void
   deleteArtboard: (id: string) => void
   resizeArtboard: (id: string, width: number, height: number) => void
+  moveArtboard: (id: string, x: number, y: number) => void
 
   // Layer
   addLayer: (artboardId: string, layer: Layer) => void
@@ -138,6 +154,7 @@ export interface EditorActions {
   addGuide: (artboardId: string, axis: 'horizontal' | 'vertical', position: number) => void
   removeGuide: (artboardId: string, axis: 'horizontal' | 'vertical', index: number) => void
   updateGuide: (artboardId: string, axis: 'horizontal' | 'vertical', index: number, position: number) => void
+  clearGuides: (artboardId: string) => void
 
   // Undo/redo
   undo: () => void
@@ -170,8 +187,32 @@ export interface EditorActions {
   openExportModal: () => void
   closeExportModal: () => void
 
+  // Slices
+  addSlice: (artboardId: string, slice: import('@/types').ExportSlice) => void
+  removeSlice: (artboardId: string, sliceId: string) => void
+  updateSlice: (artboardId: string, sliceId: string, updates: Partial<import('@/types').ExportSlice>) => void
+
   // Touch mode
   toggleTouchMode: () => void
+
+  // Symbols
+  createSymbolDefinition: (name: string, layerIds: string[]) => void
+  deleteSymbolDefinition: (symbolId: string) => void
+  createSymbolInstance: (artboardId: string, symbolId: string) => void
+  renameSymbol: (symbolId: string, name: string) => void
+
+  // Document colors
+  addDocumentColor: (color: NamedColor) => void
+  removeDocumentColor: (id: string) => void
+  updateDocumentColor: (id: string, updates: Partial<NamedColor>) => void
+
+  // Filters
+  applyFilter: (
+    artboardId: string,
+    layerId: string,
+    filterType: string,
+    params: Record<string, number | boolean>,
+  ) => void
 }
 
 interface NewDocumentOptions {
@@ -184,13 +225,7 @@ interface NewDocumentOptions {
 }
 
 function createDefaultDocument(opts: NewDocumentOptions = {}): DesignDocument {
-  const {
-    title = 'Untitled',
-    width = 1920,
-    height = 1080,
-    colorspace = 'srgb',
-    backgroundColor = '#ffffff',
-  } = opts
+  const { title = 'Untitled', width = 1920, height = 1080, colorspace = 'srgb', backgroundColor = '#ffffff' } = opts
   const artboardId = uuid()
   return {
     id: uuid(),
@@ -248,7 +283,10 @@ function computeDirtyBBox(a: ImageData, b: ImageData): { x: number; y: number; w
   const h = a.height
   const ad = a.data
   const bd = b.data
-  let minX = w, minY = h, maxX = -1, maxY = -1
+  let minX = w,
+    minY = h,
+    maxX = -1,
+    maxY = -1
 
   for (let y = 0; y < h; y++) {
     const rowOff = y * w * 4
@@ -413,6 +451,16 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (artboard) {
           artboard.width = Math.max(1, width)
           artboard.height = Math.max(1, height)
+        }
+      })
+    },
+
+    moveArtboard(id, x, y) {
+      mutateDocument('Move artboard', (draft) => {
+        const artboard = findArtboard(draft, id)
+        if (artboard) {
+          artboard.x = x
+          artboard.y = y
         }
       })
     },
@@ -793,11 +841,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const availW = viewportWidth - rulerSize
       const availH = viewportHeight - rulerSize
       if (availW <= 0 || availH <= 0) return
-      const scale = Math.min(
-        (availW * 0.8) / artboard.width,
-        (availH * 0.8) / artboard.height,
-        10,
-      )
+      const scale = Math.min((availW * 0.8) / artboard.width, (availH * 0.8) / artboard.height, 10)
       const panX = rulerSize + (availW - artboard.width * scale) / 2 - artboard.x * scale
       const panY = rulerSize + (availH - artboard.height * scale) / 2 - artboard.y * scale
       set({ viewport: { ...get().viewport, zoom: scale, panX, panY } })
@@ -842,6 +886,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         const artboard = findArtboard(draft, artboardId)
         if (!artboard?.guides) return
         artboard.guides[axis][index] = position
+      })
+    },
+
+    clearGuides(artboardId) {
+      mutateDocument('Clear all guides', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        artboard.guides = { horizontal: [], vertical: [] }
       })
     },
 
@@ -1085,6 +1137,35 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       set({ showExportModal: false })
     },
 
+    addSlice(artboardId, slice) {
+      mutateDocument('Add slice', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) {
+          if (!artboard.slices) artboard.slices = []
+          artboard.slices.push(slice)
+        }
+      })
+    },
+
+    removeSlice(artboardId, sliceId) {
+      mutateDocument('Remove slice', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard && artboard.slices) {
+          artboard.slices = artboard.slices.filter((s) => s.id !== sliceId)
+        }
+      })
+    },
+
+    updateSlice(artboardId, sliceId, updates) {
+      mutateDocument('Update slice', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard && artboard.slices) {
+          const slice = artboard.slices.find((s) => s.id === sliceId)
+          if (slice) Object.assign(slice, updates)
+        }
+      })
+    },
+
     toggleTouchMode() {
       const next = !get().touchMode
       set({ touchMode: next })
@@ -1095,6 +1176,209 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       if (typeof document !== 'undefined') {
         document.documentElement.classList.toggle('touch-mode', next)
       }
+    },
+
+    // Symbols
+    createSymbolDefinition(name, layerIds) {
+      const state = get()
+      // Find the active artboard
+      const artboardId = state.viewport.artboardId
+      const artboard = state.document.artboards.find((a) => a.id === artboardId) ?? state.document.artboards[0]
+      if (!artboard) return
+
+      // Collect selected layers from the artboard
+      const selectedLayers = layerIds
+        .map((id) => artboard.layers.find((l) => l.id === id))
+        .filter((l): l is Layer => l != null)
+      if (selectedLayers.length === 0) return
+
+      // Compute bounding box from selected layers
+      let minX = Infinity,
+        minY = Infinity,
+        maxX = -Infinity,
+        maxY = -Infinity
+      for (const layer of selectedLayers) {
+        const lx = layer.transform.x
+        const ly = layer.transform.y
+        let lw = 100
+        let lh = 100
+        if (layer.type === 'vector' && layer.shapeParams) {
+          lw = layer.shapeParams.width
+          lh = layer.shapeParams.height
+        } else if (layer.type === 'raster') {
+          lw = layer.width
+          lh = layer.height
+        } else if (layer.type === 'text') {
+          lw = layer.fontSize * (layer.text.length || 1) * 0.6
+          lh = layer.fontSize * layer.lineHeight
+        }
+        if (lx < minX) minX = lx
+        if (ly < minY) minY = ly
+        if (lx + lw > maxX) maxX = lx + lw
+        if (ly + lh > maxY) maxY = ly + lh
+      }
+
+      const symbolId = uuid()
+      // Deep-clone the layers so the symbol definition is independent
+      const clonedLayers: Layer[] = JSON.parse(JSON.stringify(selectedLayers))
+
+      const symbolDef: SymbolDefinition = {
+        id: symbolId,
+        name,
+        layers: clonedLayers,
+        width: Math.max(1, maxX - minX),
+        height: Math.max(1, maxY - minY),
+      }
+
+      mutateDocument(`Create symbol "${name}"`, (draft) => {
+        if (!draft.symbols) draft.symbols = []
+        draft.symbols.push(symbolDef)
+      })
+    },
+
+    deleteSymbolDefinition(symbolId) {
+      mutateDocument('Delete symbol', (draft) => {
+        if (!draft.symbols) return
+        draft.symbols = draft.symbols.filter((s) => s.id !== symbolId)
+      })
+    },
+
+    createSymbolInstance(artboardId, symbolId) {
+      const state = get()
+      const symbolDef = (state.document.symbols ?? []).find((s) => s.id === symbolId)
+      if (!symbolDef) return
+
+      const instanceLayer: SymbolInstanceLayer = {
+        id: uuid(),
+        name: `${symbolDef.name} Instance`,
+        type: 'symbol-instance',
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal',
+        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+        effects: [],
+        symbolId,
+      }
+
+      mutateDocument(`Insert symbol "${symbolDef.name}"`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) artboard.layers.push(instanceLayer)
+      })
+    },
+
+    renameSymbol(symbolId, name) {
+      mutateDocument(`Rename symbol to "${name}"`, (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (sym) sym.name = name
+      })
+    },
+
+    // Document colors
+    addDocumentColor(color) {
+      mutateDocument(`Add document color "${color.name}"`, (draft) => {
+        draft.assets.colors.push(color)
+      })
+    },
+
+    removeDocumentColor(id) {
+      mutateDocument('Remove document color', (draft) => {
+        draft.assets.colors = draft.assets.colors.filter((c) => c.id !== id)
+      })
+    },
+
+    updateDocumentColor(id, updates) {
+      mutateDocument('Update document color', (draft) => {
+        const color = draft.assets.colors.find((c) => c.id === id)
+        if (!color) return
+        const oldValue = color.value
+        Object.assign(color, updates)
+        // Propagate value changes to all layers referencing the old color
+        if (updates.value && updates.value !== oldValue) {
+          const newValue = updates.value
+          const updateLayerColors = (layer: Layer) => {
+            if (layer.type === 'vector') {
+              if (layer.fill?.color?.toLowerCase() === oldValue.toLowerCase()) {
+                layer.fill.color = newValue
+              }
+              if (layer.stroke?.color?.toLowerCase() === oldValue.toLowerCase()) {
+                layer.stroke.color = newValue
+              }
+              if (layer.additionalFills) {
+                for (const f of layer.additionalFills) {
+                  if (f.color?.toLowerCase() === oldValue.toLowerCase()) {
+                    f.color = newValue
+                  }
+                }
+              }
+              if (layer.additionalStrokes) {
+                for (const s of layer.additionalStrokes) {
+                  if (s.color?.toLowerCase() === oldValue.toLowerCase()) {
+                    s.color = newValue
+                  }
+                }
+              }
+            } else if (layer.type === 'text') {
+              if (layer.color?.toLowerCase() === oldValue.toLowerCase()) {
+                layer.color = newValue
+              }
+            } else if (layer.type === 'group') {
+              for (const child of layer.children) {
+                updateLayerColors(child)
+              }
+            }
+          }
+          for (const artboard of draft.artboards) {
+            for (const layer of artboard.layers) {
+              updateLayerColors(layer)
+            }
+          }
+        }
+      })
+    },
+
+    // Filters
+    applyFilter(artboardId, layerId, filterType, params) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard) return
+      const layer = artboard.layers.find((l) => l.id === layerId)
+      if (!layer || layer.type !== 'raster') return
+
+      const chunkId = (layer as import('@/types').RasterLayer).imageChunkId
+      const original = getRasterData(chunkId)
+      if (!original) return
+
+      // Clone the image data so we can push undo history
+      const beforeData = new ImageData(new Uint8ClampedArray(original.data), original.width, original.height)
+
+      // Apply the requested filter in-place on the original
+      const amount = typeof params.amount === 'number' ? params.amount : 25
+      const monochrome = typeof params.monochrome === 'boolean' ? params.monochrome : false
+      const seed = typeof params.seed === 'number' ? params.seed : Date.now()
+      const size = typeof params.size === 'number' ? params.size : 3
+
+      switch (filterType) {
+        case 'gaussian-noise':
+          applyGaussianNoise(original, amount, monochrome, seed)
+          break
+        case 'uniform-noise':
+          applyUniformNoise(original, amount, monochrome, seed)
+          break
+        case 'film-grain':
+          applyFilmGrain(original, amount, size, seed)
+          break
+        default:
+          console.warn(`Unknown filter type: ${filterType}`)
+          return
+      }
+
+      // Refresh the render cache so the viewport re-paints
+      updateRasterCache(chunkId)
+
+      // Push undo entry with before/after snapshots
+      get().pushRasterHistory(`Apply ${filterType}`, chunkId, beforeData, original)
     },
   }
 })

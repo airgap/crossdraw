@@ -68,7 +68,8 @@ function renderGradientDef(lines: string[], grad: Gradient, _artboardW: number, 
     }
     case 'conical':
     case 'box':
-      // SVG doesn't natively support conical/box gradients; fallback to first stop color
+    case 'mesh':
+      // SVG doesn't natively support conical/box/mesh gradients; fallback to first stop color
       // (or could rasterize to image, but that's out of scope)
       break
   }
@@ -393,6 +394,14 @@ function renderTextLayerSVG(lines: string[], layer: TextLayer) {
   if (t.scaleX !== 1 || t.scaleY !== 1) transforms.push(`scale(${t.scaleX} ${t.scaleY})`)
   if (t.rotation) transforms.push(`rotate(${t.rotation})`)
   if (transforms.length > 0) attrs.push(`transform="${transforms.join(' ')}"`)
+
+  // Apply OpenType feature settings as a CSS style attribute
+  if (layer.openTypeFeatures && Object.keys(layer.openTypeFeatures).length > 0) {
+    const featureStr = Object.entries(layer.openTypeFeatures)
+      .map(([tag, enabled]) => `"${tag}" ${enabled ? 1 : 0}`)
+      .join(', ')
+    attrs.push(`style="font-feature-settings: ${featureStr}"`)
+  }
 
   lines.push(`  <text ${attrs.join(' ')} dominant-baseline="text-before-edge">${escapeXml(layer.text)}</text>`)
 }

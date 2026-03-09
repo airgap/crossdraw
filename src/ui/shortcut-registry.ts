@@ -15,6 +15,7 @@ import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { openFile } from '@/io/open-file'
+import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 
 /**
  * Keyboard shortcut registry with customization support.
@@ -97,14 +98,26 @@ function buildDefaultBindings(): ShortcutBinding[] {
     toolShortcut('tool.rectangle', 'Rectangle Tool', 'r', 'rectangle'),
     toolShortcut('tool.ellipse', 'Ellipse Tool', 'e', 'ellipse'),
     toolShortcut('tool.polygon', 'Polygon Tool', 'y', 'polygon'),
-    toolShortcut('tool.star', 'Star Tool', 's', 'star'),
+    toolShortcut('tool.star', 'Star Tool', 'shift+s', 'star'),
+    toolShortcut('tool.cloneStamp', 'Clone Stamp Tool', 's', 'clone-stamp'),
     toolShortcut('tool.text', 'Text Tool', 't', 'text'),
     toolShortcut('tool.node', 'Node Tool', 'a', 'node'),
     toolShortcut('tool.eyedropper', 'Eyedropper Tool', 'i', 'eyedropper'),
     toolShortcut('tool.hand', 'Hand Tool', 'h', 'hand'),
-    toolShortcut('tool.measure', 'Measure Tool', 'm', 'measure'),
+    toolShortcut('tool.measure', 'Measure Tool', 'u', 'measure'),
     toolShortcut('tool.brush', 'Brush Tool', 'b', 'brush'),
     toolShortcut('tool.crop', 'Crop Tool', 'c', 'crop'),
+    toolShortcut('tool.line', 'Line Tool', 'l', 'line'),
+    toolShortcut('tool.pencil', 'Pencil Tool', 'n', 'pencil'),
+    toolShortcut('tool.eraser', 'Eraser Tool', 'x', 'eraser'),
+    toolShortcut('tool.gradient', 'Gradient Tool', 'j', 'gradient'),
+    toolShortcut('tool.fill', 'Fill Bucket', 'g', 'fill'),
+    toolShortcut('tool.zoom', 'Zoom Tool', 'z', 'zoom'),
+    toolShortcut('tool.lasso', 'Lasso Tool', 'q', 'lasso'),
+    toolShortcut('tool.marquee', 'Marquee Tool', 'm', 'marquee'),
+    toolShortcut('tool.knife', 'Knife Tool', 'k', 'knife'),
+    toolShortcut('tool.artboard', 'Artboard Tool', 'f', 'artboard'),
+    toolShortcut('tool.slice', 'Slice Tool', 'w', 'slice'),
 
     // File
     {
@@ -528,6 +541,18 @@ function buildDefaultBindings(): ShortcutBinding[] {
       defaultKey: 'ctrl+alt+y',
       key: 'ctrl+alt+y',
       action: () => store().togglePixelPreview(),
+    },
+
+    // Find & Replace
+    {
+      id: 'edit.findReplace',
+      label: 'Find & Replace',
+      category: 'edit',
+      defaultKey: 'ctrl+f',
+      key: 'ctrl+f',
+      action: () => {
+        usePanelLayoutStore.getState().focusTab('find-replace')
+      },
     },
   ]
 }

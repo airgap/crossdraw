@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
 import type { Gradient, GradientStop } from '@/types'
+import { createDefaultMeshData } from '@/render/mesh-gradient'
 
 const rowStyle: React.CSSProperties = {
   display: 'flex',
@@ -34,7 +35,7 @@ const btnStyle: React.CSSProperties = {
   cursor: 'pointer',
 }
 
-const gradientTypes = ['linear', 'radial', 'conical', 'box'] as const
+const gradientTypes = ['linear', 'radial', 'conical', 'box', 'mesh'] as const
 
 export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onChange: (g: Gradient) => void }) {
   const [selectedStop, setSelectedStop] = useState(0)
@@ -69,7 +70,14 @@ export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onC
         <select
           style={{ ...inputStyle, width: 'auto', flex: 1 }}
           value={gradient.type}
-          onChange={(e) => onChange({ ...gradient, type: e.target.value as Gradient['type'] })}
+          onChange={(e) => {
+            const newType = e.target.value as Gradient['type']
+            const updated = { ...gradient, type: newType }
+            if (newType === 'mesh' && !gradient.mesh) {
+              updated.mesh = createDefaultMeshData()
+            }
+            onChange(updated)
+          }}
         >
           {gradientTypes.map((t) => (
             <option key={t} value={t}>
@@ -88,9 +96,10 @@ export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onC
           background: cssGradient,
           marginBottom: 4,
           position: 'relative',
-          cursor: 'pointer',
+          cursor: gradient.type !== 'mesh' ? 'pointer' : 'default',
         }}
         onClick={(e) => {
+          if (gradient.type === 'mesh') return
           const rect = e.currentTarget.getBoundingClientRect()
           const offset = (e.clientX - rect.left) / rect.width
           // Click to add a stop
@@ -100,39 +109,40 @@ export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onC
           setSelectedStop(stops.findIndex((s) => s.offset === offset))
         }}
       >
-        {/* Stop markers */}
-        {gradient.stops.map((stop, i) => (
-          <div
-            key={i}
-            onClick={(e) => {
-              e.stopPropagation()
-              setSelectedStop(i)
-            }}
-            style={{
-              position: 'absolute',
-              left: `${stop.offset * 100}%`,
-              top: -2,
-              width: 10,
-              height: 24,
-              marginLeft: -5,
-              background: stop.color,
-              border: i === selectedStop ? '2px solid #4a7dff' : '2px solid #fff',
-              borderRadius: 2,
-              cursor: 'grab',
-            }}
-            draggable
-            onDrag={(e) => {
-              if (e.clientX === 0) return // drag end fires with 0
-              const rect = e.currentTarget.parentElement!.getBoundingClientRect()
-              const newOffset = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
-              updateStop(i, { offset: Math.round(newOffset * 100) / 100 })
-            }}
-          />
-        ))}
+        {/* Stop markers (hidden for mesh) */}
+        {gradient.type !== 'mesh' &&
+          gradient.stops.map((stop, i) => (
+            <div
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation()
+                setSelectedStop(i)
+              }}
+              style={{
+                position: 'absolute',
+                left: `${stop.offset * 100}%`,
+                top: -2,
+                width: 10,
+                height: 24,
+                marginLeft: -5,
+                background: stop.color,
+                border: i === selectedStop ? '2px solid #4a7dff' : '2px solid #fff',
+                borderRadius: 2,
+                cursor: 'grab',
+              }}
+              draggable
+              onDrag={(e) => {
+                if (e.clientX === 0) return // drag end fires with 0
+                const rect = e.currentTarget.parentElement!.getBoundingClientRect()
+                const newOffset = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width))
+                updateStop(i, { offset: Math.round(newOffset * 100) / 100 })
+              }}
+            />
+          ))}
       </div>
 
-      {/* Stop controls */}
-      {gradient.stops[selectedStop] && (
+      {/* Stop controls (hidden for mesh — mesh uses point grid instead) */}
+      {gradient.type !== 'mesh' && gradient.stops[selectedStop] && (
         <div style={{ padding: 4, background: '#222', borderRadius: 3, marginBottom: 4 }}>
           <div style={rowStyle}>
             <div
@@ -202,9 +212,11 @@ export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onC
         </div>
       )}
 
-      <button style={{ ...btnStyle, marginBottom: 4 }} onClick={addStop}>
-        + Add Stop
-      </button>
+      {gradient.type !== 'mesh' && (
+        <button style={{ ...btnStyle, marginBottom: 4 }} onClick={addStop}>
+          + Add Stop
+        </button>
+      )}
 
       {/* Angle (linear/conical) */}
       {(gradient.type === 'linear' || gradient.type === 'conical') && (
@@ -240,27 +252,174 @@ export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onC
         </div>
       )}
 
-      {/* Center position */}
-      <div style={rowStyle}>
-        <span style={{ fontSize: 10, color: '#888', width: 14 }}>X</span>
+      {/* Center position (non-mesh types) */}
+      {gradient.type !== 'mesh' && (
+        <div style={rowStyle}>
+          <span style={{ fontSize: 10, color: '#888', width: 14 }}>X</span>
+          <input
+            type="number"
+            step="0.05"
+            style={smallInputStyle}
+            value={Math.round(gradient.x * 100) / 100}
+            onChange={(e) => onChange({ ...gradient, x: Number(e.target.value) })}
+          />
+          <span style={{ fontSize: 10, color: '#888', width: 14 }}>Y</span>
+          <input
+            type="number"
+            step="0.05"
+            style={smallInputStyle}
+            value={Math.round(gradient.y * 100) / 100}
+            onChange={(e) => onChange({ ...gradient, y: Number(e.target.value) })}
+          />
+        </div>
+      )}
+
+      {/* Mesh grid controls */}
+      {gradient.type === 'mesh' && gradient.mesh && (
+        <MeshGridEditor mesh={gradient.mesh} onChange={(mesh) => onChange({ ...gradient, mesh })} />
+      )}
+    </div>
+  )
+}
+
+function MeshGridEditor({
+  mesh,
+  onChange,
+}: {
+  mesh: import('@/types').MeshGradientData
+  onChange: (m: import('@/types').MeshGradientData) => void
+}) {
+  const { rows, cols, points } = mesh
+
+  function updatePoint(index: number, updates: Partial<import('@/types').MeshPoint>) {
+    const newPoints = points.map((p, i) => (i === index ? { ...p, ...updates } : p))
+    onChange({ ...mesh, points: newPoints })
+  }
+
+  function setGridSize(newRows: number, newCols: number) {
+    newRows = Math.max(2, Math.min(8, newRows))
+    newCols = Math.max(2, Math.min(8, newCols))
+    const newPoints: import('@/types').MeshPoint[] = []
+    for (let r = 0; r < newRows; r++) {
+      for (let c = 0; c < newCols; c++) {
+        // Try to copy from existing point at same grid position, otherwise interpolate
+        const existingR = Math.round((r / (newRows - 1)) * (rows - 1))
+        const existingC = Math.round((c / (newCols - 1)) * (cols - 1))
+        const existing = points[existingR * cols + existingC]
+        newPoints.push({
+          x: c / (newCols - 1),
+          y: r / (newRows - 1),
+          color: existing?.color ?? '#888888',
+          opacity: existing?.opacity ?? 1,
+        })
+      }
+    }
+    onChange({ rows: newRows, cols: newCols, points: newPoints })
+  }
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      {/* Grid size controls */}
+      <div style={{ display: 'flex', gap: 4, marginBottom: 6, alignItems: 'center' }}>
+        <span style={{ fontSize: 10, color: '#888' }}>Grid</span>
         <input
           type="number"
-          step="0.05"
-          style={smallInputStyle}
-          value={Math.round(gradient.x * 100) / 100}
-          onChange={(e) => onChange({ ...gradient, x: Number(e.target.value) })}
+          min="2"
+          max="8"
+          style={{ ...inputStyleLocal, width: 36 }}
+          value={rows}
+          onChange={(e) => setGridSize(Number(e.target.value), cols)}
         />
-        <span style={{ fontSize: 10, color: '#888', width: 14 }}>Y</span>
+        <span style={{ fontSize: 10, color: '#666' }}>x</span>
         <input
           type="number"
-          step="0.05"
-          style={smallInputStyle}
-          value={Math.round(gradient.y * 100) / 100}
-          onChange={(e) => onChange({ ...gradient, y: Number(e.target.value) })}
+          min="2"
+          max="8"
+          style={{ ...inputStyleLocal, width: 36 }}
+          value={cols}
+          onChange={(e) => setGridSize(rows, Number(e.target.value))}
         />
+      </div>
+
+      {/* Visual grid of color swatches */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${cols}, 1fr)`,
+          gap: 2,
+          marginBottom: 4,
+        }}
+      >
+        {points.map((pt, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'relative',
+              width: '100%',
+              paddingBottom: '100%',
+              borderRadius: 3,
+              border: '1px solid #555',
+              background: pt.color,
+              overflow: 'hidden',
+            }}
+          >
+            <input
+              type="color"
+              value={pt.color}
+              onChange={(e) => updatePoint(i, { color: e.target.value })}
+              style={{
+                opacity: 0,
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                cursor: 'pointer',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+
+      {/* Per-point opacity */}
+      <div style={{ fontSize: 10, color: '#888', marginBottom: 2 }}>Point Opacity</div>
+      <div style={{ maxHeight: 80, overflowY: 'auto' }}>
+        {points.map((pt, i) => (
+          <div key={i} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 2 }}>
+            <div
+              style={{
+                width: 12,
+                height: 12,
+                borderRadius: 2,
+                background: pt.color,
+                border: '1px solid #555',
+                flexShrink: 0,
+              }}
+            />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round(pt.opacity * 100)}
+              onChange={(e) => updatePoint(i, { opacity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 9, color: '#aaa', width: 24, textAlign: 'right' }}>
+              {Math.round(pt.opacity * 100)}%
+            </span>
+          </div>
+        ))}
       </div>
     </div>
   )
+}
+
+const inputStyleLocal: React.CSSProperties = {
+  background: '#1a1a1a',
+  border: '1px solid #444',
+  borderRadius: 3,
+  color: '#ddd',
+  fontSize: 11,
+  padding: '2px 4px',
 }
 
 function buildCSSPreview(grad: Gradient): string {
@@ -276,6 +435,18 @@ function buildCSSPreview(grad: Gradient): string {
     case 'box':
       // No CSS equivalent; approximate with radial
       return `radial-gradient(circle at ${grad.x * 100}% ${grad.y * 100}%, ${stops})`
+    case 'mesh': {
+      // Approximate mesh with a multi-stop gradient from corner colors
+      if (grad.mesh && grad.mesh.points.length >= 4) {
+        const p = grad.mesh.points
+        const tl = p[0]!.color
+        const tr = p[grad.mesh.cols - 1]!.color
+        const bl = p[(grad.mesh.rows - 1) * grad.mesh.cols]!.color
+        const br = p[grad.mesh.rows * grad.mesh.cols - 1]!.color
+        return `linear-gradient(135deg, ${tl} 0%, ${tr} 33%, ${br} 66%, ${bl} 100%)`
+      }
+      return `linear-gradient(135deg, ${stops})`
+    }
   }
 }
 

@@ -45,19 +45,27 @@ const COLORSPACES: { value: NewDocumentSettings['colorspace']; label: string }[]
 
 function pxToUnit(px: number, unit: NewDocumentSettings['unit'], dpi: number): number {
   switch (unit) {
-    case 'px': return px
-    case 'in': return px / dpi
-    case 'cm': return (px / dpi) * 2.54
-    case 'mm': return (px / dpi) * 25.4
+    case 'px':
+      return px
+    case 'in':
+      return px / dpi
+    case 'cm':
+      return (px / dpi) * 2.54
+    case 'mm':
+      return (px / dpi) * 25.4
   }
 }
 
 function unitToPx(val: number, unit: NewDocumentSettings['unit'], dpi: number): number {
   switch (unit) {
-    case 'px': return Math.round(val)
-    case 'in': return Math.round(val * dpi)
-    case 'cm': return Math.round((val / 2.54) * dpi)
-    case 'mm': return Math.round((val / 25.4) * dpi)
+    case 'px':
+      return Math.round(val)
+    case 'in':
+      return Math.round(val * dpi)
+    case 'cm':
+      return Math.round((val / 2.54) * dpi)
+    case 'mm':
+      return Math.round((val / 25.4) * dpi)
   }
 }
 
@@ -72,7 +80,14 @@ export function NewDocumentModal({
   onCreate,
 }: {
   onClose: () => void
-  onCreate: (settings: { title: string; width: number; height: number; colorspace: 'srgb' | 'p3' | 'adobe-rgb'; backgroundColor: string; dpi: number }) => void
+  onCreate: (settings: {
+    title: string
+    width: number
+    height: number
+    colorspace: 'srgb' | 'p3' | 'adobe-rgb'
+    backgroundColor: string
+    dpi: number
+  }) => void
 }) {
   const [settings, setSettings] = useState<NewDocumentSettings>({
     title: 'Untitled',
@@ -112,23 +127,29 @@ export function NewDocumentModal({
     })
   }, [])
 
-  const setWidth = useCallback((pxW: number) => {
-    setSettings((prev) => {
-      const w = Math.max(1, Math.min(16384, pxW))
-      const h = linked ? Math.max(1, Math.round(w / aspectRatio.current)) : prev.height
-      return { ...prev, width: w, height: h }
-    })
-  }, [linked])
+  const setWidth = useCallback(
+    (pxW: number) => {
+      setSettings((prev) => {
+        const w = Math.max(1, Math.min(16384, pxW))
+        const h = linked ? Math.max(1, Math.round(w / aspectRatio.current)) : prev.height
+        return { ...prev, width: w, height: h }
+      })
+    },
+    [linked],
+  )
 
-  const setHeight = useCallback((pxH: number) => {
-    setSettings((prev) => {
-      const h = Math.max(1, Math.min(16384, pxH))
-      const w = linked ? Math.max(1, Math.round(h * aspectRatio.current)) : prev.width
-      return { ...prev, width: w, height: h }
-    })
-  }, [linked])
+  const setHeight = useCallback(
+    (pxH: number) => {
+      setSettings((prev) => {
+        const h = Math.max(1, Math.min(16384, pxH))
+        const w = linked ? Math.max(1, Math.round(h * aspectRatio.current)) : prev.width
+        return { ...prev, width: w, height: h }
+      })
+    },
+    [linked],
+  )
 
-  const applyPreset = useCallback((preset: typeof PRESETS[number]) => {
+  const applyPreset = useCallback((preset: (typeof PRESETS)[number]) => {
     setSettings((prev) => ({
       ...prev,
       width: preset.w,
@@ -178,7 +199,9 @@ export function NewDocumentModal({
         zIndex: 10000,
         fontFamily: 'var(--font-body)',
       }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
     >
       <div
         style={{
@@ -194,7 +217,9 @@ export function NewDocumentModal({
         {/* Header */}
         <div style={{ padding: '20px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>New Document</h2>
-          <button onClick={onClose} style={closeBtnStyle}>&times;</button>
+          <button onClick={onClose} style={closeBtnStyle}>
+            &times;
+          </button>
         </div>
 
         <div style={{ padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -219,12 +244,18 @@ export function NewDocumentModal({
               style={inputStyle}
               defaultValue=""
             >
-              <option value="" disabled>Choose a preset...</option>
+              <option value="" disabled>
+                Choose a preset...
+              </option>
               {[...groups.entries()].map(([group, presets]) => (
                 <optgroup key={group} label={group}>
                   {presets.map((p) => {
                     const idx = PRESETS.indexOf(p)
-                    return <option key={idx} value={idx}>{p.label}</option>
+                    return (
+                      <option key={idx} value={idx}>
+                        {p.label}
+                      </option>
+                    )
                   })}
                 </optgroup>
               ))}
@@ -243,7 +274,9 @@ export function NewDocumentModal({
                     const val = parseFloat(e.target.value)
                     if (!isNaN(val)) setWidth(unitToPx(val, settings.unit, settings.dpi))
                   }}
-                  onBlur={() => { aspectRatio.current = settings.width / settings.height }}
+                  onBlur={() => {
+                    aspectRatio.current = settings.width / settings.height
+                  }}
                   min={1}
                   style={inputStyle}
                 />
@@ -264,7 +297,9 @@ export function NewDocumentModal({
                 >
                   {linked ? '🔗' : '⛓️‍💥'}
                 </button>
-                <button onClick={swapDimensions} title="Swap width and height" style={iconBtnStyle}>⇅</button>
+                <button onClick={swapDimensions} title="Swap width and height" style={iconBtnStyle}>
+                  ⇅
+                </button>
               </div>
 
               <div style={{ flex: 1 }}>
@@ -276,7 +311,9 @@ export function NewDocumentModal({
                     const val = parseFloat(e.target.value)
                     if (!isNaN(val)) setHeight(unitToPx(val, settings.unit, settings.dpi))
                   }}
-                  onBlur={() => { aspectRatio.current = settings.width / settings.height }}
+                  onBlur={() => {
+                    aspectRatio.current = settings.width / settings.height
+                  }}
                   min={1}
                   style={inputStyle}
                 />
@@ -289,7 +326,11 @@ export function NewDocumentModal({
                   onChange={(e) => update({ unit: e.target.value as NewDocumentSettings['unit'] })}
                   style={inputStyle}
                 >
-                  {UNITS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
+                  {UNITS.map((u) => (
+                    <option key={u.value} value={u.value}>
+                      {u.label}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -307,7 +348,11 @@ export function NewDocumentModal({
                   onChange={(e) => update({ dpi: parseInt(e.target.value) })}
                   style={inputStyle}
                 >
-                  {DPI_OPTIONS.map((d) => <option key={d} value={d}>{d} DPI</option>)}
+                  {DPI_OPTIONS.map((d) => (
+                    <option key={d} value={d}>
+                      {d} DPI
+                    </option>
+                  ))}
                 </select>
               </Field>
             </div>
@@ -318,7 +363,11 @@ export function NewDocumentModal({
                   onChange={(e) => update({ colorspace: e.target.value as NewDocumentSettings['colorspace'] })}
                   style={inputStyle}
                 >
-                  {COLORSPACES.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                  {COLORSPACES.map((c) => (
+                    <option key={c.value} value={c.value}>
+                      {c.label}
+                    </option>
+                  ))}
                 </select>
               </Field>
             </div>
@@ -328,7 +377,16 @@ export function NewDocumentModal({
           <div>
             <label style={labelStyle}>Background</label>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: 13,
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                }}
+              >
                 <input
                   type="checkbox"
                   checked={settings.transparentBackground}
@@ -342,7 +400,14 @@ export function NewDocumentModal({
                     type="color"
                     value={settings.backgroundColor}
                     onChange={(e) => update({ backgroundColor: e.target.value })}
-                    style={{ width: 28, height: 28, border: '1px solid var(--border-subtle)', borderRadius: 4, padding: 0, cursor: 'pointer' }}
+                    style={{
+                      width: 28,
+                      height: 28,
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: 4,
+                      padding: 0,
+                      cursor: 'pointer',
+                    }}
                   />
                   <input
                     type="text"
@@ -360,7 +425,10 @@ export function NewDocumentModal({
             <div
               style={{
                 width: Math.min(200, settings.width > settings.height ? 200 : 200 * (settings.width / settings.height)),
-                height: Math.min(200, settings.height > settings.width ? 200 : 200 * (settings.height / settings.width)),
+                height: Math.min(
+                  200,
+                  settings.height > settings.width ? 200 : 200 * (settings.height / settings.width),
+                ),
                 background: settings.transparentBackground
                   ? 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 0 0 / 16px 16px'
                   : settings.backgroundColor,
@@ -372,8 +440,12 @@ export function NewDocumentModal({
 
           {/* Actions */}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 4 }}>
-            <button onClick={onClose} style={secondaryBtnStyle}>Cancel</button>
-            <button onClick={handleCreate} style={primaryBtnStyle}>Create</button>
+            <button onClick={onClose} style={secondaryBtnStyle}>
+              Cancel
+            </button>
+            <button onClick={handleCreate} style={primaryBtnStyle}>
+              Create
+            </button>
           </div>
         </div>
       </div>

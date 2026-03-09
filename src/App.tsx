@@ -7,12 +7,14 @@ import { MenuBar } from '@/ui/menu-bar'
 import { setupKeyboardShortcuts } from '@/ui/keyboard'
 import { PanelShell } from '@/ui/panels/panel-shell'
 import { ExportModal } from '@/ui/export-modal'
-import { BrushSettingsBar } from '@/ui/brush-settings-bar'
+import { PrintDialog } from '@/ui/print-dialog'
+import { ToolOptionsBar } from '@/ui/tool-options-bar'
 import { DownloadPage } from '@/ui/download-page'
 import { SplashScreen } from '@/ui/splash-screen'
 import { NewDocumentModal } from '@/ui/new-document-modal'
 import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
 import { useEditorStore } from '@/store/editor.store'
+import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash)
@@ -39,7 +41,9 @@ export function App() {
       if (cancelled) return
       setBoot(restored ? 'editor' : 'splash')
     })
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Start auto-persisting once we're in the editor
@@ -62,11 +66,25 @@ export function App() {
     return () => window.removeEventListener('crossdraw:new-document', onNewDoc)
   }, [])
 
+  // Listen for menu bar "Preferences" event — focus the preferences panel tab
+  useEffect(() => {
+    const onShowPrefs = () => usePanelLayoutStore.getState().focusTab('preferences')
+    window.addEventListener('crossdraw:show-preferences', onShowPrefs)
+    return () => window.removeEventListener('crossdraw:show-preferences', onShowPrefs)
+  }, [])
+
   useEffect(() => {
     if (boot === 'editor' && hash !== '#/download') setupKeyboardShortcuts()
   }, [boot, hash])
 
-  const handleCreate = (settings: { title: string; width: number; height: number; colorspace: 'srgb' | 'p3' | 'adobe-rgb'; backgroundColor: string; dpi: number }) => {
+  const handleCreate = (settings: {
+    title: string
+    width: number
+    height: number
+    colorspace: 'srgb' | 'p3' | 'adobe-rgb'
+    backgroundColor: string
+    dpi: number
+  }) => {
     useEditorStore.getState().newDocument(settings)
     setShowNewDoc(false)
     setBoot('editor')
@@ -109,8 +127,20 @@ export function App() {
         fontSize: 'var(--font-size-base)',
       }}
     >
+      {/* Skip navigation link for keyboard/screen reader users */}
+      <a
+        href="#canvas"
+        className="sr-only focus:not-sr-only"
+        onClick={(e) => {
+          e.preventDefault()
+          const canvas = document.querySelector<HTMLCanvasElement>('#canvas')
+          if (canvas) canvas.focus()
+        }}
+      >
+        Skip to canvas
+      </a>
       <MenuBar />
-      <BrushSettingsBar />
+      <ToolOptionsBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Toolbar />
         <PanelShell>
@@ -120,12 +150,8 @@ export function App() {
       <StatusBar />
       <CanvasContextMenu />
       <ExportModal />
-      {showNewDoc && (
-        <NewDocumentModal
-          onClose={() => setShowNewDoc(false)}
-          onCreate={handleCreate}
-        />
-      )}
+      <PrintDialog />
+      {showNewDoc && <NewDocumentModal onClose={() => setShowNewDoc(false)} onCreate={handleCreate} />}
     </div>
   )
 }

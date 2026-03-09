@@ -1,5 +1,7 @@
 import { exportArtboardToBlob } from '@/io/raster-export'
 import { exportArtboardToSVG } from '@/io/svg-export'
+import { encodeGIF } from '@/io/gif-encoder'
+import { encodeTIFF } from '@/io/tiff-encoder'
 import type { DesignDocument, ExportSlice, Artboard } from '@/types'
 
 export interface BatchExportResult {
@@ -43,11 +45,15 @@ async function exportSlice(doc: DesignDocument, artboard: Artboard, slice: Expor
   }
 
   // For raster formats, export the artboard and crop to slice region
-  const fullBlob = await exportArtboardToBlob(
-    doc,
-    { format: slice.format === 'jpeg' ? 'jpeg' : 'png', scale: slice.scale },
-    artboard.id,
-  )
+  const formatMap: Record<string, 'png' | 'jpeg' | 'webp' | 'gif' | 'tiff'> = {
+    png: 'png',
+    jpeg: 'jpeg',
+    webp: 'webp',
+    gif: 'gif',
+    tiff: 'tiff',
+  }
+  const rasterFormat = formatMap[slice.format] ?? 'png'
+  const fullBlob = await exportArtboardToBlob(doc, { format: rasterFormat, scale: slice.scale }, artboard.id)
 
   // If slice covers entire artboard, return as-is
   if (slice.x === 0 && slice.y === 0 && slice.width === artboard.width && slice.height === artboard.height) {
@@ -72,9 +78,29 @@ async function exportSlice(doc: DesignDocument, artboard: Artboard, slice: Expor
   )
   bitmap.close()
 
+  // GIF and TIFF need pixel-level encoding
+  if (slice.format === 'gif') {
+    const ctx2 = cropCanvas.getContext('2d')!
+    const imgData = ctx2.getImageData(0, 0, cropCanvas.width, cropCanvas.height)
+    const gifBytes = encodeGIF(imgData)
+    return new Blob([gifBytes.buffer as ArrayBuffer], { type: 'image/gif' })
+  }
+
+  if (slice.format === 'tiff') {
+    const ctx2 = cropCanvas.getContext('2d')!
+    const imgData = ctx2.getImageData(0, 0, cropCanvas.width, cropCanvas.height)
+    const tiffBytes = encodeTIFF(imgData)
+    return new Blob([tiffBytes.buffer as ArrayBuffer], { type: 'image/tiff' })
+  }
+
+  const mimeMap: Record<string, string> = {
+    png: 'image/png',
+    jpeg: 'image/jpeg',
+    webp: 'image/webp',
+  }
   return cropCanvas.convertToBlob({
-    type: slice.format === 'jpeg' ? 'image/jpeg' : 'image/png',
-    quality: slice.format === 'jpeg' ? 0.92 : undefined,
+    type: mimeMap[slice.format] ?? 'image/png',
+    quality: slice.format === 'jpeg' ? 0.92 : slice.format === 'webp' ? 0.9 : undefined,
   })
 }
 
@@ -104,7 +130,7 @@ export function createSlice(
   y: number,
   width: number,
   height: number,
-  format: 'png' | 'jpeg' | 'svg' = 'png',
+  format: 'png' | 'jpeg' | 'svg' | 'webp' | 'gif' | 'tiff' = 'png',
   scale = 1,
 ): ExportSlice {
   return {

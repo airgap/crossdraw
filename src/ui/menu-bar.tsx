@@ -1,14 +1,27 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
+import { getWorkspacePresets, saveWorkspacePreset, loadWorkspacePreset, resetWorkspace } from '@/ui/workspace-presets'
 import { isElectron, electronOpen } from '@/io/electron-bridge'
 import { openFile } from '@/io/open-file'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { batchExportSlices, downloadBatchExport } from '@/io/batch-export'
+import {
+  extractDesignTokens,
+  exportTokensAsJSON,
+  exportTokensAsCSS,
+  exportTokensAsSCSS,
+  exportTokensAsTailwind,
+  downloadTokenFile,
+} from '@/io/design-tokens'
 import { importImageFromPicker } from '@/tools/import-image'
+import { importPSD } from '@/io/psd-import'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
 import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
+import { performBooleanOp } from '@/tools/boolean-ops'
+import { traceSelectedRasterLayer } from '@/tools/image-trace'
+import { applyDistortFilter } from '@/filters/apply-distort'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 
@@ -70,6 +83,38 @@ function buildMenus(): MenuDef[] {
         shortcut: '',
         action: () => importImageFromPicker(),
       },
+      {
+        label: 'Import PSD\u2026',
+        shortcut: '',
+        action: async () => {
+          const input = document.createElement('input')
+          input.type = 'file'
+          input.accept = '.psd'
+          input.multiple = false
+          input.onchange = async () => {
+            const file = input.files?.[0]
+            if (!file) return
+            try {
+              const buffer = await file.arrayBuffer()
+              const doc = await importPSD(buffer)
+              const title = file.name.replace(/\.[^.]+$/, '') || 'PSD Import'
+              doc.metadata.title = title
+              useEditorStore.setState({
+                document: doc,
+                history: [],
+                historyIndex: -1,
+                selection: { layerIds: [] },
+                isDirty: false,
+                filePath: null,
+              })
+            } catch (err) {
+              console.error('PSD import failed:', err)
+              alert(`PSD import failed: ${err instanceof Error ? err.message : err}`)
+            }
+          }
+          input.click()
+        },
+      },
       { label: '', divider: true },
       {
         label: 'Export SVG',
@@ -95,6 +140,30 @@ function buildMenus(): MenuDef[] {
           downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.jpg`)
         },
       },
+      {
+        label: 'Export WebP',
+        action: async () => {
+          const doc = store().document
+          const blob = await exportArtboardToBlob(doc, { format: 'webp', quality: 0.9 })
+          downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.webp`)
+        },
+      },
+      {
+        label: 'Export GIF',
+        action: async () => {
+          const doc = store().document
+          const blob = await exportArtboardToBlob(doc, { format: 'gif' })
+          downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.gif`)
+        },
+      },
+      {
+        label: 'Export TIFF',
+        action: async () => {
+          const doc = store().document
+          const blob = await exportArtboardToBlob(doc, { format: 'tiff', scale: 1 })
+          downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.tiff`)
+        },
+      },
       { label: '', divider: true },
       {
         label: 'Batch Export\u2026',
@@ -106,6 +175,60 @@ function buildMenus(): MenuDef[] {
           } catch (err) {
             console.warn('Batch export:', err instanceof Error ? err.message : err)
           }
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Export Design Tokens',
+        submenu: [
+          {
+            label: 'JSON (W3C)',
+            action: () => {
+              const doc = store().document
+              const tokens = extractDesignTokens(doc)
+              const json = exportTokensAsJSON(tokens)
+              const name = doc.metadata.title || 'Untitled'
+              downloadTokenFile(json, `${name}.tokens.json`, 'application/json')
+            },
+          },
+          {
+            label: 'CSS Variables',
+            action: () => {
+              const doc = store().document
+              const tokens = extractDesignTokens(doc)
+              const css = exportTokensAsCSS(tokens)
+              const name = doc.metadata.title || 'Untitled'
+              downloadTokenFile(css, `${name}.tokens.css`, 'text/css')
+            },
+          },
+          {
+            label: 'SCSS Variables',
+            action: () => {
+              const doc = store().document
+              const tokens = extractDesignTokens(doc)
+              const scss = exportTokensAsSCSS(tokens)
+              const name = doc.metadata.title || 'Untitled'
+              downloadTokenFile(scss, `${name}.tokens.scss`, 'text/x-scss')
+            },
+          },
+          {
+            label: 'Tailwind Config',
+            action: () => {
+              const doc = store().document
+              const tokens = extractDesignTokens(doc)
+              const tw = exportTokensAsTailwind(tokens)
+              const name = doc.metadata.title || 'Untitled'
+              downloadTokenFile(tw, `${name}.tailwind.config.js`, 'application/javascript')
+            },
+          },
+        ],
+      },
+      { label: '', divider: true },
+      {
+        label: 'Print / Print-Ready Export\u2026',
+        shortcut: 'Ctrl+Shift+P',
+        action: () => {
+          window.dispatchEvent(new Event('crossdraw:show-print-dialog'))
         },
       },
     ],
@@ -205,6 +328,16 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+Alt+V',
         action: () => pasteStyle(),
         disabled: () => store().selection.layerIds.length === 0,
+      },
+      { label: '', divider: true },
+      {
+        label: 'Find & Replace\u2026',
+        shortcut: 'Ctrl+F',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('find-replace')
+          })
+        },
       },
       { label: '', divider: true },
       {
@@ -389,6 +522,16 @@ function buildMenus(): MenuDef[] {
     ],
   }
 
+  /** Check whether the first selected layer is a raster layer. */
+  const hasSelectedRaster = (): boolean => {
+    const s = store()
+    if (s.selection.layerIds.length === 0) return false
+    const artboard = s.document.artboards[0]
+    if (!artboard) return false
+    const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
+    return !!layer && layer.type === 'raster'
+  }
+
   const filterMenu: MenuDef = {
     label: 'Filter',
     items: [
@@ -398,23 +541,210 @@ function buildMenus(): MenuDef[] {
       { label: 'Outer Glow\u2026', disabled: true },
       { label: '', divider: true },
       { label: 'Background Blur\u2026', disabled: true },
+      { label: '', divider: true },
+      {
+        label: 'Noise',
+        submenu: [
+          {
+            label: 'Add Gaussian Noise\u2026',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard) return
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              s.applyFilter(artboard.id, layerId, 'gaussian-noise', {
+                amount: 25,
+                monochrome: false,
+                seed: Date.now(),
+              })
+            },
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Add Uniform Noise\u2026',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard) return
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              s.applyFilter(artboard.id, layerId, 'uniform-noise', {
+                amount: 25,
+                monochrome: false,
+                seed: Date.now(),
+              })
+            },
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Add Film Grain\u2026',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard) return
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              s.applyFilter(artboard.id, layerId, 'film-grain', {
+                amount: 25,
+                size: 3,
+                seed: Date.now(),
+              })
+            },
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
+      {
+        label: 'Distort',
+        submenu: [
+          {
+            label: 'Wave\u2026',
+            action: () => applyDistortFilter('wave'),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Twirl\u2026',
+            action: () => applyDistortFilter('twirl'),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Pinch/Bulge\u2026',
+            action: () => applyDistortFilter('pinch'),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Spherize\u2026',
+            action: () => applyDistortFilter('spherize'),
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
+    ],
+  }
+
+  const pathMenu: MenuDef = {
+    label: 'Path',
+    items: [
+      {
+        label: 'Union',
+        shortcut: 'Ctrl+Shift+U',
+        action: () => performBooleanOp('union'),
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Subtract',
+        action: () => performBooleanOp('subtract'),
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Intersect',
+        action: () => performBooleanOp('intersect'),
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Exclude',
+        action: () => performBooleanOp('xor'),
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Divide',
+        action: () => performBooleanOp('divide'),
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      { label: '', divider: true },
+      {
+        label: 'Trace Image\u2026',
+        action: () => traceSelectedRasterLayer(),
+        disabled: () => !hasSelectedRaster(),
+      },
     ],
   }
 
   const windowMenu: MenuDef = {
     label: 'Window',
     items: [
-      { label: 'Layers Panel', disabled: true },
-      { label: 'Properties Panel', disabled: true },
-      { label: 'Color Palette', disabled: true },
+      {
+        label: 'Workspace',
+        submenu: getWorkspacePresets().map((preset) => ({
+          label: preset.name + (preset.builtIn ? '' : ' (custom)'),
+          action: () => loadWorkspacePreset(preset.id),
+        })),
+      },
+      {
+        label: 'Save Workspace\u2026',
+        action: () => {
+          const name = prompt('Workspace name:')
+          if (name && name.trim()) {
+            saveWorkspacePreset(name.trim())
+          }
+        },
+      },
+      {
+        label: 'Reset Workspace',
+        action: () => resetWorkspace(),
+      },
       { label: '', divider: true },
-      { label: 'Reset Layout', disabled: true },
+      {
+        label: 'Layers Panel',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('layers')
+          })
+        },
+      },
+      {
+        label: 'Properties Panel',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('properties')
+          })
+        },
+      },
+      {
+        label: 'Color Palette',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('color-palette')
+          })
+        },
+      },
+      {
+        label: 'History',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('history')
+          })
+        },
+      },
+      {
+        label: 'Symbols',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('symbols')
+          })
+        },
+      },
+      {
+        label: 'Align & Distribute',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('align')
+          })
+        },
+      },
     ],
   }
 
   const helpMenu: MenuDef = {
     label: 'Help',
     items: [
+      {
+        label: 'Preferences\u2026',
+        action: () => {
+          window.dispatchEvent(new CustomEvent('crossdraw:show-preferences'))
+        },
+      },
       {
         label: 'Keyboard Shortcuts',
         action: () => {
@@ -432,7 +762,7 @@ function buildMenus(): MenuDef[] {
     ],
   }
 
-  return [fileMenu, editMenu, viewMenu, layerMenu, typeMenu, filterMenu, windowMenu, helpMenu]
+  return [fileMenu, editMenu, viewMenu, layerMenu, pathMenu, typeMenu, filterMenu, windowMenu, helpMenu]
 }
 
 // ── Component ──
@@ -489,6 +819,8 @@ export function MenuBar() {
   return (
     <div
       ref={barRef}
+      role="menubar"
+      aria-label="Main menu"
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -506,8 +838,18 @@ export function MenuBar() {
         <div key={menu.label} style={{ position: 'relative' }}>
           {/* Menu trigger button */}
           <div
+            role="menuitem"
+            tabIndex={0}
+            aria-haspopup="true"
+            aria-expanded={openMenu === menu.label}
             onPointerDown={() => handleMenuClick(menu.label)}
             onMouseEnter={() => handleMenuHover(menu.label)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown') {
+                e.preventDefault()
+                handleMenuClick(menu.label)
+              }
+            }}
             style={{
               padding: '0 10px',
               height: 28,
@@ -598,6 +940,7 @@ export function MenuBar() {
 function MenuDropdown({ items, onItemClick }: { items: MenuItem[]; onItemClick: (item: MenuItem) => void }) {
   return (
     <div
+      role="menu"
       style={{
         position: 'absolute',
         top: 28,
@@ -637,12 +980,23 @@ function MenuDropdown({ items, onItemClick }: { items: MenuItem[]; onItemClick: 
 
 function MenuItemRow({ item, disabled, onClick }: { item: MenuItem; disabled: boolean; onClick: () => void }) {
   const [hovered, setHovered] = useState(false)
+  const hasSubmenu = !!item.submenu && item.submenu.length > 0
 
   return (
     <div
+      role="menuitem"
+      tabIndex={-1}
+      aria-disabled={disabled || undefined}
+      aria-haspopup={hasSubmenu ? 'true' : undefined}
       onPointerDown={(e) => {
         e.preventDefault()
-        if (!disabled) onClick()
+        if (!disabled && !hasSubmenu) onClick()
+      }}
+      onKeyDown={(e) => {
+        if ((e.key === 'Enter' || e.key === ' ') && !disabled && !hasSubmenu) {
+          e.preventDefault()
+          onClick()
+        }
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -658,6 +1012,7 @@ function MenuItemRow({ item, disabled, onClick }: { item: MenuItem; disabled: bo
         color: disabled ? 'var(--text-disabled)' : hovered ? 'var(--text-primary)' : 'var(--text-primary)',
         fontSize: 'var(--font-size-base)',
         whiteSpace: 'nowrap',
+        position: hasSubmenu ? 'relative' : undefined,
       }}
     >
       <span>{item.label}</span>
@@ -671,6 +1026,52 @@ function MenuItemRow({ item, disabled, onClick }: { item: MenuItem; disabled: bo
         >
           {item.shortcut}
         </span>
+      )}
+      {hasSubmenu && (
+        <span
+          style={{
+            marginLeft: 32,
+            color: 'var(--text-secondary)',
+            fontSize: 'var(--font-size-sm)',
+          }}
+        >
+          &#9656;
+        </span>
+      )}
+      {/* Submenu flyout */}
+      {hasSubmenu && hovered && (
+        <div
+          role="menu"
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: '100%',
+            minWidth: 180,
+            background: 'var(--bg-overlay)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-md)',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.2)',
+            padding: 'var(--space-1) 0',
+            zIndex: 1002,
+          }}
+        >
+          {item.submenu!.map((sub) => {
+            const subDisabled = isDisabled(sub)
+            return (
+              <MenuItemRow
+                key={sub.label}
+                item={sub}
+                disabled={subDisabled}
+                onClick={() => {
+                  if (!subDisabled && sub.action) {
+                    onClick() // closes the top-level menu
+                    sub.action()
+                  }
+                }}
+              />
+            )
+          })}
+        </div>
       )}
     </div>
   )

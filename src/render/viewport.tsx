@@ -8,6 +8,8 @@ import { getRasterCanvas } from '@/store/raster-data'
 import { applyEffects, hasActiveEffects } from '@/effects/render-effects'
 import { applyAdjustment } from '@/effects/adjustments'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
+import { renderMeshGradient } from '@/render/mesh-gradient'
+import { renderVariableStroke } from '@/render/variable-stroke'
 import {
   penMouseDown,
   penMouseDrag,
@@ -46,6 +48,7 @@ import {
   beginTextEdit,
   endTextEdit,
   createAndEditText,
+  createAreaText,
   textEditKeyDown,
   renderTextEditOverlay,
   setTextEditRenderCallback,
@@ -55,6 +58,33 @@ import { renderSnapLines } from '@/tools/snap'
 import { openCanvasContextMenu } from '@/ui/context-menu'
 import { attachTouchHandler, detachTouchHandler, currentPressure } from '@/tools/touch-handler'
 import { paintStroke, beginStroke, endStroke, getBrushSettings } from '@/tools/brush'
+import { beginLineDrag, updateLineDrag, endLineDrag, isLineDragging } from '@/tools/line'
+import { beginPencilStroke, updatePencilStroke, endPencilStroke, isPencilDrawing } from '@/tools/pencil'
+import { beginEraserStroke, paintEraser, endEraserStroke, getEraserSettings } from '@/tools/eraser'
+import { beginGradientDrag, updateGradientDrag, endGradientDrag, isGradientDragging } from '@/tools/gradient-tool'
+import { applyFillBucket } from '@/tools/fill-bucket'
+import { zoomToolClick, beginZoomDrag, updateZoomDrag, endZoomDrag, isZoomDragging } from '@/tools/zoom-tool'
+import { beginLasso, updateLasso, endLasso, getLassoPoints, isLassoActive } from '@/tools/lasso'
+import { beginMarquee, updateMarquee, endMarquee, getMarqueeRect, isMarqueeActive } from '@/tools/marquee-tool'
+import { beginKnifeCut, updateKnifeCut, endKnifeCut, getKnifePoints, isKnifeCutting } from '@/tools/knife'
+import {
+  beginArtboardDrag,
+  updateArtboardDrag,
+  endArtboardDrag,
+  isArtboardDragging,
+  getArtboardDragRect,
+} from '@/tools/artboard-tool'
+import { beginSliceDrag, updateSliceDrag, endSliceDrag, getSliceDragRect, isSliceDragging } from '@/tools/slice-tool'
+import {
+  setCloneSource,
+  beginCloneStamp,
+  paintCloneStamp,
+  endCloneStamp,
+  isCloneStamping,
+  hasCloneSource,
+  getCloneSource,
+  getCloneStampSettings,
+} from '@/tools/clone-stamp'
 import type { VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer, Layer, Artboard } from '@/types'
 
 /** Resolve `currentColor` keyword to a concrete color. Default fallback is black. */
@@ -117,6 +147,12 @@ export function Viewport() {
   const brushPoints = useRef<Array<{ x: number; y: number }>>([])
   const brushPressure = useRef(1)
   const brushRafId = useRef(0)
+  const eraserPoints = useRef<Array<{ x: number; y: number }>>([])
+  const eraserRafId = useRef(0)
+  const gradientEnd = useRef<{ x: number; y: number } | null>(null)
+  const cloneStampRafId = useRef(0)
+  const textDragStart = useRef<{ x: number; y: number; artboardId: string } | null>(null)
+  const textDragEnd = useRef<{ x: number; y: number } | null>(null)
 
   // Rebuild spatial index when document changes
   useEffect(() => {
@@ -148,6 +184,41 @@ export function Viewport() {
       renderArtboard(ctx, artboard, selection.layerIds, viewport.zoom)
     }
 
+    // Pixel grid at high zoom
+    if (viewport.zoom >= 8) {
+      for (const artboard of document.artboards) {
+        const ax = artboard.x
+        const ay = artboard.y
+        const aw = artboard.width
+        const ah = artboard.height
+
+        // Calculate visible pixel range in artboard space
+        const visLeft = Math.max(0, Math.floor(-viewport.panX / viewport.zoom - ax))
+        const visTop = Math.max(0, Math.floor(-viewport.panY / viewport.zoom - ay))
+        const visRight = Math.min(aw, Math.ceil((rect.width - viewport.panX) / viewport.zoom - ax))
+        const visBottom = Math.min(ah, Math.ceil((rect.height - viewport.panY) / viewport.zoom - ay))
+
+        const hLines = visBottom - visTop
+        const vLines = visRight - visLeft
+        if (hLines > 0 && vLines > 0 && hLines * vLines < 4000000) {
+          ctx.save()
+          ctx.strokeStyle = 'rgba(128,128,128,0.15)'
+          ctx.lineWidth = 0.5 / viewport.zoom
+          ctx.beginPath()
+          for (let x = visLeft; x <= visRight; x++) {
+            ctx.moveTo(ax + x, ay + visTop)
+            ctx.lineTo(ax + x, ay + visBottom)
+          }
+          for (let y = visTop; y <= visBottom; y++) {
+            ctx.moveTo(ax + visLeft, ay + y)
+            ctx.lineTo(ax + visRight, ay + y)
+          }
+          ctx.stroke()
+          ctx.restore()
+        }
+      }
+    }
+
     // Transform handles (in document space, outside artboard clip)
     if (activeTool === 'select' && selection.layerIds.length > 0) {
       renderTransformHandles(ctx, document, selection.layerIds, viewport.zoom)
@@ -177,6 +248,25 @@ export function Viewport() {
       ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
       ctx.strokeRect(mx, my, mw, mh)
       ctx.setLineDash([])
+    }
+
+    // Text tool drag preview (area text box)
+    if (textDragStart.current && textDragEnd.current && isDragging.current && activeTool === 'text') {
+      const ts = textDragStart.current
+      const te = textDragEnd.current
+      const tx = Math.min(ts.x, te.x)
+      const ty = Math.min(ts.y, te.y)
+      const tw = Math.abs(te.x - ts.x)
+      const th = Math.abs(te.y - ts.y)
+      if (tw > 2 || th > 2) {
+        ctx.fillStyle = 'rgba(74, 125, 255, 0.05)'
+        ctx.fillRect(tx, ty, tw, th)
+        ctx.strokeStyle = '#4a7dff'
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+        ctx.strokeRect(tx, ty, tw, th)
+        ctx.setLineDash([])
+      }
     }
 
     // Measure tool line
@@ -238,6 +328,205 @@ export function Viewport() {
       ctx.arc(mx, my, 1.5 / viewport.zoom, 0, Math.PI * 2)
       ctx.fill()
       ctx.restore()
+    }
+
+    // Eraser cursor
+    if (activeTool === 'eraser') {
+      const es = getEraserSettings()
+      const mx = mouseDocPos.current.x
+      const my = mouseDocPos.current.y
+      const r = es.size / 2
+      ctx.save()
+      ctx.lineWidth = 1.5 / viewport.zoom
+      ctx.strokeStyle = 'rgba(255,100,100,0.6)'
+      ctx.beginPath()
+      ctx.arc(mx, my, r, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'
+      ctx.lineWidth = 0.75 / viewport.zoom
+      ctx.beginPath()
+      ctx.arc(mx, my, r, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    // Clone Stamp cursor
+    if (activeTool === 'clone-stamp') {
+      const cs = getCloneStampSettings()
+      const mx = mouseDocPos.current.x
+      const my = mouseDocPos.current.y
+      const r = cs.size / 2
+      ctx.save()
+      // Brush circle outline
+      ctx.lineWidth = 1.5 / viewport.zoom
+      ctx.strokeStyle = 'rgba(0,200,200,0.6)'
+      ctx.beginPath()
+      ctx.arc(mx, my, r, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'
+      ctx.lineWidth = 0.75 / viewport.zoom
+      ctx.beginPath()
+      ctx.arc(mx, my, r, 0, Math.PI * 2)
+      ctx.stroke()
+      // Crosshair dot at center
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.beginPath()
+      ctx.arc(mx, my, 1.5 / viewport.zoom, 0, Math.PI * 2)
+      ctx.fill()
+      // Draw source crosshair if set
+      const source = getCloneSource()
+      if (source) {
+        const artboard = document.artboards[0]
+        if (artboard) {
+          const srcDocX = source.x + artboard.x
+          const srcDocY = source.y + artboard.y
+          const crossSize = 8 / viewport.zoom
+          ctx.strokeStyle = 'rgba(0,255,200,0.8)'
+          ctx.lineWidth = 1.5 / viewport.zoom
+          ctx.beginPath()
+          ctx.moveTo(srcDocX - crossSize, srcDocY)
+          ctx.lineTo(srcDocX + crossSize, srcDocY)
+          ctx.moveTo(srcDocX, srcDocY - crossSize)
+          ctx.lineTo(srcDocX, srcDocY + crossSize)
+          ctx.stroke()
+          // Circle around source crosshair
+          ctx.beginPath()
+          ctx.arc(srcDocX, srcDocY, crossSize, 0, Math.PI * 2)
+          ctx.stroke()
+        }
+      }
+      ctx.restore()
+    }
+
+    // Gradient drag line
+    if (activeTool === 'gradient' && gradientEnd.current && isGradientDragging()) {
+      ctx.save()
+      ctx.strokeStyle = '#ff8800'
+      ctx.lineWidth = 1.5 / viewport.zoom
+      ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+      ctx.beginPath()
+      const ge = gradientEnd.current
+      // dragState start is stored internally; use mouseDocPos for the line start estimate
+      ctx.moveTo(ge.x, ge.y) // This is approximate
+      ctx.stroke()
+      ctx.setLineDash([])
+      ctx.restore()
+    }
+
+    // Lasso selection path
+    if (activeTool === 'lasso' && isLassoActive()) {
+      const pts = getLassoPoints()
+      if (pts.length > 1) {
+        ctx.save()
+        ctx.strokeStyle = '#4a7dff'
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+        ctx.beginPath()
+        ctx.moveTo(pts[0]!.x, pts[0]!.y)
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i]!.x, pts[i]!.y)
+        }
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(74, 125, 255, 0.1)'
+        ctx.fill()
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
+    // Marquee selection rectangle
+    if (activeTool === 'marquee' && isMarqueeActive()) {
+      const mr = getMarqueeRect()
+      if (mr) {
+        ctx.save()
+        ctx.fillStyle = 'rgba(74, 125, 255, 0.1)'
+        ctx.fillRect(mr.x, mr.y, mr.w, mr.h)
+        ctx.strokeStyle = '#4a7dff'
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+        ctx.strokeRect(mr.x, mr.y, mr.w, mr.h)
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
+    // Knife cut path
+    if (activeTool === 'knife' && isKnifeCutting()) {
+      const kp = getKnifePoints()
+      if (kp.length > 1) {
+        ctx.save()
+        ctx.strokeStyle = '#ff4444'
+        ctx.lineWidth = 1.5 / viewport.zoom
+        ctx.setLineDash([2 / viewport.zoom, 2 / viewport.zoom])
+        ctx.beginPath()
+        ctx.moveTo(kp[0]!.x, kp[0]!.y)
+        for (let i = 1; i < kp.length; i++) {
+          ctx.lineTo(kp[i]!.x, kp[i]!.y)
+        }
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
+    // Artboard creation rect
+    if (activeTool === 'artboard' && isArtboardDragging()) {
+      const ar = getArtboardDragRect(mouseDocPos.current.x, mouseDocPos.current.y)
+      if (ar) {
+        ctx.save()
+        ctx.strokeStyle = '#00cc88'
+        ctx.lineWidth = 1.5 / viewport.zoom
+        ctx.setLineDash([6 / viewport.zoom, 4 / viewport.zoom])
+        ctx.strokeRect(ar.x, ar.y, ar.w, ar.h)
+        ctx.setLineDash([])
+        // Label
+        ctx.translate(ar.x, ar.y - 4 / viewport.zoom)
+        ctx.scale(1 / viewport.zoom, 1 / viewport.zoom)
+        ctx.fillStyle = '#00cc88'
+        ctx.font = '11px monospace'
+        ctx.fillText(`${Math.round(ar.w)} × ${Math.round(ar.h)}`, 0, 0)
+        ctx.restore()
+      }
+    }
+
+    // Slice creation rect
+    if (activeTool === 'slice' && isSliceDragging()) {
+      const sr = getSliceDragRect(mouseDocPos.current.x, mouseDocPos.current.y)
+      if (sr) {
+        ctx.save()
+        ctx.fillStyle = 'rgba(255, 165, 0, 0.1)'
+        ctx.fillRect(sr.x, sr.y, sr.w, sr.h)
+        ctx.strokeStyle = '#ff8800'
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+        ctx.strokeRect(sr.x, sr.y, sr.w, sr.h)
+        ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
+    // Existing slice overlays
+    for (const artboard of document.artboards) {
+      if (artboard.slices && artboard.slices.length > 0) {
+        ctx.save()
+        for (const slice of artboard.slices) {
+          const sx = artboard.x + slice.x
+          const sy = artboard.y + slice.y
+          ctx.strokeStyle = 'rgba(255, 165, 0, 0.5)'
+          ctx.lineWidth = 0.5 / viewport.zoom
+          ctx.strokeRect(sx, sy, slice.width, slice.height)
+          // Slice name label
+          ctx.save()
+          ctx.translate(sx, sy - 2 / viewport.zoom)
+          ctx.scale(1 / viewport.zoom, 1 / viewport.zoom)
+          ctx.fillStyle = 'rgba(255, 165, 0, 0.7)'
+          ctx.font = '9px sans-serif'
+          ctx.fillText(slice.name, 0, 0)
+          ctx.restore()
+        }
+        ctx.restore()
+      }
     }
 
     // Text editing overlay (cursor, selection)
@@ -580,7 +869,7 @@ export function Viewport() {
       return
     }
 
-    // Text tool — click to place/edit text
+    // Text tool — click to place point text, drag to create area text box
     if (activeTool === 'text') {
       const textState = getTextEditState()
       // If already editing, clicking elsewhere ends editing
@@ -593,7 +882,9 @@ export function Viewport() {
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
         ) ?? document.artboards[0]
       if (artboard) {
-        createAndEditText(docPoint.x, docPoint.y, artboard.id)
+        textDragStart.current = { x: docPoint.x, y: docPoint.y, artboardId: artboard.id }
+        textDragEnd.current = { x: docPoint.x, y: docPoint.y }
+        isDragging.current = true
       }
       return
     }
@@ -618,6 +909,146 @@ export function Viewport() {
       if (artboard && beginStroke()) {
         brushPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         brushPressure.current = touchMode ? currentPressure : 1
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Line tool
+    if (activeTool === 'line') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        beginLineDrag(docPoint.x, docPoint.y, artboard.id)
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Pencil tool
+    if (activeTool === 'pencil') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        beginPencilStroke(docPoint.x, docPoint.y, artboard.id)
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Eraser tool
+    if (activeTool === 'eraser') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard && beginEraserStroke()) {
+        eraserPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Clone Stamp tool
+    if (activeTool === 'clone-stamp') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        if (e.altKey) {
+          // Alt+Click → set clone source
+          setCloneSource(localX, localY)
+          render()
+        } else if (hasCloneSource()) {
+          // Regular click → begin clone stamp stroke
+          if (beginCloneStamp(localX, localY, artboard.id)) {
+            isDragging.current = true
+            render()
+          }
+        }
+      }
+      return
+    }
+
+    // Gradient tool
+    if (activeTool === 'gradient') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        beginGradientDrag(docPoint.x, docPoint.y, artboard.id)
+        gradientEnd.current = { x: docPoint.x, y: docPoint.y }
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Fill bucket tool
+    if (activeTool === 'fill') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      applyFillBucket(docPoint.x, docPoint.y)
+      return
+    }
+
+    // Zoom tool
+    if (activeTool === 'zoom') {
+      if (e.altKey) {
+        zoomToolClick(e.clientX, e.clientY, rect, true)
+      } else {
+        beginZoomDrag(e.clientX, e.clientY)
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Lasso tool
+    if (activeTool === 'lasso') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      beginLasso(docPoint.x, docPoint.y)
+      isDragging.current = true
+      return
+    }
+
+    // Marquee tool
+    if (activeTool === 'marquee') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      beginMarquee(docPoint.x, docPoint.y)
+      isDragging.current = true
+      return
+    }
+
+    // Knife tool
+    if (activeTool === 'knife') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      beginKnifeCut(docPoint.x, docPoint.y)
+      isDragging.current = true
+      return
+    }
+
+    // Artboard tool
+    if (activeTool === 'artboard') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      beginArtboardDrag(docPoint.x, docPoint.y)
+      isDragging.current = true
+      return
+    }
+
+    // Slice tool
+    if (activeTool === 'slice') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        beginSliceDrag(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
       }
       return
@@ -691,7 +1122,7 @@ export function Viewport() {
     // Track cursor position for ruler markers
     const docPt = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
     mouseDocPos.current = { x: docPt.x, y: docPt.y }
-    if (activeTool === 'brush' && !isDragging.current) {
+    if ((activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'clone-stamp') && !isDragging.current) {
       // Throttle cursor-only redraws to animation frame
       if (!brushRafId.current) {
         brushRafId.current = requestAnimationFrame(() => {
@@ -733,6 +1164,14 @@ export function Viewport() {
       return
     }
 
+    // Text tool drag (area text creation)
+    if (activeTool === 'text' && isDragging.current && textDragStart.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      textDragEnd.current = { x: docPoint.x, y: docPoint.y }
+      render()
+      return
+    }
+
     // Shape tool drag
     if (isDragging.current && isShapeDragging()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -759,6 +1198,114 @@ export function Viewport() {
           })
         }
       }
+      return
+    }
+
+    // Line tool drag
+    if (isDragging.current && isLineDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateLineDrag(docPoint.x, docPoint.y, e.shiftKey)
+      return
+    }
+
+    // Pencil tool drag
+    if (activeTool === 'pencil' && isDragging.current && isPencilDrawing()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updatePencilStroke(docPoint.x, docPoint.y)
+      return
+    }
+
+    // Eraser tool drag
+    if (activeTool === 'eraser' && isDragging.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        eraserPoints.current.push(pt)
+        if (!eraserRafId.current) {
+          eraserRafId.current = requestAnimationFrame(() => {
+            eraserRafId.current = 0
+            const len = eraserPoints.current.length
+            if (len >= 2) {
+              paintEraser(eraserPoints.current.slice(-2))
+              render()
+            }
+          })
+        }
+      }
+      return
+    }
+
+    // Clone Stamp tool drag
+    if (activeTool === 'clone-stamp' && isDragging.current && isCloneStamping()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        if (!cloneStampRafId.current) {
+          cloneStampRafId.current = requestAnimationFrame(() => {
+            cloneStampRafId.current = 0
+            paintCloneStamp(localX, localY)
+            render()
+          })
+        }
+      }
+      return
+    }
+
+    // Gradient tool drag
+    if (activeTool === 'gradient' && isDragging.current && isGradientDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      gradientEnd.current = { x: docPoint.x, y: docPoint.y }
+      updateGradientDrag(docPoint.x, docPoint.y, e.shiftKey)
+      render()
+      return
+    }
+
+    // Zoom tool drag
+    if (activeTool === 'zoom' && isDragging.current && isZoomDragging()) {
+      updateZoomDrag(e.clientY, rect)
+      return
+    }
+
+    // Lasso tool drag
+    if (activeTool === 'lasso' && isDragging.current && isLassoActive()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateLasso(docPoint.x, docPoint.y)
+      render()
+      return
+    }
+
+    // Marquee tool drag
+    if (activeTool === 'marquee' && isDragging.current && isMarqueeActive()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateMarquee(docPoint.x, docPoint.y, e.shiftKey)
+      render()
+      return
+    }
+
+    // Knife tool drag
+    if (activeTool === 'knife' && isDragging.current && isKnifeCutting()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateKnifeCut(docPoint.x, docPoint.y)
+      render()
+      return
+    }
+
+    // Artboard tool drag
+    if (activeTool === 'artboard' && isDragging.current && isArtboardDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateArtboardDrag(docPoint.x, docPoint.y, e.shiftKey)
+      render()
+      return
+    }
+
+    // Slice tool drag
+    if (activeTool === 'slice' && isDragging.current && isSliceDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateSliceDrag(docPoint.x, docPoint.y)
+      render()
       return
     }
 
@@ -795,7 +1342,7 @@ export function Viewport() {
     }
   }
 
-  function handleMouseUp() {
+  function handleMouseUp(_e?: React.MouseEvent) {
     if (isPanning.current) {
       isPanning.current = false
       if (canvasRef.current) {
@@ -807,6 +1354,30 @@ export function Viewport() {
     if (activeTool === 'node' && getNodeState().dragging) {
       nodeMouseUp()
       isDragging.current = false
+      return
+    }
+
+    // Text tool — finish drag or click
+    if (activeTool === 'text' && isDragging.current && textDragStart.current) {
+      const start = textDragStart.current
+      const end = textDragEnd.current ?? start
+      const dx = Math.abs(end.x - start.x)
+      const dy = Math.abs(end.y - start.y)
+
+      if (dx > 10 || dy > 10) {
+        // Dragged enough — create area text box
+        const rectX = Math.min(start.x, end.x)
+        const rectY = Math.min(start.y, end.y)
+        createAreaText(rectX, rectY, dx, dy, start.artboardId)
+      } else {
+        // Click — create point text
+        createAndEditText(start.x, start.y, start.artboardId)
+      }
+
+      textDragStart.current = null
+      textDragEnd.current = null
+      isDragging.current = false
+      render()
       return
     }
 
@@ -862,6 +1433,93 @@ export function Viewport() {
     if (isShapeDragging()) {
       endShapeDrag()
       isDragging.current = false
+      return
+    }
+
+    // Line tool
+    if (isLineDragging()) {
+      endLineDrag()
+      isDragging.current = false
+      return
+    }
+
+    // Pencil tool
+    if (activeTool === 'pencil' && isPencilDrawing()) {
+      endPencilStroke()
+      isDragging.current = false
+      return
+    }
+
+    // Eraser tool
+    if (activeTool === 'eraser' && isDragging.current) {
+      endEraserStroke()
+      eraserPoints.current = []
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Clone Stamp tool
+    if (activeTool === 'clone-stamp' && isDragging.current) {
+      endCloneStamp()
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Gradient tool
+    if (isGradientDragging()) {
+      endGradientDrag()
+      gradientEnd.current = null
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Zoom tool
+    if (isZoomDragging()) {
+      endZoomDrag()
+      isDragging.current = false
+      return
+    }
+
+    // Lasso tool
+    if (isLassoActive()) {
+      endLasso(false)
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Marquee tool
+    if (isMarqueeActive()) {
+      endMarquee(false)
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Knife tool
+    if (isKnifeCutting()) {
+      endKnifeCut()
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Artboard tool
+    if (isArtboardDragging()) {
+      endArtboardDrag(mouseDocPos.current.x, mouseDocPos.current.y)
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Slice tool
+    if (isSliceDragging()) {
+      endSliceDrag(mouseDocPos.current.x, mouseDocPos.current.y)
+      isDragging.current = false
+      render()
       return
     }
 
@@ -937,7 +1595,7 @@ export function Viewport() {
     ? 'grabbing'
     : activeTool === 'hand'
       ? 'grab'
-      : activeTool === 'brush'
+      : activeTool === 'brush' || activeTool === 'clone-stamp'
         ? 'none'
         : activeTool === 'pen' || activeTool === 'node' || activeTool === 'measure'
           ? 'crosshair'
@@ -949,7 +1607,11 @@ export function Viewport() {
 
   return (
     <canvas
+      id="canvas"
       ref={canvasRef}
+      tabIndex={0}
+      role="application"
+      aria-label="Design canvas"
       style={{
         width: '100%',
         height: '100%',
@@ -1013,6 +1675,46 @@ function applyTransform(
   }
 }
 
+/**
+ * Word-wrap text to fit within a given width.
+ * Splits on spaces and explicit newlines.
+ */
+function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number, letterSpacing: number): string[] {
+  const paragraphs = text.split('\n')
+  const wrapped: string[] = []
+
+  for (const paragraph of paragraphs) {
+    if (paragraph === '') {
+      wrapped.push('')
+      continue
+    }
+    const words = paragraph.split(' ')
+    let currentLine = ''
+    for (let i = 0; i < words.length; i++) {
+      const word = words[i]!
+      const testLine = currentLine ? currentLine + ' ' + word : word
+      let testWidth: number
+      if (letterSpacing === 0) {
+        testWidth = ctx.measureText(testLine).width
+      } else {
+        testWidth = 0
+        for (const ch of testLine) {
+          testWidth += ctx.measureText(ch).width + letterSpacing
+        }
+        testWidth -= letterSpacing // no extra spacing after last char
+      }
+      if (testWidth > maxWidth && currentLine !== '') {
+        wrapped.push(currentLine)
+        currentLine = word
+      } else {
+        currentLine = testLine
+      }
+    }
+    wrapped.push(currentLine)
+  }
+  return wrapped
+}
+
 function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   ctx.save()
   applyTransform(ctx, layer.transform)
@@ -1024,12 +1726,34 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   ctx.textBaseline = 'top'
   ctx.textAlign = layer.textAlign ?? 'left'
 
+  // NOTE: OpenType features (layer.openTypeFeatures) are stored on the layer but
+  // Canvas 2D does not support CSS font-feature-settings. These features are
+  // applied in SVG export (which supports font-feature-settings as a style attribute).
+  // A future enhancement could render text via an HTML overlay or use the CSS Font
+  // Loading API with an OffscreenCanvas to apply OT features on the canvas.
+
   const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
   const letterSp = layer.letterSpacing ?? 0
-  const lines = layer.text.split('\n')
+
+  // Area text: word-wrap and clip to bounding box
+  const isAreaText = layer.textMode === 'area' && layer.textWidth != null && layer.textWidth > 0
+
+  let lines: string[]
+  if (isAreaText) {
+    lines = wrapTextLines(ctx, layer.text, layer.textWidth!, letterSp)
+    // Clip to text box bounds
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, layer.textWidth!, layer.textHeight ?? lineH * lines.length)
+    ctx.clip()
+  } else {
+    lines = layer.text.split('\n')
+  }
 
   for (let i = 0; i < lines.length; i++) {
     const y = i * lineH
+    // Skip lines below the clipping area for area text
+    if (isAreaText && layer.textHeight != null && y >= layer.textHeight) break
     if (letterSp === 0) {
       ctx.fillText(lines[i]!, 0, y)
     } else {
@@ -1041,6 +1765,11 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
       }
     }
   }
+
+  if (isAreaText) {
+    ctx.restore() // restore clip
+  }
+
   ctx.restore()
 }
 
@@ -1049,7 +1778,9 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
   applyTransform(ctx, layer.transform)
 
   // Compute bounding box for gradient sizing
-  let bboxW = 100,
+  let bboxX = 0,
+    bboxY = 0,
+    bboxW = 100,
     bboxH = 100
   if (layer.fill?.type === 'gradient' && layer.fill.gradient) {
     // Approximate bbox from paths
@@ -1068,6 +1799,8 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
       }
     }
     if (minX !== Infinity) {
+      bboxX = minX
+      bboxY = minY
       bboxW = maxX - minX || 100
       bboxH = maxY - minY || 100
     }
@@ -1085,7 +1818,12 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
         ctx.fill(path2d, fillRule)
       } else if (layer.fill.type === 'gradient' && layer.fill.gradient) {
         const grad = layer.fill.gradient
-        if (grad.type === 'box') {
+        if (grad.type === 'mesh' && grad.mesh) {
+          ctx.save()
+          ctx.clip(path2d, fillRule)
+          renderMeshGradient(ctx, grad.mesh, { x: bboxX, y: bboxY, width: bboxW, height: bboxH })
+          ctx.restore()
+        } else if (grad.type === 'box') {
           const boxCanvas = renderBoxGradient(ctx, grad, bboxW, bboxH)
           ctx.save()
           ctx.clip(path2d, fillRule)
@@ -1111,11 +1849,20 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
         ctx.setLineDash(layer.stroke.dasharray)
       }
 
-      if (pos === 'inside') {
+      const hasVariableWidth = layer.stroke.widthProfile && layer.stroke.widthProfile.length > 0
+
+      if (hasVariableWidth && pos === 'center') {
+        // Variable-width stroke: render as filled offset curves
+        renderVariableStroke(ctx, path, layer.stroke, path2d)
+      } else if (pos === 'inside') {
         ctx.save()
         ctx.clip(path2d)
         ctx.lineWidth = layer.stroke.width * 2
-        ctx.stroke(path2d)
+        if (hasVariableWidth) {
+          renderVariableStroke(ctx, path, { ...layer.stroke, width: layer.stroke.width * 2 }, path2d)
+        } else {
+          ctx.stroke(path2d)
+        }
         ctx.restore()
       } else if (pos === 'outside') {
         ctx.save()
@@ -1128,11 +1875,19 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
         region.rect(-1e5, -1e5, 2e5, 2e5)
         ctx.clip(region, 'evenodd')
         ctx.lineWidth = layer.stroke.width * 2
-        ctx.stroke(path2d)
+        if (hasVariableWidth) {
+          renderVariableStroke(ctx, path, { ...layer.stroke, width: layer.stroke.width * 2 }, path2d)
+        } else {
+          ctx.stroke(path2d)
+        }
         ctx.restore()
       } else {
         ctx.lineWidth = layer.stroke.width
-        ctx.stroke(path2d)
+        if (hasVariableWidth) {
+          renderVariableStroke(ctx, path, layer.stroke, path2d)
+        } else {
+          ctx.stroke(path2d)
+        }
       }
       ctx.setLineDash([])
     }
@@ -1157,7 +1912,11 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
         ctx.lineJoin = addStroke.linejoin
         ctx.globalAlpha = layer.opacity * addStroke.opacity
         if (addStroke.dasharray) ctx.setLineDash(addStroke.dasharray)
-        ctx.stroke(path2d)
+        if (addStroke.widthProfile && addStroke.widthProfile.length > 0) {
+          renderVariableStroke(ctx, path, addStroke, path2d)
+        } else {
+          ctx.stroke(path2d)
+        }
         ctx.setLineDash([])
       }
     }

@@ -2,10 +2,11 @@ import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
 import { storeRasterData } from '@/store/raster-data'
 import { importSVG } from '@/io/svg-import'
+import { importPSD } from '@/io/psd-import'
 import { decodeDocument } from '@/io/file-format'
 import type { RasterLayer } from '@/types'
 
-const OPEN_ACCEPT = '.xd,.png,.jpg,.jpeg,.gif,.webp,.svg'
+const OPEN_ACCEPT = '.xd,.psd,.png,.jpg,.jpeg,.gif,.webp,.svg'
 
 /**
  * Open a file picker and load the selected file as a new document.
@@ -37,6 +38,8 @@ export async function openFileAsDocument(file: File): Promise<void> {
 
   if (name.endsWith('.xd')) {
     await openDesignFile(file)
+  } else if (name.endsWith('.psd')) {
+    await openPSDAsDocument(file)
   } else if (name.endsWith('.svg') || file.type === 'image/svg+xml') {
     await openSVGAsDocument(file)
   } else if (file.type.startsWith('image/')) {
@@ -47,6 +50,22 @@ export async function openFileAsDocument(file: File): Promise<void> {
 async function openDesignFile(file: File): Promise<void> {
   const buffer = await file.arrayBuffer()
   const doc = decodeDocument(buffer)
+  useEditorStore.setState({
+    document: doc,
+    history: [],
+    historyIndex: -1,
+    selection: { layerIds: [] },
+    isDirty: false,
+    filePath: null,
+  })
+}
+
+async function openPSDAsDocument(file: File): Promise<void> {
+  const buffer = await file.arrayBuffer()
+  const doc = await importPSD(buffer)
+  const title = file.name.replace(/\.[^.]+$/, '') || 'PSD Import'
+  doc.metadata.title = title
+
   useEditorStore.setState({
     document: doc,
     history: [],

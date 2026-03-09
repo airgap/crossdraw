@@ -20,6 +20,8 @@ export function createCanvasGradient(
       return createConicalGradient(ctx, grad, width, height)
     case 'box':
       return null // handled by renderBoxGradient
+    case 'mesh':
+      return null // handled by renderMeshGradient
   }
 }
 

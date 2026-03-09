@@ -1,7 +1,7 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
 import { toggleTheme, getTheme } from '@/ui/theme'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { ShortcutPreferences } from '@/ui/shortcut-preferences'
 import { UISettings } from '@/ui/ui-settings'
 import {
@@ -21,13 +21,34 @@ import {
   Sun,
   Moon,
   Settings,
+  Minus,
+  Pencil,
+  Eraser,
+  Blend,
+  PaintBucket,
+  ZoomIn,
+  Lasso,
+  SquareDashed,
+  Scissors,
+  Frame,
+  ScissorsLineDashed,
+  Stamp,
   type LucideIcon,
 } from 'lucide-react'
 
 /** Custom brush icon — round-tipped paint brush with visible bristle tip */
 function BrushIcon({ size = 24, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
       {/* Handle */}
       <line x1="18" y1="2" x2="12" y2="8" />
       {/* Ferrule */}
@@ -45,21 +66,37 @@ const shapeTools: ToolEntry[] = [
   { id: 'rectangle', icon: Square, key: 'r' },
   { id: 'ellipse', icon: Circle, key: 'e' },
   { id: 'polygon', icon: Hexagon, key: 'y' },
-  { id: 'star', icon: Star, key: 's' },
+  { id: 'star', icon: Star, key: 'shift+s' },
 ]
 
 const shapeToolIds = new Set(shapeTools.map((t) => t.id))
 
-const tools: (ToolEntry | 'shapes')[] = [
+const tools: (ToolEntry | 'shapes' | 'separator')[] = [
   { id: 'select', icon: MousePointer2, key: 'v' },
   { id: 'node', icon: Spline, key: 'a' },
+  { id: 'artboard', icon: Frame, key: 'f' },
+  'separator',
   { id: 'pen', icon: PenTool, key: 'p' },
+  { id: 'pencil', icon: Pencil, key: 'n' },
+  { id: 'line', icon: Minus, key: 'l' },
   'shapes',
   { id: 'text', icon: Type, key: 't' },
-  { id: 'eyedropper', icon: Pipette, key: 'i' },
-  { id: 'hand', icon: Hand, key: 'h' },
-  { id: 'measure', icon: Ruler, key: 'm' },
+  'separator',
   { id: 'brush', icon: BrushIcon, key: 'b' },
+  { id: 'eraser', icon: Eraser, key: 'x' },
+  { id: 'clone-stamp', icon: Stamp, key: 's' },
+  { id: 'fill', icon: PaintBucket, key: 'g' },
+  { id: 'gradient', icon: Blend, key: 'j' },
+  { id: 'eyedropper', icon: Pipette, key: 'i' },
+  'separator',
+  { id: 'marquee', icon: SquareDashed, key: 'm' },
+  { id: 'lasso', icon: Lasso, key: 'q' },
+  { id: 'knife', icon: Scissors, key: 'k' },
+  { id: 'slice', icon: ScissorsLineDashed, key: 'w' },
+  'separator',
+  { id: 'hand', icon: Hand, key: 'h' },
+  { id: 'zoom', icon: ZoomIn, key: 'z' },
+  { id: 'measure', icon: Ruler, key: 'u' },
   { id: 'crop', icon: Crop, key: 'c' },
 ]
 
@@ -128,10 +165,15 @@ function ShapeToolButton({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
+        data-tool-shapes="true"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerLeave}
         title={`${current.id} (${current.key.toUpperCase()}) — hold for more`}
+        role="button"
+        tabIndex={0}
+        aria-label={`${current.id} tool (${current.key.toUpperCase()}) — hold for more shapes`}
+        aria-pressed={isActive}
         style={{
           width: 'var(--height-toolbar)',
           height: 'var(--height-toolbar)',
@@ -167,6 +209,8 @@ function ShapeToolButton({
 
       {showPicker && (
         <div
+          role="menu"
+          aria-label="Shape tools"
           style={{
             position: 'absolute',
             left: '100%',
@@ -195,6 +239,8 @@ function ShapeToolButton({
                   setShowPicker(false)
                 }}
                 title={`${shape.id} (${shape.key.toUpperCase()})`}
+                role="menuitem"
+                aria-label={`${shape.id} tool (${shape.key.toUpperCase()})`}
                 style={{
                   width: 'var(--height-toolbar)',
                   height: 'var(--height-toolbar)',
@@ -224,17 +270,50 @@ function ShapeToolButton({
   )
 }
 
+/** Human-readable label for each tool id */
+function toolLabel(id: string): string {
+  return id.charAt(0).toUpperCase() + id.slice(1)
+}
+
 export function Toolbar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setActiveTool = useEditorStore((s) => s.setActiveTool)
   const [themeName, setThemeName] = useState(getTheme().name)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [toolAnnouncement, setToolAnnouncement] = useState('')
+  const toolbarRef = useRef<HTMLDivElement>(null)
 
   const handleToggleTheme = () => {
     toggleTheme()
     setThemeName(getTheme().name)
   }
+
+  // Announce tool changes to screen readers
+  const handleSetActiveTool = useCallback(
+    (toolId: EditorState['activeTool']) => {
+      setActiveTool(toolId)
+      setToolAnnouncement(`Selected ${toolLabel(toolId)} tool`)
+    },
+    [setActiveTool],
+  )
+
+  // Keyboard navigation: arrow keys to move between tool buttons
+  const handleToolbarKeyDown = useCallback((e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
+    e.preventDefault()
+    const toolbar = toolbarRef.current
+    if (!toolbar) return
+    const buttons = Array.from(toolbar.querySelectorAll<HTMLElement>('button[data-tool-id], button[data-tool-shapes]'))
+    const currentIndex = buttons.findIndex((b) => b === document.activeElement || b.contains(document.activeElement))
+    let nextIndex: number
+    if (e.key === 'ArrowDown') {
+      nextIndex = currentIndex < buttons.length - 1 ? currentIndex + 1 : 0
+    } else {
+      nextIndex = currentIndex > 0 ? currentIndex - 1 : buttons.length - 1
+    }
+    buttons[nextIndex]?.focus()
+  }, [])
 
   // Listen for menu bar events
   useEffect(() => {
@@ -246,6 +325,11 @@ export function Toolbar() {
   return (
     <>
       <div
+        ref={toolbarRef}
+        role="toolbar"
+        aria-label="Drawing tools"
+        aria-orientation="vertical"
+        onKeyDown={handleToolbarKeyDown}
         style={{
           display: 'flex',
           flexDirection: 'column',
@@ -257,17 +341,37 @@ export function Toolbar() {
           alignItems: 'center',
         }}
       >
-        {tools.map((tool) => {
+        {tools.map((tool, idx) => {
+          if (tool === 'separator') {
+            return (
+              <div
+                key={`sep-${idx}`}
+                role="separator"
+                style={{ width: 24, height: 1, background: 'var(--border-subtle)', margin: '2px 0' }}
+              />
+            )
+          }
           if (tool === 'shapes') {
-            return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={setActiveTool} />
+            return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={handleSetActiveTool} />
           }
           const Icon = tool.icon
           const isActive = activeTool === tool.id
           return (
             <button
               key={tool.id}
-              onClick={() => setActiveTool(tool.id)}
+              data-tool-id={tool.id}
+              onClick={() => handleSetActiveTool(tool.id)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  handleSetActiveTool(tool.id)
+                }
+              }}
               title={`${tool.id} (${tool.key.toUpperCase()})`}
+              role="button"
+              tabIndex={0}
+              aria-label={`${toolLabel(tool.id)} tool (${tool.key.toUpperCase()})`}
+              aria-pressed={isActive}
               style={{
                 width: 'var(--height-toolbar)',
                 height: 'var(--height-toolbar)',
@@ -295,6 +399,7 @@ export function Toolbar() {
         <button
           onClick={() => setShowShortcuts(true)}
           title="Keyboard shortcuts"
+          aria-label="Keyboard shortcuts"
           style={{
             width: 'var(--height-toolbar)',
             height: 'var(--height-toolbar)',
@@ -319,6 +424,7 @@ export function Toolbar() {
         <button
           onClick={() => setShowSettings(true)}
           title="UI Settings"
+          aria-label="UI Settings"
           style={{
             width: 'var(--height-toolbar)',
             height: 'var(--height-toolbar)',
@@ -343,6 +449,7 @@ export function Toolbar() {
         <button
           onClick={handleToggleTheme}
           title={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
+          aria-label={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
           style={{
             width: 'var(--height-toolbar)',
             height: 'var(--height-toolbar)',
@@ -364,6 +471,10 @@ export function Toolbar() {
         >
           {themeName === 'dark' ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
         </button>
+      </div>
+      {/* Screen reader live region for tool announcements */}
+      <div role="status" aria-live="polite" className="sr-only">
+        {toolAnnouncement}
       </div>
       {showShortcuts && <ShortcutPreferences onClose={() => setShowShortcuts(false)} />}
       {showSettings && (
