@@ -27,7 +27,12 @@ export default {
       })
     }
 
-    // Everything else: serve static assets (SPA fallback handled by assets config)
-    return env.ASSETS.fetch(request)
+    // Try serving static assets; fall back to index.html for SPA routes
+    const response = await env.ASSETS.fetch(request)
+    if (response.status === 404) {
+      // SPA fallback: serve index.html for unknown paths
+      return env.ASSETS.fetch(new Request(new URL('/', url), request))
+    }
+    return response
   },
 } satisfies ExportedHandler<Env>
