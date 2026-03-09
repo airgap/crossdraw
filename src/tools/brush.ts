@@ -38,22 +38,27 @@ function createDabCanvas(size: number, hardness: number, color: string, opacity:
   const ctx = canvas.getContext('2d')!
   const center = dim / 2
 
+  // Parse color for gradient stops with explicit alpha
+  const rgb = parseColor(color)
+  const colorOpaque = `rgba(${rgb.r},${rgb.g},${rgb.b},${opacity})`
+  const colorTransparent = `rgba(${rgb.r},${rgb.g},${rgb.b},0)`
+
   if (hardness >= 1) {
-    // Hard brush: simple filled circle
-    ctx.fillStyle = color
-    ctx.globalAlpha = opacity
+    ctx.fillStyle = colorOpaque
     ctx.beginPath()
     ctx.arc(center, center, size / 2, 0, Math.PI * 2)
     ctx.fill()
   } else {
-    // Soft brush: radial gradient
+    // Radial gradient: solid core then smooth falloff to transparent
     const grad = ctx.createRadialGradient(center, center, 0, center, center, size / 2)
-    const edge = 1 - hardness
-    const solidStop = Math.max(0, 1 - edge)
-    grad.addColorStop(0, color)
-    grad.addColorStop(solidStop, color)
-    grad.addColorStop(1, 'transparent')
-    ctx.globalAlpha = opacity
+    const solidRadius = hardness // fraction of radius that's fully solid
+    if (solidRadius > 0) {
+      grad.addColorStop(0, colorOpaque)
+      grad.addColorStop(solidRadius, colorOpaque)
+    } else {
+      grad.addColorStop(0, colorOpaque)
+    }
+    grad.addColorStop(1, colorTransparent)
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, dim, dim)
   }
