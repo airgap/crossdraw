@@ -54,7 +54,7 @@ import { renderRulers, renderGuides, renderGrid, RULER_SIZE } from '@/render/rul
 import { renderSnapLines } from '@/tools/snap'
 import { openCanvasContextMenu } from '@/ui/context-menu'
 import { attachTouchHandler, detachTouchHandler, currentPressure } from '@/tools/touch-handler'
-import { paintStroke } from '@/tools/brush'
+import { paintStroke, getBrushSettings } from '@/tools/brush'
 import type { VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer, Layer, Artboard } from '@/types'
 
 /** Resolve `currentColor` keyword to a concrete color. Default fallback is black. */
@@ -194,6 +194,32 @@ export function Viewport() {
     // Pen tool preview
     if (activeTool === 'pen') {
       renderPenPreview(ctx)
+    }
+
+    // Brush cursor (circle outline at mouse position)
+    if (activeTool === 'brush') {
+      const bs = getBrushSettings()
+      const mx = mouseDocPos.current.x
+      const my = mouseDocPos.current.y
+      const r = bs.size / 2
+      ctx.save()
+      ctx.lineWidth = 1.5 / viewport.zoom
+      // Outer ring (dark) + inner ring (light) for visibility on any background
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'
+      ctx.beginPath()
+      ctx.arc(mx, my, r, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'
+      ctx.lineWidth = 0.75 / viewport.zoom
+      ctx.beginPath()
+      ctx.arc(mx, my, r, 0, Math.PI * 2)
+      ctx.stroke()
+      // Crosshair dot at center
+      ctx.fillStyle = 'rgba(255,255,255,0.9)'
+      ctx.beginPath()
+      ctx.arc(mx, my, 1.5 / viewport.zoom, 0, Math.PI * 2)
+      ctx.fill()
+      ctx.restore()
     }
 
     // Text editing overlay (cursor, selection)
@@ -647,7 +673,7 @@ export function Viewport() {
     // Track cursor position for ruler markers
     const docPt = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
     mouseDocPos.current = { x: docPt.x, y: docPt.y }
-    if (showRulers) render()
+    if (showRulers || activeTool === 'brush') render()
 
     if (activeTool === 'node' && isDragging.current && getNodeState().dragging) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -881,13 +907,15 @@ export function Viewport() {
     ? 'grabbing'
     : activeTool === 'hand'
       ? 'grab'
-      : activeTool === 'pen' || activeTool === 'node' || activeTool === 'measure'
-        ? 'crosshair'
-        : activeTool === 'eyedropper'
+      : activeTool === 'brush'
+        ? 'none'
+        : activeTool === 'pen' || activeTool === 'node' || activeTool === 'measure'
           ? 'crosshair'
-          : activeTool === 'select'
-            ? undefined
-            : 'default'
+          : activeTool === 'eyedropper'
+            ? 'crosshair'
+            : activeTool === 'select'
+              ? undefined
+              : 'default'
 
   return (
     <canvas

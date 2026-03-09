@@ -16,7 +16,6 @@ import {
   Pipette,
   Hand,
   Ruler,
-  Paintbrush,
   Crop,
   Keyboard,
   Sun,
@@ -25,7 +24,21 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-const tools: { id: EditorState['activeTool']; icon: LucideIcon; key: string }[] = [
+/** Custom brush icon — round-tipped paint brush with visible bristle tip */
+function BrushIcon({ size = 24, strokeWidth = 1.75 }: { size?: number; strokeWidth?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round">
+      {/* Handle */}
+      <line x1="18" y1="2" x2="12" y2="8" />
+      {/* Ferrule */}
+      <path d="M12 8 L9.5 10.5 Q8 12 9 14 L10 14 Q12 12 14.5 9.5 Z" />
+      {/* Bristle tip */}
+      <path d="M9 14 Q6 17 4 20 Q5 21 6 20 Q8 19 10 14" fill="currentColor" strokeWidth={strokeWidth * 0.7} />
+    </svg>
+  )
+}
+
+const tools: { id: EditorState['activeTool']; icon: LucideIcon | ((props: { size?: number; strokeWidth?: number }) => JSX.Element); key: string }[] = [
   { id: 'select', icon: MousePointer2, key: 'v' },
   { id: 'node', icon: Spline, key: 'a' },
   { id: 'pen', icon: PenTool, key: 'p' },
@@ -37,7 +50,7 @@ const tools: { id: EditorState['activeTool']; icon: LucideIcon; key: string }[] 
   { id: 'eyedropper', icon: Pipette, key: 'i' },
   { id: 'hand', icon: Hand, key: 'h' },
   { id: 'measure', icon: Ruler, key: 'm' },
-  { id: 'brush', icon: Paintbrush, key: 'b' },
+  { id: 'brush', icon: BrushIcon, key: 'b' },
   { id: 'crop', icon: Crop, key: 'c' },
 ]
 

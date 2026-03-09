@@ -7,6 +7,7 @@ import { MenuBar } from '@/ui/menu-bar'
 import { setupKeyboardShortcuts } from '@/ui/keyboard'
 import { PanelShell } from '@/ui/panels/panel-shell'
 import { ExportModal } from '@/ui/export-modal'
+import { BrushSettingsBar } from '@/ui/brush-settings-bar'
 import { DownloadPage } from '@/ui/download-page'
 
 function useHashRoute() {
@@ -43,6 +44,7 @@ export function App() {
       }}
     >
       <MenuBar />
+      <BrushSettingsBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Toolbar />
         <PanelShell>
