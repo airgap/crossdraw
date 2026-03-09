@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
-import { storeRasterData, getRasterData, updateRasterCache } from '@/store/raster-data'
+import { storeRasterData, getRasterCanvasCtx, syncCanvasToImageData } from '@/store/raster-data'
 import type { RasterLayer, BrushSettings } from '@/types'
 
 const defaultBrush: BrushSettings = {
@@ -14,20 +14,49 @@ const defaultBrush: BrushSettings = {
 
 let currentBrush: BrushSettings = { ...defaultBrush }
 
-// Dab cache — avoids regenerating ImageData on every incremental paint call
-let cachedDab: ImageData | null = null
+// Dab cache — OffscreenCanvas for GPU-accelerated stamping
+let cachedDabCanvas: OffscreenCanvas | null = null
 let cachedDabKey = ''
 
 function getDabCacheKey(size: number, hardness: number, color: string, opacity: number): string {
   return `${size.toFixed(2)}_${hardness.toFixed(2)}_${color}_${opacity.toFixed(3)}`
 }
 
-function getCachedDab(size: number, hardness: number, color: string, opacity: number): ImageData {
+function getCachedDabCanvas(size: number, hardness: number, color: string, opacity: number): OffscreenCanvas {
   const key = getDabCacheKey(size, hardness, color, opacity)
-  if (cachedDab && cachedDabKey === key) return cachedDab
-  cachedDab = createBrushDab(size, hardness, color, opacity)
+  if (cachedDabCanvas && cachedDabKey === key) return cachedDabCanvas
+  cachedDabCanvas = createDabCanvas(size, hardness, color, opacity)
   cachedDabKey = key
-  return cachedDab
+  return cachedDabCanvas
+}
+
+function createDabCanvas(size: number, hardness: number, color: string, opacity: number): OffscreenCanvas {
+  const dim = Math.max(1, Math.ceil(size))
+  const canvas = new OffscreenCanvas(dim, dim)
+  const ctx = canvas.getContext('2d')!
+  const center = dim / 2
+
+  if (hardness >= 1) {
+    // Hard brush: simple filled circle
+    ctx.fillStyle = color
+    ctx.globalAlpha = opacity
+    ctx.beginPath()
+    ctx.arc(center, center, size / 2, 0, Math.PI * 2)
+    ctx.fill()
+  } else {
+    // Soft brush: radial gradient
+    const grad = ctx.createRadialGradient(center, center, 0, center, center, size / 2)
+    const edge = 1 - hardness
+    const solidStop = Math.max(0, 1 - edge)
+    grad.addColorStop(0, color)
+    grad.addColorStop(solidStop, color)
+    grad.addColorStop(1, 'transparent')
+    ctx.globalAlpha = opacity
+    ctx.fillStyle = grad
+    ctx.fillRect(0, 0, dim, dim)
+  }
+
+  return canvas
 }
 
 export function getBrushSettings(): BrushSettings {
@@ -36,11 +65,11 @@ export function getBrushSettings(): BrushSettings {
 
 export function setBrushSettings(settings: Partial<BrushSettings>) {
   Object.assign(currentBrush, settings)
-  cachedDab = null // invalidate cache when settings change
+  cachedDabCanvas = null
 }
 
 /**
- * Generate a circular brush dab as ImageData.
+ * Generate a circular brush dab as ImageData (kept for tests/compat).
  */
 export function createBrushDab(size: number, hardness: number, color: string, opacity: number): ImageData {
   const dim = Math.ceil(size)
@@ -55,7 +84,6 @@ export function createBrushDab(size: number, hardness: number, color: string, op
       const dist = Math.sqrt(dx * dx + dy * dy) / (size / 2)
       if (dist > 1) continue
 
-      // Hardness controls falloff
       let alpha: number
       if (hardness >= 1) {
         alpha = 1
@@ -85,27 +113,18 @@ function parseColor(hex: string): { r: number; g: number; b: number } {
   }
 }
 
+// Track current stroke's raster layer for incremental painting
+let activeChunkId: string | null = null
+
 /**
- * Paint a series of points onto a raster layer.
- * Creates a new raster layer if the selected layer isn't a raster layer.
- *
- * @param pressure - Stylus pressure (0-1). Multiplied with brush opacity and
- *                   used to scale brush size. Defaults to 1 (full pressure).
+ * Ensure a raster layer exists and return its chunk ID.
+ * Call at stroke start.
  */
-export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Partial<BrushSettings>, pressure = 1) {
-  const raw = { ...currentBrush, ...brush }
-  // Apply pressure: scale size and opacity
-  const p = Math.max(0, Math.min(1, pressure))
-  const b = {
-    ...raw,
-    size: raw.size * (0.3 + 0.7 * p), // size ranges from 30%-100% based on pressure
-    opacity: raw.opacity * p,
-  }
+export function beginStroke(): string | null {
   const store = useEditorStore.getState()
   const artboard = store.document.artboards[0]
-  if (!artboard) return
+  if (!artboard) return null
 
-  // Find or create a raster layer
   let rasterLayer: RasterLayer | undefined
   const selectedId = store.selection.layerIds[0]
   if (selectedId) {
@@ -114,12 +133,10 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
   }
 
   if (!rasterLayer) {
-    // Create a new raster layer covering the artboard
     const chunkId = uuid()
     const w = artboard.width
     const h = artboard.height
-    const imageData = new ImageData(w, h)
-    storeRasterData(chunkId, imageData)
+    storeRasterData(chunkId, new ImageData(w, h))
 
     rasterLayer = {
       id: uuid(),
@@ -139,15 +156,33 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
     store.selectLayer(rasterLayer.id)
   }
 
-  // Get the pixel data
-  const imageData = getRasterData(rasterLayer.imageChunkId)
-  if (!imageData) return
+  activeChunkId = rasterLayer.imageChunkId
+  return activeChunkId
+}
 
-  const dab = getCachedDab(b.size, b.hardness, b.color, b.opacity * b.flow)
-  const dabSize = Math.ceil(b.size)
+/**
+ * Paint dabs along points directly onto the OffscreenCanvas (GPU-accelerated).
+ */
+export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Partial<BrushSettings>, pressure = 1) {
+  if (!activeChunkId) {
+    // Legacy path: auto-begin if not started
+    if (!beginStroke()) return
+  }
+
+  const raw = { ...currentBrush, ...brush }
+  const p = Math.max(0, Math.min(1, pressure))
+  const b = {
+    ...raw,
+    size: raw.size * (0.3 + 0.7 * p),
+    opacity: raw.opacity * p,
+  }
+
+  const ctx = getRasterCanvasCtx(activeChunkId!)
+  if (!ctx) return
+
+  const dabCanvas = getCachedDabCanvas(b.size, b.hardness, b.color, b.opacity * b.flow)
+  const dabSize = Math.max(1, Math.ceil(b.size))
   const halfDab = dabSize / 2
-
-  // Stamp dabs along the stroke path with spacing
   const spacingPx = Math.max(1, b.size * b.spacing)
 
   for (let i = 0; i < points.length; i++) {
@@ -160,49 +195,19 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
       const steps = Math.ceil(dist / spacingPx)
       for (let s = 0; s < steps; s++) {
         const t = s / steps
-        const sx = prev.x + dx * t
-        const sy = prev.y + dy * t
-        stampDab(imageData, dab, dabSize, sx - halfDab, sy - halfDab)
+        ctx.drawImage(dabCanvas, prev.x + dx * t - halfDab, prev.y + dy * t - halfDab)
       }
     }
-    stampDab(imageData, dab, dabSize, pt.x - halfDab, pt.y - halfDab)
+    ctx.drawImage(dabCanvas, pt.x - halfDab, pt.y - halfDab)
   }
-
-  // Refresh the render cache in-place (avoids OffscreenCanvas reallocation)
-  updateRasterCache(rasterLayer.imageChunkId)
 }
 
-function stampDab(target: ImageData, dab: ImageData, dabSize: number, ox: number, oy: number) {
-  const ix = Math.round(ox)
-  const iy = Math.round(oy)
-
-  for (let dy = 0; dy < dabSize; dy++) {
-    for (let dx = 0; dx < dabSize; dx++) {
-      const tx = ix + dx
-      const ty = iy + dy
-      if (tx < 0 || ty < 0 || tx >= target.width || ty >= target.height) continue
-
-      const dabIdx = (dy * dabSize + dx) * 4
-      const tgtIdx = (ty * target.width + tx) * 4
-      const dabAlpha = dab.data[dabIdx + 3]! / 255
-
-      if (dabAlpha === 0) continue
-
-      // Alpha compositing (source over)
-      const tgtAlpha = target.data[tgtIdx + 3]! / 255
-      const outAlpha = dabAlpha + tgtAlpha * (1 - dabAlpha)
-      if (outAlpha === 0) continue
-
-      target.data[tgtIdx] = Math.round(
-        (dab.data[dabIdx]! * dabAlpha + target.data[tgtIdx]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
-      )
-      target.data[tgtIdx + 1] = Math.round(
-        (dab.data[dabIdx + 1]! * dabAlpha + target.data[tgtIdx + 1]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
-      )
-      target.data[tgtIdx + 2] = Math.round(
-        (dab.data[dabIdx + 2]! * dabAlpha + target.data[tgtIdx + 2]! * tgtAlpha * (1 - dabAlpha)) / outAlpha,
-      )
-      target.data[tgtIdx + 3] = Math.round(outAlpha * 255)
-    }
+/**
+ * Finalize the stroke — sync the OffscreenCanvas back to ImageData for serialization.
+ */
+export function endStroke() {
+  if (activeChunkId) {
+    syncCanvasToImageData(activeChunkId)
+    activeChunkId = null
   }
 }

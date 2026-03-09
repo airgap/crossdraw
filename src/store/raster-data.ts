@@ -52,6 +52,23 @@ export function getRasterCanvas(id: string): OffscreenCanvas | undefined {
   return canvas
 }
 
+/** Get the OffscreenCanvas 2D context for direct painting (creates if needed). */
+export function getRasterCanvasCtx(id: string): OffscreenCanvasRenderingContext2D | undefined {
+  const canvas = getRasterCanvas(id)
+  if (!canvas) return undefined
+  return canvas.getContext('2d') ?? undefined
+}
+
+/** Sync the OffscreenCanvas back to ImageData (call after stroke ends for serialization). */
+export function syncCanvasToImageData(id: string) {
+  const canvas = renderCache.get(id)
+  if (!canvas) return
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return
+  const data = ctx.getImageData(0, 0, canvas.width, canvas.height)
+  store.set(id, data)
+}
+
 /** Collect all raster chunks referenced by a document (for serialization). */
 export function collectRasterChunks(doc: {
   artboards: { layers: { type: string; imageChunkId?: string }[] }[]

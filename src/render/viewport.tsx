@@ -54,7 +54,7 @@ import { renderRulers, renderGuides, renderGrid, RULER_SIZE } from '@/render/rul
 import { renderSnapLines } from '@/tools/snap'
 import { openCanvasContextMenu } from '@/ui/context-menu'
 import { attachTouchHandler, detachTouchHandler, currentPressure } from '@/tools/touch-handler'
-import { paintStroke, getBrushSettings } from '@/tools/brush'
+import { paintStroke, beginStroke, endStroke, getBrushSettings } from '@/tools/brush'
 import type { VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer, Layer, Artboard } from '@/types'
 
 /** Resolve `currentColor` keyword to a concrete color. Default fallback is black. */
@@ -598,7 +598,7 @@ export function Viewport() {
     if (activeTool === 'brush') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       const artboard = document.artboards[0]
-      if (artboard) {
+      if (artboard && beginStroke()) {
         brushPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         brushPressure.current = touchMode ? currentPressure : 1
         isDragging.current = true
@@ -793,14 +793,12 @@ export function Viewport() {
       return
     }
 
-    // Finish brush stroke
+    // Finish brush stroke — sync canvas to ImageData for serialization
     if (activeTool === 'brush' && isDragging.current) {
-      if (brushPoints.current.length > 0) {
-        paintStroke(brushPoints.current, undefined, brushPressure.current)
-        render()
-      }
+      endStroke()
       brushPoints.current = []
       isDragging.current = false
+      render()
       return
     }
 
