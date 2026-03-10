@@ -13,6 +13,7 @@ import type {
   GlowParams,
   InnerShadowParams,
   BackgroundBlurParams,
+  ProgressiveBlurParams,
   AdjustmentLayer,
   AdjustmentParams,
   LevelsParams,
@@ -26,6 +27,8 @@ import type {
   AutoLayoutConfig,
   SymbolInstanceLayer,
   ComponentProperty,
+  NoiseFillConfig,
+  WiggleStrokeConfig,
 } from '@/types'
 import { createDefaultAutoLayout } from '@/layout/auto-layout'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
@@ -950,6 +953,18 @@ function OpenTypeFeaturesSection({ artboardId, layer }: { artboardId: string; la
 
 // ─── Fill section ─────────────────────────────────────────────
 
+function createDefaultNoiseFill(): NoiseFillConfig {
+  return {
+    noiseType: 'simplex',
+    scale: 50,
+    octaves: 4,
+    persistence: 0.5,
+    seed: Math.floor(Math.random() * 100000),
+    color1: '#000000',
+    color2: '#ffffff',
+  }
+}
+
 function FillSection({
   artboardId,
   layer,
@@ -977,6 +992,22 @@ function FillSection({
     })
   }
 
+  function switchToNoise() {
+    setFill(artboardId, layer.id, {
+      type: 'noise',
+      noise: createDefaultNoiseFill(),
+      opacity: fill?.opacity ?? 1,
+    })
+  }
+
+  function updateNoise(updates: Partial<NoiseFillConfig>) {
+    if (!fill || fill.type !== 'noise' || !fill.noise) return
+    setFill(artboardId, layer.id, {
+      ...fill,
+      noise: { ...fill.noise, ...updates },
+    })
+  }
+
   return (
     <div style={sectionStyle}>
       <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -984,14 +1015,19 @@ function FillSection({
         <div style={{ display: 'flex', gap: 2 }}>
           {fill ? (
             <>
-              {fill.type === 'solid' && (
+              {fill.type !== 'gradient' && (
                 <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={switchToGradient}>
                   Gradient
                 </button>
               )}
-              {fill.type === 'gradient' && (
+              {fill.type !== 'solid' && (
                 <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={switchToSolid}>
                   Solid
+                </button>
+              )}
+              {fill.type !== 'noise' && (
+                <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={switchToNoise}>
+                  Noise
                 </button>
               )}
               <button
@@ -1042,6 +1078,135 @@ function FillSection({
           />
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Alpha</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round(fill.opacity * 100)}
+              onChange={(e) => setFill(artboardId, layer.id, { ...fill, opacity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {Math.round(fill.opacity * 100)}%
+            </span>
+          </div>
+        </>
+      )}
+      {fill && fill.type === 'noise' && fill.noise && (
+        <>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Type</span>
+            <select
+              style={{ ...inputStyle, width: 'auto', flex: 1 }}
+              value={fill.noise.noiseType}
+              onChange={(e) =>
+                updateNoise({ noiseType: e.target.value as NoiseFillConfig['noiseType'] })
+              }
+            >
+              <option value="simplex">Simplex</option>
+              <option value="perlin">Perlin</option>
+              <option value="cellular">Cellular</option>
+              <option value="white">White</option>
+            </select>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Scale</span>
+            <input
+              type="range"
+              min="1"
+              max="500"
+              style={{ flex: 1 }}
+              value={fill.noise.scale}
+              onChange={(e) => updateNoise({ scale: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {fill.noise.scale}
+            </span>
+          </div>
+          {fill.noise.noiseType !== 'white' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Octaves</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="8"
+                  step="1"
+                  style={{ flex: 1 }}
+                  value={fill.noise.octaves}
+                  onChange={(e) => updateNoise({ octaves: Number(e.target.value) })}
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {fill.noise.octaves}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Persist</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={Math.round(fill.noise.persistence * 100)}
+                  onChange={(e) => updateNoise({ persistence: Number(e.target.value) / 100 })}
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {Math.round(fill.noise.persistence * 100)}%
+                </span>
+              </div>
+            </>
+          )}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Seed</span>
+            <input
+              type="number"
+              style={{ ...smallInputStyle, flex: 1 }}
+              value={fill.noise.seed}
+              onChange={(e) => updateNoise({ seed: Number(e.target.value) })}
+            />
+            <button
+              style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
+              onClick={() => updateNoise({ seed: Math.floor(Math.random() * 100000) })}
+            >
+              Random
+            </button>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Color 1</span>
+            <ColorSwatch
+              color={fill.noise.color1}
+              opacity={1}
+              onChange={(hex) => updateNoise({ color1: hex })}
+            />
+            <input
+              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
+              value={fill.noise.color1}
+              onChange={(e) => {
+                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                  updateNoise({ color1: e.target.value })
+                }
+              }}
+            />
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Color 2</span>
+            <ColorSwatch
+              color={fill.noise.color2}
+              opacity={1}
+              onChange={(hex) => updateNoise({ color2: hex })}
+            />
+            <input
+              style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
+              value={fill.noise.color2}
+              onChange={(e) => {
+                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
+                  updateNoise({ color2: e.target.value })
+                }
+              }}
+            />
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Alpha</span>
             <input
               type="range"
               min="0"
@@ -1278,6 +1443,123 @@ function StrokeSection({
               {Math.round(stroke.opacity * 100)}%
             </span>
           </div>
+          {/* Wiggle / hand-drawn stroke */}
+          <div style={rowStyle}>
+            <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <input
+                type="checkbox"
+                checked={stroke.wiggle?.enabled ?? false}
+                onChange={(e) => {
+                  const enabled = e.target.checked
+                  const wiggle: WiggleStrokeConfig = stroke.wiggle
+                    ? { ...stroke.wiggle, enabled }
+                    : { enabled, amplitude: 4, frequency: 10, seed: 0, taperStart: 0, taperEnd: 0 }
+                  setStroke(artboardId, layer.id, { ...stroke, wiggle })
+                }}
+              />
+              Wiggle
+            </label>
+          </div>
+          {stroke.wiggle?.enabled && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 42 }}>Amp</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="20"
+                  step="0.5"
+                  style={{ flex: 1 }}
+                  value={stroke.wiggle.amplitude}
+                  onChange={(e) =>
+                    setStroke(artboardId, layer.id, {
+                      ...stroke,
+                      wiggle: { ...stroke.wiggle!, amplitude: Number(e.target.value) },
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {stroke.wiggle.amplitude}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 42 }}>Freq</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="50"
+                  step="1"
+                  style={{ flex: 1 }}
+                  value={stroke.wiggle.frequency}
+                  onChange={(e) =>
+                    setStroke(artboardId, layer.id, {
+                      ...stroke,
+                      wiggle: { ...stroke.wiggle!, frequency: Number(e.target.value) },
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {stroke.wiggle.frequency}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 42 }}>Seed</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  style={smallInputStyle}
+                  value={stroke.wiggle.seed}
+                  onChange={(e) =>
+                    setStroke(artboardId, layer.id, {
+                      ...stroke,
+                      wiggle: { ...stroke.wiggle!, seed: Math.max(0, Math.floor(Number(e.target.value))) },
+                    })
+                  }
+                />
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 42 }}>Taper S</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  style={{ flex: 1 }}
+                  value={stroke.wiggle.taperStart}
+                  onChange={(e) =>
+                    setStroke(artboardId, layer.id, {
+                      ...stroke,
+                      wiggle: { ...stroke.wiggle!, taperStart: Number(e.target.value) },
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {stroke.wiggle.taperStart.toFixed(2)}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 42 }}>Taper E</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  style={{ flex: 1 }}
+                  value={stroke.wiggle.taperEnd}
+                  onChange={(e) =>
+                    setStroke(artboardId, layer.id, {
+                      ...stroke,
+                      wiggle: { ...stroke.wiggle!, taperEnd: Number(e.target.value) },
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {stroke.wiggle.taperEnd.toFixed(2)}
+                </span>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
@@ -1810,13 +2092,35 @@ function EffectsSection({
     addEffect(artboardId, layer.id, effect)
   }
 
+  function handleAddProgressiveBlur() {
+    const effect: Effect = {
+      id: uuid(),
+      type: 'progressive-blur',
+      enabled: true,
+      opacity: 1,
+      params: {
+        kind: 'progressive-blur',
+        direction: 'linear',
+        angle: 90,
+        startRadius: 0,
+        endRadius: 20,
+        startPosition: 0,
+        endPosition: 1,
+      } as ProgressiveBlurParams,
+    }
+    addEffect(artboardId, layer.id, effect)
+  }
+
   return (
     <div style={sectionStyle}>
       <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Effects</span>
-        <div style={{ display: 'flex', gap: 2 }}>
+        <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
           <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={handleAddBlur}>
             +Blur
+          </button>
+          <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={handleAddProgressiveBlur}>
+            +ProgBlur
           </button>
           <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={handleAddShadow}>
             +Shadow
@@ -1843,13 +2147,15 @@ function EffectsSection({
               />
               {effect.params.kind === 'blur'
                 ? 'Blur'
-                : effect.params.kind === 'glow'
-                  ? 'Outer Glow'
-                  : effect.params.kind === 'inner-shadow'
-                    ? 'Inner Shadow'
-                    : effect.params.kind === 'background-blur'
-                      ? 'BG Blur'
-                      : 'Drop Shadow'}
+                : effect.params.kind === 'progressive-blur'
+                  ? 'Progressive Blur'
+                  : effect.params.kind === 'glow'
+                    ? 'Outer Glow'
+                    : effect.params.kind === 'inner-shadow'
+                      ? 'Inner Shadow'
+                      : effect.params.kind === 'background-blur'
+                        ? 'BG Blur'
+                        : 'Drop Shadow'}
             </label>
             <button
               style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
@@ -2034,6 +2340,135 @@ function EffectsSection({
                 {(effect.params as BackgroundBlurParams).radius}
               </span>
             </div>
+          )}
+          {effect.params.kind === 'progressive-blur' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Direction</span>
+                <select
+                  style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                  value={(effect.params as ProgressiveBlurParams).direction}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: {
+                        ...effect.params,
+                        direction: e.target.value as 'linear' | 'radial',
+                      } as ProgressiveBlurParams,
+                    })
+                  }
+                >
+                  <option value="linear">Linear</option>
+                  <option value="radial">Radial</option>
+                </select>
+              </div>
+              {(effect.params as ProgressiveBlurParams).direction === 'linear' && (
+                <div style={rowStyle}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Angle</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    style={{ flex: 1 }}
+                    value={(effect.params as ProgressiveBlurParams).angle}
+                    onChange={(e) =>
+                      updateEffect(artboardId, layer.id, effect.id, {
+                        params: {
+                          ...effect.params,
+                          angle: Number(e.target.value),
+                        } as ProgressiveBlurParams,
+                      })
+                    }
+                  />
+                  <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                    {(effect.params as ProgressiveBlurParams).angle}&deg;
+                  </span>
+                </div>
+              )}
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Start R</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  style={{ flex: 1 }}
+                  value={(effect.params as ProgressiveBlurParams).startRadius}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: {
+                        ...effect.params,
+                        startRadius: Number(e.target.value),
+                      } as ProgressiveBlurParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as ProgressiveBlurParams).startRadius}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>End R</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="50"
+                  style={{ flex: 1 }}
+                  value={(effect.params as ProgressiveBlurParams).endRadius}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: {
+                        ...effect.params,
+                        endRadius: Number(e.target.value),
+                      } as ProgressiveBlurParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as ProgressiveBlurParams).endRadius}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Start P</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={Math.round((effect.params as ProgressiveBlurParams).startPosition * 100)}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: {
+                        ...effect.params,
+                        startPosition: Number(e.target.value) / 100,
+                      } as ProgressiveBlurParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {Math.round((effect.params as ProgressiveBlurParams).startPosition * 100)}%
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>End P</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={Math.round((effect.params as ProgressiveBlurParams).endPosition * 100)}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: {
+                        ...effect.params,
+                        endPosition: Number(e.target.value) / 100,
+                      } as ProgressiveBlurParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {Math.round((effect.params as ProgressiveBlurParams).endPosition * 100)}%
+                </span>
+              </div>
+            </>
           )}
         </div>
       ))}

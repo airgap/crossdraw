@@ -9,6 +9,7 @@ export interface DesignDocument {
   }
   symbols?: SymbolDefinition[]
   comments?: Comment[]
+  variableCollections?: import('@/variables/variable-types').VariableCollection[]
 }
 
 export interface Comment {
@@ -120,6 +121,8 @@ export interface BaseLayer {
   interactions?: Interaction[]
   /** Animation keyframes for this layer. */
   animation?: AnimationTrack
+  /** Variable bindings: keys are property paths like 'fill.color', 'opacity', 'transform.x' */
+  variableBindings?: Record<string, import('@/variables/variable-types').VariableBinding>
 }
 
 // --- Animation ---
@@ -304,12 +307,32 @@ export type Segment =
     }
   | { type: 'close' }
 
+export interface NoiseFillConfig {
+  noiseType: 'perlin' | 'simplex' | 'cellular' | 'white'
+  scale: number
+  octaves: number
+  persistence: number
+  seed: number
+  color1: string
+  color2: string
+}
+
 export interface Fill {
-  type: 'solid' | 'gradient' | 'pattern'
+  type: 'solid' | 'gradient' | 'pattern' | 'noise'
   color?: string
   gradient?: Gradient
   pattern?: Pattern
+  noise?: NoiseFillConfig
   opacity: number
+}
+
+export interface WiggleStrokeConfig {
+  enabled: boolean
+  amplitude: number
+  frequency: number
+  seed: number
+  taperStart: number
+  taperEnd: number
 }
 
 export interface Stroke {
@@ -323,6 +346,8 @@ export interface Stroke {
   miterLimit: number
   /** Variable width profile. Each entry is [position (0-1 along path), width multiplier]. */
   widthProfile?: [number, number][]
+  /** Wiggle / hand-drawn stroke displacement. */
+  wiggle?: WiggleStrokeConfig
 }
 
 export interface MeshPoint {
@@ -375,12 +400,22 @@ export interface DitheringConfig {
   seed: number
 }
 
+export interface ProgressiveBlurParams {
+  kind: 'progressive-blur'
+  direction: 'linear' | 'radial'
+  angle: number
+  startRadius: number
+  endRadius: number
+  startPosition: number
+  endPosition: number
+}
+
 export interface Effect {
   id: string
-  type: 'blur' | 'shadow' | 'drop-shadow' | 'distort' | 'glow' | 'outer-glow' | 'inner-shadow' | 'background-blur'
+  type: 'blur' | 'shadow' | 'drop-shadow' | 'distort' | 'glow' | 'outer-glow' | 'inner-shadow' | 'background-blur' | 'progressive-blur'
   enabled: boolean
   opacity: number
-  params: BlurParams | ShadowParams | DistortParams | GlowParams | InnerShadowParams | BackgroundBlurParams
+  params: BlurParams | ShadowParams | DistortParams | GlowParams | InnerShadowParams | BackgroundBlurParams | ProgressiveBlurParams
 }
 
 export interface GlowParams {

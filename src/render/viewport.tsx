@@ -11,7 +11,9 @@ import { applyEffects, hasActiveEffects } from '@/effects/render-effects'
 import { applyAdjustment } from '@/effects/adjustments'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
 import { renderMeshGradient } from '@/render/mesh-gradient'
+import { createNoisePattern } from '@/render/noise-fill'
 import { renderVariableStroke } from '@/render/variable-stroke'
+import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import {
   penMouseDown,
   penMouseDrag,
@@ -2149,12 +2151,15 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
   ctx.save()
   applyTransform(ctx, layer.transform)
 
-  // Compute bounding box for gradient sizing
+  // Compute bounding box for gradient/noise sizing
   let bboxX = 0,
     bboxY = 0,
     bboxW = 100,
     bboxH = 100
-  if (layer.fill?.type === 'gradient' && layer.fill.gradient) {
+  if (
+    (layer.fill?.type === 'gradient' && layer.fill.gradient) ||
+    (layer.fill?.type === 'noise' && layer.fill.noise)
+  ) {
     // Approximate bbox from paths
     let minX = Infinity,
       minY = Infinity,
@@ -2208,6 +2213,18 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
             ctx.fill(path2d, fillRule)
           }
         }
+      } else if (layer.fill.type === 'noise' && layer.fill.noise) {
+        const noisePat = createNoisePattern(
+          ctx,
+          layer.fill.noise,
+          Math.ceil(bboxW) || 100,
+          Math.ceil(bboxH) || 100,
+          layer.fill.opacity,
+        )
+        if (noisePat) {
+          ctx.fillStyle = noisePat
+          ctx.fill(path2d, fillRule)
+        }
       }
     }
 
@@ -2222,8 +2239,19 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
       }
 
       const hasVariableWidth = layer.stroke.widthProfile && layer.stroke.widthProfile.length > 0
+      const hasWiggle = layer.stroke.wiggle?.enabled && layer.stroke.wiggle.amplitude > 0
 
-      if (hasVariableWidth && pos === 'center') {
+      if (hasWiggle) {
+        // Wiggle stroke: render displaced polyline (always center position)
+        ctx.lineWidth = layer.stroke.width
+        renderWiggleStroke(ctx, path.segments, layer.stroke.width, {
+          amplitude: layer.stroke.wiggle!.amplitude,
+          frequency: layer.stroke.wiggle!.frequency,
+          seed: layer.stroke.wiggle!.seed,
+          taperStart: layer.stroke.wiggle!.taperStart,
+          taperEnd: layer.stroke.wiggle!.taperEnd,
+        })
+      } else if (hasVariableWidth && pos === 'center') {
         // Variable-width stroke: render as filled offset curves
         renderVariableStroke(ctx, path, layer.stroke, path2d)
       } else if (pos === 'inside') {
@@ -2284,7 +2312,15 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
         ctx.lineJoin = addStroke.linejoin
         ctx.globalAlpha = layer.opacity * addStroke.opacity
         if (addStroke.dasharray) ctx.setLineDash(addStroke.dasharray)
-        if (addStroke.widthProfile && addStroke.widthProfile.length > 0) {
+        if (addStroke.wiggle?.enabled && addStroke.wiggle.amplitude > 0) {
+          renderWiggleStroke(ctx, path.segments, addStroke.width, {
+            amplitude: addStroke.wiggle.amplitude,
+            frequency: addStroke.wiggle.frequency,
+            seed: addStroke.wiggle.seed,
+            taperStart: addStroke.wiggle.taperStart,
+            taperEnd: addStroke.wiggle.taperEnd,
+          })
+        } else if (addStroke.widthProfile && addStroke.widthProfile.length > 0) {
           renderVariableStroke(ctx, path, addStroke, path2d)
         } else {
           ctx.stroke(path2d)

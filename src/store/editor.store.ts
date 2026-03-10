@@ -40,6 +40,9 @@ import {
   createSnapshot as createVersionSnapshotDB,
   getSnapshot as getVersionSnapshotDB,
 } from '@/versioning/version-store'
+import {
+  defaultVariableValue as varDefaultValue,
+} from '@/variables/variable-types'
 
 enablePatches()
 
@@ -113,6 +116,9 @@ export interface EditorState {
   // Collaboration
   collabProvider: import('@/collab/collab-provider').CollabProvider | null
   collabPresences: import('@/collab/collab-provider').UserPresence[]
+
+  // Design variables
+  activeModeIds: Record<string, string>
 }
 
 export interface EditorActions {
@@ -298,6 +304,30 @@ export interface EditorActions {
   // Version control
   createVersionSnapshot: (name: string) => Promise<void>
   revertToSnapshot: (snapshotId: string) => Promise<void>
+
+  // Design variables
+  addVariableCollection: (name: string) => void
+  removeVariableCollection: (id: string) => void
+  renameVariableCollection: (id: string, name: string) => void
+  addVariableMode: (collectionId: string, name: string) => void
+  removeVariableMode: (collectionId: string, modeId: string) => void
+  addVariable: (collectionId: string, name: string, type: import('@/variables/variable-types').VariableType) => void
+  removeVariable: (collectionId: string, variableId: string) => void
+  setVariableValue: (
+    collectionId: string,
+    variableId: string,
+    modeId: string,
+    value: import('@/variables/variable-types').VariableValue,
+  ) => void
+  setActiveMode: (collectionId: string, modeId: string) => void
+  bindLayerProperty: (
+    layerId: string,
+    artboardId: string,
+    propertyPath: string,
+    variableId: string,
+    collectionId: string,
+  ) => void
+  unbindLayerProperty: (layerId: string, artboardId: string, propertyPath: string) => void
 }
 
 interface NewDocumentOptions {
@@ -559,6 +589,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     // Collaboration
     collabProvider: null,
     collabPresences: [],
+
+    // Design variables
+    activeModeIds: {},
 
     // Document
     newDocument(opts) {
@@ -1909,6 +1942,139 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     toggleAIPanel() {
       set({ showAIPanel: !get().showAIPanel })
+    },
+
+    // ── Design Variables ──
+
+    addVariableCollection(name) {
+      const collectionId = uuid()
+      const defaultModeId = uuid()
+      mutateDocument('Add variable collection', (draft) => {
+        if (!draft.variableCollections) draft.variableCollections = []
+        draft.variableCollections.push({
+          id: collectionId,
+          name,
+          modes: [{ id: defaultModeId, name: 'Default' }],
+          variables: [],
+          values: {},
+        })
+      })
+      // Set active mode for the new collection
+      set({ activeModeIds: { ...get().activeModeIds, [collectionId]: defaultModeId } })
+    },
+
+    removeVariableCollection(id) {
+      mutateDocument('Remove variable collection', (draft) => {
+        if (!draft.variableCollections) return
+        draft.variableCollections = draft.variableCollections.filter((c) => c.id !== id)
+      })
+      const newModes = { ...get().activeModeIds }
+      delete newModes[id]
+      set({ activeModeIds: newModes })
+    },
+
+    renameVariableCollection(id, name) {
+      mutateDocument('Rename variable collection', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === id)
+        if (collection) collection.name = name
+      })
+    },
+
+    addVariableMode(collectionId, name) {
+      mutateDocument('Add variable mode', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection) return
+        collection.modes.push({ id: uuid(), name })
+      })
+    },
+
+    removeVariableMode(collectionId, modeId) {
+      mutateDocument('Remove variable mode', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection || collection.modes.length <= 1) return
+        collection.modes = collection.modes.filter((m) => m.id !== modeId)
+        // Clean up values for removed mode
+        for (const varId of Object.keys(collection.values)) {
+          const varValues = collection.values[varId]
+          if (varValues) {
+            delete varValues[modeId]
+          }
+        }
+      })
+      // If the removed mode was active, switch to the first available mode
+      const currentActive = get().activeModeIds[collectionId]
+      if (currentActive === modeId) {
+        const collection = get().document.variableCollections?.find((c) => c.id === collectionId)
+        const firstMode = collection?.modes[0]
+        if (firstMode) {
+          set({ activeModeIds: { ...get().activeModeIds, [collectionId]: firstMode.id } })
+        }
+      }
+    },
+
+    addVariable(collectionId, name, type) {
+      const variableId = uuid()
+      mutateDocument('Add variable', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection) return
+        collection.variables.push({ id: variableId, name, type, collectionId })
+        // Initialize values for all modes with the default value
+        collection.values[variableId] = {}
+        const defaultVal = varDefaultValue(type)
+        for (const mode of collection.modes) {
+          collection.values[variableId]![mode.id] = defaultVal
+        }
+      })
+    },
+
+    removeVariable(collectionId, variableId) {
+      mutateDocument('Remove variable', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection) return
+        collection.variables = collection.variables.filter((v) => v.id !== variableId)
+        delete collection.values[variableId]
+      })
+    },
+
+    setVariableValue(collectionId, variableId, modeId, value) {
+      mutateDocument('Set variable value', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection) return
+        if (!collection.values[variableId]) collection.values[variableId] = {}
+        collection.values[variableId]![modeId] = value
+      })
+    },
+
+    setActiveMode(collectionId, modeId) {
+      set({ activeModeIds: { ...get().activeModeIds, [collectionId]: modeId } })
+    },
+
+    bindLayerProperty(layerId, artboardId, propertyPath, variableId, collectionId) {
+      mutateDocument('Bind layer property to variable', (draft) => {
+        const artboard = draft.artboards.find((a) => a.id === artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        if (!layer.variableBindings) layer.variableBindings = {}
+        layer.variableBindings[propertyPath] = { variableId, collectionId, field: propertyPath }
+      })
+    },
+
+    unbindLayerProperty(layerId, artboardId, propertyPath) {
+      mutateDocument('Unbind layer property from variable', (draft) => {
+        const artboard = draft.artboards.find((a) => a.id === artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        if (!layer.variableBindings) return
+        delete layer.variableBindings[propertyPath]
+      })
     },
   }
 })

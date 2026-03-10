@@ -24,6 +24,7 @@ import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, f
 import { performBooleanOp } from '@/tools/boolean-ops'
 import { traceSelectedRasterLayer } from '@/tools/image-trace'
 import { applyDistortFilter } from '@/filters/apply-distort'
+import { applyProgressiveBlurFilter } from '@/filters/apply-progressive-blur'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
@@ -674,6 +675,11 @@ function buildMenus(): MenuDef[] {
       { label: 'Outer Glow\u2026', disabled: true },
       { label: '', divider: true },
       { label: 'Background Blur\u2026', disabled: true },
+      {
+        label: 'Progressive Blur\u2026',
+        action: () => applyProgressiveBlurFilter(),
+        disabled: () => !hasSelectedRaster(),
+      },
       { label: '', divider: true },
       {
         label: 'Noise',
@@ -725,6 +731,40 @@ function buildMenus(): MenuDef[] {
               })
             },
             disabled: () => !hasSelectedRaster(),
+          },
+          { label: '', divider: true },
+          {
+            label: 'Apply Noise Fill',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard) return
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              const layer = artboard.layers.find((l) => l.id === layerId)
+              if (!layer || layer.type !== 'vector') return
+              s.setFill(artboard.id, layerId, {
+                type: 'noise',
+                noise: {
+                  noiseType: 'simplex',
+                  scale: 50,
+                  octaves: 4,
+                  persistence: 0.5,
+                  seed: Math.floor(Math.random() * 100000),
+                  color1: '#000000',
+                  color2: '#ffffff',
+                },
+                opacity: 1,
+              })
+            },
+            disabled: () => {
+              const s = store()
+              if (s.selection.layerIds.length === 0) return true
+              const artboard = s.document.artboards[0]
+              if (!artboard) return true
+              const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
+              return !layer || layer.type !== 'vector'
+            },
           },
         ],
       },
@@ -863,6 +903,15 @@ function buildMenus(): MenuDef[] {
         action: () => {
           import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
             usePanelLayoutStore.getState().focusTab('align')
+          })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Variables',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('variables')
           })
         },
       },

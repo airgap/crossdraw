@@ -64,6 +64,9 @@ const LazyAIPanel = React.lazy(() =>
 const LazyVersionPanel = React.lazy(() =>
   import('@/ui/version-panel').then((m) => ({ default: m.VersionPanel })),
 )
+const LazyVariablesPanel = React.lazy(() =>
+  import('@/ui/variables-panel').then((m) => ({ default: m.VariablesPanel })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -91,6 +94,7 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'collaboration', label: 'Collaboration', icon: '\u{1F465}', component: LazyCollabPanel },
   { id: 'ai-assistant', label: 'AI Assistant', icon: '\u2728', component: LazyAIPanel },
   { id: 'versions', label: 'Version Control', icon: '\u{1F4C0}', component: LazyVersionPanel },
+  { id: 'variables', label: 'Variables', icon: '\u{1F4D0}', component: LazyVariablesPanel },
 ]
 
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))
