@@ -34,6 +34,27 @@ const LazyFindReplacePanel = React.lazy(() =>
 const LazyGlobalColorsPanel = React.lazy(() =>
   import('@/ui/global-colors-panel').then((m) => ({ default: m.GlobalColorsPanel })),
 )
+const LazyAccessibilityPanel = React.lazy(() =>
+  import('@/ui/accessibility-panel').then((m) => ({ default: m.AccessibilityPanel })),
+)
+const LazyCSSInspectPanel = React.lazy(() =>
+  import('@/ui/css-inspect-panel').then((m) => ({ default: m.CSSInspectPanel })),
+)
+const LazyCodeGenPanel = React.lazy(() =>
+  import('@/ui/code-gen-panel').then((m) => ({ default: m.CodeGenPanel })),
+)
+const LazyDesignLintPanel = React.lazy(() =>
+  import('@/ui/design-lint-panel').then((m) => ({ default: m.DesignLintPanel })),
+)
+const LazyCommentsPanel = React.lazy(() =>
+  import('@/ui/comments-panel').then((m) => ({ default: m.CommentsPanel })),
+)
+const LazyAnimationTimeline = React.lazy(() =>
+  import('@/ui/animation-timeline').then((m) => ({ default: m.AnimationTimeline })),
+)
+const LazyInteractionPanel = React.lazy(() =>
+  import('@/ui/interaction-panel').then((m) => ({ default: m.InteractionPanel })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -51,6 +72,13 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'color-harmony', label: 'Color Harmony', icon: '\u{1F308}', component: LazyColorHarmonyPanel },
   { id: 'find-replace', label: 'Find & Replace', icon: '\u{1F50D}', component: LazyFindReplacePanel },
   { id: 'global-colors', label: 'Global Colors', icon: '\u{1F3A8}', component: LazyGlobalColorsPanel },
+  { id: 'accessibility', label: 'Accessibility', icon: '\u267F', component: LazyAccessibilityPanel },
+  { id: 'inspect', label: 'CSS Inspect', icon: '\u{1F4D0}', component: LazyCSSInspectPanel },
+  { id: 'code', label: 'Code Gen', icon: '\u{1F4BB}', component: LazyCodeGenPanel },
+  { id: 'lint', label: 'Design Lint', icon: '\u{1F50D}', component: LazyDesignLintPanel },
+  { id: 'comments', label: 'Comments', icon: '\u{1F4AC}', component: LazyCommentsPanel },
+  { id: 'animation', label: 'Animation', icon: '\u{1F3AC}', component: LazyAnimationTimeline },
+  { id: 'interactions', label: 'Interactions', icon: '\u26A1', component: LazyInteractionPanel },
 ]
 
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))

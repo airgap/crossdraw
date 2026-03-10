@@ -1,5 +1,39 @@
 import { useState } from 'react'
+import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
+import type { ComponentProperty, SymbolVariant, SymbolDefinition } from '@/types'
+
+const smallInputStyle: React.CSSProperties = {
+  background: 'var(--bg-input)',
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--radius-sm, 4px)',
+  color: 'var(--text-primary)',
+  fontSize: 'var(--font-size-sm, 12px)',
+  padding: '2px 4px',
+  width: '100%',
+  height: 'var(--height-input, 24px)',
+}
+
+const tinyBtnStyle: React.CSSProperties = {
+  padding: '2px 6px',
+  border: '1px solid var(--border-subtle)',
+  borderRadius: 'var(--radius-sm, 4px)',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  fontSize: 11,
+  flexShrink: 0,
+}
+
+const sectionLabelStyle: React.CSSProperties = {
+  fontSize: 'var(--font-size-xs, 10px)',
+  color: 'var(--text-secondary)',
+  textTransform: 'uppercase',
+  marginBottom: 4,
+  marginTop: 8,
+  fontWeight: 600,
+  letterSpacing: '0.3px',
+}
 
 export function SymbolsPanel() {
   const symbols = useEditorStore((s) => s.document.symbols ?? [])
@@ -9,9 +43,14 @@ export function SymbolsPanel() {
   const deleteSymbolDefinition = useEditorStore((s) => s.deleteSymbolDefinition)
   const createSymbolInstance = useEditorStore((s) => s.createSymbolInstance)
   const renameSymbol = useEditorStore((s) => s.renameSymbol)
+  const addComponentProperty = useEditorStore((s) => s.addComponentProperty)
+  const removeComponentProperty = useEditorStore((s) => s.removeComponentProperty)
+  const addVariant = useEditorStore((s) => s.addVariant)
+  const removeVariant = useEditorStore((s) => s.removeVariant)
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
+  const [expandedSymbolId, setExpandedSymbolId] = useState<string | null>(null)
 
   const hasSelection = selection.length > 0
   const activeArtboardId = viewport.artboardId ?? useEditorStore.getState().document.artboards[0]?.id
@@ -41,6 +80,10 @@ export function SymbolsPanel() {
     } else if (e.key === 'Escape') {
       setEditingId(null)
     }
+  }
+
+  function handleToggleExpand(symbolId: string) {
+    setExpandedSymbolId(expandedSymbolId === symbolId ? null : symbolId)
   }
 
   return (
@@ -101,112 +144,422 @@ export function SymbolsPanel() {
         )}
 
         {symbols.map((sym) => (
-          <div
-            key={sym.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              padding: '4px 8px',
-              borderRadius: 'var(--radius-sm, 4px)',
-              marginBottom: 2,
-            }}
-            onMouseEnter={(e) => {
-              ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-            }}
-            onMouseLeave={(e) => {
-              ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-            }}
-          >
-            {/* Symbol name (click to rename) */}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {editingId === sym.id ? (
-                <input
-                  autoFocus
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                  onBlur={() => handleFinishRename(sym.id)}
-                  onKeyDown={(e) => handleRenameKeyDown(e, sym.id)}
-                  style={{
-                    width: '100%',
-                    padding: '2px 4px',
-                    border: '1px solid var(--accent)',
-                    borderRadius: 'var(--radius-sm, 4px)',
-                    background: 'var(--bg-surface)',
-                    color: 'var(--text-primary)',
-                    fontSize: 'var(--font-size-sm, 12px)',
-                    outline: 'none',
-                  }}
-                />
-              ) : (
+          <div key={sym.id} style={{ marginBottom: 4 }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '4px 8px',
+                borderRadius: 'var(--radius-sm, 4px)',
+                background: expandedSymbolId === sym.id ? 'var(--bg-hover)' : 'transparent',
+              }}
+              onMouseEnter={(e) => {
+                if (expandedSymbolId !== sym.id) {
+                  ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (expandedSymbolId !== sym.id) {
+                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                }
+              }}
+            >
+              {/* Expand/collapse toggle */}
+              <button
+                onClick={() => handleToggleExpand(sym.id)}
+                style={{
+                  ...tinyBtnStyle,
+                  border: 'none',
+                  padding: '0 4px',
+                  fontSize: 10,
+                  width: 16,
+                  textAlign: 'center',
+                }}
+                title="Show properties & variants"
+              >
+                {expandedSymbolId === sym.id ? '\u25BC' : '\u25B6'}
+              </button>
+
+              {/* Symbol name (click to rename) */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {editingId === sym.id ? (
+                  <input
+                    autoFocus
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onBlur={() => handleFinishRename(sym.id)}
+                    onKeyDown={(e) => handleRenameKeyDown(e, sym.id)}
+                    style={{
+                      width: '100%',
+                      padding: '2px 4px',
+                      border: '1px solid var(--accent)',
+                      borderRadius: 'var(--radius-sm, 4px)',
+                      background: 'var(--bg-surface)',
+                      color: 'var(--text-primary)',
+                      fontSize: 'var(--font-size-sm, 12px)',
+                      outline: 'none',
+                    }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => handleStartRename(sym.id, sym.name)}
+                    title="Click to rename"
+                    style={{
+                      display: 'block',
+                      fontSize: 'var(--font-size-sm, 12px)',
+                      color: 'var(--text-primary)',
+                      cursor: 'text',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {sym.name}
+                  </span>
+                )}
                 <span
-                  onClick={() => handleStartRename(sym.id, sym.name)}
-                  title="Click to rename"
                   style={{
-                    display: 'block',
-                    fontSize: 'var(--font-size-sm, 12px)',
-                    color: 'var(--text-primary)',
-                    cursor: 'text',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
+                    fontSize: 10,
+                    color: 'var(--text-tertiary)',
                   }}
                 >
-                  {sym.name}
+                  {Math.round(sym.width)} x {Math.round(sym.height)} &middot; {sym.layers.length} layer
+                  {sym.layers.length !== 1 ? 's' : ''}
                 </span>
-              )}
-              <span
+              </div>
+
+              {/* Insert button */}
+              <button
+                onClick={() => {
+                  if (activeArtboardId) createSymbolInstance(activeArtboardId, sym.id)
+                }}
+                disabled={!activeArtboardId}
+                title="Insert instance"
                 style={{
-                  fontSize: 10,
-                  color: 'var(--text-tertiary)',
+                  ...tinyBtnStyle,
+                  padding: '2px 8px',
+                  cursor: activeArtboardId ? 'pointer' : 'default',
                 }}
               >
-                {Math.round(sym.width)} x {Math.round(sym.height)} &middot; {sym.layers.length} layer
-                {sym.layers.length !== 1 ? 's' : ''}
-              </span>
+                Insert
+              </button>
+
+              {/* Delete button */}
+              <button
+                onClick={() => deleteSymbolDefinition(sym.id)}
+                title="Delete symbol"
+                style={tinyBtnStyle}
+              >
+                Delete
+              </button>
             </div>
 
-            {/* Insert button */}
-            <button
-              onClick={() => {
-                if (activeArtboardId) createSymbolInstance(activeArtboardId, sym.id)
-              }}
-              disabled={!activeArtboardId}
-              title="Insert instance"
-              style={{
-                padding: '2px 8px',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm, 4px)',
-                background: 'transparent',
-                color: 'var(--text-secondary)',
-                cursor: activeArtboardId ? 'pointer' : 'default',
-                fontSize: 11,
-                flexShrink: 0,
-              }}
-            >
-              Insert
-            </button>
-
-            {/* Delete button */}
-            <button
-              onClick={() => deleteSymbolDefinition(sym.id)}
-              title="Delete symbol"
-              style={{
-                padding: '2px 6px',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 'var(--radius-sm, 4px)',
-                background: 'transparent',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontSize: 11,
-                flexShrink: 0,
-              }}
-            >
-              Delete
-            </button>
+            {/* Expanded detail: Component Properties + Variants */}
+            {expandedSymbolId === sym.id && (
+              <SymbolDetail
+                symbol={sym}
+                addComponentProperty={addComponentProperty}
+                removeComponentProperty={removeComponentProperty}
+                addVariant={addVariant}
+                removeVariant={removeVariant}
+              />
+            )}
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+// ─── Symbol detail sub-panel (properties + variants) ─────────
+
+function SymbolDetail({
+  symbol,
+  addComponentProperty,
+  removeComponentProperty,
+  addVariant,
+  removeVariant,
+}: {
+  symbol: SymbolDefinition
+  addComponentProperty: (symbolId: string, prop: ComponentProperty) => void
+  removeComponentProperty: (symbolId: string, propId: string) => void
+  addVariant: (symbolId: string, variant: SymbolVariant) => void
+  removeVariant: (symbolId: string, variantId: string) => void
+}) {
+  const [showNewProp, setShowNewProp] = useState(false)
+  const [newPropName, setNewPropName] = useState('')
+  const [newPropType, setNewPropType] = useState<ComponentProperty['type']>('boolean')
+  const [newPropDefault, setNewPropDefault] = useState('')
+  const [newPropOptions, setNewPropOptions] = useState('')
+  const [newPropTargetLayer, setNewPropTargetLayer] = useState('')
+
+  const [showNewVariant, setShowNewVariant] = useState(false)
+  const [newVariantName, setNewVariantName] = useState('')
+
+  const props = symbol.componentProperties ?? []
+  const variants = symbol.variants ?? []
+
+  /** Flatten layers for the target layer picker */
+  function flattenLayers(
+    layers: import('@/types').Layer[],
+    prefix = '',
+  ): { id: string; label: string }[] {
+    const result: { id: string; label: string }[] = []
+    for (const l of layers) {
+      result.push({ id: l.id, label: prefix + l.name })
+      if (l.type === 'group') {
+        result.push(...flattenLayers(l.children, prefix + l.name + ' / '))
+      }
+    }
+    return result
+  }
+
+  const flatLayers = flattenLayers(symbol.layers)
+
+  function handleAddProperty() {
+    const name = newPropName.trim()
+    if (!name) return
+    const prop: ComponentProperty = {
+      id: uuid(),
+      name,
+      type: newPropType,
+      defaultValue: newPropType === 'boolean' ? newPropDefault === 'true' : newPropDefault,
+      options: newPropType === 'enum' ? newPropOptions.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      targetLayerId: newPropTargetLayer || undefined,
+    }
+    addComponentProperty(symbol.id, prop)
+    setNewPropName('')
+    setNewPropDefault('')
+    setNewPropOptions('')
+    setNewPropTargetLayer('')
+    setShowNewProp(false)
+  }
+
+  function handleAddVariant() {
+    const name = newVariantName.trim()
+    if (!name) return
+    const variant: SymbolVariant = {
+      id: uuid(),
+      name,
+      propertyValues: {},
+      layerOverrides: {},
+    }
+    addVariant(symbol.id, variant)
+    setNewVariantName('')
+    setShowNewVariant(false)
+  }
+
+  return (
+    <div
+      style={{
+        padding: '4px 12px 8px 28px',
+        borderLeft: '2px solid var(--border-subtle)',
+        marginLeft: 12,
+      }}
+    >
+      {/* ── Component Properties ── */}
+      <div style={sectionLabelStyle}>Component Properties</div>
+      {props.length === 0 && (
+        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+          No properties defined
+        </div>
+      )}
+      {props.map((prop) => (
+        <div
+          key={prop.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            marginBottom: 2,
+            fontSize: 11,
+          }}
+        >
+          <span
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--text-primary)',
+            }}
+            title={`${prop.name} (${prop.type}) — default: ${String(prop.defaultValue)}${prop.targetLayerId ? ` — target: ${prop.targetLayerId}` : ''}`}
+          >
+            {prop.name}
+            <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>
+              {prop.type}
+            </span>
+          </span>
+          <button
+            onClick={() => removeComponentProperty(symbol.id, prop.id)}
+            title="Remove property"
+            style={{ ...tinyBtnStyle, fontSize: 10, padding: '0 4px' }}
+          >
+            x
+          </button>
+        </div>
+      ))}
+
+      {showNewProp ? (
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm, 4px)',
+            padding: 6,
+            marginTop: 4,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+            <input
+              placeholder="Name"
+              value={newPropName}
+              onChange={(e) => setNewPropName(e.target.value)}
+              style={{ ...smallInputStyle, flex: 1 }}
+              autoFocus
+            />
+            <select
+              value={newPropType}
+              onChange={(e) => setNewPropType(e.target.value as ComponentProperty['type'])}
+              style={{ ...smallInputStyle, width: 90 }}
+            >
+              <option value="boolean">Boolean</option>
+              <option value="text">Text</option>
+              <option value="enum">Enum</option>
+              <option value="instance-swap">Instance Swap</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+            <input
+              placeholder={newPropType === 'boolean' ? 'true / false' : 'Default value'}
+              value={newPropDefault}
+              onChange={(e) => setNewPropDefault(e.target.value)}
+              style={{ ...smallInputStyle, flex: 1 }}
+            />
+          </div>
+          {newPropType === 'enum' && (
+            <div style={{ marginBottom: 4 }}>
+              <input
+                placeholder="Options (comma-separated)"
+                value={newPropOptions}
+                onChange={(e) => setNewPropOptions(e.target.value)}
+                style={smallInputStyle}
+              />
+            </div>
+          )}
+          <div style={{ marginBottom: 4 }}>
+            <select
+              value={newPropTargetLayer}
+              onChange={(e) => setNewPropTargetLayer(e.target.value)}
+              style={smallInputStyle}
+            >
+              <option value="">No target layer</option>
+              {flatLayers.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={handleAddProperty} style={{ ...tinyBtnStyle, background: 'var(--accent)', color: '#fff' }}>
+              Add
+            </button>
+            <button onClick={() => setShowNewProp(false)} style={tinyBtnStyle}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowNewProp(true)}
+          style={{ ...tinyBtnStyle, marginTop: 4, fontSize: 10 }}
+        >
+          + Add Property
+        </button>
+      )}
+
+      {/* ── Variants ── */}
+      <div style={{ ...sectionLabelStyle, marginTop: 12 }}>Variants</div>
+      {variants.length === 0 && (
+        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>
+          No variants defined
+        </div>
+      )}
+      {variants.map((variant) => (
+        <div
+          key={variant.id}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            marginBottom: 2,
+            fontSize: 11,
+          }}
+        >
+          <span
+            style={{
+              flex: 1,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+              color: 'var(--text-primary)',
+            }}
+            title={`Variant: ${variant.name} — ${Object.keys(variant.propertyValues).length} property overrides, ${Object.keys(variant.layerOverrides).length} layer overrides`}
+          >
+            {variant.name}
+          </span>
+          <button
+            onClick={() => removeVariant(symbol.id, variant.id)}
+            title="Remove variant"
+            style={{ ...tinyBtnStyle, fontSize: 10, padding: '0 4px' }}
+          >
+            x
+          </button>
+        </div>
+      ))}
+
+      {showNewVariant ? (
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm, 4px)',
+            padding: 6,
+            marginTop: 4,
+          }}
+        >
+          <div style={{ display: 'flex', gap: 4, marginBottom: 4 }}>
+            <input
+              placeholder="Variant name (e.g. Hover)"
+              value={newVariantName}
+              onChange={(e) => setNewVariantName(e.target.value)}
+              style={{ ...smallInputStyle, flex: 1 }}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddVariant()
+                else if (e.key === 'Escape') setShowNewVariant(false)
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', gap: 4 }}>
+            <button onClick={handleAddVariant} style={{ ...tinyBtnStyle, background: 'var(--accent)', color: '#fff' }}>
+              Add
+            </button>
+            <button onClick={() => setShowNewVariant(false)} style={tinyBtnStyle}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowNewVariant(true)}
+          style={{ ...tinyBtnStyle, marginTop: 4, fontSize: 10 }}
+        >
+          + Add Variant
+        </button>
+      )}
     </div>
   )
 }

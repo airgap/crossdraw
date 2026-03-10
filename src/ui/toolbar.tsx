@@ -33,6 +33,7 @@ import {
   Frame,
   ScissorsLineDashed,
   Stamp,
+  MessageCircle,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -97,7 +98,8 @@ const tools: (ToolEntry | 'shapes' | 'separator')[] = [
   { id: 'hand', icon: Hand, key: 'h' },
   { id: 'zoom', icon: ZoomIn, key: 'z' },
   { id: 'measure', icon: Ruler, key: 'u' },
-  { id: 'crop', icon: Crop, key: 'c' },
+  { id: 'crop', icon: Crop, key: 'shift+c' },
+  { id: 'comment', icon: MessageCircle, key: 'c' },
 ]
 
 /** Long-press delay in ms before showing shape picker */

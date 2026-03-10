@@ -22,7 +22,12 @@ import type {
   Layer,
   TextLayer,
   DitheringConfig,
+  GroupLayer,
+  AutoLayoutConfig,
+  SymbolInstanceLayer,
+  ComponentProperty,
 } from '@/types'
+import { createDefaultAutoLayout } from '@/layout/auto-layout'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { downloadPDF } from '@/io/pdf-export'
@@ -138,6 +143,9 @@ export function PropertiesPanel() {
   const setLayerMask = useEditorStore((s) => s.setLayerMask)
   const removeLayerMask = useEditorStore((s) => s.removeLayerMask)
   const resizeArtboard = useEditorStore((s) => s.resizeArtboard)
+  const setAutoLayout = useEditorStore((s) => s.setAutoLayout)
+  const setLayoutSizing = useEditorStore((s) => s.setLayoutSizing)
+  const runAutoLayout = useEditorStore((s) => s.runAutoLayout)
 
   const artboard = document.artboards[0]
   const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
@@ -354,6 +362,64 @@ export function PropertiesPanel() {
 
             {/* Align & Distribute (1+ layers with Alt, 2+ without) */}
             {selection.layerIds.length >= 1 && <AlignSection selectionCount={selection.layerIds.length} />}
+
+            {/* Auto Layout (group layers only) */}
+            {selectedLayer.type === 'group' && artboard && (
+              <AutoLayoutSection
+                group={selectedLayer as GroupLayer}
+                artboardId={artboard.id}
+                setAutoLayout={setAutoLayout}
+                setLayoutSizing={setLayoutSizing}
+                runAutoLayout={runAutoLayout}
+              />
+            )}
+
+            {/* Layout Sizing (when inside an auto-layout parent) */}
+            {artboard && (() => {
+              const parentGroup = findParentAutoLayoutGroup(artboard.layers, selectedLayer.id)
+              if (!parentGroup) return null
+              return (
+                <div style={sectionStyle}>
+                  <div style={labelStyle}>Layout Sizing</div>
+                  <div style={rowStyle}>
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>H</span>
+                    <select
+                      style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                      value={selectedLayer.layoutSizing?.horizontal ?? 'fixed'}
+                      onChange={(e) => {
+                        const val = e.target.value as 'fixed' | 'fill' | 'hug'
+                        setLayoutSizing(artboard.id, selectedLayer.id, {
+                          horizontal: val,
+                          vertical: selectedLayer.layoutSizing?.vertical ?? 'fixed',
+                        })
+                      }}
+                    >
+                      <option value="fixed">Fixed</option>
+                      <option value="fill">Fill</option>
+                      <option value="hug">Hug</option>
+                    </select>
+                  </div>
+                  <div style={rowStyle}>
+                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>V</span>
+                    <select
+                      style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                      value={selectedLayer.layoutSizing?.vertical ?? 'fixed'}
+                      onChange={(e) => {
+                        const val = e.target.value as 'fixed' | 'fill' | 'hug'
+                        setLayoutSizing(artboard.id, selectedLayer.id, {
+                          horizontal: selectedLayer.layoutSizing?.horizontal ?? 'fixed',
+                          vertical: val,
+                        })
+                      }}
+                    >
+                      <option value="fixed">Fixed</option>
+                      <option value="fill">Fill</option>
+                      <option value="hug">Hug</option>
+                    </select>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Text properties */}
             {selectedLayer.type === 'text' && artboard && (
@@ -597,6 +663,14 @@ export function PropertiesPanel() {
                 artboardId={artboard.id}
                 layer={selectedLayer as AdjustmentLayer}
                 updateLayer={updateLayer}
+              />
+            )}
+
+            {/* Symbol instance component properties */}
+            {selectedLayer.type === 'symbol-instance' && artboard && (
+              <SymbolInstanceSection
+                artboardId={artboard.id}
+                layer={selectedLayer as SymbolInstanceLayer}
               />
             )}
 
@@ -1963,6 +2037,355 @@ function EffectsSection({
           )}
         </div>
       ))}
+    </div>
+  )
+}
+
+// ─── Symbol Instance Section ─────────────────────────────────
+
+function SymbolInstanceSection({
+  artboardId,
+  layer,
+}: {
+  artboardId: string
+  layer: SymbolInstanceLayer
+}) {
+  const symbols = useEditorStore((s) => s.document.symbols ?? [])
+  const setInstanceProperty = useEditorStore((s) => s.setInstanceProperty)
+  const setInstanceVariant = useEditorStore((s) => s.setInstanceVariant)
+
+  const symbolDef = symbols.find((s) => s.id === layer.symbolId)
+  if (!symbolDef) {
+    return (
+      <div style={sectionStyle}>
+        <div style={labelStyle}>Symbol Instance</div>
+        <div style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
+          Symbol not found (ID: {layer.symbolId.slice(0, 8)}...)
+        </div>
+      </div>
+    )
+  }
+
+  const props = symbolDef.componentProperties ?? []
+  const variants = symbolDef.variants ?? []
+
+  function getEffectiveValue(prop: ComponentProperty): string | boolean {
+    // Instance override takes priority
+    if (layer.propertyValues && prop.id in layer.propertyValues) {
+      return layer.propertyValues[prop.id]!
+    }
+    // Then variant defaults
+    if (layer.activeVariant && variants.length > 0) {
+      const variant = variants.find((v) => v.name === layer.activeVariant)
+      if (variant && prop.id in variant.propertyValues) {
+        return variant.propertyValues[prop.id]!
+      }
+    }
+    return prop.defaultValue
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <div style={labelStyle}>Symbol: {symbolDef.name}</div>
+      <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 6 }}>
+        {Math.round(symbolDef.width)} x {Math.round(symbolDef.height)} &middot; {symbolDef.layers.length} layer
+        {symbolDef.layers.length !== 1 ? 's' : ''}
+      </div>
+
+      {/* Variant switcher */}
+      {variants.length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>
+            Variant
+          </div>
+          <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setInstanceVariant(artboardId, layer.id, '')}
+              style={{
+                padding: '3px 8px',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                background: !layer.activeVariant ? 'var(--accent)' : 'var(--bg-elevated)',
+                color: !layer.activeVariant ? '#fff' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 'var(--font-size-xs)',
+              }}
+            >
+              Default
+            </button>
+            {variants.map((v) => (
+              <button
+                key={v.id}
+                onClick={() => setInstanceVariant(artboardId, layer.id, v.name)}
+                style={{
+                  padding: '3px 8px',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  background: layer.activeVariant === v.name ? 'var(--accent)' : 'var(--bg-elevated)',
+                  color: layer.activeVariant === v.name ? '#fff' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: 'var(--font-size-xs)',
+                }}
+              >
+                {v.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Component properties */}
+      {props.length > 0 && (
+        <div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>
+            Properties
+          </div>
+          {props.map((prop) => {
+            const value = getEffectiveValue(prop)
+            return (
+              <div key={prop.id} style={rowStyle}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    color: 'var(--text-secondary)',
+                    width: 70,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                  title={prop.name}
+                >
+                  {prop.name}
+                </span>
+
+                {prop.type === 'boolean' && (
+                  <label
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      cursor: 'pointer',
+                      fontSize: 11,
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={value === true || value === 'true'}
+                      onChange={(e) => setInstanceProperty(artboardId, layer.id, prop.id, e.target.checked)}
+                    />
+                    {value === true || value === 'true' ? 'On' : 'Off'}
+                  </label>
+                )}
+
+                {prop.type === 'text' && (
+                  <input
+                    type="text"
+                    style={{ ...inputStyle, flex: 1 }}
+                    value={String(value)}
+                    onChange={(e) => setInstanceProperty(artboardId, layer.id, prop.id, e.target.value)}
+                  />
+                )}
+
+                {prop.type === 'enum' && (
+                  <select
+                    style={{ ...inputStyle, flex: 1 }}
+                    value={String(value)}
+                    onChange={(e) => setInstanceProperty(artboardId, layer.id, prop.id, e.target.value)}
+                  >
+                    {(prop.options ?? []).map((opt) => (
+                      <option key={opt} value={opt}>
+                        {opt}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {prop.type === 'instance-swap' && (
+                  <select
+                    style={{ ...inputStyle, flex: 1 }}
+                    value={String(value)}
+                    onChange={(e) => setInstanceProperty(artboardId, layer.id, prop.id, e.target.value)}
+                  >
+                    <option value="">None</option>
+                    {symbols.map((sym) => (
+                      <option key={sym.id} value={sym.id}>
+                        {sym.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Show message when no properties or variants */}
+      {props.length === 0 && variants.length === 0 && (
+        <div style={{ fontSize: 10, color: 'var(--text-tertiary)' }}>
+          No component properties or variants defined. Edit the symbol in the Symbols panel to add them.
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Auto Layout helpers ──────────────────────────────────────
+
+function findParentAutoLayoutGroup(layers: Layer[], layerId: string): GroupLayer | null {
+  for (const layer of layers) {
+    if (layer.type === 'group') {
+      if (layer.children.some((c) => c.id === layerId) && layer.autoLayout) {
+        return layer as GroupLayer
+      }
+      const found = findParentAutoLayoutGroup(layer.children, layerId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+const toggleBtnStyle: React.CSSProperties = {
+  ...btnStyle,
+  padding: '2px 6px',
+  fontSize: 10,
+  minWidth: 28,
+  textAlign: 'center',
+}
+
+const activeBtnStyle: React.CSSProperties = {
+  ...toggleBtnStyle,
+  background: 'var(--accent-primary, #4a7dff)',
+  color: '#fff',
+  borderColor: 'var(--accent-primary, #4a7dff)',
+}
+
+function AutoLayoutSection({
+  group,
+  artboardId,
+  setAutoLayout,
+  setLayoutSizing,
+}: {
+  group: GroupLayer
+  artboardId: string
+  setAutoLayout: (aid: string, lid: string, cfg: AutoLayoutConfig | null) => void
+  setLayoutSizing: (aid: string, lid: string, s: { horizontal: 'fixed' | 'fill' | 'hug'; vertical: 'fixed' | 'fill' | 'hug' } | undefined) => void
+  runAutoLayout: (aid: string, gid: string) => void
+}) {
+  const config = group.autoLayout
+  const isEnabled = !!config
+  const [linkedPadding, setLinkedPadding] = useState(true)
+
+  function updateConfig(partial: Partial<AutoLayoutConfig>) {
+    if (!config) return
+    setAutoLayout(artboardId, group.id, { ...config, ...partial })
+  }
+
+  function handlePaddingChange(key: 'paddingTop' | 'paddingRight' | 'paddingBottom' | 'paddingLeft', value: number) {
+    if (!config) return
+    if (linkedPadding) {
+      setAutoLayout(artboardId, group.id, { ...config, paddingTop: value, paddingRight: value, paddingBottom: value, paddingLeft: value })
+    } else {
+      updateConfig({ [key]: value })
+    }
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span>Auto Layout</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+          <input type="checkbox" checked={isEnabled} onChange={(e) => setAutoLayout(artboardId, group.id, e.target.checked ? createDefaultAutoLayout() : null)} />
+          <span style={{ fontSize: 10, fontWeight: 'normal', textTransform: 'none', color: 'var(--text-secondary)' }}>{isEnabled ? 'On' : 'Off'}</span>
+        </label>
+      </div>
+      {config && (
+        <>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Direction</span>
+            <div style={{ display: 'flex', gap: 2 }}>
+              <button style={config.direction === 'horizontal' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'horizontal' })} title="Horizontal">H</button>
+              <button style={config.direction === 'vertical' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'vertical' })} title="Vertical">V</button>
+            </div>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Gap</span>
+            <input type="number" style={smallInputStyle} value={config.gap} min={0} onChange={(e) => updateConfig({ gap: Math.max(0, Number(e.target.value)) })} />
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Padding</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}>
+              <input type="checkbox" checked={linkedPadding} onChange={(e) => setLinkedPadding(e.target.checked)} />
+              <span style={{ fontSize: 9, color: 'var(--text-secondary)' }}>Link</span>
+            </label>
+          </div>
+          {linkedPadding ? (
+            <div style={rowStyle}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>All</span>
+              <input type="number" style={smallInputStyle} value={config.paddingTop} min={0} onChange={(e) => handlePaddingChange('paddingTop', Math.max(0, Number(e.target.value)))} />
+            </div>
+          ) : (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>T</span>
+                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingTop} min={0} onChange={(e) => handlePaddingChange('paddingTop', Math.max(0, Number(e.target.value)))} />
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>R</span>
+                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingRight} min={0} onChange={(e) => handlePaddingChange('paddingRight', Math.max(0, Number(e.target.value)))} />
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>B</span>
+                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingBottom} min={0} onChange={(e) => handlePaddingChange('paddingBottom', Math.max(0, Number(e.target.value)))} />
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>L</span>
+                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingLeft} min={0} onChange={(e) => handlePaddingChange('paddingLeft', Math.max(0, Number(e.target.value)))} />
+              </div>
+            </>
+          )}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Align</span>
+            <div style={{ display: 'flex', gap: 2 }}>
+              {(['start', 'center', 'end', 'stretch'] as const).map((a) => (
+                <button key={a} style={config.alignItems === a ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ alignItems: a })} title={`Align ${a}`}>
+                  {a[0]!.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Justify</span>
+            <div style={{ display: 'flex', gap: 2 }}>
+              {(['start', 'center', 'end', 'space-between'] as const).map((j) => (
+                <button key={j} style={config.justifyContent === j ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ justifyContent: j })} title={j}>
+                  {j === 'space-between' ? 'SB' : j[0]!.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Wrap</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+              <input type="checkbox" checked={config.wrap} onChange={(e) => updateConfig({ wrap: e.target.checked })} />
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{config.wrap ? 'On' : 'Off'}</span>
+            </label>
+          </div>
+          {group.children.length > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>Child Sizing</div>
+              {group.children.filter((c) => c.visible).map((child) => (
+                <div key={child.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, padding: '2px 4px', background: '#222', borderRadius: 3, fontSize: 10 }}>
+                  <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={child.name}>{child.name}</span>
+                  <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.horizontal ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: e.target.value as 'fixed' | 'fill' | 'hug', vertical: child.layoutSizing?.vertical ?? 'fixed' }) }} title="Horizontal sizing">
+                    <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
+                  </select>
+                  <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.vertical ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: child.layoutSizing?.horizontal ?? 'fixed', vertical: e.target.value as 'fixed' | 'fill' | 'hug' }) }} title="Vertical sizing">
+                    <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

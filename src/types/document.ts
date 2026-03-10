@@ -8,6 +8,31 @@ export interface DesignDocument {
     colors: NamedColor[]
   }
   symbols?: SymbolDefinition[]
+  comments?: Comment[]
+}
+
+export interface Comment {
+  id: string
+  /** Canvas coordinates where the comment pin is placed */
+  x: number
+  y: number
+  /** Associated artboard (for positioning context) */
+  artboardId: string
+  /** Associated layer (optional — comments can be on canvas or on a specific layer) */
+  layerId?: string
+  /** Comment thread */
+  author: string
+  text: string
+  createdAt: string // ISO date
+  resolved: boolean
+  replies: CommentReply[]
+}
+
+export interface CommentReply {
+  id: string
+  author: string
+  text: string
+  createdAt: string
 }
 
 export interface DocumentMetadata {
@@ -32,6 +57,13 @@ export interface ExportSlice {
   scale: number
 }
 
+export interface Breakpoint {
+  id: string
+  name: string       // e.g., "Mobile", "Tablet", "Desktop"
+  width: number      // artboard width at this breakpoint
+  icon?: string      // optional icon identifier
+}
+
 export interface Artboard {
   id: string
   name: string
@@ -47,6 +79,12 @@ export interface Artboard {
   }
   /** Export slices for batch export. */
   slices?: ExportSlice[]
+  /** Responsive breakpoints for this artboard. */
+  breakpoints?: Breakpoint[]
+  /** Active breakpoint ID for editing. */
+  activeBreakpointId?: string
+  /** Is this artboard a flow starting point? */
+  flowStarting?: boolean
 }
 
 export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | TextLayer | SymbolInstanceLayer
@@ -65,6 +103,49 @@ export interface BaseLayer {
     horizontal: 'left' | 'right' | 'left-right' | 'center' | 'scale'
     vertical: 'top' | 'bottom' | 'top-bottom' | 'center' | 'scale'
   }
+  /** Auto-layout child sizing. */
+  layoutSizing?: {
+    horizontal: 'fixed' | 'fill' | 'hug' // fixed=use transform width, fill=stretch to parent, hug=fit content
+    vertical: 'fixed' | 'fill' | 'hug'
+  }
+  /** Per-breakpoint overrides. Key is breakpoint ID. */
+  breakpointOverrides?: Record<string, {
+    visible?: boolean
+    transform?: Partial<Transform>
+    /** For text layers */
+    fontSize?: number
+    textAlign?: 'left' | 'center' | 'right'
+  }>
+  /** Prototype interactions attached to this layer. */
+  interactions?: Interaction[]
+  /** Animation keyframes for this layer. */
+  animation?: AnimationTrack
+}
+
+// --- Animation ---
+
+export interface AnimationTrack {
+  duration: number // total duration in ms
+  loop: boolean
+  keyframes: Keyframe[]
+}
+
+export interface Keyframe {
+  id: string
+  time: number // ms from start (0 to duration)
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out' | 'spring'
+  properties: KeyframeProperties
+}
+
+export interface KeyframeProperties {
+  x?: number
+  y?: number
+  scaleX?: number
+  scaleY?: number
+  rotation?: number
+  opacity?: number
+  fillColor?: string
+  strokeColor?: string
 }
 
 export interface VectorLayer extends BaseLayer {
@@ -101,6 +182,20 @@ export interface RasterLayer extends BaseLayer {
 export interface GroupLayer extends BaseLayer {
   type: 'group'
   children: Layer[]
+  /** Auto-layout configuration. When set, children are arranged automatically. */
+  autoLayout?: AutoLayoutConfig
+}
+
+export interface AutoLayoutConfig {
+  direction: 'horizontal' | 'vertical'
+  gap: number // spacing between children
+  paddingTop: number
+  paddingRight: number
+  paddingBottom: number
+  paddingLeft: number
+  alignItems: 'start' | 'center' | 'end' | 'stretch' // cross-axis alignment
+  justifyContent: 'start' | 'center' | 'end' | 'space-between' // main-axis distribution
+  wrap: boolean // wrap to next line
 }
 
 // Adjustment layer params — discriminated union, no `any`
@@ -377,12 +472,45 @@ export interface NamedColor {
 
 // --- Symbols / Instances ---
 
+export interface ComponentProperty {
+  id: string
+  name: string
+  type: 'boolean' | 'text' | 'instance-swap' | 'enum'
+  /** Default value */
+  defaultValue: string | boolean
+  /** For enum type: list of allowed values */
+  options?: string[]
+  /** Layer ID this property controls (for boolean: visibility, for text: text content) */
+  targetLayerId?: string
+}
+
+export interface SymbolVariant {
+  id: string
+  name: string // e.g., "Hover", "Pressed", "Disabled"
+  /** Property values that define this variant */
+  propertyValues: Record<string, string | boolean>
+  /** Layer overrides specific to this variant */
+  layerOverrides: Record<
+    string,
+    Partial<{
+      visible: boolean
+      opacity: number
+      fill: Fill | null
+      text: string
+    }>
+  >
+}
+
 export interface SymbolDefinition {
   id: string
   name: string
   layers: Layer[]
   width: number
   height: number
+  /** Component properties that can be overridden per instance. */
+  componentProperties?: ComponentProperty[]
+  /** Named variants (e.g., "State=Hover", "Size=Large"). */
+  variants?: SymbolVariant[]
 }
 
 export interface SymbolInstanceLayer extends BaseLayer {
@@ -390,6 +518,10 @@ export interface SymbolInstanceLayer extends BaseLayer {
   symbolId: string
   /** Override properties per nested layer id. */
   overrides?: Record<string, Partial<{ visible: boolean; opacity: number; fill: Fill | null }>>
+  /** Component property values for this instance. */
+  propertyValues?: Record<string, string | boolean>
+  /** Active variant name. */
+  activeVariant?: string
 }
 
 // --- ICC Color Profile ---
@@ -406,6 +538,27 @@ export interface CropRegion {
   y: number
   width: number
   height: number
+}
+
+// --- Prototype interactions ---
+
+export interface Interaction {
+  id: string
+  trigger: 'click' | 'hover' | 'press' | 'drag'
+  action: InteractionAction
+}
+
+export type InteractionAction =
+  | { type: 'navigate'; targetArtboardId: string; transition: Transition }
+  | { type: 'overlay'; targetArtboardId: string; position: 'center' | 'top' | 'bottom'; transition: Transition }
+  | { type: 'scroll-to'; targetLayerId: string }
+  | { type: 'back'; transition: Transition }
+  | { type: 'url'; url: string }
+
+export interface Transition {
+  type: 'instant' | 'dissolve' | 'slide-left' | 'slide-right' | 'slide-up' | 'slide-down' | 'push-left' | 'push-right'
+  duration: number // ms
+  easing: 'linear' | 'ease-in' | 'ease-out' | 'ease-in-out'
 }
 
 // --- Brush settings ---

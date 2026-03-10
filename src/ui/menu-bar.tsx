@@ -24,6 +24,8 @@ import { traceSelectedRasterLayer } from '@/tools/image-trace'
 import { applyDistortFilter } from '@/filters/apply-distort'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
+import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
+import { exportLottie, downloadLottie } from '@/io/lottie-export'
 
 // ── Menu data types ──
 
@@ -426,6 +428,59 @@ function buildMenus(): MenuDef[] {
         label: 'Pixel Preview',
         shortcut: 'Ctrl+Alt+Y',
         action: () => store().togglePixelPreview(),
+      },
+      { label: '', divider: true },
+      {
+        label: 'Accessibility Checker',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('accessibility')
+          })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: isAnimationPlaying() ? 'Stop Animation' : 'Play Animation',
+        shortcut: 'Ctrl+Shift+Space',
+        action: () => toggleAnimation(),
+      },
+      {
+        label: 'Animation Timeline',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('animation')
+          })
+        },
+      },
+      {
+        label: 'Export Lottie\u2026',
+        action: () => {
+          const doc = store().document
+          try {
+            const lottie = exportLottie(doc, 0)
+            downloadLottie(lottie, `${doc.metadata.title || 'Untitled'}-animation.json`)
+          } catch (err) {
+            console.warn('Lottie export:', err instanceof Error ? err.message : err)
+          }
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Preview Prototype',
+        shortcut: 'Ctrl+P',
+        action: () => store().openPrototypePlayer(),
+      },
+      {
+        label: store().prototypeMode ? 'Hide Prototype Wiring' : 'Show Prototype Wiring',
+        action: () => store().togglePrototypeMode(),
+      },
+      {
+        label: 'Interactions Panel',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('interactions')
+          })
+        },
       },
     ],
   }

@@ -9,12 +9,14 @@ import { PanelShell } from '@/ui/panels/panel-shell'
 import { ExportModal } from '@/ui/export-modal'
 import { PrintDialog } from '@/ui/print-dialog'
 import { ToolOptionsBar } from '@/ui/tool-options-bar'
+import { BreakpointBar } from '@/ui/breakpoint-bar'
 import { DownloadPage } from '@/ui/download-page'
 import { SplashScreen } from '@/ui/splash-screen'
 import { NewDocumentModal } from '@/ui/new-document-modal'
 import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
 import { useEditorStore } from '@/store/editor.store'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
+import { PrototypePlayer } from '@/prototype/prototype-player'
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash)
@@ -109,6 +111,11 @@ export function App() {
     )
   }
 
+  const showPrototypePlayer = useEditorStore((s) => s.showPrototypePlayer)
+  const prototypeStartArtboardId = useEditorStore((s) => s.prototypeStartArtboardId)
+  const closePrototypePlayer = useEditorStore((s) => s.closePrototypePlayer)
+  const editorDocument = useEditorStore((s) => s.document)
+
   if (boot === 'splash') {
     return <SplashScreen onReady={() => setBoot('editor')} />
   }
@@ -141,6 +148,7 @@ export function App() {
       </a>
       <MenuBar />
       <ToolOptionsBar />
+      <BreakpointBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Toolbar />
         <PanelShell>
@@ -152,6 +160,13 @@ export function App() {
       <ExportModal />
       <PrintDialog />
       {showNewDoc && <NewDocumentModal onClose={() => setShowNewDoc(false)} onCreate={handleCreate} />}
+      {showPrototypePlayer && prototypeStartArtboardId && (
+        <PrototypePlayer
+          document={editorDocument}
+          startArtboardId={prototypeStartArtboardId}
+          onClose={closePrototypePlayer}
+        />
+      )}
     </div>
   )
 }

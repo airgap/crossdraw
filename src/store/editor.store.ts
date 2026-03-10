@@ -20,6 +20,14 @@ import type {
   SymbolDefinition,
   SymbolInstanceLayer,
   NamedColor,
+  AutoLayoutConfig,
+  BaseLayer,
+  ComponentProperty,
+  SymbolVariant,
+  Breakpoint,
+  Comment,
+  CommentReply,
+  Interaction,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
@@ -27,6 +35,7 @@ import { getRasterData, updateRasterCache } from '@/store/raster-data'
 import { endTextEdit, getTextEditState } from '@/tools/text-edit'
 import { storeSnapshot, getSnapshot, deleteSnapshots } from '@/store/raster-undo'
 import { applyGaussianNoise, applyUniformNoise, applyFilmGrain } from '@/filters/noise'
+import { applyAutoLayout, computeLayerBounds } from '@/layout/auto-layout'
 
 enablePatches()
 
@@ -71,6 +80,8 @@ export interface EditorState {
     | 'artboard'
     | 'slice'
     | 'clone-stamp'
+    | 'comment'
+  selectedCommentId: string | null
   showRulers: boolean
   showGrid: boolean
   snapEnabled: boolean
@@ -87,6 +98,10 @@ export interface EditorState {
   snapToPixel: boolean
   snapThreshold: number
   touchMode: boolean
+  showInspectOverlay: boolean
+  showPrototypePlayer: boolean
+  prototypeStartArtboardId: string | null
+  prototypeMode: boolean
 }
 
 export interface EditorActions {
@@ -174,6 +189,9 @@ export interface EditorActions {
   // Pixel preview
   togglePixelPreview: () => void
 
+  // Inspect overlay
+  setShowInspectOverlay: (show: boolean) => void
+
   // Snap lines (transient)
   setActiveSnapLines: (lines: { h: number[]; v: number[] } | null) => void
 
@@ -201,6 +219,12 @@ export interface EditorActions {
   deleteSymbolDefinition: (symbolId: string) => void
   createSymbolInstance: (artboardId: string, symbolId: string) => void
   renameSymbol: (symbolId: string, name: string) => void
+  addComponentProperty: (symbolId: string, prop: ComponentProperty) => void
+  removeComponentProperty: (symbolId: string, propId: string) => void
+  addVariant: (symbolId: string, variant: SymbolVariant) => void
+  removeVariant: (symbolId: string, variantId: string) => void
+  setInstanceProperty: (artboardId: string, layerId: string, propId: string, value: string | boolean) => void
+  setInstanceVariant: (artboardId: string, layerId: string, variantName: string) => void
 
   // Document colors
   addDocumentColor: (color: NamedColor) => void
@@ -214,6 +238,43 @@ export interface EditorActions {
     filterType: string,
     params: Record<string, number | boolean>,
   ) => void
+
+  // Auto-layout
+  setAutoLayout: (artboardId: string, layerId: string, config: AutoLayoutConfig | null) => void
+  setLayoutSizing: (artboardId: string, layerId: string, sizing: BaseLayer['layoutSizing']) => void
+  runAutoLayout: (artboardId: string, groupId: string) => void
+
+  // Breakpoints
+  addBreakpoint: (artboardId: string, breakpoint: Breakpoint) => void
+  removeBreakpoint: (artboardId: string, breakpointId: string) => void
+  setActiveBreakpoint: (artboardId: string, breakpointId: string | null) => void
+  setBreakpointOverride: (
+    artboardId: string,
+    layerId: string,
+    breakpointId: string,
+    overrides: Partial<{
+      visible: boolean
+      transform: Partial<import('@/types').Transform>
+      fontSize: number
+      textAlign: 'left' | 'center' | 'right'
+    }>,
+  ) => void
+
+  // Comments
+  addComment: (comment: Comment) => void
+  removeComment: (commentId: string) => void
+  resolveComment: (commentId: string) => void
+  addReply: (commentId: string, reply: CommentReply) => void
+  selectComment: (commentId: string | null) => void
+
+  // Prototype interactions
+  addInteraction: (artboardId: string, layerId: string, interaction: Interaction) => void
+  removeInteraction: (artboardId: string, layerId: string, interactionId: string) => void
+  updateInteraction: (artboardId: string, layerId: string, interactionId: string, updates: Partial<Interaction>) => void
+  setFlowStarting: (artboardId: string, flowStarting: boolean) => void
+  openPrototypePlayer: (startArtboardId?: string) => void
+  closePrototypePlayer: () => void
+  togglePrototypeMode: () => void
 }
 
 interface NewDocumentOptions {
@@ -376,6 +437,60 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     return artboard.layers.findIndex((l) => l.id === layerId)
   }
 
+  /** Recursively find a layer by ID within an artboard's layer tree. */
+  function findLayerDeep(layers: Layer[], layerId: string): Layer | undefined {
+    for (const layer of layers) {
+      if (layer.id === layerId) return layer
+      if (layer.type === 'group') {
+        const found = findLayerDeep(layer.children, layerId)
+        if (found) return found
+      }
+    }
+    return undefined
+  }
+
+  /** Find the parent group of a layer, or null if it's at the top level. */
+  function findParentGroup(layers: Layer[], layerId: string): GroupLayer | null {
+    for (const layer of layers) {
+      if (layer.type === 'group') {
+        if (layer.children.some((c) => c.id === layerId)) return layer
+        const found = findParentGroup(layer.children, layerId)
+        if (found) return found
+      }
+    }
+    return null
+  }
+
+  /** Run auto-layout on a group and all its ancestor auto-layout groups. */
+  function runAutoLayoutOnGroup(artboard: Artboard, groupId: string): void {
+    const group = findLayerDeep(artboard.layers, groupId) as GroupLayer | undefined
+    if (!group || group.type !== 'group' || !group.autoLayout) return
+
+    const bounds = computeLayerBounds(group.children)
+
+    // Estimate group dimensions from existing children bounds or use a default
+    let groupW = 0
+    let groupH = 0
+    for (const child of group.children) {
+      const b = bounds.get(child.id)
+      if (b) {
+        groupW = Math.max(groupW, b.width)
+        groupH = Math.max(groupH, b.height)
+      }
+    }
+    // Add padding for minimum group size
+    groupW = Math.max(groupW + group.autoLayout.paddingLeft + group.autoLayout.paddingRight, 100)
+    groupH = Math.max(groupH + group.autoLayout.paddingTop + group.autoLayout.paddingBottom, 100)
+
+    applyAutoLayout(group, bounds, groupW, groupH)
+
+    // Propagate up: if this group's parent is also an auto-layout group, re-run it
+    const parent = findParentGroup(artboard.layers, groupId)
+    if (parent && parent.autoLayout) {
+      runAutoLayoutOnGroup(artboard, parent.id)
+    }
+  }
+
   return {
     // Initial state
     document: createDefaultDocument(),
@@ -384,6 +499,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     viewport: { zoom: 1, panX: 0, panY: 0, artboardId: null },
     selection: { layerIds: [] },
     activeTool: 'select',
+    selectedCommentId: null,
     showRulers: true,
     showGrid: false,
     snapEnabled: true,
@@ -409,6 +525,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         return false
       }
     })(),
+    showInspectOverlay: false,
+    showPrototypePlayer: false,
+    prototypeStartArtboardId: null,
+    prototypeMode: false,
 
     // Document
     newDocument(opts) {
@@ -487,9 +607,18 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       mutateDocument('Update layer', (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (!artboard) return
+        // Try top-level first, then deep search
         const idx = findLayerIndex(artboard, layerId)
         if (idx !== -1) {
           Object.assign(artboard.layers[idx]!, updates)
+        } else {
+          const layer = findLayerDeep(artboard.layers, layerId)
+          if (layer) Object.assign(layer, updates)
+        }
+        // Re-run auto-layout on parent group if this layer is inside one
+        const parent = findParentGroup(artboard.layers, layerId)
+        if (parent && parent.autoLayout) {
+          runAutoLayoutOnGroup(artboard, parent.id)
         }
       })
     },
@@ -501,6 +630,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         const idx = findLayerIndex(artboard, layerId)
         if (idx !== -1) {
           Object.assign(artboard.layers[idx]!, updates)
+        } else {
+          const layer = findLayerDeep(artboard.layers, layerId)
+          if (layer) Object.assign(layer, updates)
+        }
+        // Re-run auto-layout on parent group if this layer is inside one
+        const parent = findParentGroup(artboard.layers, layerId)
+        if (parent && parent.autoLayout) {
+          runAutoLayoutOnGroup(artboard, parent.id)
         }
       })
       set({ document: doc })
@@ -576,6 +713,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         }
         const [removed] = artboard.layers.splice(idx, 1)
         group.children.push(removed!)
+        // Re-run auto-layout on the target group if it has auto-layout
+        if (group.autoLayout) {
+          runAutoLayoutOnGroup(artboard, groupId)
+        }
       })
     },
 
@@ -589,6 +730,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (childIdx === -1) return
         const [removed] = group.children.splice(childIdx, 1)
         artboard.layers.splice(targetIndex, 0, removed!)
+        // Re-run auto-layout on the source group if it has auto-layout
+        if (group.autoLayout) {
+          runAutoLayoutOnGroup(artboard, groupId)
+        }
       })
     },
 
@@ -1124,6 +1269,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       set({ pixelPreview: !get().pixelPreview })
     },
 
+    setShowInspectOverlay(show: boolean) {
+      set({ showInspectOverlay: show })
+    },
+
     setActiveSnapLines(lines) {
       set({ activeSnapLines: lines })
     },
@@ -1289,6 +1438,70 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       })
     },
 
+    addComponentProperty(symbolId, prop) {
+      mutateDocument(`Add component property "${prop.name}"`, (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (!sym) return
+        if (!sym.componentProperties) sym.componentProperties = []
+        sym.componentProperties.push(prop)
+      })
+    },
+
+    removeComponentProperty(symbolId, propId) {
+      mutateDocument('Remove component property', (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (!sym || !sym.componentProperties) return
+        sym.componentProperties = sym.componentProperties.filter((p) => p.id !== propId)
+      })
+    },
+
+    addVariant(symbolId, variant) {
+      mutateDocument(`Add variant "${variant.name}"`, (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (!sym) return
+        if (!sym.variants) sym.variants = []
+        sym.variants.push(variant)
+      })
+    },
+
+    removeVariant(symbolId, variantId) {
+      mutateDocument('Remove variant', (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (!sym || !sym.variants) return
+        sym.variants = sym.variants.filter((v) => v.id !== variantId)
+      })
+    },
+
+    setInstanceProperty(artboardId, layerId, propId, value) {
+      mutateDocument('Set instance property', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const idx = artboard.layers.findIndex((l) => l.id === layerId)
+        if (idx < 0) return
+        const layer = artboard.layers[idx]!
+        if (layer.type !== 'symbol-instance') return
+        const inst = layer as SymbolInstanceLayer
+        if (!inst.propertyValues) inst.propertyValues = {}
+        inst.propertyValues[propId] = value
+      })
+    },
+
+    setInstanceVariant(artboardId, layerId, variantName) {
+      mutateDocument(`Set variant "${variantName}"`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const idx = artboard.layers.findIndex((l) => l.id === layerId)
+        if (idx < 0) return
+        const layer = artboard.layers[idx]!
+        if (layer.type !== 'symbol-instance') return
+        ;(layer as SymbolInstanceLayer).activeVariant = variantName
+      })
+    },
+
     // Document colors
     addDocumentColor(color) {
       mutateDocument(`Add document color "${color.name}"`, (draft) => {
@@ -1393,6 +1606,198 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
       // Push undo entry with before/after snapshots
       get().pushRasterHistory(`Apply ${filterType}`, chunkId, beforeData, original)
+    },
+
+    // Auto-layout
+    setAutoLayout(artboardId, layerId, config) {
+      mutateDocument(config ? 'Enable auto-layout' : 'Disable auto-layout', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer || layer.type !== 'group') return
+        ;(layer as GroupLayer).autoLayout = config ?? undefined
+        if (config) {
+          runAutoLayoutOnGroup(artboard, layerId)
+        }
+      })
+    },
+
+    setLayoutSizing(artboardId, layerId, sizing) {
+      mutateDocument('Set layout sizing', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        layer.layoutSizing = sizing
+        // Re-run parent auto-layout if applicable
+        const parent = findParentGroup(artboard.layers, layerId)
+        if (parent && parent.autoLayout) {
+          runAutoLayoutOnGroup(artboard, parent.id)
+        }
+      })
+    },
+
+    runAutoLayout(artboardId, groupId) {
+      mutateDocument('Re-run auto-layout', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        runAutoLayoutOnGroup(artboard, groupId)
+      })
+    },
+
+    // ── Breakpoints ──────────────────────────────────────────────
+
+    addBreakpoint(artboardId, breakpoint) {
+      mutateDocument('Add breakpoint', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        if (!artboard.breakpoints) artboard.breakpoints = []
+        artboard.breakpoints.push(breakpoint)
+      })
+    },
+
+    removeBreakpoint(artboardId, breakpointId) {
+      mutateDocument('Remove breakpoint', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.breakpoints) return
+        artboard.breakpoints = artboard.breakpoints.filter((b) => b.id !== breakpointId)
+        if (artboard.activeBreakpointId === breakpointId) {
+          artboard.activeBreakpointId = undefined
+        }
+        // Clean up breakpoint overrides from all layers
+        function cleanOverrides(layers: Layer[]) {
+          for (const layer of layers) {
+            if (layer.breakpointOverrides) {
+              delete layer.breakpointOverrides[breakpointId]
+              if (Object.keys(layer.breakpointOverrides).length === 0) {
+                layer.breakpointOverrides = undefined
+              }
+            }
+            if (layer.type === 'group') cleanOverrides(layer.children)
+          }
+        }
+        cleanOverrides(artboard.layers)
+      })
+    },
+
+    setActiveBreakpoint(artboardId, breakpointId) {
+      mutateDocument('Set active breakpoint', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        artboard.activeBreakpointId = breakpointId ?? undefined
+      })
+    },
+
+    setBreakpointOverride(artboardId, layerId, breakpointId, overrides) {
+      mutateDocument('Set breakpoint override', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        if (!layer.breakpointOverrides) layer.breakpointOverrides = {}
+        layer.breakpointOverrides[breakpointId] = {
+          ...layer.breakpointOverrides[breakpointId],
+          ...overrides,
+        }
+      })
+    },
+
+    // ── Comments ──────────────────────────────────────────────
+
+    addComment(comment) {
+      mutateDocument('Add comment', (draft) => {
+        if (!draft.comments) draft.comments = []
+        draft.comments.push(comment)
+      })
+    },
+
+    removeComment(commentId) {
+      mutateDocument('Remove comment', (draft) => {
+        if (!draft.comments) return
+        draft.comments = draft.comments.filter((c) => c.id !== commentId)
+      })
+      if (get().selectedCommentId === commentId) {
+        set({ selectedCommentId: null })
+      }
+    },
+
+    resolveComment(commentId) {
+      mutateDocument('Resolve comment', (draft) => {
+        if (!draft.comments) return
+        const comment = draft.comments.find((c) => c.id === commentId)
+        if (comment) comment.resolved = !comment.resolved
+      })
+    },
+
+    addReply(commentId, reply) {
+      mutateDocument('Add reply', (draft) => {
+        if (!draft.comments) return
+        const comment = draft.comments.find((c) => c.id === commentId)
+        if (comment) comment.replies.push(reply)
+      })
+    },
+
+    selectComment(commentId) {
+      set({ selectedCommentId: commentId })
+    },
+
+    // Prototype interactions
+    addInteraction(artboardId, layerId, interaction) {
+      mutateDocument('Add interaction', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        if (!layer.interactions) layer.interactions = []
+        layer.interactions.push(interaction)
+      })
+    },
+
+    removeInteraction(artboardId, layerId, interactionId) {
+      mutateDocument('Remove interaction', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer || !layer.interactions) return
+        layer.interactions = layer.interactions.filter((i) => i.id !== interactionId)
+      })
+    },
+
+    updateInteraction(artboardId, layerId, interactionId, updates) {
+      mutateDocument('Update interaction', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer || !layer.interactions) return
+        const interaction = layer.interactions.find((i) => i.id === interactionId)
+        if (interaction) Object.assign(interaction, updates)
+      })
+    },
+
+    setFlowStarting(artboardId, flowStarting) {
+      mutateDocument('Set flow starting point', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) artboard.flowStarting = flowStarting
+      })
+    },
+
+    openPrototypePlayer(startArtboardId) {
+      const doc = get().document
+      let artboardId: string | null = startArtboardId ?? null
+      if (!artboardId) {
+        // Find a flow starting artboard, or use the first one
+        const flowStart = doc.artboards.find((a) => a.flowStarting)
+        artboardId = flowStart ? flowStart.id : (doc.artboards[0]?.id ?? null)
+      }
+      set({ showPrototypePlayer: true, prototypeStartArtboardId: artboardId })
+    },
+
+    closePrototypePlayer() {
+      set({ showPrototypePlayer: false, prototypeStartArtboardId: null })
+    },
+
+    togglePrototypeMode() {
+      set({ prototypeMode: !get().prototypeMode })
     },
   }
 })

@@ -1,5 +1,7 @@
 import { useRef, useEffect, useCallback } from 'react'
+import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
+import { getAnimationOverrides } from '@/animation/animator'
 import { zoomAtPoint, screenToDocument } from '@/math/viewport'
 import { segmentsToPath2D } from '@/math/path'
 import { spatialIndex } from '@/math/hit-test'
@@ -85,7 +87,20 @@ import {
   getCloneSource,
   getCloneStampSettings,
 } from '@/tools/clone-stamp'
-import type { VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer, Layer, Artboard } from '@/types'
+import type {
+  VectorLayer,
+  RasterLayer,
+  GroupLayer,
+  AdjustmentLayer,
+  TextLayer,
+  Layer,
+  Artboard,
+  SymbolInstanceLayer,
+  SymbolDefinition,
+  DesignDocument,
+  Fill,
+  Interaction,
+} from '@/types'
 
 /** Resolve `currentColor` keyword to a concrete color. Default fallback is black. */
 let _currentColor = '#000000'
@@ -94,6 +109,60 @@ export function setCurrentColor(color: string) {
 }
 function resolveColor(color: string): string {
   return color === 'currentColor' ? _currentColor : color
+}
+
+// ─── Breakpoint helpers ────────────────────────────────────────
+
+/** Get the effective rendering width for an artboard, considering active breakpoint. */
+function getEffectiveWidth(artboard: Artboard): number {
+  if (!artboard.activeBreakpointId || !artboard.breakpoints) return artboard.width
+  const bp = artboard.breakpoints.find((b) => b.id === artboard.activeBreakpointId)
+  return bp ? bp.width : artboard.width
+}
+
+/** Apply breakpoint overrides to a layer, returning a shallow-patched copy. */
+function applyBreakpointOverrides(layer: Layer, breakpointId: string | undefined): Layer {
+  if (!breakpointId || !layer.breakpointOverrides) return layer
+  const overrides = layer.breakpointOverrides[breakpointId]
+  if (!overrides) return layer
+
+  // Start with a shallow copy
+  let patched = { ...layer } as Layer
+
+  if (overrides.visible !== undefined) {
+    patched = { ...patched, visible: overrides.visible }
+  }
+
+  if (overrides.transform) {
+    patched = { ...patched, transform: { ...patched.transform, ...overrides.transform } }
+  }
+
+  if (patched.type === 'text') {
+    if (overrides.fontSize !== undefined) {
+      patched = { ...patched, fontSize: overrides.fontSize } as TextLayer
+    }
+    if (overrides.textAlign !== undefined) {
+      patched = { ...patched, textAlign: overrides.textAlign } as TextLayer
+    }
+  }
+
+  // Recurse into group children
+  if (patched.type === 'group') {
+    const group = patched as GroupLayer
+    patched = {
+      ...group,
+      children: group.children.map((child) => applyBreakpointOverrides(child, breakpointId)),
+    } as GroupLayer
+  }
+
+  return patched
+}
+
+/** Get layers with breakpoint overrides applied. */
+function getEffectiveLayers(artboard: Artboard): Layer[] {
+  const bpId = artboard.activeBreakpointId
+  if (!bpId) return artboard.layers
+  return artboard.layers.map((layer) => applyBreakpointOverrides(layer, bpId))
 }
 
 /** Map Canvas 2D globalCompositeOperation from our BlendMode type. */
@@ -118,6 +187,9 @@ export function Viewport() {
   const activeSnapLines = useEditorStore((s) => s.activeSnapLines)
   const addGuide = useEditorStore((s) => s.addGuide)
   const touchMode = useEditorStore((s) => s.touchMode)
+  const showInspectOverlay = useEditorStore((s) => s.showInspectOverlay)
+  const selectedCommentId = useEditorStore((s) => s.selectedCommentId)
+  const prototypeMode = useEditorStore((s) => s.prototypeMode)
 
   const lastDocId = useRef<string | null>(null)
 
@@ -189,7 +261,7 @@ export function Viewport() {
       for (const artboard of document.artboards) {
         const ax = artboard.x
         const ay = artboard.y
-        const aw = artboard.width
+        const aw = getEffectiveWidth(artboard)
         const ah = artboard.height
 
         // Calculate visible pixel range in artboard space
@@ -216,6 +288,13 @@ export function Viewport() {
           ctx.stroke()
           ctx.restore()
         }
+      }
+    }
+
+    // Auto-layout group overlays (in document space)
+    if (selection.layerIds.length > 0) {
+      for (const artboard of document.artboards) {
+        renderAutoLayoutOverlay(ctx, artboard, selection.layerIds, viewport.zoom)
       }
     }
 
@@ -529,12 +608,229 @@ export function Viewport() {
       }
     }
 
+    // Comment pins
+    const comments = document.comments ?? []
+    if (comments.length > 0) {
+      for (let i = 0; i < comments.length; i++) {
+        const comment = comments[i]!
+        const pinR = 8 / viewport.zoom
+        const isSelected = selectedCommentId === comment.id
+
+        ctx.save()
+        ctx.translate(comment.x, comment.y)
+
+        // Pin circle
+        ctx.beginPath()
+        ctx.arc(0, 0, pinR, 0, Math.PI * 2)
+        ctx.fillStyle = comment.resolved ? '#4caf50' : '#ffc107'
+        ctx.fill()
+        if (isSelected) {
+          ctx.strokeStyle = '#fff'
+          ctx.lineWidth = 2 / viewport.zoom
+          ctx.stroke()
+        } else {
+          ctx.strokeStyle = 'rgba(0,0,0,0.4)'
+          ctx.lineWidth = 1 / viewport.zoom
+          ctx.stroke()
+        }
+
+        // Pin number
+        ctx.scale(1 / viewport.zoom, 1 / viewport.zoom)
+        ctx.fillStyle = comment.resolved ? '#fff' : '#333'
+        ctx.font = 'bold 10px sans-serif'
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(`${i + 1}`, 0, 0)
+
+        ctx.restore()
+      }
+    }
+
+    // Prototype flow overlay — show interaction arrows between layers and target artboards
+    if (prototypeMode) {
+      renderPrototypeFlowOverlay(ctx, document, viewport.zoom)
+    }
+
     // Text editing overlay (cursor, selection)
     if (getTextEditState().active) {
       const textState = getTextEditState()
       const artboard = document.artboards.find((a) => a.id === textState.artboardId)
       if (artboard) {
         renderTextEditOverlay(ctx, artboard.x, artboard.y, viewport.zoom)
+      }
+    }
+
+    // CSS Inspect measurement overlay — show distances to parent (artboard) edges
+    if (showInspectOverlay && selection.layerIds.length > 0) {
+      const inspArtboard = document.artboards[0]
+      if (inspArtboard) {
+        for (const layerId of selection.layerIds) {
+          // Find layer recursively
+          const findRec = (layers: Layer[]): Layer | null => {
+            for (const l of layers) {
+              if (l.id === layerId) return l
+              if (l.type === 'group') {
+                const found = findRec((l as GroupLayer).children)
+                if (found) return found
+              }
+            }
+            return null
+          }
+          const layer = findRec(inspArtboard.layers)
+          if (!layer) continue
+
+          const bbox = getLayerBBox(layer, inspArtboard)
+          if (bbox.minX === Infinity) continue
+
+          const abX = inspArtboard.x
+          const abY = inspArtboard.y
+          const abR = inspArtboard.x + inspArtboard.width
+          const abB = inspArtboard.y + inspArtboard.height
+
+          const distTop = bbox.minY - abY
+          const distBottom = abB - bbox.maxY
+          const distLeft = bbox.minX - abX
+          const distRight = abR - bbox.maxX
+
+          const lineW = 1 / viewport.zoom
+          const dashLen = 4 / viewport.zoom
+          const gapLen = 3 / viewport.zoom
+          const labelFont = `${11 / viewport.zoom}px monospace`
+          const measureColor = '#ff4444'
+
+          ctx.save()
+          ctx.strokeStyle = measureColor
+          ctx.fillStyle = measureColor
+          ctx.lineWidth = lineW
+          ctx.setLineDash([dashLen, gapLen])
+          ctx.font = labelFont
+          ctx.textAlign = 'center'
+          ctx.textBaseline = 'middle'
+
+          const centerX = (bbox.minX + bbox.maxX) / 2
+          const centerY = (bbox.minY + bbox.maxY) / 2
+
+          // Top measurement line
+          if (distTop > 0) {
+            ctx.beginPath()
+            ctx.moveTo(centerX, abY)
+            ctx.lineTo(centerX, bbox.minY)
+            ctx.stroke()
+            // Small caps at ends
+            const capW = 4 / viewport.zoom
+            ctx.beginPath()
+            ctx.moveTo(centerX - capW, abY)
+            ctx.lineTo(centerX + capW, abY)
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(centerX - capW, bbox.minY)
+            ctx.lineTo(centerX + capW, bbox.minY)
+            ctx.stroke()
+            // Label
+            const labelY = (abY + bbox.minY) / 2
+            const pad = 3 / viewport.zoom
+            const text = `${Math.round(distTop)}`
+            ctx.setLineDash([])
+            ctx.save()
+            ctx.fillStyle = 'rgba(255,68,68,0.85)'
+            const tw = ctx.measureText(text).width + pad * 2
+            ctx.fillRect(centerX - tw / 2, labelY - 6 / viewport.zoom, tw, 12 / viewport.zoom)
+            ctx.fillStyle = '#fff'
+            ctx.fillText(text, centerX, labelY)
+            ctx.restore()
+            ctx.setLineDash([dashLen, gapLen])
+          }
+
+          // Bottom measurement line
+          if (distBottom > 0) {
+            ctx.beginPath()
+            ctx.moveTo(centerX, bbox.maxY)
+            ctx.lineTo(centerX, abB)
+            ctx.stroke()
+            const capW = 4 / viewport.zoom
+            ctx.beginPath()
+            ctx.moveTo(centerX - capW, bbox.maxY)
+            ctx.lineTo(centerX + capW, bbox.maxY)
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(centerX - capW, abB)
+            ctx.lineTo(centerX + capW, abB)
+            ctx.stroke()
+            const labelY = (bbox.maxY + abB) / 2
+            const pad = 3 / viewport.zoom
+            const text = `${Math.round(distBottom)}`
+            ctx.setLineDash([])
+            ctx.save()
+            ctx.fillStyle = 'rgba(255,68,68,0.85)'
+            const tw = ctx.measureText(text).width + pad * 2
+            ctx.fillRect(centerX - tw / 2, labelY - 6 / viewport.zoom, tw, 12 / viewport.zoom)
+            ctx.fillStyle = '#fff'
+            ctx.fillText(text, centerX, labelY)
+            ctx.restore()
+            ctx.setLineDash([dashLen, gapLen])
+          }
+
+          // Left measurement line
+          if (distLeft > 0) {
+            ctx.beginPath()
+            ctx.moveTo(abX, centerY)
+            ctx.lineTo(bbox.minX, centerY)
+            ctx.stroke()
+            const capH = 4 / viewport.zoom
+            ctx.beginPath()
+            ctx.moveTo(abX, centerY - capH)
+            ctx.lineTo(abX, centerY + capH)
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(bbox.minX, centerY - capH)
+            ctx.lineTo(bbox.minX, centerY + capH)
+            ctx.stroke()
+            const labelX = (abX + bbox.minX) / 2
+            const pad = 3 / viewport.zoom
+            const text = `${Math.round(distLeft)}`
+            ctx.setLineDash([])
+            ctx.save()
+            ctx.fillStyle = 'rgba(255,68,68,0.85)'
+            const tw = ctx.measureText(text).width + pad * 2
+            ctx.fillRect(labelX - tw / 2, centerY - 6 / viewport.zoom, tw, 12 / viewport.zoom)
+            ctx.fillStyle = '#fff'
+            ctx.fillText(text, labelX, centerY)
+            ctx.restore()
+            ctx.setLineDash([dashLen, gapLen])
+          }
+
+          // Right measurement line
+          if (distRight > 0) {
+            ctx.beginPath()
+            ctx.moveTo(bbox.maxX, centerY)
+            ctx.lineTo(abR, centerY)
+            ctx.stroke()
+            const capH = 4 / viewport.zoom
+            ctx.beginPath()
+            ctx.moveTo(bbox.maxX, centerY - capH)
+            ctx.lineTo(bbox.maxX, centerY + capH)
+            ctx.stroke()
+            ctx.beginPath()
+            ctx.moveTo(abR, centerY - capH)
+            ctx.lineTo(abR, centerY + capH)
+            ctx.stroke()
+            const labelX = (bbox.maxX + abR) / 2
+            const pad = 3 / viewport.zoom
+            const text = `${Math.round(distRight)}`
+            ctx.setLineDash([])
+            ctx.save()
+            ctx.fillStyle = 'rgba(255,68,68,0.85)'
+            const tw = ctx.measureText(text).width + pad * 2
+            ctx.fillRect(labelX - tw / 2, centerY - 6 / viewport.zoom, tw, 12 / viewport.zoom)
+            ctx.fillStyle = '#fff'
+            ctx.fillText(text, labelX, centerY)
+            ctx.restore()
+            ctx.setLineDash([dashLen, gapLen])
+          }
+
+          ctx.setLineDash([])
+          ctx.restore()
+        }
       }
     }
 
@@ -578,7 +874,7 @@ export function Viewport() {
     if (activeTool === 'eyedropper' && eyedropperHover.current && canvasRef.current) {
       renderLoupe(ctx, canvasRef.current, eyedropperHover.current.x, eyedropperHover.current.y)
     }
-  }, [viewport, document, activeTool, selection, showRulers, showGrid, gridSize, activeSnapLines])
+  }, [viewport, document, activeTool, selection, showRulers, showGrid, gridSize, activeSnapLines, showInspectOverlay, selectedCommentId, prototypeMode])
 
   useEffect(() => {
     render()
@@ -844,6 +1140,50 @@ export function Viewport() {
           return
         }
       }
+    }
+
+    // Comment tool — click to place or select a comment pin
+    if (activeTool === 'comment') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const store = useEditorStore.getState()
+      const allComments = store.document.comments ?? []
+
+      // Hit-test existing comment pins first (8px radius in screen space)
+      const hitRadius = 8 / viewport.zoom
+      for (let i = allComments.length - 1; i >= 0; i--) {
+        const c = allComments[i]!
+        const dx = docPoint.x - c.x
+        const dy = docPoint.y - c.y
+        if (dx * dx + dy * dy <= hitRadius * hitRadius) {
+          store.selectComment(c.id)
+          render()
+          return
+        }
+      }
+
+      // Find which artboard was clicked
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        const text = window.prompt('Add comment:')
+        if (text && text.trim()) {
+          store.addComment({
+            id: uuid(),
+            x: docPoint.x,
+            y: docPoint.y,
+            artboardId: artboard.id,
+            author: 'You',
+            text: text.trim(),
+            createdAt: new Date().toISOString(),
+            resolved: false,
+            replies: [],
+          })
+          render()
+        }
+      }
+      return
     }
 
     if (activeTool === 'pen') {
@@ -1603,7 +1943,9 @@ export function Viewport() {
             ? 'crosshair'
             : activeTool === 'select'
               ? undefined
-              : 'default'
+              : activeTool === 'comment'
+                ? 'crosshair'
+                : 'default'
 
   return (
     <canvas
@@ -1638,22 +1980,52 @@ export function Viewport() {
 function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
   if (!layer.visible) return
 
-  ctx.save()
-  ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
-  ctx.globalAlpha = layer.opacity
+  // Apply animation overrides as temporary layer changes (non-mutating)
+  const overrides = getAnimationOverrides().get(layer.id)
+  let effectiveLayer = layer
+  if (overrides) {
+    const newTransform = { ...layer.transform }
+    if (overrides.x !== undefined) newTransform.x = overrides.x
+    if (overrides.y !== undefined) newTransform.y = overrides.y
+    if (overrides.scaleX !== undefined) newTransform.scaleX = overrides.scaleX
+    if (overrides.scaleY !== undefined) newTransform.scaleY = overrides.scaleY
+    if (overrides.rotation !== undefined) newTransform.rotation = overrides.rotation
 
-  switch (layer.type) {
+    const newOpacity = overrides.opacity !== undefined ? overrides.opacity : layer.opacity
+
+    effectiveLayer = { ...layer, transform: newTransform, opacity: newOpacity } as Layer
+
+    // Apply color overrides for vector layers
+    if (effectiveLayer.type === 'vector') {
+      const vl = effectiveLayer as VectorLayer
+      if (overrides.fillColor !== undefined && vl.fill) {
+        effectiveLayer = { ...effectiveLayer, fill: { ...vl.fill, color: overrides.fillColor } } as Layer
+      }
+      if (overrides.strokeColor !== undefined && vl.stroke) {
+        effectiveLayer = { ...effectiveLayer, stroke: { ...vl.stroke, color: overrides.strokeColor } } as Layer
+      }
+    }
+  }
+
+  ctx.save()
+  ctx.globalCompositeOperation = blendModeToComposite(effectiveLayer.blendMode)
+  ctx.globalAlpha = effectiveLayer.opacity
+
+  switch (effectiveLayer.type) {
     case 'vector':
-      renderVectorLayer(ctx, layer)
+      renderVectorLayer(ctx, effectiveLayer)
       break
     case 'raster':
-      renderRasterLayer(ctx, layer)
+      renderRasterLayer(ctx, effectiveLayer)
       break
     case 'group':
-      renderGroupLayer(ctx, layer)
+      renderGroupLayer(ctx, effectiveLayer)
       break
     case 'text':
-      renderTextLayer(ctx, layer)
+      renderTextLayer(ctx, effectiveLayer)
+      break
+    case 'symbol-instance':
+      renderSymbolInstanceLayer(ctx, effectiveLayer)
       break
   }
 
@@ -1947,6 +2319,109 @@ function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
   ctx.restore()
 }
 
+/**
+ * Resolve the effective layers for a symbol instance, applying component
+ * property values, active variant overrides, and per-layer overrides at
+ * render time (never mutates stored data).
+ */
+function resolveSymbolLayers(instance: SymbolInstanceLayer, symbolDef: SymbolDefinition): Layer[] {
+  const layers: Layer[] = JSON.parse(JSON.stringify(symbolDef.layers))
+
+  // 1. Collect effective property values: defaults -> variant -> instance overrides
+  const effectiveProps: Record<string, string | boolean> = {}
+  for (const prop of symbolDef.componentProperties ?? []) {
+    effectiveProps[prop.id] = prop.defaultValue
+  }
+  // Apply variant property values
+  if (instance.activeVariant && symbolDef.variants) {
+    const variant = symbolDef.variants.find((v) => v.name === instance.activeVariant)
+    if (variant) {
+      for (const [k, v] of Object.entries(variant.propertyValues)) {
+        effectiveProps[k] = v
+      }
+    }
+  }
+  // Apply instance-level property overrides (highest priority)
+  if (instance.propertyValues) {
+    for (const [k, v] of Object.entries(instance.propertyValues)) {
+      effectiveProps[k] = v
+    }
+  }
+
+  // 2. Apply component property effects to target layers
+  const layerMap = new Map<string, Layer>()
+  function indexLayers(ls: Layer[]) {
+    for (const l of ls) {
+      layerMap.set(l.id, l)
+      if (l.type === 'group') indexLayers(l.children)
+    }
+  }
+  indexLayers(layers)
+
+  for (const prop of symbolDef.componentProperties ?? []) {
+    const val = effectiveProps[prop.id]
+    if (prop.targetLayerId) {
+      const target = layerMap.get(prop.targetLayerId)
+      if (!target) continue
+      if (prop.type === 'boolean') {
+        target.visible = val === true || val === 'true'
+      } else if (prop.type === 'text' && target.type === 'text') {
+        ;(target as TextLayer).text = String(val)
+      }
+    }
+  }
+
+  // 3. Apply variant layer overrides
+  if (instance.activeVariant && symbolDef.variants) {
+    const variant = symbolDef.variants.find((v) => v.name === instance.activeVariant)
+    if (variant) {
+      for (const [layerId, overrides] of Object.entries(variant.layerOverrides)) {
+        const target = layerMap.get(layerId)
+        if (!target) continue
+        if (overrides.visible !== undefined) target.visible = overrides.visible
+        if (overrides.opacity !== undefined) target.opacity = overrides.opacity
+        if (overrides.fill !== undefined && target.type === 'vector') {
+          ;(target as VectorLayer).fill = overrides.fill as Fill | null
+        }
+        if (overrides.text !== undefined && target.type === 'text') {
+          ;(target as TextLayer).text = overrides.text
+        }
+      }
+    }
+  }
+
+  // 4. Apply instance-level per-layer overrides (existing overrides field)
+  if (instance.overrides) {
+    for (const [layerId, overrides] of Object.entries(instance.overrides)) {
+      const target = layerMap.get(layerId)
+      if (!target) continue
+      if (overrides.visible !== undefined) target.visible = overrides.visible
+      if (overrides.opacity !== undefined) target.opacity = overrides.opacity
+      if (overrides.fill !== undefined && target.type === 'vector') {
+        ;(target as VectorLayer).fill = overrides.fill as Fill | null
+      }
+    }
+  }
+
+  return layers
+}
+
+function renderSymbolInstanceLayer(ctx: CanvasRenderingContext2D, layer: SymbolInstanceLayer) {
+  const state = useEditorStore.getState()
+  const symbolDef = (state.document.symbols ?? []).find((s) => s.id === layer.symbolId)
+  if (!symbolDef) return
+
+  ctx.save()
+  applyTransform(ctx, layer.transform)
+
+  const resolvedLayers = resolveSymbolLayers(layer, symbolDef)
+  for (const child of resolvedLayers) {
+    if (child.visible) renderLayer(ctx, child)
+  }
+
+  ctx.restore()
+}
+
 function renderLayerWithEffects(
   ctx: CanvasRenderingContext2D,
   layer: Layer,
@@ -2031,6 +2506,9 @@ function renderLayerContent(ctx: CanvasRenderingContext2D | OffscreenCanvasRende
     case 'text':
       renderTextLayer(ctx as CanvasRenderingContext2D, layer)
       break
+    case 'symbol-instance':
+      renderSymbolInstanceLayer(ctx as CanvasRenderingContext2D, layer)
+      break
   }
 }
 
@@ -2052,20 +2530,24 @@ function getCheckerboardPattern(ctx: CanvasRenderingContext2D): CanvasPattern {
 }
 
 function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[], zoom: number) {
+  const effectiveW = getEffectiveWidth(artboard)
+  const effectiveH = artboard.height
+  const effectiveLayers = getEffectiveLayers(artboard)
+
   // Transparency checkerboard behind artboard
   ctx.save()
   ctx.fillStyle = getCheckerboardPattern(ctx)
-  ctx.fillRect(artboard.x, artboard.y, artboard.width, artboard.height)
+  ctx.fillRect(artboard.x, artboard.y, effectiveW, effectiveH)
   ctx.restore()
 
   // Artboard background
   ctx.fillStyle = artboard.backgroundColor
-  ctx.fillRect(artboard.x, artboard.y, artboard.width, artboard.height)
+  ctx.fillRect(artboard.x, artboard.y, effectiveW, effectiveH)
 
   // Artboard border
   ctx.strokeStyle = '#555'
   ctx.lineWidth = 1
-  ctx.strokeRect(artboard.x, artboard.y, artboard.width, artboard.height)
+  ctx.strokeRect(artboard.x, artboard.y, effectiveW, effectiveH)
 
   // Artboard label (constant screen size regardless of zoom)
   ctx.save()
@@ -2073,33 +2555,61 @@ function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selec
   ctx.fillStyle = '#888'
   ctx.font = `${fontSize}px sans-serif`
   ctx.fillText(artboard.name, artboard.x, artboard.y - 6 / zoom)
+
+  // Responsive width indicator when a breakpoint is active
+  if (artboard.activeBreakpointId && artboard.breakpoints) {
+    const activeBp = artboard.breakpoints.find((b) => b.id === artboard.activeBreakpointId)
+    if (activeBp) {
+      const indicatorFontSize = 10 / zoom
+      ctx.font = `${indicatorFontSize}px sans-serif`
+      const label = `${activeBp.name} \u2014 ${activeBp.width}px`
+      const labelW = ctx.measureText(label).width
+      const indicatorX = artboard.x + effectiveW / 2 - labelW / 2 - 4 / zoom
+      const indicatorY = artboard.y - 22 / zoom
+      const pillH = 14 / zoom
+      const pillW = labelW + 8 / zoom
+      ctx.fillStyle = 'rgba(74, 125, 255, 0.15)'
+      ctx.beginPath()
+      ctx.roundRect(indicatorX, indicatorY, pillW, pillH, 3 / zoom)
+      ctx.fill()
+      ctx.fillStyle = '#4a7dff'
+      ctx.fillText(label, artboard.x + effectiveW / 2 - labelW / 2, artboard.y - 12 / zoom)
+    }
+  }
   ctx.restore()
 
   // Check if any adjustment layers present
-  const hasAdjustments = artboard.layers.some((l) => l.type === 'adjustment' && l.visible)
+  const hasAdjustments = effectiveLayers.some((l) => l.type === 'adjustment' && l.visible)
 
   if (hasAdjustments) {
-    renderArtboardWithAdjustments(ctx, artboard, selectedLayerIds)
+    renderArtboardWithAdjustments(ctx, artboard, effectiveLayers, effectiveW, effectiveH, selectedLayerIds)
   } else {
-    renderArtboardDirect(ctx, artboard, selectedLayerIds)
+    renderArtboardDirect(ctx, artboard, effectiveLayers, effectiveW, effectiveH, selectedLayerIds)
   }
 }
 
-function renderArtboardDirect(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
+function renderArtboardDirect(
+  ctx: CanvasRenderingContext2D,
+  artboard: Artboard,
+  layers: Layer[],
+  width: number,
+  height: number,
+  selectedLayerIds: string[],
+) {
   ctx.save()
   ctx.translate(artboard.x, artboard.y)
   ctx.beginPath()
-  ctx.rect(0, 0, artboard.width, artboard.height)
+  ctx.rect(0, 0, width, height)
   ctx.clip()
 
-  for (const layer of artboard.layers) {
-    renderLayerWithEffects(ctx, layer, artboard.width, artboard.height)
+  for (const layer of layers) {
+    renderLayerWithEffects(ctx, layer, width, height)
   }
 
   ctx.globalAlpha = 1
   ctx.globalCompositeOperation = 'source-over'
 
-  for (const layer of artboard.layers) {
+  for (const layer of layers) {
     if (!selectedLayerIds.includes(layer.id)) continue
     if (layer.type === 'vector') renderSelectionOutline(ctx, layer)
   }
@@ -2107,25 +2617,32 @@ function renderArtboardDirect(ctx: CanvasRenderingContext2D, artboard: Artboard,
   ctx.restore()
 }
 
-function renderArtboardWithAdjustments(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
+function renderArtboardWithAdjustments(
+  ctx: CanvasRenderingContext2D,
+  artboard: Artboard,
+  layers: Layer[],
+  width: number,
+  height: number,
+  selectedLayerIds: string[],
+) {
   // Render to offscreen canvas so we can apply pixel-level adjustments
-  const offscreen = new OffscreenCanvas(artboard.width, artboard.height)
+  const offscreen = new OffscreenCanvas(width, height)
   const offCtx = offscreen.getContext('2d')!
 
   offCtx.fillStyle = artboard.backgroundColor
-  offCtx.fillRect(0, 0, artboard.width, artboard.height)
+  offCtx.fillRect(0, 0, width, height)
 
-  for (const layer of artboard.layers) {
+  for (const layer of layers) {
     if (!layer.visible) continue
 
     if (layer.type === 'adjustment') {
       // Apply adjustment to current pixel state
-      const imageData = offCtx.getImageData(0, 0, artboard.width, artboard.height)
+      const imageData = offCtx.getImageData(0, 0, width, height)
       applyAdjustment(imageData, layer as AdjustmentLayer)
       offCtx.putImageData(imageData, 0, 0)
     } else {
       // Render layer using the offscreen context (cast is safe — same drawing API)
-      renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, artboard.width, artboard.height)
+      renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, width, height)
     }
   }
 
@@ -2136,10 +2653,10 @@ function renderArtboardWithAdjustments(ctx: CanvasRenderingContext2D, artboard: 
   ctx.save()
   ctx.translate(artboard.x, artboard.y)
   ctx.beginPath()
-  ctx.rect(0, 0, artboard.width, artboard.height)
+  ctx.rect(0, 0, width, height)
   ctx.clip()
 
-  for (const layer of artboard.layers) {
+  for (const layer of layers) {
     if (!selectedLayerIds.includes(layer.id)) continue
     if (layer.type === 'vector') renderSelectionOutline(ctx, layer)
   }
@@ -2182,6 +2699,89 @@ function renderSelectionOutline(ctx: CanvasRenderingContext2D, layer: VectorLaye
   }
 
   ctx.restore()
+}
+
+// ─── Auto-layout group overlay ────────────────────────────────
+
+function renderAutoLayoutOverlay(
+  ctx: CanvasRenderingContext2D,
+  artboard: Artboard,
+  selectedLayerIds: string[],
+  zoom: number,
+) {
+  for (const layer of artboard.layers) {
+    if (!selectedLayerIds.includes(layer.id)) continue
+    if (layer.type !== 'group') continue
+    const group = layer as GroupLayer
+    if (!group.autoLayout) continue
+
+    const bbox = getLayerBBox(group, artboard)
+    if (bbox.minX === Infinity) continue
+
+    const config = group.autoLayout
+    const lineWidth = 1 / zoom
+
+    ctx.save()
+
+    // Outer dashed outline (auto-layout indicator)
+    ctx.strokeStyle = '#ff8800'
+    ctx.lineWidth = lineWidth
+    ctx.setLineDash([4 / zoom, 3 / zoom])
+    ctx.strokeRect(bbox.minX, bbox.minY, bbox.maxX - bbox.minX, bbox.maxY - bbox.minY)
+    ctx.setLineDash([])
+
+    // Direction indicator arrow
+    const cx = (bbox.minX + bbox.maxX) / 2
+    const cy = (bbox.minY + bbox.maxY) / 2
+    const arrowLen = 12 / zoom
+    ctx.strokeStyle = 'rgba(255, 136, 0, 0.6)'
+    ctx.lineWidth = 1.5 / zoom
+    ctx.beginPath()
+    if (config.direction === 'horizontal') {
+      ctx.moveTo(cx - arrowLen, cy)
+      ctx.lineTo(cx + arrowLen, cy)
+      ctx.moveTo(cx + arrowLen - 3 / zoom, cy - 3 / zoom)
+      ctx.lineTo(cx + arrowLen, cy)
+      ctx.lineTo(cx + arrowLen - 3 / zoom, cy + 3 / zoom)
+    } else {
+      ctx.moveTo(cx, cy - arrowLen)
+      ctx.lineTo(cx, cy + arrowLen)
+      ctx.moveTo(cx - 3 / zoom, cy + arrowLen - 3 / zoom)
+      ctx.lineTo(cx, cy + arrowLen)
+      ctx.lineTo(cx + 3 / zoom, cy + arrowLen - 3 / zoom)
+    }
+    ctx.stroke()
+
+    // Padding area (subtle inner rectangle)
+    const padLeft = config.paddingLeft
+    const padTop = config.paddingTop
+    const padRight = config.paddingRight
+    const padBottom = config.paddingBottom
+    const innerX = bbox.minX + padLeft
+    const innerY = bbox.minY + padTop
+    const innerW = bbox.maxX - bbox.minX - padLeft - padRight
+    const innerH = bbox.maxY - bbox.minY - padTop - padBottom
+    if (innerW > 0 && innerH > 0) {
+      ctx.strokeStyle = 'rgba(255, 136, 0, 0.25)'
+      ctx.lineWidth = 0.5 / zoom
+      ctx.setLineDash([2 / zoom, 2 / zoom])
+      ctx.strokeRect(innerX, innerY, innerW, innerH)
+      ctx.setLineDash([])
+    }
+
+    // "Auto" label
+    ctx.save()
+    const labelX = bbox.minX
+    const labelY = bbox.minY - 4 / zoom
+    ctx.translate(labelX, labelY)
+    ctx.scale(1 / zoom, 1 / zoom)
+    ctx.fillStyle = '#ff8800'
+    ctx.font = '9px sans-serif'
+    ctx.fillText(`Auto ${config.direction === 'horizontal' ? 'H' : 'V'} | gap:${config.gap}`, 0, 0)
+    ctx.restore()
+
+    ctx.restore()
+  }
 }
 
 // ─── Transform handles ────────────────────────────────────────
@@ -2490,4 +3090,168 @@ function renderNodeToolOverlay(
 
     ctx.restore()
   }
+}
+
+// ─── Prototype flow overlay ──────────────────────────────────────
+
+/** Collect all layers with interactions across all artboards */
+function collectAllInteractiveLayers(
+  doc: DesignDocument,
+): Array<{ artboard: Artboard; layer: Layer; interactions: Interaction[] }> {
+  const result: Array<{ artboard: Artboard; layer: Layer; interactions: Interaction[] }> = []
+  for (const artboard of doc.artboards) {
+    collectLayersRecursive(artboard, artboard.layers, result)
+  }
+  return result
+}
+
+function collectLayersRecursive(
+  artboard: Artboard,
+  layers: Layer[],
+  result: Array<{ artboard: Artboard; layer: Layer; interactions: Interaction[] }>,
+) {
+  for (const layer of layers) {
+    if (layer.interactions && layer.interactions.length > 0) {
+      result.push({ artboard, layer, interactions: layer.interactions })
+    }
+    if (layer.type === 'group') {
+      collectLayersRecursive(artboard, (layer as GroupLayer).children, result)
+    }
+  }
+}
+
+/** Render prototype flow overlay: arrows from interactive layers to target artboards */
+function renderPrototypeFlowOverlay(
+  ctx: CanvasRenderingContext2D,
+  doc: DesignDocument,
+  zoom: number,
+) {
+  const interactiveLayers = collectAllInteractiveLayers(doc)
+  if (interactiveLayers.length === 0) return
+
+  ctx.save()
+
+  // Draw interaction indicators on layers
+  for (const { artboard, layer, interactions } of interactiveLayers) {
+    const bbox = getLayerBBox(layer, artboard)
+    if (bbox.minX === Infinity) continue
+
+    const cx = (bbox.minX + bbox.maxX) / 2
+    const cy = (bbox.minY + bbox.maxY) / 2
+
+    // Draw interaction trigger icon (blue lightning bolt)
+    const iconSize = 12 / zoom
+    ctx.save()
+    ctx.translate(bbox.maxX - iconSize * 0.5, bbox.minY - iconSize * 0.5)
+    ctx.scale(1 / zoom, 1 / zoom)
+
+    // Blue circle background
+    ctx.beginPath()
+    ctx.arc(0, 0, 8, 0, Math.PI * 2)
+    ctx.fillStyle = '#4a7dff'
+    ctx.fill()
+
+    // Lightning bolt
+    ctx.fillStyle = '#fff'
+    ctx.font = 'bold 10px sans-serif'
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.fillText('\u26A1', 0, 0)
+    ctx.restore()
+
+    // Draw blue outline around the interactive layer
+    ctx.save()
+    ctx.strokeStyle = '#4a7dff'
+    ctx.lineWidth = 2 / zoom
+    ctx.setLineDash([4 / zoom, 3 / zoom])
+    ctx.strokeRect(bbox.minX, bbox.minY, bbox.maxX - bbox.minX, bbox.maxY - bbox.minY)
+    ctx.setLineDash([])
+    ctx.restore()
+
+    // Draw arrows to target artboards
+    for (const ix of interactions) {
+      let targetArtboardId: string | null = null
+      if (ix.action.type === 'navigate') {
+        targetArtboardId = ix.action.targetArtboardId
+      } else if (ix.action.type === 'overlay') {
+        targetArtboardId = ix.action.targetArtboardId
+      }
+
+      if (!targetArtboardId) continue
+
+      const targetArtboard = doc.artboards.find((a) => a.id === targetArtboardId)
+      if (!targetArtboard) continue
+
+      // Target center
+      const tx = targetArtboard.x + targetArtboard.width / 2
+      const ty = targetArtboard.y + targetArtboard.height / 2
+
+      // Arrow from layer center to target artboard center
+      const startX = cx
+      const startY = cy
+
+      // Calculate arrow end (stop a bit before the target center)
+      const dx = tx - startX
+      const dy = ty - startY
+      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (dist < 10) continue
+
+      const endX = tx - (dx / dist) * 30
+      const endY = ty - (dy / dist) * 30
+
+      // Draw curved arrow
+      ctx.save()
+      ctx.strokeStyle = '#4a7dff'
+      ctx.lineWidth = 2 / zoom
+      ctx.globalAlpha = 0.7
+
+      // Bezier control point offset for a slight curve
+      const midX = (startX + endX) / 2
+      const midY = (startY + endY) / 2
+      const perpX = -(dy / dist) * 40
+      const perpY = (dx / dist) * 40
+      const cpX = midX + perpX
+      const cpY = midY + perpY
+
+      ctx.beginPath()
+      ctx.moveTo(startX, startY)
+      ctx.quadraticCurveTo(cpX, cpY, endX, endY)
+      ctx.stroke()
+
+      // Arrowhead
+      const angle = Math.atan2(endY - cpY, endX - cpX)
+      const arrowLen = 8 / zoom
+      ctx.beginPath()
+      ctx.moveTo(endX, endY)
+      ctx.lineTo(endX - arrowLen * Math.cos(angle - 0.4), endY - arrowLen * Math.sin(angle - 0.4))
+      ctx.lineTo(endX - arrowLen * Math.cos(angle + 0.4), endY - arrowLen * Math.sin(angle + 0.4))
+      ctx.closePath()
+      ctx.fillStyle = '#4a7dff'
+      ctx.fill()
+
+      ctx.restore()
+    }
+  }
+
+  // Highlight flow starting artboards
+  for (const artboard of doc.artboards) {
+    if (artboard.flowStarting) {
+      ctx.save()
+      ctx.strokeStyle = '#00cc88'
+      ctx.lineWidth = 3 / zoom
+      ctx.setLineDash([8 / zoom, 4 / zoom])
+      ctx.strokeRect(artboard.x - 2 / zoom, artboard.y - 2 / zoom, artboard.width + 4 / zoom, artboard.height + 4 / zoom)
+      ctx.setLineDash([])
+
+      // "Start" label
+      ctx.translate(artboard.x, artboard.y - 14 / zoom)
+      ctx.scale(1 / zoom, 1 / zoom)
+      ctx.fillStyle = '#00cc88'
+      ctx.font = 'bold 11px sans-serif'
+      ctx.fillText('\u25B6 Flow Start', 0, 0)
+      ctx.restore()
+    }
+  }
+
+  ctx.restore()
 }
