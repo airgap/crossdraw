@@ -58,6 +58,8 @@ import { GradientEditor, createDefaultGradient } from '@/ui/gradient-editor'
 import { PerspectivePanel } from '@/ui/perspective-panel'
 import { applyDithering } from '@/effects/dithering'
 import { performBooleanOp, offsetPath, expandStroke, simplifyPath } from '@/tools/boolean-ops'
+import { applyBackgroundRemovalFilter } from '@/filters/apply-background-removal'
+import type { BackgroundRemovalParams } from '@/filters/background-removal'
 import type { BooleanOp } from '@/tools/boolean-ops'
 import { generateRectangle } from '@/tools/shapes'
 import { WIDTH_PRESETS, WIDTH_PRESET_LABELS, matchWidthPreset } from '@/render/variable-stroke'
@@ -760,6 +762,11 @@ export function PropertiesPanel() {
                 removeEffect={removeEffect}
                 updateEffect={updateEffect}
               />
+            )}
+
+            {/* Background Removal (raster only) */}
+            {selectedLayer.type === 'raster' && artboard && (
+              <BackgroundRemovalSection />
             )}
 
             {/* Adjustment layer params */}
@@ -3498,6 +3505,97 @@ function Extrude3DSection({
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// ── Background Removal Section ───────────────────────────────
+
+function BackgroundRemovalSection() {
+  const [method, setMethod] = useState<BackgroundRemovalParams['method']>('color')
+  const [tolerance, setTolerance] = useState(30)
+  const [edgeStrength, setEdgeStrength] = useState(1.0)
+  const [feather, setFeather] = useState(2)
+
+  const handleApply = () => {
+    applyBackgroundRemovalFilter({
+      method,
+      tolerance,
+      edgeStrength,
+      feather,
+    })
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <div style={labelStyle}>Remove Background</div>
+
+      <div style={rowStyle}>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Method</span>
+        <select
+          style={{ ...inputStyle, width: 'auto', flex: 1 }}
+          value={method}
+          onChange={(e) => setMethod(e.target.value as BackgroundRemovalParams['method'])}
+        >
+          <option value="color">Color Match</option>
+          <option value="edge">Edge Detection</option>
+          <option value="threshold">Threshold</option>
+        </select>
+      </div>
+
+      <div style={rowStyle}>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Tolerance</span>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="1"
+          style={{ flex: 1 }}
+          value={tolerance}
+          onChange={(e) => setTolerance(Number(e.target.value))}
+        />
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>
+          {tolerance}
+        </span>
+      </div>
+
+      {method === 'edge' && (
+        <div style={rowStyle}>
+          <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Edge Str.</span>
+          <input
+            type="range"
+            min="0.1"
+            max="3.0"
+            step="0.1"
+            style={{ flex: 1 }}
+            value={edgeStrength}
+            onChange={(e) => setEdgeStrength(Number(e.target.value))}
+          />
+          <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>
+            {edgeStrength.toFixed(1)}
+          </span>
+        </div>
+      )}
+
+      <div style={rowStyle}>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Feather</span>
+        <input
+          type="range"
+          min="0"
+          max="20"
+          step="1"
+          style={{ flex: 1 }}
+          value={feather}
+          onChange={(e) => setFeather(Number(e.target.value))}
+        />
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>
+          {feather}px
+        </span>
+      </div>
+
+      <button style={{ ...btnStyle, width: '100%', marginTop: 4 }} onClick={handleApply}>
+        Remove Background
+      </button>
     </div>
   )
 }

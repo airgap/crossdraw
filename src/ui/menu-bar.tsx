@@ -37,6 +37,7 @@ import {
   applyVibranceFilter,
   applyChannelMixerFilter,
 } from '@/filters/apply-filters'
+import { applyBackgroundRemovalFilter } from '@/filters/apply-background-removal'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
@@ -996,6 +997,27 @@ function buildMenus(): MenuDef[] {
           {
             label: 'Channel Mixer\u2026',
             action: () => applyChannelMixerFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
+      { label: '', divider: true },
+      {
+        label: 'Remove Background',
+        submenu: [
+          {
+            label: 'Color Match',
+            action: () => applyBackgroundRemovalFilter({ method: 'color' }),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Edge Detection',
+            action: () => applyBackgroundRemovalFilter({ method: 'edge' }),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Threshold',
+            action: () => applyBackgroundRemovalFilter({ method: 'threshold' }),
             disabled: () => !hasSelectedRaster(),
           },
         ],
