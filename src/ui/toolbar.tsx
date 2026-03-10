@@ -279,7 +279,7 @@ function toolLabel(id: string): string {
   return id.charAt(0).toUpperCase() + id.slice(1)
 }
 
-export function Toolbar() {
+export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {}) {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setActiveTool = useEditorStore((s) => s.setActiveTool)
   const [themeName, setThemeName] = useState(getTheme().name)
@@ -345,7 +345,11 @@ export function Toolbar() {
           alignItems: 'center',
         }}
       >
-        {tools.map((tool, idx) => {
+        {tools.filter((tool) => {
+          if (!modeConfig) return true
+          if (tool === 'separator' || tool === 'shapes') return true
+          return modeConfig.tools.includes(tool.id)
+        }).map((tool, idx) => {
           if (tool === 'separator') {
             return (
               <div

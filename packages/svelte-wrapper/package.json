@@ -1,0 +1,18 @@
+{
+  "name": "@crossdraw/svelte",
+  "version": "0.1.0",
+  "description": "Svelte wrapper for the Crossdraw editor — drop into Lyku or any SvelteKit app",
+  "type": "module",
+  "svelte": "src/index.ts",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme-bridge": "./src/theme-bridge.ts"
+  },
+  "peerDependencies": {
+    "svelte": "^4.0.0 || ^5.0.0",
+    "@crossdraw/editor-core": "workspace:*"
+  },
+  "license": "MIT"
+}
