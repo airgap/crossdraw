@@ -53,7 +53,7 @@ nsis:
   allowToChangeInstallationDirectory: true
 
 fileAssociations:
-  - ext: design
+  - ext: xd
     name: Design File
     description: Crossdraw project file
     role: Editor

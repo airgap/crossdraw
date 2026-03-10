@@ -32,6 +32,7 @@ import type {
   ColorStyle,
   EffectStyle,
   TextLayer,
+  PNGTuberTag,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
@@ -135,6 +136,9 @@ export interface EditorState {
 
   // Team libraries
   subscribedLibraries: { id: string; name: string; version: number }[]
+
+  // PNGtuber
+  showPNGTuberPanel: boolean
 }
 
 export interface EditorActions {
@@ -394,6 +398,16 @@ export interface EditorActions {
   subscribeToLibrary: (id: string, name: string, version: number) => void
   unsubscribeFromLibrary: (id: string) => void
   importSymbolFromLibrary: (symbol: SymbolDefinition) => void
+
+  // PNGtuber
+  setPNGTuberEnabled: (enabled: boolean) => void
+  addExpression: (name: string) => void
+  removeExpression: (name: string) => void
+  setDefaultExpression: (name: string) => void
+  setLayerPNGTuberTag: (artboardId: string, layerId: string, tag: PNGTuberTag | undefined) => void
+  setLayerExpression: (artboardId: string, layerId: string, expression: string | undefined) => void
+  setLayerParallaxDepth: (artboardId: string, layerId: string, depth: number) => void
+  togglePNGTuberPanel: () => void
 }
 
 interface NewDocumentOptions {
@@ -665,6 +679,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     // Team libraries
     subscribedLibraries: [],
+
+    // PNGtuber
+    showPNGTuberPanel: false,
 
     // Document
     newDocument(opts) {
@@ -2639,6 +2656,94 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
           draft.symbols.push(symbol)
         }
       })
+    },
+
+    // ── PNGtuber ──
+
+    setPNGTuberEnabled(enabled) {
+      mutateDocument(enabled ? 'Enable PNGtuber mode' : 'Disable PNGtuber mode', (draft) => {
+        if (!draft.pngtuber) {
+          draft.pngtuber = {
+            enabled,
+            expressions: ['idle', 'talking', 'happy', 'sad', 'surprised'],
+            maxFileSize: 2 * 1024 * 1024,
+            defaultExpression: 'idle',
+          }
+        } else {
+          draft.pngtuber.enabled = enabled
+        }
+      })
+    },
+
+    addExpression(name) {
+      mutateDocument('Add PNGtuber expression', (draft) => {
+        if (!draft.pngtuber) {
+          draft.pngtuber = {
+            enabled: true,
+            expressions: ['idle', 'talking', 'happy', 'sad', 'surprised'],
+            maxFileSize: 2 * 1024 * 1024,
+            defaultExpression: 'idle',
+          }
+        }
+        const trimmed = name.trim().toLowerCase()
+        if (trimmed && !draft.pngtuber.expressions.includes(trimmed)) {
+          draft.pngtuber.expressions.push(trimmed)
+        }
+      })
+    },
+
+    removeExpression(name) {
+      mutateDocument('Remove PNGtuber expression', (draft) => {
+        if (!draft.pngtuber) return
+        draft.pngtuber.expressions = draft.pngtuber.expressions.filter((e) => e !== name)
+        // If we removed the default expression, fall back to first available
+        if (draft.pngtuber.defaultExpression === name) {
+          draft.pngtuber.defaultExpression = draft.pngtuber.expressions[0] ?? 'idle'
+        }
+      })
+    },
+
+    setDefaultExpression(name) {
+      mutateDocument('Set default PNGtuber expression', (draft) => {
+        if (!draft.pngtuber) return
+        if (draft.pngtuber.expressions.includes(name)) {
+          draft.pngtuber.defaultExpression = name
+        }
+      })
+    },
+
+    setLayerPNGTuberTag(artboardId, layerId, tag) {
+      mutateDocument('Set PNGtuber layer tag', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        layer.pngtuberTag = tag
+      })
+    },
+
+    setLayerExpression(artboardId, layerId, expression) {
+      mutateDocument('Set PNGtuber layer expression', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        layer.pngtuberExpression = expression
+      })
+    },
+
+    setLayerParallaxDepth(artboardId, layerId, depth) {
+      mutateDocument('Set PNGtuber parallax depth', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        layer.parallaxDepth = Math.max(0, Math.min(1, depth))
+      })
+    },
+
+    togglePNGTuberPanel() {
+      set({ showPNGTuberPanel: !get().showPNGTuberPanel })
     },
   }
 })

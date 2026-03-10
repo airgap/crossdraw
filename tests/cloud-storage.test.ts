@@ -37,7 +37,7 @@ function removeFileEntry(index: FileIndex, id: string): FileIndex {
 function createTestEntry(overrides: Partial<CloudFileMetadata> = {}): CloudFileMetadata {
   return {
     id: 'test123',
-    name: 'TestDoc.design',
+    name: 'TestDoc.xd',
     size: 1024,
     createdAt: '2026-03-09T00:00:00.000Z',
     updatedAt: '2026-03-09T00:00:00.000Z',
@@ -63,9 +63,9 @@ describe('Cloud Storage - File Index Operations', () => {
     })
 
     it('should append to existing entries', () => {
-      const existing = createTestEntry({ id: 'existing1', name: 'First.design' })
+      const existing = createTestEntry({ id: 'existing1', name: 'First.xd' })
       const index: FileIndex = { files: [existing] }
-      const newEntry = createTestEntry({ id: 'new2', name: 'Second.design' })
+      const newEntry = createTestEntry({ id: 'new2', name: 'Second.xd' })
       const result = addFileEntry(index, newEntry)
       expect(result.files).toHaveLength(2)
       expect(result.files[0]!.id).toBe('existing1')
@@ -83,15 +83,15 @@ describe('Cloud Storage - File Index Operations', () => {
 
   describe('updateFileEntry', () => {
     it('should update fields of a matching entry', () => {
-      const entry = createTestEntry({ id: 'up1', name: 'Old.design', size: 100 })
+      const entry = createTestEntry({ id: 'up1', name: 'Old.xd', size: 100 })
       const index: FileIndex = { files: [entry] }
       const result = updateFileEntry(index, 'up1', {
-        name: 'New.design',
+        name: 'New.xd',
         size: 2048,
         updatedAt: '2026-03-10T00:00:00.000Z',
       })
       expect(result.files).toHaveLength(1)
-      expect(result.files[0]!.name).toBe('New.design')
+      expect(result.files[0]!.name).toBe('New.xd')
       expect(result.files[0]!.size).toBe(2048)
       expect(result.files[0]!.updatedAt).toBe('2026-03-10T00:00:00.000Z')
       // Unchanged fields preserved
@@ -100,12 +100,12 @@ describe('Cloud Storage - File Index Operations', () => {
     })
 
     it('should not affect other entries', () => {
-      const entry1 = createTestEntry({ id: 'a1', name: 'A.design' })
-      const entry2 = createTestEntry({ id: 'b2', name: 'B.design' })
+      const entry1 = createTestEntry({ id: 'a1', name: 'A.xd' })
+      const entry2 = createTestEntry({ id: 'b2', name: 'B.xd' })
       const index: FileIndex = { files: [entry1, entry2] }
-      const result = updateFileEntry(index, 'a1', { name: 'Updated.design' })
-      expect(result.files[0]!.name).toBe('Updated.design')
-      expect(result.files[1]!.name).toBe('B.design')
+      const result = updateFileEntry(index, 'a1', { name: 'Updated.xd' })
+      expect(result.files[0]!.name).toBe('Updated.xd')
+      expect(result.files[1]!.name).toBe('B.xd')
     })
 
     it('should return unchanged index if id not found', () => {
@@ -113,15 +113,15 @@ describe('Cloud Storage - File Index Operations', () => {
       const index: FileIndex = { files: [entry] }
       const result = updateFileEntry(index, 'nonexistent', { name: 'Whatever' })
       expect(result.files).toHaveLength(1)
-      expect(result.files[0]!.name).toBe('TestDoc.design')
+      expect(result.files[0]!.name).toBe('TestDoc.xd')
     })
 
     it('should not mutate the original index', () => {
-      const entry = createTestEntry({ id: 'mut1', name: 'Before.design' })
+      const entry = createTestEntry({ id: 'mut1', name: 'Before.xd' })
       const index: FileIndex = { files: [entry] }
-      const result = updateFileEntry(index, 'mut1', { name: 'After.design' })
-      expect(index.files[0]!.name).toBe('Before.design')
-      expect(result.files[0]!.name).toBe('After.design')
+      const result = updateFileEntry(index, 'mut1', { name: 'After.xd' })
+      expect(index.files[0]!.name).toBe('Before.xd')
+      expect(result.files[0]!.name).toBe('After.xd')
     })
   })
 
@@ -134,9 +134,9 @@ describe('Cloud Storage - File Index Operations', () => {
     })
 
     it('should keep other entries', () => {
-      const entry1 = createTestEntry({ id: 'k1', name: 'Keep.design' })
-      const entry2 = createTestEntry({ id: 'r2', name: 'Remove.design' })
-      const entry3 = createTestEntry({ id: 'k3', name: 'AlsoKeep.design' })
+      const entry1 = createTestEntry({ id: 'k1', name: 'Keep.xd' })
+      const entry2 = createTestEntry({ id: 'r2', name: 'Remove.xd' })
+      const entry3 = createTestEntry({ id: 'k3', name: 'AlsoKeep.xd' })
       const index: FileIndex = { files: [entry1, entry2, entry3] }
       const result = removeFileEntry(index, 'r2')
       expect(result.files).toHaveLength(2)

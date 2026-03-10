@@ -25,6 +25,15 @@ export interface EffectStyle {
   effects: Effect[]
 }
 
+export type PNGTuberTag = 'head' | 'eyes' | 'mouth' | 'body' | 'accessory' | 'background' | 'effect'
+
+export interface PNGTuberConfig {
+  enabled: boolean
+  expressions: string[]
+  maxFileSize: number
+  defaultExpression: string
+}
+
 export interface DesignDocument {
   id: string
   metadata: DocumentMetadata
@@ -42,6 +51,7 @@ export interface DesignDocument {
     colorStyles: ColorStyle[]
     effectStyles: EffectStyle[]
   }
+  pngtuber?: PNGTuberConfig
 }
 
 export interface Comment {
@@ -180,6 +190,12 @@ export interface BaseLayer {
   effectStyleId?: string
   /** Developer annotation for dev handoff. */
   devAnnotation?: string
+  /** PNGtuber: semantic tag for avatar part. */
+  pngtuberTag?: PNGTuberTag
+  /** PNGtuber: which expression this layer belongs to (e.g., 'idle', 'talking'), or 'all' for always visible. */
+  pngtuberExpression?: string
+  /** PNGtuber: parallax depth 0 (background, no movement) to 1 (foreground, max movement). */
+  parallaxDepth?: number
 }
 
 // --- Animation ---

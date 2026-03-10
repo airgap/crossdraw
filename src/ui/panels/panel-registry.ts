@@ -79,6 +79,12 @@ const LazyCloudBrowserPanel = React.lazy(() =>
 const LazyLibraryPanel = React.lazy(() =>
   import('@/ui/library-panel').then((m) => ({ default: m.LibraryPanel })),
 )
+const LazyPNGTuberPanel = React.lazy(() =>
+  import('@/ui/pngtuber-panel').then((m) => ({ default: m.PNGTuberPanel })),
+)
+const LazyPNGTuberPreview = React.lazy(() =>
+  import('@/ui/pngtuber-preview').then((m) => ({ default: m.PNGTuberPreview })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -111,6 +117,8 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'dev-mode', label: 'Dev Mode', icon: '\u{1F6E0}', component: LazyDevModePanel },
   { id: 'cloud-files', label: 'Cloud Files', icon: '\u2601', component: LazyCloudBrowserPanel },
   { id: 'libraries', label: 'Team Libraries', icon: '\uD83D\uDCDA', component: LazyLibraryPanel },
+  { id: 'pngtuber', label: 'PNGtuber', icon: '\uD83D\uDC64', component: LazyPNGTuberPanel },
+  { id: 'pngtuber-preview', label: 'PNGtuber Preview', icon: '\uD83C\uDFAD', component: LazyPNGTuberPreview },
 ]
 
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))

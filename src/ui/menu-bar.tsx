@@ -695,6 +695,14 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+Shift+D',
         action: () => store().toggleDevMode(),
       },
+      { label: '', divider: true },
+      {
+        label: store().document.pngtuber?.enabled ? 'Disable PNGtuber Mode' : 'Enable PNGtuber Mode',
+        action: () => {
+          const current = store().document.pngtuber?.enabled ?? false
+          store().setPNGTuberEnabled(!current)
+        },
+      },
     ],
   }
 
@@ -1272,6 +1280,23 @@ function buildMenus(): MenuDef[] {
         action: () => {
           import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
             usePanelLayoutStore.getState().focusTab('dev-mode')
+          })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'PNGtuber',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('pngtuber')
+          })
+        },
+      },
+      {
+        label: 'PNGtuber Preview',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('pngtuber-preview')
           })
         },
       },
