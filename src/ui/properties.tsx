@@ -35,6 +35,8 @@ import type {
   WarpPreset,
 } from '@/types'
 import { WARP_PRESETS } from '@/render/envelope-distort'
+import { createDefaultExtrude3DConfig } from '@/render/extrude-3d'
+import type { Extrude3DConfig, MaterialConfig, LightingConfig } from '@/render/extrude-3d'
 import { createDefaultAutoLayout, createDefaultGridConfig } from '@/layout/auto-layout'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
@@ -53,6 +55,7 @@ import {
 } from '@/tools/align'
 import { importImageFromPicker } from '@/tools/import-image'
 import { GradientEditor, createDefaultGradient } from '@/ui/gradient-editor'
+import { PerspectivePanel } from '@/ui/perspective-panel'
 import { applyDithering } from '@/effects/dithering'
 import { performBooleanOp, offsetPath, expandStroke, simplifyPath } from '@/tools/boolean-ops'
 import type { BooleanOp } from '@/tools/boolean-ops'
@@ -739,6 +742,15 @@ export function PropertiesPanel() {
               />
             )}
 
+            {/* 3D Extrusion (vector only) */}
+            {selectedLayer.type === 'vector' && artboard && (
+              <Extrude3DSection
+                artboardId={artboard.id}
+                layer={selectedLayer}
+                updateLayer={updateLayer}
+              />
+            )}
+
             {/* Effects */}
             {artboard && (
               <EffectsSection
@@ -804,6 +816,7 @@ export function PropertiesPanel() {
                 onChange={(e) => resizeArtboard(artboard.id, artboard.width, Math.max(1, Number(e.target.value)))}
               />
             </div>
+            <PerspectivePanel />
           </div>
         ) : (
           <div style={{ fontSize: 11, color: '#666', textAlign: 'center', paddingTop: 20 }}>No artboard</div>
@@ -3227,6 +3240,260 @@ function EnvelopeSection({
             />
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
               {Math.round(envelope.verticalDistortion * 100)}
+            </span>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── 3D Extrusion section ──────────────────────────────────────
+
+function Extrude3DSection({
+  artboardId,
+  layer,
+  updateLayer,
+}: {
+  artboardId: string
+  layer: VectorLayer
+  updateLayer: (a: string, l: string, u: Partial<Layer>) => void
+}) {
+  const [expanded, setExpanded] = useState(!!layer.extrude3d)
+
+  const config: Extrude3DConfig = layer.extrude3d ?? createDefaultExtrude3DConfig()
+
+  const enabled = !!layer.extrude3d
+
+  const setConfig = (updates: Partial<Extrude3DConfig>) => {
+    updateLayer(artboardId, layer.id, {
+      extrude3d: { ...config, ...updates },
+    } as Partial<Layer>)
+  }
+
+  const setMaterial = (updates: Partial<MaterialConfig>) => {
+    setConfig({ material: { ...config.material, ...updates } })
+  }
+
+  const setLighting = (updates: Partial<LightingConfig>) => {
+    setConfig({ lighting: { ...config.lighting, ...updates } })
+  }
+
+  const toggleEnabled = () => {
+    if (enabled) {
+      updateLayer(artboardId, layer.id, { extrude3d: undefined } as Partial<Layer>)
+    } else {
+      updateLayer(artboardId, layer.id, {
+        extrude3d: createDefaultExtrude3DConfig(),
+      } as Partial<Layer>)
+      setExpanded(true)
+    }
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <div
+        style={{ ...labelStyle, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span style={{ fontSize: 10 }}>{expanded ? '\u25BC' : '\u25B6'}</span>
+        3D Extrusion
+        <input
+          type="checkbox"
+          checked={enabled}
+          onChange={(e) => {
+            e.stopPropagation()
+            toggleEnabled()
+          }}
+          onClick={(e) => e.stopPropagation()}
+          style={{ marginLeft: 'auto' }}
+        />
+      </div>
+      {expanded && enabled && (
+        <>
+          {/* Depth */}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Depth</span>
+            <input
+              type="range"
+              min="0"
+              max="200"
+              step="1"
+              style={{ flex: 1 }}
+              value={config.depth}
+              onChange={(e) => setConfig({ depth: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(config.depth)}
+            </span>
+          </div>
+
+          {/* Rotation X */}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Rotate X</span>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              style={{ flex: 1 }}
+              value={config.rotateX}
+              onChange={(e) => setConfig({ rotateX: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(config.rotateX)}
+            </span>
+          </div>
+
+          {/* Rotation Y */}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Rotate Y</span>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              style={{ flex: 1 }}
+              value={config.rotateY}
+              onChange={(e) => setConfig({ rotateY: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(config.rotateY)}
+            </span>
+          </div>
+
+          {/* Rotation Z */}
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Rotate Z</span>
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              step="1"
+              style={{ flex: 1 }}
+              value={config.rotateZ}
+              onChange={(e) => setConfig({ rotateZ: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(config.rotateZ)}
+            </span>
+          </div>
+
+          {/* Material */}
+          <div style={{ ...labelStyle, fontSize: 9, marginTop: 6, marginBottom: 2 }}>Material</div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Color</span>
+            <input
+              type="color"
+              value={config.material.color}
+              onChange={(e) => setMaterial({ color: e.target.value })}
+              style={{ width: 28, height: 22, border: 'none', padding: 0, cursor: 'pointer' }}
+            />
+          </div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Shininess</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={config.material.shininess}
+              onChange={(e) => setMaterial({ shininess: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(config.material.shininess)}
+            </span>
+          </div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Roughness</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(config.material.roughness * 100)}
+              onChange={(e) => setMaterial({ roughness: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(config.material.roughness * 100)}
+            </span>
+          </div>
+
+          {/* Lighting */}
+          <div style={{ ...labelStyle, fontSize: 9, marginTop: 6, marginBottom: 2 }}>Lighting</div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Dir X</span>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(config.lighting.direction.x * 100)}
+              onChange={(e) =>
+                setLighting({ direction: { ...config.lighting.direction, x: Number(e.target.value) / 100 } })
+              }
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {config.lighting.direction.x.toFixed(2)}
+            </span>
+          </div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Dir Y</span>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(config.lighting.direction.y * 100)}
+              onChange={(e) =>
+                setLighting({ direction: { ...config.lighting.direction, y: Number(e.target.value) / 100 } })
+              }
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {config.lighting.direction.y.toFixed(2)}
+            </span>
+          </div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Dir Z</span>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(config.lighting.direction.z * 100)}
+              onChange={(e) =>
+                setLighting({ direction: { ...config.lighting.direction, z: Number(e.target.value) / 100 } })
+              }
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {config.lighting.direction.z.toFixed(2)}
+            </span>
+          </div>
+
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 60 }}>Intensity</span>
+            <input
+              type="range"
+              min="0"
+              max="200"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(config.lighting.intensity * 100)}
+              onChange={(e) => setLighting({ intensity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {config.lighting.intensity.toFixed(2)}
             </span>
           </div>
         </>

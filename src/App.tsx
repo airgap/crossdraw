@@ -17,6 +17,7 @@ import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
 import { useEditorStore } from '@/store/editor.store'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { PrototypePlayer } from '@/prototype/prototype-player'
+import { ShareDialog } from '@/ui/share-dialog'
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash)
@@ -34,6 +35,7 @@ export function App() {
   const hash = useHashRoute()
   const [boot, setBoot] = useState<BootState>(hash === '#/download' ? 'editor' : 'loading')
   const [showNewDoc, setShowNewDoc] = useState(false)
+  const [showShareDialog, setShowShareDialog] = useState(false)
 
   // On mount: try to restore last document, then show splash or editor
   useEffect(() => {
@@ -73,6 +75,13 @@ export function App() {
     const onShowPrefs = () => usePanelLayoutStore.getState().focusTab('preferences')
     window.addEventListener('crossdraw:show-preferences', onShowPrefs)
     return () => window.removeEventListener('crossdraw:show-preferences', onShowPrefs)
+  }, [])
+
+  // Listen for menu bar "Share Prototype" event
+  useEffect(() => {
+    const onSharePrototype = () => setShowShareDialog(true)
+    window.addEventListener('crossdraw:share-prototype', onSharePrototype)
+    return () => window.removeEventListener('crossdraw:share-prototype', onSharePrototype)
   }, [])
 
   useEffect(() => {
@@ -159,6 +168,7 @@ export function App() {
       <CanvasContextMenu />
       <ExportModal />
       <PrintDialog />
+      {showShareDialog && <ShareDialog onClose={() => setShowShareDialog(false)} />}
       {showNewDoc && <NewDocumentModal onClose={() => setShowNewDoc(false)} onCreate={handleCreate} />}
       {showPrototypePlayer && prototypeStartArtboardId && (
         <PrototypePlayer

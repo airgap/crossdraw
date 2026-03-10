@@ -97,6 +97,17 @@ export interface Breakpoint {
   icon?: string      // optional icon identifier
 }
 
+export type PerspectiveMode = '1-point' | '2-point' | '3-point'
+
+export interface PerspectiveConfig {
+  mode: PerspectiveMode
+  vanishingPoints: { x: number; y: number }[]
+  gridDensity: number
+  opacity: number
+  color: string
+  horizonY: number
+}
+
 export interface Artboard {
   id: string
   name: string
@@ -120,6 +131,8 @@ export interface Artboard {
   flowStarting?: boolean
   /** Whether this artboard is marked as ready for developer handoff. */
   readyForDev?: boolean
+  /** Perspective grid overlay configuration. */
+  perspectiveGrid?: PerspectiveConfig
 }
 
 export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | TextLayer | SymbolInstanceLayer
@@ -228,6 +241,8 @@ export interface VectorLayer extends BaseLayer {
   additionalStrokes?: Stroke[]
   /** Envelope distortion / warp configuration. */
   envelope?: EnvelopeConfig
+  /** 3D extrusion configuration with materials and lighting. */
+  extrude3d?: import('@/render/extrude-3d').Extrude3DConfig
   /** Shape metadata for parametric regeneration. */
   shapeParams?: {
     shapeType: 'rectangle' | 'ellipse' | 'polygon' | 'star'

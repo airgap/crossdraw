@@ -50,6 +50,7 @@ import {
 } from '@/variables/variable-types'
 import { generateBlend, createBlendGroup } from '@/tools/blend-tool'
 import { generateRepeaterInstances, createRepeaterGroup } from '@/tools/repeater'
+import { createDefaultPerspectiveConfig } from '@/render/perspective-grid'
 
 enablePatches()
 
@@ -131,6 +132,9 @@ export interface EditorState {
 
   // Design variables
   activeModeIds: Record<string, string>
+
+  // Team libraries
+  subscribedLibraries: { id: string; name: string; version: number }[]
 }
 
 export interface EditorActions {
@@ -381,6 +385,15 @@ export interface EditorActions {
 
   // AI bulk rename
   bulkRenameLayers: (artboardId: string, renames: { layerId: string; newName: string }[]) => void
+
+  // Perspective grid
+  setPerspectiveGrid: (artboardId: string, config: import('@/types').PerspectiveConfig | null) => void
+  togglePerspectiveGrid: (artboardId: string) => void
+
+  // Team libraries
+  subscribeToLibrary: (id: string, name: string, version: number) => void
+  unsubscribeFromLibrary: (id: string) => void
+  importSymbolFromLibrary: (symbol: SymbolDefinition) => void
 }
 
 interface NewDocumentOptions {
@@ -649,6 +662,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     // Design variables
     activeModeIds: {},
+
+    // Team libraries
+    subscribedLibraries: [],
 
     // Document
     newDocument(opts) {
@@ -2561,6 +2577,66 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
           if (layer) {
             layer.name = newName
           }
+        }
+      })
+    },
+
+    // ── Perspective grid ──
+
+    setPerspectiveGrid(artboardId, config) {
+      mutateDocument('Set perspective grid', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        if (config === null) {
+          delete artboard.perspectiveGrid
+        } else {
+          artboard.perspectiveGrid = config
+        }
+      })
+    },
+
+    togglePerspectiveGrid(artboardId) {
+      const state = get()
+      const artboard = findArtboard(state.document, artboardId)
+      if (!artboard) return
+
+      if (artboard.perspectiveGrid) {
+        mutateDocument('Toggle perspective grid off', (draft) => {
+          const ab = findArtboard(draft, artboardId)
+          if (ab) delete ab.perspectiveGrid
+        })
+      } else {
+        const config = createDefaultPerspectiveConfig(artboard.width, artboard.height, '1-point')
+        mutateDocument('Toggle perspective grid on', (draft) => {
+          const ab = findArtboard(draft, artboardId)
+          if (ab) ab.perspectiveGrid = config
+        })
+      }
+    },
+
+    // ── Team libraries ──
+
+    subscribeToLibrary(id, name, version) {
+      const existing = get().subscribedLibraries
+      if (existing.some((l) => l.id === id)) return
+      set({ subscribedLibraries: [...existing, { id, name, version }] })
+    },
+
+    unsubscribeFromLibrary(id) {
+      set({ subscribedLibraries: get().subscribedLibraries.filter((l) => l.id !== id) })
+    },
+
+    importSymbolFromLibrary(symbol) {
+      mutateDocument('Import symbol from library', (draft) => {
+        if (!draft.symbols) {
+          draft.symbols = []
+        }
+        // Replace if a symbol with the same ID already exists, otherwise append
+        const existingIdx = draft.symbols.findIndex((s) => s.id === symbol.id)
+        if (existingIdx >= 0) {
+          draft.symbols[existingIdx] = symbol
+        } else {
+          draft.symbols.push(symbol)
         }
       })
     },

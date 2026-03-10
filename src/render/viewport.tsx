@@ -15,6 +15,7 @@ import { createNoisePattern } from '@/render/noise-fill'
 import { renderVariableStroke } from '@/render/variable-stroke'
 import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import { warpPaths } from '@/render/envelope-distort'
+import { render3DLayer } from '@/render/extrude-3d'
 import {
   penMouseDown,
   penMouseDrag,
@@ -59,6 +60,7 @@ import {
   setTextEditRenderCallback,
 } from '@/tools/text-edit'
 import { renderRulers, renderGuides, renderGrid, RULER_SIZE } from '@/render/rulers'
+import { renderPerspectiveGrid, hitTestVanishingPoint } from '@/render/perspective-grid'
 import { renderSnapLines } from '@/tools/snap'
 import { openCanvasContextMenu } from '@/ui/context-menu'
 import { attachTouchHandler, detachTouchHandler, currentPressure } from '@/tools/touch-handler'
@@ -239,6 +241,7 @@ export function Viewport() {
   const cloneStampRafId = useRef(0)
   const textDragStart = useRef<{ x: number; y: number; artboardId: string } | null>(null)
   const textDragEnd = useRef<{ x: number; y: number } | null>(null)
+  const vpDragState = useRef<{ artboardId: string; vpIndex: number } | null>(null)
 
   // Rebuild spatial index when document changes
   useEffect(() => {
@@ -302,6 +305,18 @@ export function Viewport() {
           ctx.stroke()
           ctx.restore()
         }
+      }
+    }
+
+    // Perspective grid overlay
+    for (const artboard of document.artboards) {
+      if (artboard.perspectiveGrid) {
+        renderPerspectiveGrid(
+          ctx,
+          artboard.perspectiveGrid,
+          { x: artboard.x, y: artboard.y, width: getEffectiveWidth(artboard), height: artboard.height },
+          viewport.zoom,
+        )
       }
     }
 
@@ -1175,6 +1190,27 @@ export function Viewport() {
       }
     }
 
+    // Perspective grid VP dragging — hit-test VP circles before other interactions
+    {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      for (const ab of document.artboards) {
+        if (!ab.perspectiveGrid) continue
+        const vpIdx = hitTestVanishingPoint(
+          docPoint.x,
+          docPoint.y,
+          ab.perspectiveGrid,
+          { x: ab.x, y: ab.y },
+          viewport.zoom,
+        )
+        if (vpIdx >= 0) {
+          vpDragState.current = { artboardId: ab.id, vpIndex: vpIdx }
+          isDragging.current = true
+          e.preventDefault()
+          return
+        }
+      }
+    }
+
     // Comment tool — click to place or select a comment pin
     if (activeTool === 'comment') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1510,6 +1546,34 @@ export function Viewport() {
     // Track cursor position for ruler markers
     const docPt = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
     mouseDocPos.current = { x: docPt.x, y: docPt.y }
+
+    // VP dragging for perspective grid
+    if (vpDragState.current && isDragging.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const store = useEditorStore.getState()
+      const ab = store.document.artboards.find((a) => a.id === vpDragState.current!.artboardId)
+      if (ab && ab.perspectiveGrid) {
+        const vpIdx = vpDragState.current.vpIndex
+        const newVPs = ab.perspectiveGrid.vanishingPoints.map((vp, i) =>
+          i === vpIdx ? { x: docPoint.x - ab.x, y: docPoint.y - ab.y } : { ...vp },
+        )
+        const newConfig = { ...ab.perspectiveGrid, vanishingPoints: newVPs }
+        // Use silent update to avoid undo spam during drag
+        useEditorStore.setState(
+          (s) => ({
+            document: {
+              ...s.document,
+              artboards: s.document.artboards.map((a) =>
+                a.id === vpDragState.current!.artboardId ? { ...a, perspectiveGrid: newConfig } : a,
+              ),
+            },
+          }),
+        )
+        render()
+      }
+      return
+    }
+
     if ((activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'clone-stamp') && !isDragging.current) {
       // Throttle cursor-only redraws to animation frame
       if (!brushRafId.current) {
@@ -1748,6 +1812,19 @@ export function Viewport() {
       if (canvasRef.current) {
         canvasRef.current.style.cursor = activeTool === 'hand' || spaceHeld.current ? 'grab' : ''
       }
+      return
+    }
+
+    // Finish VP dragging — commit to undo history
+    if (vpDragState.current) {
+      const store = useEditorStore.getState()
+      const ab = store.document.artboards.find((a) => a.id === vpDragState.current!.artboardId)
+      if (ab && ab.perspectiveGrid) {
+        store.setPerspectiveGrid(ab.id, ab.perspectiveGrid)
+      }
+      vpDragState.current = null
+      isDragging.current = false
+      render()
       return
     }
 
@@ -2244,6 +2321,21 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
         if (seg.y > localH) localH = seg.y
       }
     }
+  }
+
+  // 3D extrusion rendering — replaces normal 2D pipeline
+  if (layer.extrude3d) {
+    ctx.save()
+    applyTransform(ctx, layer.transform, { width: localW, height: localH })
+    const allSegments = layer.paths.flatMap((p) => p.segments)
+    render3DLayer(ctx, allSegments, layer.extrude3d, {
+      x: 0,
+      y: 0,
+      width: localW,
+      height: localH,
+    })
+    ctx.restore()
+    return
   }
 
   ctx.save()

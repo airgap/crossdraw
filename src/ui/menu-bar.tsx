@@ -382,6 +382,30 @@ function buildMenus(): MenuDef[] {
           })
         },
       },
+      {
+        label: 'Share Prototype\u2026',
+        action: () => {
+          window.dispatchEvent(new Event('crossdraw:share-prototype'))
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Publish Library\u2026',
+        action: () => {
+          window.dispatchEvent(new Event('crossdraw:publish-library'))
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('libraries')
+          })
+        },
+      },
+      {
+        label: 'Libraries',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('libraries')
+          })
+        },
+      },
     ],
   }
 
@@ -591,6 +615,15 @@ function buildMenus(): MenuDef[] {
         label: 'Toggle Grid',
         shortcut: "Ctrl+'",
         action: () => store().toggleGrid(),
+      },
+      {
+        label: 'Toggle Perspective Grid',
+        shortcut: '',
+        action: () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (artboard) s.togglePerspectiveGrid(artboard.id)
+        },
       },
       {
         label: 'Toggle Snap',
@@ -1058,6 +1091,30 @@ function buildMenus(): MenuDef[] {
         },
         disabled: () => !hasSelectedVector(),
       },
+      {
+        label: 'Extrude 3D\u2026',
+        action: () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const layer = artboard.layers.find((l) => l.id === layerId)
+          if (!layer || layer.type !== 'vector') return
+          const vl = layer as import('@/types').VectorLayer
+          if (vl.extrude3d) {
+            // Toggle off
+            s.updateLayer(artboard.id, layerId, { extrude3d: undefined } as Partial<import('@/types').Layer>)
+          } else {
+            // Enable with defaults
+            import('@/render/extrude-3d').then(({ createDefaultExtrude3DConfig }) => {
+              s.updateLayer(artboard.id, layerId, {
+                extrude3d: createDefaultExtrude3DConfig(),
+              } as Partial<import('@/types').Layer>)
+            })
+          }
+        },
+        disabled: () => !hasSelectedVector(),
+      },
       { label: '', divider: true },
       {
         label: 'Repeat\u2026',
@@ -1177,6 +1234,14 @@ function buildMenus(): MenuDef[] {
         action: () => {
           import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
             usePanelLayoutStore.getState().focusTab('styles')
+          })
+        },
+      },
+      {
+        label: 'Libraries',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('libraries')
           })
         },
       },

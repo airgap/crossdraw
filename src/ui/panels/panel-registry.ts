@@ -76,6 +76,9 @@ const LazyDevModePanel = React.lazy(() =>
 const LazyCloudBrowserPanel = React.lazy(() =>
   import('@/ui/cloud-browser-panel').then((m) => ({ default: m.CloudBrowserPanel })),
 )
+const LazyLibraryPanel = React.lazy(() =>
+  import('@/ui/library-panel').then((m) => ({ default: m.LibraryPanel })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -107,6 +110,7 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'styles', label: 'Shared Styles', icon: '\u{1F3A8}', component: LazyStylesPanel },
   { id: 'dev-mode', label: 'Dev Mode', icon: '\u{1F6E0}', component: LazyDevModePanel },
   { id: 'cloud-files', label: 'Cloud Files', icon: '\u2601', component: LazyCloudBrowserPanel },
+  { id: 'libraries', label: 'Team Libraries', icon: '\uD83D\uDCDA', component: LazyLibraryPanel },
 ]
 
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))
