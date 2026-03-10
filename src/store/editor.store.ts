@@ -36,6 +36,10 @@ import { endTextEdit, getTextEditState } from '@/tools/text-edit'
 import { storeSnapshot, getSnapshot, deleteSnapshots } from '@/store/raster-undo'
 import { applyGaussianNoise, applyUniformNoise, applyFilmGrain } from '@/filters/noise'
 import { applyAutoLayout, computeLayerBounds } from '@/layout/auto-layout'
+import {
+  createSnapshot as createVersionSnapshotDB,
+  getSnapshot as getVersionSnapshotDB,
+} from '@/versioning/version-store'
 
 enablePatches()
 
@@ -102,6 +106,13 @@ export interface EditorState {
   showPrototypePlayer: boolean
   prototypeStartArtboardId: string | null
   prototypeMode: boolean
+
+  // AI
+  showAIPanel: boolean
+
+  // Collaboration
+  collabProvider: import('@/collab/collab-provider').CollabProvider | null
+  collabPresences: import('@/collab/collab-provider').UserPresence[]
 }
 
 export interface EditorActions {
@@ -275,6 +286,18 @@ export interface EditorActions {
   openPrototypePlayer: (startArtboardId?: string) => void
   closePrototypePlayer: () => void
   togglePrototypeMode: () => void
+
+  // AI
+  toggleAIPanel: () => void
+
+  // Collaboration
+  startCollabSession: (roomId: string, serverUrl: string) => void
+  leaveCollabSession: () => void
+  updateCollabPresence: (cursorX: number, cursorY: number) => void
+
+  // Version control
+  createVersionSnapshot: (name: string) => Promise<void>
+  revertToSnapshot: (snapshotId: string) => Promise<void>
 }
 
 interface NewDocumentOptions {
@@ -529,6 +552,13 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     showPrototypePlayer: false,
     prototypeStartArtboardId: null,
     prototypeMode: false,
+
+    // AI
+    showAIPanel: false,
+
+    // Collaboration
+    collabProvider: null,
+    collabPresences: [],
 
     // Document
     newDocument(opts) {
@@ -1798,6 +1828,87 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     togglePrototypeMode() {
       set({ prototypeMode: !get().prototypeMode })
+    },
+
+    // ── Collaboration ──
+
+    startCollabSession(roomId: string, serverUrl: string) {
+      // Tear down existing session if any
+      const existing = get().collabProvider
+      if (existing) {
+        existing.disconnect()
+      }
+
+      const clientId = crypto.randomUUID()
+      const { CollabProvider } = require('@/collab/collab-provider') as typeof import('@/collab/collab-provider')
+      const provider = new CollabProvider(roomId, serverUrl, clientId)
+
+      // Listen for remote operations
+      provider.onRemoteOperation((op) => {
+        const { CRDTDocument } = require('@/collab/crdt-document') as typeof import('@/collab/crdt-document')
+        const crdt = new CRDTDocument(get().document)
+        const applied = crdt.applyRemote(op)
+        if (applied) {
+          set({ document: crdt.getState() })
+        }
+      })
+
+      // Listen for presence updates
+      provider.onPresenceUpdate((presences) => {
+        set({ collabPresences: presences })
+      })
+
+      provider.connect()
+
+      // Send initial presence with current selection
+      const state = get()
+      provider.updatePresence({
+        selectedLayerIds: state.selection.layerIds,
+      })
+
+      set({ collabProvider: provider, collabPresences: [] })
+    },
+
+    leaveCollabSession() {
+      const provider = get().collabProvider
+      if (provider) {
+        provider.disconnect()
+      }
+      set({ collabProvider: null, collabPresences: [] })
+    },
+
+    updateCollabPresence(cursorX: number, cursorY: number) {
+      const provider = get().collabProvider
+      if (!provider) return
+      provider.updatePresence({
+        cursorX,
+        cursorY,
+        selectedLayerIds: get().selection.layerIds,
+      })
+    },
+
+    async createVersionSnapshot(name: string) {
+      const doc = get().document
+      await createVersionSnapshotDB(doc, name, 'main')
+    },
+
+    async revertToSnapshot(snapshotId: string) {
+      const snapshot = await getVersionSnapshotDB(snapshotId)
+      if (!snapshot) return
+      const doc = JSON.parse(snapshot.documentData) as DesignDocument
+      set({
+        document: doc,
+        history: [],
+        historyIndex: -1,
+        selection: { layerIds: [] },
+        isDirty: true,
+      })
+    },
+
+    // ── AI ──
+
+    toggleAIPanel() {
+      set({ showAIPanel: !get().showAIPanel })
     },
   }
 })

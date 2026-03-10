@@ -16,6 +16,8 @@ import {
 } from '@/io/design-tokens'
 import { importImageFromPicker } from '@/tools/import-image'
 import { importPSD } from '@/io/psd-import'
+import { importSketch } from '@/io/sketch-import'
+import { tryImportFigmaClipboard } from '@/io/figma-import'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
 import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
@@ -115,6 +117,64 @@ function buildMenus(): MenuDef[] {
             }
           }
           input.click()
+        },
+      },
+      {
+        label: 'Import Sketch File\u2026',
+        shortcut: '',
+        action: async () => {
+          const input = document.createElement('input')
+          input.type = 'file'
+          input.accept = '.sketch'
+          input.multiple = false
+          input.onchange = async () => {
+            const file = input.files?.[0]
+            if (!file) return
+            try {
+              const buffer = await file.arrayBuffer()
+              const doc = await importSketch(buffer)
+              const title = file.name.replace(/\.[^.]+$/, '') || 'Sketch Import'
+              doc.metadata.title = title
+              useEditorStore.setState({
+                document: doc,
+                history: [],
+                historyIndex: -1,
+                selection: { layerIds: [] },
+                isDirty: false,
+                filePath: null,
+              })
+            } catch (err) {
+              console.error('Sketch import failed:', err)
+              alert(`Sketch import failed: ${err instanceof Error ? err.message : err}`)
+            }
+          }
+          input.click()
+        },
+      },
+      {
+        label: 'Paste from Figma',
+        shortcut: '',
+        action: async () => {
+          try {
+            const text = await navigator.clipboard.readText()
+            const doc = tryImportFigmaClipboard(text)
+            if (!doc) {
+              alert('No valid Figma data found in clipboard. Copy layers in Figma first, then try again.')
+              return
+            }
+            doc.metadata.title = 'Figma Import'
+            useEditorStore.setState({
+              document: doc,
+              history: [],
+              historyIndex: -1,
+              selection: { layerIds: [] },
+              isDirty: false,
+              filePath: null,
+            })
+          } catch (err) {
+            console.error('Figma paste failed:', err)
+            alert(`Figma paste failed: ${err instanceof Error ? err.message : err}`)
+          }
         },
       },
       { label: '', divider: true },
@@ -231,6 +291,24 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+Shift+P',
         action: () => {
           window.dispatchEvent(new Event('crossdraw:show-print-dialog'))
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Save Version\u2026',
+        action: () => {
+          const name = prompt('Version name:')
+          if (name && name.trim()) {
+            store().createVersionSnapshot(name.trim())
+          }
+        },
+      },
+      {
+        label: 'Version History',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('versions')
+          })
         },
       },
     ],
@@ -817,7 +895,75 @@ function buildMenus(): MenuDef[] {
     ],
   }
 
-  return [fileMenu, editMenu, viewMenu, layerMenu, pathMenu, typeMenu, filterMenu, windowMenu, helpMenu]
+  const collabMenu: MenuDef = {
+    label: 'Collaborate',
+    items: [
+      {
+        label: 'Start Collaboration Session\u2026',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('collaboration')
+          })
+        },
+      },
+      {
+        label: 'Join Session\u2026',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('collaboration')
+          })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Leave Session',
+        action: () => store().leaveCollabSession(),
+        disabled: () => store().collabProvider === null,
+      },
+      { label: '', divider: true },
+      {
+        label: 'Collaboration Panel',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('collaboration')
+          })
+        },
+      },
+    ],
+  }
+
+  const aiMenu: MenuDef = {
+    label: 'AI',
+    items: [
+      {
+        label: 'AI Assistant',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('ai-assistant')
+          })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Generate Layout\u2026',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('ai-assistant')
+          })
+        },
+      },
+      {
+        label: 'Critique Design',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('ai-assistant')
+          })
+        },
+      },
+    ],
+  }
+
+  return [fileMenu, editMenu, viewMenu, layerMenu, pathMenu, typeMenu, filterMenu, aiMenu, collabMenu, windowMenu, helpMenu]
 }
 
 // ── Component ──

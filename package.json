@@ -45,6 +45,7 @@
     "chroma-js": "^3.1.2",
     "clipper-lib": "^6.4.2",
     "electron-store": "^11.0.2",
+    "fflate": "^0.8.2",
     "immer": "^10.1.1",
     "lucide-react": "^0.577.0",
     "msgpackr": "^1.11.2",

@@ -55,6 +55,15 @@ const LazyAnimationTimeline = React.lazy(() =>
 const LazyInteractionPanel = React.lazy(() =>
   import('@/ui/interaction-panel').then((m) => ({ default: m.InteractionPanel })),
 )
+const LazyCollabPanel = React.lazy(() =>
+  import('@/ui/collab-panel').then((m) => ({ default: m.CollabPanel })),
+)
+const LazyAIPanel = React.lazy(() =>
+  import('@/ui/ai-panel').then((m) => ({ default: m.AIPanel })),
+)
+const LazyVersionPanel = React.lazy(() =>
+  import('@/ui/version-panel').then((m) => ({ default: m.VersionPanel })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -79,6 +88,9 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'comments', label: 'Comments', icon: '\u{1F4AC}', component: LazyCommentsPanel },
   { id: 'animation', label: 'Animation', icon: '\u{1F3AC}', component: LazyAnimationTimeline },
   { id: 'interactions', label: 'Interactions', icon: '\u26A1', component: LazyInteractionPanel },
+  { id: 'collaboration', label: 'Collaboration', icon: '\u{1F465}', component: LazyCollabPanel },
+  { id: 'ai-assistant', label: 'AI Assistant', icon: '\u2728', component: LazyAIPanel },
+  { id: 'versions', label: 'Version Control', icon: '\u{1F4C0}', component: LazyVersionPanel },
 ]
 
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))
