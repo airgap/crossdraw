@@ -91,12 +91,14 @@ describe('buildVectorArtPrompt', () => {
 
 describe('extractSVG', () => {
   it('extracts SVG from clean response', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><rect width="800" height="600" fill="#f0f0f0"/></svg>'
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><rect width="800" height="600" fill="#f0f0f0"/></svg>'
     expect(extractSVG(svg)).toBe(svg)
   })
 
   it('extracts SVG from markdown code fences (svg)', () => {
-    const inner = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><circle cx="400" cy="300" r="100" fill="red"/></svg>'
+    const inner =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><circle cx="400" cy="300" r="100" fill="red"/></svg>'
     const wrapped = `\`\`\`svg\n${inner}\n\`\`\``
     expect(extractSVG(wrapped)).toBe(inner)
   })
@@ -114,7 +116,8 @@ describe('extractSVG', () => {
   })
 
   it('extracts SVG from response with surrounding text', () => {
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><rect width="800" height="600" fill="blue"/></svg>'
+    const svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600"><rect width="800" height="600" fill="blue"/></svg>'
     const response = `Here is the illustration:\n${svg}\nI hope you like it!`
     expect(extractSVG(response)).toBe(svg)
   })

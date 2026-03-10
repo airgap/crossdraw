@@ -1,13 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import {
-  resolveVariable,
-  resolveLayerBindings,
-  applyBindingsToLayer,
-} from '@/variables/variable-resolver'
-import {
-  defaultVariableValue,
-  isValidVariableValue,
-} from '@/variables/variable-types'
+import { resolveVariable, resolveLayerBindings, applyBindingsToLayer } from '@/variables/variable-resolver'
+import { defaultVariableValue, isValidVariableValue } from '@/variables/variable-types'
 import type {
   VariableCollection,
   VariableValue,

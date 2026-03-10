@@ -80,10 +80,7 @@ describe('computeConvergenceLines', () => {
     const lines = computeConvergenceLines(500, 300, 1000, 800, 8)
     for (const [, , tx, ty] of lines) {
       const onEdge =
-        Math.abs(tx) < 0.01 ||
-        Math.abs(tx - 1000) < 0.01 ||
-        Math.abs(ty) < 0.01 ||
-        Math.abs(ty - 800) < 0.01
+        Math.abs(tx) < 0.01 || Math.abs(tx - 1000) < 0.01 || Math.abs(ty) < 0.01 || Math.abs(ty - 800) < 0.01
       expect(onEdge).toBe(true)
     }
   })

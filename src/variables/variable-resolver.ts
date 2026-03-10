@@ -147,10 +147,7 @@ function extractRawValue(varValue: VariableValue): string | number | boolean {
  * with bound properties overridden by variable values.
  * The original layer is not mutated.
  */
-export function applyBindingsToLayer(
-  layer: Layer,
-  resolvedValues: Record<string, VariableValue>,
-): Layer {
+export function applyBindingsToLayer(layer: Layer, resolvedValues: Record<string, VariableValue>): Layer {
   if (Object.keys(resolvedValues).length === 0) return layer
 
   // Deep clone the layer

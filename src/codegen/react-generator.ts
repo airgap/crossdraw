@@ -108,15 +108,23 @@ function buildInlineStyle(layer: Layer): Record<string, string | number> {
       style.lineHeight = layer.lineHeight
       if (layer.letterSpacing !== 0) style.letterSpacing = layer.letterSpacing
       if (layer.color) style.color = layer.color
-      if (layer.textDecoration && layer.textDecoration !== 'none')
-        style.textDecoration = layer.textDecoration
-      if (layer.textTransform && layer.textTransform !== 'none')
-        style.textTransform = layer.textTransform
+      if (layer.textDecoration && layer.textDecoration !== 'none') style.textDecoration = layer.textDecoration
+      if (layer.textTransform && layer.textTransform !== 'none') style.textTransform = layer.textTransform
       break
     }
     case 'group': {
       const auto = (layer as any).autoLayout as
-        | { direction?: string; gap?: number; alignItems?: string; justifyContent?: string; wrap?: boolean; paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number }
+        | {
+            direction?: string
+            gap?: number
+            alignItems?: string
+            justifyContent?: string
+            wrap?: boolean
+            paddingTop?: number
+            paddingRight?: number
+            paddingBottom?: number
+            paddingLeft?: number
+          }
         | undefined
       if (auto) {
         style.display = 'flex'
@@ -125,7 +133,12 @@ function buildInlineStyle(layer: Layer): Record<string, string | number> {
         if (auto.alignItems) style.alignItems = auto.alignItems
         if (auto.justifyContent) style.justifyContent = auto.justifyContent
         if (auto.wrap) style.flexWrap = 'wrap'
-        if (auto.paddingTop !== undefined || auto.paddingRight !== undefined || auto.paddingBottom !== undefined || auto.paddingLeft !== undefined) {
+        if (
+          auto.paddingTop !== undefined ||
+          auto.paddingRight !== undefined ||
+          auto.paddingBottom !== undefined ||
+          auto.paddingLeft !== undefined
+        ) {
           const pt = auto.paddingTop ?? 0
           const pr = auto.paddingRight ?? 0
           const pb = auto.paddingBottom ?? 0
@@ -197,13 +210,41 @@ function hexToTailwindColor(hex: string): string | null {
 function sizeToPx(value: number): string {
   // Tailwind spacing scale
   const scale: Record<number, string> = {
-    0: '0', 1: 'px', 2: '0.5', 4: '1', 6: '1.5', 8: '2',
-    10: '2.5', 12: '3', 14: '3.5', 16: '4', 20: '5', 24: '6',
-    28: '7', 32: '8', 36: '9', 40: '10', 44: '11', 48: '12',
-    56: '14', 64: '16', 80: '20', 96: '24', 112: '28',
-    128: '32', 144: '36', 160: '40', 176: '44', 192: '48',
-    208: '52', 224: '56', 240: '60', 256: '64', 288: '72',
-    320: '80', 384: '96',
+    0: '0',
+    1: 'px',
+    2: '0.5',
+    4: '1',
+    6: '1.5',
+    8: '2',
+    10: '2.5',
+    12: '3',
+    14: '3.5',
+    16: '4',
+    20: '5',
+    24: '6',
+    28: '7',
+    32: '8',
+    36: '9',
+    40: '10',
+    44: '11',
+    48: '12',
+    56: '14',
+    64: '16',
+    80: '20',
+    96: '24',
+    112: '28',
+    128: '32',
+    144: '36',
+    160: '40',
+    176: '44',
+    192: '48',
+    208: '52',
+    224: '56',
+    240: '60',
+    256: '64',
+    288: '72',
+    320: '80',
+    384: '96',
   }
   return scale[value] ?? `[${value}px]`
 }
@@ -254,7 +295,12 @@ function buildTailwindClasses(layer: Layer): string[] {
         else classes.push(`bg-[${layer.fill.color}]`)
       }
       if (layer.stroke) {
-        classes.push(`border-${layer.stroke.width === 1 ? '' : `[${layer.stroke.width}px]`}`.replace('border-', layer.stroke.width === 1 ? 'border' : `border-[${layer.stroke.width}px]`))
+        classes.push(
+          `border-${layer.stroke.width === 1 ? '' : `[${layer.stroke.width}px]`}`.replace(
+            'border-',
+            layer.stroke.width === 1 ? 'border' : `border-[${layer.stroke.width}px]`,
+          ),
+        )
         const tw = hexToTailwindColor(layer.stroke.color)
         if (tw) classes.push(`border-${tw}`)
         else classes.push(`border-[${layer.stroke.color}]`)
@@ -333,9 +379,7 @@ function renderInlineJSX(layer: Layer, indent: string = ''): string {
     case 'text':
       return `${indent}<p style={${styleStr}}>\n${indent}  ${layer.text}\n${indent}</p>`
     case 'group': {
-      const children = layer.children
-        .map((child) => renderInlineJSX(child, indent + '  '))
-        .join('\n')
+      const children = layer.children.map((child) => renderInlineJSX(child, indent + '  ')).join('\n')
       return `${indent}<div style={${styleStr}}>\n${children}\n${indent}</div>`
     }
     default:
@@ -351,9 +395,7 @@ function renderTailwindJSX(layer: Layer, indent: string = ''): string {
     case 'text':
       return `${indent}<p className="${classStr}">\n${indent}  ${layer.text}\n${indent}</p>`
     case 'group': {
-      const children = layer.children
-        .map((child) => renderTailwindJSX(child, indent + '  '))
-        .join('\n')
+      const children = layer.children.map((child) => renderTailwindJSX(child, indent + '  ')).join('\n')
       return `${indent}<div className="${classStr}">\n${children}\n${indent}</div>`
     }
     default:
@@ -372,9 +414,7 @@ function renderStyledComponents(layer: Layer, indent: string = ''): string {
       styledDef = `const Styled${componentName} = styled.p\`\n${styledCSS}\n\`;\n\n`
       return `${styledDef}${indent}<Styled${componentName}>\n${indent}  ${layer.text}\n${indent}</Styled${componentName}>`
     case 'group': {
-      const children = layer.children
-        .map((child) => renderStyledComponents(child, indent + '  '))
-        .join('\n')
+      const children = layer.children.map((child) => renderStyledComponents(child, indent + '  ')).join('\n')
       return `${styledDef}${indent}<Styled${componentName}>\n${children}\n${indent}</Styled${componentName}>`
     }
     default:

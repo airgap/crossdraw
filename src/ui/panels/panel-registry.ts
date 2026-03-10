@@ -40,48 +40,28 @@ const LazyAccessibilityPanel = React.lazy(() =>
 const LazyCSSInspectPanel = React.lazy(() =>
   import('@/ui/css-inspect-panel').then((m) => ({ default: m.CSSInspectPanel })),
 )
-const LazyCodeGenPanel = React.lazy(() =>
-  import('@/ui/code-gen-panel').then((m) => ({ default: m.CodeGenPanel })),
-)
+const LazyCodeGenPanel = React.lazy(() => import('@/ui/code-gen-panel').then((m) => ({ default: m.CodeGenPanel })))
 const LazyDesignLintPanel = React.lazy(() =>
   import('@/ui/design-lint-panel').then((m) => ({ default: m.DesignLintPanel })),
 )
-const LazyCommentsPanel = React.lazy(() =>
-  import('@/ui/comments-panel').then((m) => ({ default: m.CommentsPanel })),
-)
+const LazyCommentsPanel = React.lazy(() => import('@/ui/comments-panel').then((m) => ({ default: m.CommentsPanel })))
 const LazyAnimationTimeline = React.lazy(() =>
   import('@/ui/animation-timeline').then((m) => ({ default: m.AnimationTimeline })),
 )
 const LazyInteractionPanel = React.lazy(() =>
   import('@/ui/interaction-panel').then((m) => ({ default: m.InteractionPanel })),
 )
-const LazyCollabPanel = React.lazy(() =>
-  import('@/ui/collab-panel').then((m) => ({ default: m.CollabPanel })),
-)
-const LazyAIPanel = React.lazy(() =>
-  import('@/ui/ai-panel').then((m) => ({ default: m.AIPanel })),
-)
-const LazyVersionPanel = React.lazy(() =>
-  import('@/ui/version-panel').then((m) => ({ default: m.VersionPanel })),
-)
-const LazyVariablesPanel = React.lazy(() =>
-  import('@/ui/variables-panel').then((m) => ({ default: m.VariablesPanel })),
-)
-const LazyStylesPanel = React.lazy(() =>
-  import('@/ui/styles-panel').then((m) => ({ default: m.StylesPanel })),
-)
-const LazyDevModePanel = React.lazy(() =>
-  import('@/ui/dev-mode-panel').then((m) => ({ default: m.DevModePanel })),
-)
+const LazyCollabPanel = React.lazy(() => import('@/ui/collab-panel').then((m) => ({ default: m.CollabPanel })))
+const LazyAIPanel = React.lazy(() => import('@/ui/ai-panel').then((m) => ({ default: m.AIPanel })))
+const LazyVersionPanel = React.lazy(() => import('@/ui/version-panel').then((m) => ({ default: m.VersionPanel })))
+const LazyVariablesPanel = React.lazy(() => import('@/ui/variables-panel').then((m) => ({ default: m.VariablesPanel })))
+const LazyStylesPanel = React.lazy(() => import('@/ui/styles-panel').then((m) => ({ default: m.StylesPanel })))
+const LazyDevModePanel = React.lazy(() => import('@/ui/dev-mode-panel').then((m) => ({ default: m.DevModePanel })))
 const LazyCloudBrowserPanel = React.lazy(() =>
   import('@/ui/cloud-browser-panel').then((m) => ({ default: m.CloudBrowserPanel })),
 )
-const LazyLibraryPanel = React.lazy(() =>
-  import('@/ui/library-panel').then((m) => ({ default: m.LibraryPanel })),
-)
-const LazyPNGTuberPanel = React.lazy(() =>
-  import('@/ui/pngtuber-panel').then((m) => ({ default: m.PNGTuberPanel })),
-)
+const LazyLibraryPanel = React.lazy(() => import('@/ui/library-panel').then((m) => ({ default: m.LibraryPanel })))
+const LazyPNGTuberPanel = React.lazy(() => import('@/ui/pngtuber-panel').then((m) => ({ default: m.PNGTuberPanel })))
 const LazyPNGTuberPreview = React.lazy(() =>
   import('@/ui/pngtuber-preview').then((m) => ({ default: m.PNGTuberPreview })),
 )

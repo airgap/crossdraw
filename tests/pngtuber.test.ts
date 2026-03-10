@@ -1,10 +1,5 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
-import type {
-  PNGTuberConfig,
-  PNGTuberTag,
-  Layer,
-  VectorLayer,
-} from '@/types'
+import type { PNGTuberConfig, PNGTuberTag, Layer, VectorLayer } from '@/types'
 
 // ── Helpers ──
 
@@ -61,9 +56,7 @@ function computeValidation(allLayers: Layer[], expressions: string[]): Validatio
     }
   }
   for (const expr of expressions) {
-    const hasUniqueLayers = allLayers.some(
-      (l) => l.pngtuberTag && l.pngtuberExpression === expr,
-    )
+    const hasUniqueLayers = allLayers.some((l) => l.pngtuberTag && l.pngtuberExpression === expr)
     if (!hasUniqueLayers) {
       warnings.push({ type: 'no-unique-layers', message: `Expression '${expr}' has no unique layers` })
     }
@@ -325,9 +318,7 @@ describe('Validation: missing mouth layer warning', () => {
       createTestLayer({ pngtuberTag: 'body', name: 'Body' }),
     ]
     const warnings = computeValidation(layers, ['idle'])
-    const mouthWarning = warnings.find(
-      (w) => w.type === 'missing-tag' && w.message.includes('mouth'),
-    )
+    const mouthWarning = warnings.find((w) => w.type === 'missing-tag' && w.message.includes('mouth'))
     expect(mouthWarning).toBeDefined()
     expect(mouthWarning!.message).toBe('No mouth layer tagged')
   })
@@ -340,9 +331,7 @@ describe('Validation: missing mouth layer warning', () => {
       createTestLayer({ pngtuberTag: 'body', name: 'Body' }),
     ]
     const warnings = computeValidation(layers, ['idle'])
-    const mouthWarning = warnings.find(
-      (w) => w.type === 'missing-tag' && w.message.includes('mouth'),
-    )
+    const mouthWarning = warnings.find((w) => w.type === 'missing-tag' && w.message.includes('mouth'))
     expect(mouthWarning).toBeUndefined()
   })
 
@@ -372,14 +361,10 @@ describe('Validation: missing mouth layer warning', () => {
 
 describe('Validation: expression with no unique layers', () => {
   test('warns when expression has no layers assigned to it', () => {
-    const layers: Layer[] = [
-      createTestLayer({ pngtuberTag: 'head', name: 'Head' }),
-    ]
+    const layers: Layer[] = [createTestLayer({ pngtuberTag: 'head', name: 'Head' })]
     // No layers have pngtuberExpression === 'happy'
     const warnings = computeValidation(layers, ['happy'])
-    const exprWarning = warnings.find(
-      (w) => w.type === 'no-unique-layers' && w.message.includes('happy'),
-    )
+    const exprWarning = warnings.find((w) => w.type === 'no-unique-layers' && w.message.includes('happy'))
     expect(exprWarning).toBeDefined()
     expect(exprWarning!.message).toBe("Expression 'happy' has no unique layers")
   })
@@ -390,9 +375,7 @@ describe('Validation: expression with no unique layers', () => {
     const layers: Layer[] = [happyEyes]
 
     const warnings = computeValidation(layers, ['happy'])
-    const exprWarning = warnings.find(
-      (w) => w.type === 'no-unique-layers' && w.message.includes('happy'),
-    )
+    const exprWarning = warnings.find((w) => w.type === 'no-unique-layers' && w.message.includes('happy'))
     expect(exprWarning).toBeUndefined()
   })
 
@@ -401,16 +384,12 @@ describe('Validation: expression with no unique layers', () => {
     layer.pngtuberExpression = 'happy'
     // pngtuberTag is undefined, so it should not count
     const warnings = computeValidation([layer], ['happy'])
-    const exprWarning = warnings.find(
-      (w) => w.type === 'no-unique-layers' && w.message.includes('happy'),
-    )
+    const exprWarning = warnings.find((w) => w.type === 'no-unique-layers' && w.message.includes('happy'))
     expect(exprWarning).toBeDefined()
   })
 
   test('warns for multiple expressions with no unique layers', () => {
-    const layers: Layer[] = [
-      createTestLayer({ pngtuberTag: 'body' }),
-    ]
+    const layers: Layer[] = [createTestLayer({ pngtuberTag: 'body' })]
     const warnings = computeValidation(layers, ['idle', 'talking', 'happy'])
     const exprWarnings = warnings.filter((w) => w.type === 'no-unique-layers')
     expect(exprWarnings).toHaveLength(3)

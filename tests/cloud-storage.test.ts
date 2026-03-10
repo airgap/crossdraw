@@ -164,15 +164,11 @@ describe('Cloud Storage - File Index Operations', () => {
 describe('Cloud Storage - Cloud Client', () => {
   describe('buildUrl', () => {
     it('should construct a correct URL', () => {
-      expect(buildUrl('http://localhost:3000', '/api/files')).toBe(
-        'http://localhost:3000/api/files',
-      )
+      expect(buildUrl('http://localhost:3000', '/api/files')).toBe('http://localhost:3000/api/files')
     })
 
     it('should handle trailing slash on server URL', () => {
-      expect(buildUrl('http://localhost:3000/', '/api/files')).toBe(
-        'http://localhost:3000/api/files',
-      )
+      expect(buildUrl('http://localhost:3000/', '/api/files')).toBe('http://localhost:3000/api/files')
     })
 
     it('should handle URLs with paths', () => {
@@ -182,9 +178,7 @@ describe('Cloud Storage - Cloud Client', () => {
     })
 
     it('should handle URLs with ports', () => {
-      expect(buildUrl('http://192.168.1.100:8080', '/api/files')).toBe(
-        'http://192.168.1.100:8080/api/files',
-      )
+      expect(buildUrl('http://192.168.1.100:8080', '/api/files')).toBe('http://192.168.1.100:8080/api/files')
     })
   })
 
@@ -199,9 +193,7 @@ describe('Cloud Storage - Cloud Client', () => {
     it('should return default config when storage is empty', () => {
       // Directly test the parsing logic
       const raw = storage['crossdraw:cloud-config']
-      const config = raw
-        ? (JSON.parse(raw) as { serverUrl?: string; apiKey?: string })
-        : { serverUrl: '', apiKey: '' }
+      const config = raw ? (JSON.parse(raw) as { serverUrl?: string; apiKey?: string }) : { serverUrl: '', apiKey: '' }
       expect(config.serverUrl).toBe('')
       expect(config.apiKey).toBe('')
     })
@@ -261,32 +253,24 @@ describe('Cloud Storage - Request URL construction', () => {
   it('should build download endpoint URL with file ID', () => {
     const base = 'http://localhost:3000'
     const id = 'abc123def456'
-    expect(buildUrl(base, `/api/files/${id}`)).toBe(
-      'http://localhost:3000/api/files/abc123def456',
-    )
+    expect(buildUrl(base, `/api/files/${id}`)).toBe('http://localhost:3000/api/files/abc123def456')
   })
 
   it('should build update endpoint URL with file ID', () => {
     const base = 'https://my-cloud.example.com'
     const id = 'xyz789'
-    expect(buildUrl(base, `/api/files/${id}`)).toBe(
-      'https://my-cloud.example.com/api/files/xyz789',
-    )
+    expect(buildUrl(base, `/api/files/${id}`)).toBe('https://my-cloud.example.com/api/files/xyz789')
   })
 
   it('should build delete endpoint URL with file ID', () => {
     const base = 'http://10.0.0.1:9000/'
     const id = 'del999'
-    expect(buildUrl(base, `/api/files/${id}`)).toBe(
-      'http://10.0.0.1:9000/api/files/del999',
-    )
+    expect(buildUrl(base, `/api/files/${id}`)).toBe('http://10.0.0.1:9000/api/files/del999')
   })
 
   it('should build metadata endpoint URL', () => {
     const base = 'http://localhost:3000'
     const id = 'meta001'
-    expect(buildUrl(base, `/api/files/${id}/meta`)).toBe(
-      'http://localhost:3000/api/files/meta001/meta',
-    )
+    expect(buildUrl(base, `/api/files/${id}/meta`)).toBe('http://localhost:3000/api/files/meta001/meta')
   })
 })

@@ -56,9 +56,7 @@ function createTestLibraryData(overrides: Partial<LibraryData> = {}): LibraryDat
         color: '#000000',
       },
     ],
-    colorStyles: [
-      { id: 'cs-1', name: 'Primary', color: '#0066ff', opacity: 1 },
-    ],
+    colorStyles: [{ id: 'cs-1', name: 'Primary', color: '#0066ff', opacity: 1 }],
     effectStyles: [
       {
         id: 'es-1',

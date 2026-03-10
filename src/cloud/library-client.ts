@@ -84,10 +84,7 @@ export async function getLibrary(id: string, config?: CloudConfig): Promise<Libr
 }
 
 /** Publish a new library from the given payload. */
-export async function publishLibrary(
-  data: LibraryPublishPayload,
-  config?: CloudConfig,
-): Promise<LibraryEntry> {
+export async function publishLibrary(data: LibraryPublishPayload, config?: CloudConfig): Promise<LibraryEntry> {
   const { serverUrl, apiKey } = config ?? getCloudConfig()
   const url = buildUrl(serverUrl, '/api/libraries')
   const res = await fetch(url, {

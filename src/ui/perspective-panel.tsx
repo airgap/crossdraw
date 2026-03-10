@@ -127,7 +127,14 @@ export function PerspectivePanel() {
                 onChange={(e) => updateConfig({ gridDensity: Number(e.target.value) })}
                 style={{ flex: 1 }}
               />
-              <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', minWidth: 24, textAlign: 'right' }}>
+              <span
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--text-secondary)',
+                  minWidth: 24,
+                  textAlign: 'right',
+                }}
+              >
                 {config.gridDensity}
               </span>
             </div>
@@ -145,7 +152,14 @@ export function PerspectivePanel() {
                 onChange={(e) => updateConfig({ opacity: Number(e.target.value) })}
                 style={{ flex: 1 }}
               />
-              <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', minWidth: 36, textAlign: 'right' }}>
+              <span
+                style={{
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--text-secondary)',
+                  minWidth: 36,
+                  textAlign: 'right',
+                }}
+              >
                 {Math.round(config.opacity * 100)}%
               </span>
             </div>

@@ -90,9 +90,7 @@ describe('buildRenamePrompt', () => {
   })
 
   it('works with a single layer', () => {
-    const single: RenameLayerInfo[] = [
-      { id: 'x1', name: 'Rect', type: 'vector', details: 'fill=#000' },
-    ]
+    const single: RenameLayerInfo[] = [{ id: 'x1', name: 'Rect', type: 'vector', details: 'fill=#000' }]
     const result = buildRenamePrompt(single)
     expect(result.user).toContain('1 layers')
     expect(result.user).toContain('x1')
@@ -354,12 +352,16 @@ describe('bulkRenameLayers store action', () => {
 
     store.bulkRenameLayers(artboard.id, [{ layerId: 'undo-v1', newName: 'New Name' }])
 
-    expect(storeModule.useEditorStore.getState().document.artboards[0]!.layers.find((l) => l.id === 'undo-v1')!.name).toBe('New Name')
+    expect(
+      storeModule.useEditorStore.getState().document.artboards[0]!.layers.find((l) => l.id === 'undo-v1')!.name,
+    ).toBe('New Name')
 
     // Undo
     storeModule.useEditorStore.getState().undo()
 
-    expect(storeModule.useEditorStore.getState().document.artboards[0]!.layers.find((l) => l.id === 'undo-v1')!.name).toBe('Original Name')
+    expect(
+      storeModule.useEditorStore.getState().document.artboards[0]!.layers.find((l) => l.id === 'undo-v1')!.name,
+    ).toBe('Original Name')
   })
 
   it('skips layers that do not exist', () => {

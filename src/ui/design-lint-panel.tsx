@@ -1,12 +1,6 @@
 import { useState, useCallback, useMemo } from 'react'
 import { useEditorStore } from '@/store/editor.store'
-import type {
-  DesignDocument,
-  Artboard,
-  Layer,
-  VectorLayer,
-  TextLayer,
-} from '@/types'
+import type { DesignDocument, Artboard, Layer, VectorLayer, TextLayer } from '@/types'
 
 // ──────────────────────────────────────────────
 //  Types
@@ -944,8 +938,7 @@ export function DesignLintPanel() {
                     key={`${finding.layerId}-${idx}`}
                     style={findingRowStyle}
                     onMouseEnter={(e) => {
-                      ;(e.currentTarget as HTMLDivElement).style.background =
-                        'var(--bg-hover, rgba(255,255,255,0.08))'
+                      ;(e.currentTarget as HTMLDivElement).style.background = 'var(--bg-hover, rgba(255,255,255,0.08))'
                     }}
                     onMouseLeave={(e) => {
                       ;(e.currentTarget as HTMLDivElement).style.background = 'transparent'

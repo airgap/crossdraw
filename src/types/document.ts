@@ -102,9 +102,9 @@ export interface ExportSlice {
 
 export interface Breakpoint {
   id: string
-  name: string       // e.g., "Mobile", "Tablet", "Desktop"
-  width: number      // artboard width at this breakpoint
-  icon?: string      // optional icon identifier
+  name: string // e.g., "Mobile", "Tablet", "Desktop"
+  width: number // artboard width at this breakpoint
+  icon?: string // optional icon identifier
 }
 
 export type PerspectiveMode = '1-point' | '2-point' | '3-point'
@@ -169,13 +169,16 @@ export interface BaseLayer {
   /** Grid placement when this layer is a child of a CSS Grid auto-layout group. */
   gridPlacement?: GridPlacement
   /** Per-breakpoint overrides. Key is breakpoint ID. */
-  breakpointOverrides?: Record<string, {
-    visible?: boolean
-    transform?: Partial<Transform>
-    /** For text layers */
-    fontSize?: number
-    textAlign?: 'left' | 'center' | 'right'
-  }>
+  breakpointOverrides?: Record<
+    string,
+    {
+      visible?: boolean
+      transform?: Partial<Transform>
+      /** For text layers */
+      fontSize?: number
+      textAlign?: 'left' | 'center' | 'right'
+    }
+  >
   /** Prototype interactions attached to this layer. */
   interactions?: Interaction[]
   /** Animation keyframes for this layer. */
@@ -224,17 +227,7 @@ export interface KeyframeProperties {
   strokeColor?: string
 }
 
-export type WarpPreset =
-  | 'arc'
-  | 'arch'
-  | 'bulge'
-  | 'flag'
-  | 'wave'
-  | 'fish'
-  | 'rise'
-  | 'squeeze'
-  | 'twist'
-  | 'none'
+export type WarpPreset = 'arc' | 'arch' | 'bulge' | 'flag' | 'wave' | 'fish' | 'rise' | 'squeeze' | 'twist' | 'none'
 
 export interface EnvelopeConfig {
   preset: WarpPreset
@@ -540,10 +533,26 @@ export interface ProgressiveBlurParams {
 
 export interface Effect {
   id: string
-  type: 'blur' | 'shadow' | 'drop-shadow' | 'distort' | 'glow' | 'outer-glow' | 'inner-shadow' | 'background-blur' | 'progressive-blur'
+  type:
+    | 'blur'
+    | 'shadow'
+    | 'drop-shadow'
+    | 'distort'
+    | 'glow'
+    | 'outer-glow'
+    | 'inner-shadow'
+    | 'background-blur'
+    | 'progressive-blur'
   enabled: boolean
   opacity: number
-  params: BlurParams | ShadowParams | DistortParams | GlowParams | InnerShadowParams | BackgroundBlurParams | ProgressiveBlurParams
+  params:
+    | BlurParams
+    | ShadowParams
+    | DistortParams
+    | GlowParams
+    | InnerShadowParams
+    | BackgroundBlurParams
+    | ProgressiveBlurParams
 }
 
 export interface GlowParams {

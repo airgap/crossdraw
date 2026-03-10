@@ -31,7 +31,9 @@ function findLayer(layers: Layer[], id: string): Layer | null {
   return null
 }
 
-function getAnimatedLayers(doc: { artboards: { id: string; layers: Layer[] }[] }): Array<{ layer: Layer; artboardId: string }> {
+function getAnimatedLayers(doc: {
+  artboards: { id: string; layers: Layer[] }[]
+}): Array<{ layer: Layer; artboardId: string }> {
   const result: Array<{ layer: Layer; artboardId: string }> = []
   for (const ab of doc.artboards) {
     const collect = (layers: Layer[]) => {
@@ -69,8 +71,20 @@ export function AnimationTimeline() {
   const [currentTime, setCurrentTime] = useState(0)
   const [playing, setPlaying] = useState(false)
   const [selectedKeyframeId, setSelectedKeyframeId] = useState<string | null>(null)
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; keyframeId: string; layerId: string; artboardId: string } | null>(null)
-  const [dragKeyframe, setDragKeyframe] = useState<{ keyframeId: string; layerId: string; artboardId: string; startX: number; startTime: number } | null>(null)
+  const [contextMenu, setContextMenu] = useState<{
+    x: number
+    y: number
+    keyframeId: string
+    layerId: string
+    artboardId: string
+  } | null>(null)
+  const [dragKeyframe, setDragKeyframe] = useState<{
+    keyframeId: string
+    layerId: string
+    artboardId: string
+    startX: number
+    startTime: number
+  } | null>(null)
 
   const trackAreaRef = useRef<HTMLDivElement>(null)
   const [trackWidth, setTrackWidth] = useState(600)
@@ -223,9 +237,7 @@ export function AnimationTimeline() {
             if (idx >= 0) {
               const newKeyframes = layer.animation.keyframes.filter((kf) => kf.id !== selectedKeyframeId)
               const track: AnimationTrack | undefined =
-                newKeyframes.length > 0
-                  ? { ...layer.animation, keyframes: newKeyframes }
-                  : undefined
+                newKeyframes.length > 0 ? { ...layer.animation, keyframes: newKeyframes } : undefined
               updateLayer(ab.id, layer.id, { animation: track } as Partial<Layer>)
               setSelectedKeyframeId(null)
               return true
@@ -359,9 +371,7 @@ export function AnimationTimeline() {
       })()
 
       if (layer && layer.animation) {
-        const newKeyframes = layer.animation.keyframes.map((kf) =>
-          kf.id === keyframeId ? { ...kf, easing } : kf,
-        )
+        const newKeyframes = layer.animation.keyframes.map((kf) => (kf.id === keyframeId ? { ...kf, easing } : kf))
         updateLayer(artboardId, layerId, {
           animation: { ...layer.animation, keyframes: newKeyframes },
         } as Partial<Layer>)
@@ -715,11 +725,7 @@ export function AnimationTimeline() {
                       height: KEYFRAME_SIZE,
                       transform: 'rotate(45deg)',
                       background:
-                        selectedKeyframeId === kf.id
-                          ? '#ff8844'
-                          : kf.easing === 'spring'
-                            ? '#44aaff'
-                            : '#ffaa00',
+                        selectedKeyframeId === kf.id ? '#ff8844' : kf.easing === 'spring' ? '#44aaff' : '#ffaa00',
                       border: selectedKeyframeId === kf.id ? '2px solid #fff' : '1px solid rgba(0,0,0,0.3)',
                       borderRadius: 2,
                       cursor: 'pointer',

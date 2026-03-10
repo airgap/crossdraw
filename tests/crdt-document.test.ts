@@ -603,9 +603,7 @@ describe('CRDTDocument', () => {
         layers: [],
       }
 
-      crdt.applyLocal(
-        makeOp({ id: 'op-1', type: 'add-artboard', path: ['artboards'], value: ab }),
-      )
+      crdt.applyLocal(makeOp({ id: 'op-1', type: 'add-artboard', path: ['artboards'], value: ab }))
       crdt.applyRemote(
         makeOp({ id: 'op-2', clientId: 'client-B', type: 'add-artboard', path: ['artboards'], value: ab }),
       )

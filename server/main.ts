@@ -19,7 +19,8 @@ import { createHash } from 'crypto'
 
 const args = process.argv.slice(2)
 let port = 3000
-let host = '0.0.0.0'
+let host = ''
+let hostExplicit = false
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--port' && args[i + 1]) {
@@ -27,6 +28,7 @@ for (let i = 0; i < args.length; i++) {
     i++
   } else if (args[i] === '--host' && args[i + 1]) {
     host = args[i + 1]!
+    hostExplicit = true
     i++
   } else if (args[i] === '--help' || args[i] === '-h') {
     console.log(`Crossdraw Server v0.1.0
@@ -36,11 +38,16 @@ Usage:
 
 Options:
   --port <number>   Port to listen on (default: 3000)
-  --host <string>   Host to bind to (default: 0.0.0.0)
+  --host <string>   Host to bind to (default: 127.0.0.1 without API key, 0.0.0.0 with)
   --help, -h        Show this help message
 `)
     process.exit(0)
   }
+}
+
+// Default host: localhost when no API key is set (dev mode), 0.0.0.0 otherwise
+if (!hostExplicit) {
+  host = process.env['CROSSDRAW_API_KEY'] ? '0.0.0.0' : '127.0.0.1'
 }
 
 // ── File cache ──────────────────────────────────────────────────
@@ -166,12 +173,7 @@ export function removeFileEntry(index: FileIndex, id: string): FileIndex {
 }
 
 function generateId(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
-  let id = ''
-  for (let i = 0; i < 16; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)]
-  }
-  return id
+  return crypto.randomUUID()
 }
 
 // ── Share link storage ───────────────────────────────────────────
@@ -190,16 +192,20 @@ export interface ShareIndex {
 }
 
 export function generateSlug(): string {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  const bytes = crypto.getRandomValues(new Uint8Array(12))
   let slug = ''
-  for (let i = 0; i < 10; i++) {
-    slug += chars[Math.floor(Math.random() * chars.length)]
+  for (const b of bytes) {
+    slug += b.toString(36)
   }
-  return slug
+  return slug.slice(0, 16)
 }
 
-export function hashPassword(password: string): string {
-  return createHash('sha256').update(password).digest('hex')
+export async function hashPassword(password: string): Promise<string> {
+  return Bun.password.hash(password)
+}
+
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
+  return Bun.password.verify(password, hash)
 }
 
 export function loadShareIndex(): ShareIndex {
@@ -259,6 +265,23 @@ function computeChecksum(data: Uint8Array): string {
   return createHash('sha256').update(data).digest('hex').slice(0, 16)
 }
 
+// ── CORS origin allowlist ─────────────────────────────────────────
+const ALLOWED_ORIGINS: string[] = process.env['CROSSDRAW_ALLOWED_ORIGINS']
+  ? process.env['CROSSDRAW_ALLOWED_ORIGINS'].split(',').map((o) => o.trim()).filter(Boolean)
+  : []
+
+function getAllowedOrigin(req: Request): string {
+  // Dev mode (no API key): allow everything
+  if (!API_KEY) return '*'
+  // If an explicit allowlist is configured, check the request Origin
+  const origin = req.headers.get('Origin') ?? ''
+  if (ALLOWED_ORIGINS.length > 0) {
+    return ALLOWED_ORIGINS.includes(origin) ? origin : ALLOWED_ORIGINS[0]!
+  }
+  // API key set but no allowlist: deny cross-origin by default
+  return ''
+}
+
 function checkAuth(req: Request): boolean {
   if (!API_KEY) return true // No auth required in dev mode
   const header = req.headers.get('X-API-Key')
@@ -268,10 +291,7 @@ function checkAuth(req: Request): boolean {
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      'Content-Type': 'application/json; charset=utf-8',
-      'Access-Control-Allow-Origin': '*',
-    },
+    headers: { 'Content-Type': 'application/json; charset=utf-8' },
   })
 }
 
@@ -279,18 +299,29 @@ function errorResponse(message: string, status: number): Response {
   return jsonResponse({ error: message }, status)
 }
 
-function corsHeaders(): Record<string, string> {
-  return {
-    'Access-Control-Allow-Origin': '*',
+/** Add CORS headers to any response based on the incoming request. */
+function withCors(res: Response, req: Request): Response {
+  const origin = getAllowedOrigin(req)
+  if (origin) {
+    res.headers.set('Access-Control-Allow-Origin', origin)
+  }
+  return res
+}
+
+function corsHeaders(req: Request): Record<string, string> {
+  const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
   }
+  const origin = getAllowedOrigin(req)
+  if (origin) headers['Access-Control-Allow-Origin'] = origin
+  return headers
 }
 
 async function handleApiRequest(req: Request, pathname: string): Promise<Response> {
   // CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 204, headers: corsHeaders() })
+    return new Response(null, { status: 204, headers: corsHeaders(req) })
   }
 
   // Auth check
@@ -348,9 +379,9 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
     return jsonResponse(index.files)
   }
 
-  // Routes with :id
-  const fileMatch = pathname.match(/^\/api\/files\/([a-z0-9]+)$/)
-  const metaMatch = pathname.match(/^\/api\/files\/([a-z0-9]+)\/meta$/)
+  // Routes with :id (UUIDs contain hyphens)
+  const fileMatch = pathname.match(/^\/api\/files\/([a-z0-9-]+)$/)
+  const metaMatch = pathname.match(/^\/api\/files\/([a-z0-9-]+)\/meta$/)
 
   // GET /api/files/:id/meta — file metadata only
   if (metaMatch && req.method === 'GET') {
@@ -376,8 +407,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
         headers: {
           'Content-Type': 'application/octet-stream',
           'Content-Length': String(data.length),
-          'Content-Disposition': `attachment; filename="${entry.name}"`,
-          'Access-Control-Allow-Origin': '*',
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(entry.name.replace(/["\\r\\n]/g, '_'))}`,
         },
       })
     }
@@ -414,7 +444,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
       }
       const updatedIndex = removeFileEntry(index, id)
       saveIndex(updatedIndex)
-      return new Response(null, { status: 204, headers: corsHeaders() })
+      return new Response(null, { status: 204, headers: corsHeaders(req) })
     }
   }
 
@@ -481,7 +511,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
   }
 
   // Routes with library :id
-  const libMatch = pathname.match(/^\/api\/libraries\/([a-z0-9]+)$/)
+  const libMatch = pathname.match(/^\/api\/libraries\/([a-z0-9-]+)$/)
   if (libMatch) {
     const id = libMatch[1]!
     const libIndex = loadLibraryIndex()
@@ -558,7 +588,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
       }
       libIndex.libraries = libIndex.libraries.filter((l) => l.id !== id)
       saveLibraryIndex(libIndex)
-      return new Response(null, { status: 204, headers: corsHeaders() })
+      return new Response(null, { status: 204, headers: corsHeaders(req) })
     }
   }
 
@@ -594,7 +624,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
     const meta: ShareMetadata = {
       slug,
       name: body.name ?? 'Untitled',
-      passwordHash: body.password ? hashPassword(body.password) : null,
+      passwordHash: body.password ? await hashPassword(body.password) : null,
       expiresAt: body.expiresAt ?? null,
       viewCount: 0,
       createdAt: now,
@@ -650,7 +680,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         })
       }
-      if (hashPassword(providedPassword) !== share.passwordHash) {
+      if (!(await verifyPassword(providedPassword, share.passwordHash))) {
         return new Response(generatePasswordPage(slug, share.name, true), {
           status: 403,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -701,7 +731,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
       }
       shareIndex.shares = shareIndex.shares.filter((s) => s.slug !== slug)
       saveShareIndex(shareIndex)
-      return new Response(null, { status: 204, headers: corsHeaders() })
+      return new Response(null, { status: 204, headers: corsHeaders(req) })
     }
   }
 
@@ -1057,7 +1087,12 @@ function generateShareViewerPage(name: string, documentBase64: string): string {
                   }
                 }
                 if (ix && ix.action && ix.action.type === 'url') {
-                  window.open(ix.action.url, '_blank');
+                  try {
+                    var parsed = new URL(ix.action.url, window.location.href);
+                    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+                      window.open(ix.action.url, '_blank');
+                    }
+                  } catch(e) {}
                   return true;
                 }
               }
@@ -1202,9 +1237,10 @@ const server = Bun.serve({
     const url = new URL(req.url)
     let pathname = url.pathname
 
-    // API routes
+    // API routes — wrap response with CORS headers
     if (pathname.startsWith('/api/')) {
-      return handleApiRequest(req, pathname)
+      const res = await handleApiRequest(req, pathname)
+      return withCors(res, req)
     }
 
     // Share preview shortcut: /share/:slug → redirect to /api/shares/:slug/view
@@ -1260,3 +1296,12 @@ console.log(`
   Cloud storage: ${DATA_DIR}
   API auth: ${API_KEY ? 'enabled' : 'disabled (dev mode)'}
 `)
+
+if (!API_KEY) {
+  console.warn(`
+  ╔══════════════════════════════════════════════════════════════╗
+  ║  WARNING: No CROSSDRAW_API_KEY set — API is unauthenticated ║
+  ║  Set CROSSDRAW_API_KEY env var before exposing to a network  ║
+  ╚══════════════════════════════════════════════════════════════╝
+`)
+}

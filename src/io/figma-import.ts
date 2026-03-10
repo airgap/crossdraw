@@ -376,9 +376,7 @@ function convertFigmaEffect(effect: FigmaEffect): Effect | null {
 
 function collectFigmaEffects(node: FigmaNode): Effect[] {
   if (!node.effects) return []
-  return node.effects
-    .map(convertFigmaEffect)
-    .filter((e): e is Effect => e !== null)
+  return node.effects.map(convertFigmaEffect).filter((e): e is Effect => e !== null)
 }
 
 // ── Transform from Figma's relative transform ────────────────────────────────
@@ -447,7 +445,12 @@ function convertAutoLayout(node: FigmaNode): AutoLayoutConfig | undefined {
 
 function convertConstraints(
   node: FigmaNode,
-): { horizontal: 'left' | 'right' | 'left-right' | 'center' | 'scale'; vertical: 'top' | 'bottom' | 'top-bottom' | 'center' | 'scale' } | undefined {
+):
+  | {
+      horizontal: 'left' | 'right' | 'left-right' | 'center' | 'scale'
+      vertical: 'top' | 'bottom' | 'top-bottom' | 'center' | 'scale'
+    }
+  | undefined {
   if (!node.constraints) return undefined
 
   const hMap: Record<string, 'left' | 'right' | 'left-right' | 'center' | 'scale'> = {
@@ -532,16 +535,15 @@ function convertFigmaNode(node: FigmaNode, parentTransform?: { x: number; y: num
 
 function getNodeSize(node: FigmaNode): { width: number; height: number } {
   if (node.size) return { width: node.size.x, height: node.size.y }
-  if (node.absoluteBoundingBox) return { width: node.absoluteBoundingBox.width, height: node.absoluteBoundingBox.height }
+  if (node.absoluteBoundingBox)
+    return { width: node.absoluteBoundingBox.width, height: node.absoluteBoundingBox.height }
   return { width: 100, height: 100 }
 }
 
 function getFills(node: FigmaNode): { primary: Fill | null; additional: Fill[] } {
   if (!node.fills || node.fills.length === 0) return { primary: null, additional: [] }
 
-  const converted = node.fills
-    .map(convertFigmaFill)
-    .filter((f): f is Fill => f !== null)
+  const converted = node.fills.map(convertFigmaFill).filter((f): f is Fill => f !== null)
 
   return {
     primary: converted[0] ?? null,

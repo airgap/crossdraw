@@ -193,13 +193,7 @@ function lerp(a: number, b: number, t: number): number {
 }
 
 /** Horizontal box blur pass. Reads from `src`, writes to `dst`. */
-function boxBlurH(
-  src: Uint8ClampedArray,
-  dst: Uint8ClampedArray,
-  w: number,
-  h: number,
-  radius: number,
-): void {
+function boxBlurH(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: number, radius: number): void {
   const diam = radius * 2 + 1
   const invDiam = 1 / diam
 
@@ -246,13 +240,7 @@ function boxBlurH(
 }
 
 /** Vertical box blur pass. Reads from `src`, writes to `dst`. */
-function boxBlurV(
-  src: Uint8ClampedArray,
-  dst: Uint8ClampedArray,
-  w: number,
-  h: number,
-  radius: number,
-): void {
+function boxBlurV(src: Uint8ClampedArray, dst: Uint8ClampedArray, w: number, h: number, radius: number): void {
   const diam = radius * 2 + 1
   const invDiam = 1 / diam
 

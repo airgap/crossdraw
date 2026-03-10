@@ -194,14 +194,7 @@ function AnchorPointGrid({
       <div style={gridContainerStyle}>
         {ANCHOR_POINTS.map((pt) => {
           const isActive = Math.abs(anchorX - pt.x) < 0.01 && Math.abs(anchorY - pt.y) < 0.01
-          return (
-            <div
-              key={pt.label}
-              style={dotStyle(isActive)}
-              title={pt.label}
-              onClick={() => onChange(pt.x, pt.y)}
-            />
-          )
+          return <div key={pt.label} style={dotStyle(isActive)} title={pt.label} onClick={() => onChange(pt.x, pt.y)} />
         })}
       </div>
     </div>
@@ -464,51 +457,52 @@ export function PropertiesPanel() {
             )}
 
             {/* Layout Sizing (when inside an auto-layout parent) */}
-            {artboard && (() => {
-              const parentGroup = findParentAutoLayoutGroup(artboard.layers, selectedLayer.id)
-              if (!parentGroup) return null
-              return (
-                <div style={sectionStyle}>
-                  <div style={labelStyle}>Layout Sizing</div>
-                  <div style={rowStyle}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>H</span>
-                    <select
-                      style={{ ...inputStyle, width: 'auto', flex: 1 }}
-                      value={selectedLayer.layoutSizing?.horizontal ?? 'fixed'}
-                      onChange={(e) => {
-                        const val = e.target.value as 'fixed' | 'fill' | 'hug'
-                        setLayoutSizing(artboard.id, selectedLayer.id, {
-                          horizontal: val,
-                          vertical: selectedLayer.layoutSizing?.vertical ?? 'fixed',
-                        })
-                      }}
-                    >
-                      <option value="fixed">Fixed</option>
-                      <option value="fill">Fill</option>
-                      <option value="hug">Hug</option>
-                    </select>
+            {artboard &&
+              (() => {
+                const parentGroup = findParentAutoLayoutGroup(artboard.layers, selectedLayer.id)
+                if (!parentGroup) return null
+                return (
+                  <div style={sectionStyle}>
+                    <div style={labelStyle}>Layout Sizing</div>
+                    <div style={rowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>H</span>
+                      <select
+                        style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                        value={selectedLayer.layoutSizing?.horizontal ?? 'fixed'}
+                        onChange={(e) => {
+                          const val = e.target.value as 'fixed' | 'fill' | 'hug'
+                          setLayoutSizing(artboard.id, selectedLayer.id, {
+                            horizontal: val,
+                            vertical: selectedLayer.layoutSizing?.vertical ?? 'fixed',
+                          })
+                        }}
+                      >
+                        <option value="fixed">Fixed</option>
+                        <option value="fill">Fill</option>
+                        <option value="hug">Hug</option>
+                      </select>
+                    </div>
+                    <div style={rowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>V</span>
+                      <select
+                        style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                        value={selectedLayer.layoutSizing?.vertical ?? 'fixed'}
+                        onChange={(e) => {
+                          const val = e.target.value as 'fixed' | 'fill' | 'hug'
+                          setLayoutSizing(artboard.id, selectedLayer.id, {
+                            horizontal: selectedLayer.layoutSizing?.horizontal ?? 'fixed',
+                            vertical: val,
+                          })
+                        }}
+                      >
+                        <option value="fixed">Fixed</option>
+                        <option value="fill">Fill</option>
+                        <option value="hug">Hug</option>
+                      </select>
+                    </div>
                   </div>
-                  <div style={rowStyle}>
-                    <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>V</span>
-                    <select
-                      style={{ ...inputStyle, width: 'auto', flex: 1 }}
-                      value={selectedLayer.layoutSizing?.vertical ?? 'fixed'}
-                      onChange={(e) => {
-                        const val = e.target.value as 'fixed' | 'fill' | 'hug'
-                        setLayoutSizing(artboard.id, selectedLayer.id, {
-                          horizontal: selectedLayer.layoutSizing?.horizontal ?? 'fixed',
-                          vertical: val,
-                        })
-                      }}
-                    >
-                      <option value="fixed">Fixed</option>
-                      <option value="fill">Fill</option>
-                      <option value="hug">Hug</option>
-                    </select>
-                  </div>
-                </div>
-              )
-            })()}
+                )
+              })()}
 
             {/* Text properties */}
             {selectedLayer.type === 'text' && artboard && (
@@ -737,20 +731,12 @@ export function PropertiesPanel() {
 
             {/* Envelope distortion (vector only) */}
             {selectedLayer.type === 'vector' && artboard && (
-              <EnvelopeSection
-                artboardId={artboard.id}
-                layer={selectedLayer}
-                updateLayer={updateLayer}
-              />
+              <EnvelopeSection artboardId={artboard.id} layer={selectedLayer} updateLayer={updateLayer} />
             )}
 
             {/* 3D Extrusion (vector only) */}
             {selectedLayer.type === 'vector' && artboard && (
-              <Extrude3DSection
-                artboardId={artboard.id}
-                layer={selectedLayer}
-                updateLayer={updateLayer}
-              />
+              <Extrude3DSection artboardId={artboard.id} layer={selectedLayer} updateLayer={updateLayer} />
             )}
 
             {/* Effects */}
@@ -765,9 +751,7 @@ export function PropertiesPanel() {
             )}
 
             {/* Background Removal (raster only) */}
-            {selectedLayer.type === 'raster' && artboard && (
-              <BackgroundRemovalSection />
-            )}
+            {selectedLayer.type === 'raster' && artboard && <BackgroundRemovalSection />}
 
             {/* Adjustment layer params */}
             {selectedLayer.type === 'adjustment' && artboard && (
@@ -780,10 +764,7 @@ export function PropertiesPanel() {
 
             {/* Symbol instance component properties */}
             {selectedLayer.type === 'symbol-instance' && artboard && (
-              <SymbolInstanceSection
-                artboardId={artboard.id}
-                layer={selectedLayer as SymbolInstanceLayer}
-              />
+              <SymbolInstanceSection artboardId={artboard.id} layer={selectedLayer as SymbolInstanceLayer} />
             )}
 
             {/* Mask */}
@@ -1209,9 +1190,7 @@ function FillSection({
             <select
               style={{ ...inputStyle, width: 'auto', flex: 1 }}
               value={fill.noise.noiseType}
-              onChange={(e) =>
-                updateNoise({ noiseType: e.target.value as NoiseFillConfig['noiseType'] })
-              }
+              onChange={(e) => updateNoise({ noiseType: e.target.value as NoiseFillConfig['noiseType'] })}
             >
               <option value="simplex">Simplex</option>
               <option value="perlin">Perlin</option>
@@ -1229,9 +1208,7 @@ function FillSection({
               value={fill.noise.scale}
               onChange={(e) => updateNoise({ scale: Number(e.target.value) })}
             />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
-              {fill.noise.scale}
-            </span>
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fill.noise.scale}</span>
           </div>
           {fill.noise.noiseType !== 'white' && (
             <>
@@ -1246,9 +1223,7 @@ function FillSection({
                   value={fill.noise.octaves}
                   onChange={(e) => updateNoise({ octaves: Number(e.target.value) })}
                 />
-                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
-                  {fill.noise.octaves}
-                </span>
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fill.noise.octaves}</span>
               </div>
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Persist</span>
@@ -1283,11 +1258,7 @@ function FillSection({
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Color 1</span>
-            <ColorSwatch
-              color={fill.noise.color1}
-              opacity={1}
-              onChange={(hex) => updateNoise({ color1: hex })}
-            />
+            <ColorSwatch color={fill.noise.color1} opacity={1} onChange={(hex) => updateNoise({ color1: hex })} />
             <input
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={fill.noise.color1}
@@ -1300,11 +1271,7 @@ function FillSection({
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Color 2</span>
-            <ColorSwatch
-              color={fill.noise.color2}
-              opacity={1}
-              onChange={(hex) => updateNoise({ color2: hex })}
-            />
+            <ColorSwatch color={fill.noise.color2} opacity={1} onChange={(hex) => updateNoise({ color2: hex })} />
             <input
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={fill.noise.color2}
@@ -1555,7 +1522,9 @@ function StrokeSection({
           </div>
           {/* Wiggle / hand-drawn stroke */}
           <div style={rowStyle}>
-            <label style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <label
+              style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}
+            >
               <input
                 type="checkbox"
                 checked={stroke.wiggle?.enabled ?? false}
@@ -2588,13 +2557,7 @@ function EffectsSection({
 
 // ─── Symbol Instance Section ─────────────────────────────────
 
-function SymbolInstanceSection({
-  artboardId,
-  layer,
-}: {
-  artboardId: string
-  layer: SymbolInstanceLayer
-}) {
+function SymbolInstanceSection({ artboardId, layer }: { artboardId: string; layer: SymbolInstanceLayer }) {
   const symbols = useEditorStore((s) => s.document.symbols ?? [])
   const setInstanceProperty = useEditorStore((s) => s.setInstanceProperty)
   const setInstanceVariant = useEditorStore((s) => s.setInstanceVariant)
@@ -2640,9 +2603,7 @@ function SymbolInstanceSection({
       {/* Variant switcher */}
       {variants.length > 0 && (
         <div style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>
-            Variant
-          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>Variant</div>
           <div style={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
             <button
               onClick={() => setInstanceVariant(artboardId, layer.id, '')}
@@ -2815,7 +2776,11 @@ function AutoLayoutSection({
   group: GroupLayer
   artboardId: string
   setAutoLayout: (aid: string, lid: string, cfg: AutoLayoutConfig | null) => void
-  setLayoutSizing: (aid: string, lid: string, s: { horizontal: 'fixed' | 'fill' | 'hug'; vertical: 'fixed' | 'fill' | 'hug' } | undefined) => void
+  setLayoutSizing: (
+    aid: string,
+    lid: string,
+    s: { horizontal: 'fixed' | 'fill' | 'hug'; vertical: 'fixed' | 'fill' | 'hug' } | undefined,
+  ) => void
   runAutoLayout: (aid: string, gid: string) => void
 }) {
   const config = group.autoLayout
@@ -2858,7 +2823,13 @@ function AutoLayoutSection({
   function handlePaddingChange(key: 'paddingTop' | 'paddingRight' | 'paddingBottom' | 'paddingLeft', value: number) {
     if (!config) return
     if (linkedPadding) {
-      setAutoLayout(artboardId, group.id, { ...config, paddingTop: value, paddingRight: value, paddingBottom: value, paddingLeft: value })
+      setAutoLayout(artboardId, group.id, {
+        ...config,
+        paddingTop: value,
+        paddingRight: value,
+        paddingBottom: value,
+        paddingLeft: value,
+      })
     } else {
       updateConfig({ [key]: value })
     }
@@ -2869,8 +2840,14 @@ function AutoLayoutSection({
       <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Auto Layout</span>
         <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-          <input type="checkbox" checked={isEnabled} onChange={(e) => setAutoLayout(artboardId, group.id, e.target.checked ? createDefaultAutoLayout() : null)} />
-          <span style={{ fontSize: 10, fontWeight: 'normal', textTransform: 'none', color: 'var(--text-secondary)' }}>{isEnabled ? 'On' : 'Off'}</span>
+          <input
+            type="checkbox"
+            checked={isEnabled}
+            onChange={(e) => setAutoLayout(artboardId, group.id, e.target.checked ? createDefaultAutoLayout() : null)}
+          />
+          <span style={{ fontSize: 10, fontWeight: 'normal', textTransform: 'none', color: 'var(--text-secondary)' }}>
+            {isEnabled ? 'On' : 'Off'}
+          </span>
         </label>
       </div>
       {config && (
@@ -2883,12 +2860,18 @@ function AutoLayoutSection({
                 style={!isGrid ? activeBtnStyle : toggleBtnStyle}
                 onClick={() => updateConfig({ layoutMode: 'flex' })}
                 title="Flex layout"
-              >Flex</button>
+              >
+                Flex
+              </button>
               <button
                 style={isGrid ? activeBtnStyle : toggleBtnStyle}
-                onClick={() => updateConfig({ layoutMode: 'grid', gridConfig: gridConfig ?? createDefaultGridConfig() })}
+                onClick={() =>
+                  updateConfig({ layoutMode: 'grid', gridConfig: gridConfig ?? createDefaultGridConfig() })
+                }
                 title="Grid layout"
-              >Grid</button>
+              >
+                Grid
+              </button>
             </div>
           </div>
 
@@ -2903,21 +2886,51 @@ function AutoLayoutSection({
           {linkedPadding ? (
             <div style={rowStyle}>
               <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>All</span>
-              <input type="number" style={smallInputStyle} value={config.paddingTop} min={0} onChange={(e) => handlePaddingChange('paddingTop', Math.max(0, Number(e.target.value)))} />
+              <input
+                type="number"
+                style={smallInputStyle}
+                value={config.paddingTop}
+                min={0}
+                onChange={(e) => handlePaddingChange('paddingTop', Math.max(0, Number(e.target.value)))}
+              />
             </div>
           ) : (
             <>
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>T</span>
-                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingTop} min={0} onChange={(e) => handlePaddingChange('paddingTop', Math.max(0, Number(e.target.value)))} />
+                <input
+                  type="number"
+                  style={{ ...smallInputStyle, width: 40 }}
+                  value={config.paddingTop}
+                  min={0}
+                  onChange={(e) => handlePaddingChange('paddingTop', Math.max(0, Number(e.target.value)))}
+                />
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>R</span>
-                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingRight} min={0} onChange={(e) => handlePaddingChange('paddingRight', Math.max(0, Number(e.target.value)))} />
+                <input
+                  type="number"
+                  style={{ ...smallInputStyle, width: 40 }}
+                  value={config.paddingRight}
+                  min={0}
+                  onChange={(e) => handlePaddingChange('paddingRight', Math.max(0, Number(e.target.value)))}
+                />
               </div>
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>B</span>
-                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingBottom} min={0} onChange={(e) => handlePaddingChange('paddingBottom', Math.max(0, Number(e.target.value)))} />
+                <input
+                  type="number"
+                  style={{ ...smallInputStyle, width: 40 }}
+                  value={config.paddingBottom}
+                  min={0}
+                  onChange={(e) => handlePaddingChange('paddingBottom', Math.max(0, Number(e.target.value)))}
+                />
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>L</span>
-                <input type="number" style={{ ...smallInputStyle, width: 40 }} value={config.paddingLeft} min={0} onChange={(e) => handlePaddingChange('paddingLeft', Math.max(0, Number(e.target.value)))} />
+                <input
+                  type="number"
+                  style={{ ...smallInputStyle, width: 40 }}
+                  value={config.paddingLeft}
+                  min={0}
+                  onChange={(e) => handlePaddingChange('paddingLeft', Math.max(0, Number(e.target.value)))}
+                />
               </div>
             </>
           )}
@@ -2928,19 +2941,42 @@ function AutoLayoutSection({
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Direction</span>
                 <div style={{ display: 'flex', gap: 2 }}>
-                  <button style={config.direction === 'horizontal' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'horizontal' })} title="Horizontal">H</button>
-                  <button style={config.direction === 'vertical' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'vertical' })} title="Vertical">V</button>
+                  <button
+                    style={config.direction === 'horizontal' ? activeBtnStyle : toggleBtnStyle}
+                    onClick={() => updateConfig({ direction: 'horizontal' })}
+                    title="Horizontal"
+                  >
+                    H
+                  </button>
+                  <button
+                    style={config.direction === 'vertical' ? activeBtnStyle : toggleBtnStyle}
+                    onClick={() => updateConfig({ direction: 'vertical' })}
+                    title="Vertical"
+                  >
+                    V
+                  </button>
                 </div>
               </div>
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Gap</span>
-                <input type="number" style={smallInputStyle} value={config.gap} min={0} onChange={(e) => updateConfig({ gap: Math.max(0, Number(e.target.value)) })} />
+                <input
+                  type="number"
+                  style={smallInputStyle}
+                  value={config.gap}
+                  min={0}
+                  onChange={(e) => updateConfig({ gap: Math.max(0, Number(e.target.value)) })}
+                />
               </div>
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Align</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   {(['start', 'center', 'end', 'stretch'] as const).map((a) => (
-                    <button key={a} style={config.alignItems === a ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ alignItems: a })} title={`Align ${a}`}>
+                    <button
+                      key={a}
+                      style={config.alignItems === a ? activeBtnStyle : toggleBtnStyle}
+                      onClick={() => updateConfig({ alignItems: a })}
+                      title={`Align ${a}`}
+                    >
                       {a[0]!.toUpperCase()}
                     </button>
                   ))}
@@ -2950,7 +2986,12 @@ function AutoLayoutSection({
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Justify</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   {(['start', 'center', 'end', 'space-between'] as const).map((j) => (
-                    <button key={j} style={config.justifyContent === j ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ justifyContent: j })} title={j}>
+                    <button
+                      key={j}
+                      style={config.justifyContent === j ? activeBtnStyle : toggleBtnStyle}
+                      onClick={() => updateConfig({ justifyContent: j })}
+                      title={j}
+                    >
                       {j === 'space-between' ? 'SB' : j[0]!.toUpperCase()}
                     </button>
                   ))}
@@ -2959,7 +3000,11 @@ function AutoLayoutSection({
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Wrap</span>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-                  <input type="checkbox" checked={config.wrap} onChange={(e) => updateConfig({ wrap: e.target.checked })} />
+                  <input
+                    type="checkbox"
+                    checked={config.wrap}
+                    onChange={(e) => updateConfig({ wrap: e.target.checked })}
+                  />
                   <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{config.wrap ? 'On' : 'Off'}</span>
                 </label>
               </div>
@@ -2971,9 +3016,13 @@ function AutoLayoutSection({
             <>
               {/* Columns */}
               <div style={{ marginTop: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}
+                >
                   <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>Columns</span>
-                  <button style={{ ...btnStyle, padding: '1px 6px', fontSize: 9 }} onClick={() => addTrack('columns')}>+</button>
+                  <button style={{ ...btnStyle, padding: '1px 6px', fontSize: 9 }} onClick={() => addTrack('columns')}>
+                    +
+                  </button>
                 </div>
                 {gridConfig.columns.map((track, i) => (
                   <div key={`col-${i}`} style={{ display: 'flex', gap: 2, marginBottom: 2, alignItems: 'center' }}>
@@ -2995,7 +3044,12 @@ function AutoLayoutSection({
                       <option value="auto">auto</option>
                     </select>
                     {gridConfig.columns.length > 1 && (
-                      <button style={{ ...btnStyle, padding: '1px 4px', fontSize: 9, color: 'var(--text-tertiary)' }} onClick={() => removeTrack('columns', i)}>x</button>
+                      <button
+                        style={{ ...btnStyle, padding: '1px 4px', fontSize: 9, color: 'var(--text-tertiary)' }}
+                        onClick={() => removeTrack('columns', i)}
+                      >
+                        x
+                      </button>
                     )}
                   </div>
                 ))}
@@ -3003,9 +3057,13 @@ function AutoLayoutSection({
 
               {/* Rows */}
               <div style={{ marginTop: 4 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                <div
+                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}
+                >
                   <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>Rows</span>
-                  <button style={{ ...btnStyle, padding: '1px 6px', fontSize: 9 }} onClick={() => addTrack('rows')}>+</button>
+                  <button style={{ ...btnStyle, padding: '1px 6px', fontSize: 9 }} onClick={() => addTrack('rows')}>
+                    +
+                  </button>
                 </div>
                 {gridConfig.rows.map((track, i) => (
                   <div key={`row-${i}`} style={{ display: 'flex', gap: 2, marginBottom: 2, alignItems: 'center' }}>
@@ -3027,7 +3085,12 @@ function AutoLayoutSection({
                       <option value="auto">auto</option>
                     </select>
                     {gridConfig.rows.length > 1 && (
-                      <button style={{ ...btnStyle, padding: '1px 4px', fontSize: 9, color: 'var(--text-tertiary)' }} onClick={() => removeTrack('rows', i)}>x</button>
+                      <button
+                        style={{ ...btnStyle, padding: '1px 4px', fontSize: 9, color: 'var(--text-tertiary)' }}
+                        onClick={() => removeTrack('rows', i)}
+                      >
+                        x
+                      </button>
                     )}
                   </div>
                 ))}
@@ -3036,11 +3099,23 @@ function AutoLayoutSection({
               {/* Column Gap / Row Gap */}
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Col Gap</span>
-                <input type="number" style={smallInputStyle} value={gridConfig.columnGap} min={0} onChange={(e) => updateGridConfig({ columnGap: Math.max(0, Number(e.target.value)) })} />
+                <input
+                  type="number"
+                  style={smallInputStyle}
+                  value={gridConfig.columnGap}
+                  min={0}
+                  onChange={(e) => updateGridConfig({ columnGap: Math.max(0, Number(e.target.value)) })}
+                />
               </div>
               <div style={rowStyle}>
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Row Gap</span>
-                <input type="number" style={smallInputStyle} value={gridConfig.rowGap} min={0} onChange={(e) => updateGridConfig({ rowGap: Math.max(0, Number(e.target.value)) })} />
+                <input
+                  type="number"
+                  style={smallInputStyle}
+                  value={gridConfig.rowGap}
+                  min={0}
+                  onChange={(e) => updateGridConfig({ rowGap: Math.max(0, Number(e.target.value)) })}
+                />
               </div>
 
               {/* Align Items */}
@@ -3048,7 +3123,12 @@ function AutoLayoutSection({
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Align</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   {(['start', 'center', 'end', 'stretch'] as const).map((a) => (
-                    <button key={a} style={gridConfig.alignItems === a ? activeBtnStyle : toggleBtnStyle} onClick={() => updateGridConfig({ alignItems: a })} title={`Align ${a}`}>
+                    <button
+                      key={a}
+                      style={gridConfig.alignItems === a ? activeBtnStyle : toggleBtnStyle}
+                      onClick={() => updateGridConfig({ alignItems: a })}
+                      title={`Align ${a}`}
+                    >
                       {a[0]!.toUpperCase()}
                     </button>
                   ))}
@@ -3060,7 +3140,12 @@ function AutoLayoutSection({
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Justify</span>
                 <div style={{ display: 'flex', gap: 2 }}>
                   {(['start', 'center', 'end', 'stretch'] as const).map((j) => (
-                    <button key={j} style={gridConfig.justifyItems === j ? activeBtnStyle : toggleBtnStyle} onClick={() => updateGridConfig({ justifyItems: j })} title={`Justify ${j}`}>
+                    <button
+                      key={j}
+                      style={gridConfig.justifyItems === j ? activeBtnStyle : toggleBtnStyle}
+                      onClick={() => updateGridConfig({ justifyItems: j })}
+                      title={`Justify ${j}`}
+                    >
                       {j[0]!.toUpperCase()}
                     </button>
                   ))}
@@ -3075,84 +3160,132 @@ function AutoLayoutSection({
               <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>
                 {isGrid ? 'Child Placement' : 'Child Sizing'}
               </div>
-              {group.children.filter((c) => c.visible).map((child) => (
-                <div key={child.id} style={{ marginBottom: 4, padding: '2px 4px', background: '#222', borderRadius: 3, fontSize: 10 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: isGrid ? 2 : 0 }}>
-                    <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={child.name}>{child.name}</span>
-                    <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.horizontal ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: e.target.value as 'fixed' | 'fill' | 'hug', vertical: child.layoutSizing?.vertical ?? 'fixed' }) }} title="Horizontal sizing">
-                      <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
-                    </select>
-                    <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.vertical ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: child.layoutSizing?.horizontal ?? 'fixed', vertical: e.target.value as 'fixed' | 'fill' | 'hug' }) }} title="Vertical sizing">
-                      <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
-                    </select>
-                  </div>
-                  {/* Grid placement inputs per child */}
-                  {isGrid && (
-                    <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>Col</span>
-                      <input
-                        type="number"
-                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
-                        value={child.gridPlacement?.column ?? ''}
-                        placeholder="-"
-                        min={0}
-                        onChange={(e) => {
-                          const val = e.target.value
-                          if (val === '') {
-                            updateLayer(artboardId, child.id, { gridPlacement: undefined } as Partial<Layer>)
-                          } else {
-                            const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
-                            updateLayer(artboardId, child.id, { gridPlacement: { ...gp, column: Math.max(0, Number(val)) } } as Partial<Layer>)
-                          }
+              {group.children
+                .filter((c) => c.visible)
+                .map((child) => (
+                  <div
+                    key={child.id}
+                    style={{ marginBottom: 4, padding: '2px 4px', background: '#222', borderRadius: 3, fontSize: 10 }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: isGrid ? 2 : 0 }}>
+                      <span
+                        style={{
+                          color: 'var(--text-secondary)',
+                          flex: 1,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
                         }}
-                        title="Grid column (0-based)"
-                      />
-                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>Row</span>
-                      <input
-                        type="number"
-                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
-                        value={child.gridPlacement?.row ?? ''}
-                        placeholder="-"
-                        min={0}
+                        title={child.name}
+                      >
+                        {child.name}
+                      </span>
+                      <select
+                        style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }}
+                        value={child.layoutSizing?.horizontal ?? 'fixed'}
                         onChange={(e) => {
-                          const val = e.target.value
-                          if (val === '') {
-                            updateLayer(artboardId, child.id, { gridPlacement: undefined } as Partial<Layer>)
-                          } else {
-                            const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
-                            updateLayer(artboardId, child.id, { gridPlacement: { ...gp, row: Math.max(0, Number(val)) } } as Partial<Layer>)
-                          }
+                          setLayoutSizing(artboardId, child.id, {
+                            horizontal: e.target.value as 'fixed' | 'fill' | 'hug',
+                            vertical: child.layoutSizing?.vertical ?? 'fixed',
+                          })
                         }}
-                        title="Grid row (0-based)"
-                      />
-                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>CSpn</span>
-                      <input
-                        type="number"
-                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
-                        value={child.gridPlacement?.columnSpan ?? 1}
-                        min={1}
+                        title="Horizontal sizing"
+                      >
+                        <option value="fixed">Fix</option>
+                        <option value="fill">Fill</option>
+                        <option value="hug">Hug</option>
+                      </select>
+                      <select
+                        style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }}
+                        value={child.layoutSizing?.vertical ?? 'fixed'}
                         onChange={(e) => {
-                          const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
-                          updateLayer(artboardId, child.id, { gridPlacement: { ...gp, columnSpan: Math.max(1, Number(e.target.value)) } } as Partial<Layer>)
+                          setLayoutSizing(artboardId, child.id, {
+                            horizontal: child.layoutSizing?.horizontal ?? 'fixed',
+                            vertical: e.target.value as 'fixed' | 'fill' | 'hug',
+                          })
                         }}
-                        title="Column span"
-                      />
-                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>RSpn</span>
-                      <input
-                        type="number"
-                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
-                        value={child.gridPlacement?.rowSpan ?? 1}
-                        min={1}
-                        onChange={(e) => {
-                          const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
-                          updateLayer(artboardId, child.id, { gridPlacement: { ...gp, rowSpan: Math.max(1, Number(e.target.value)) } } as Partial<Layer>)
-                        }}
-                        title="Row span"
-                      />
+                        title="Vertical sizing"
+                      >
+                        <option value="fixed">Fix</option>
+                        <option value="fill">Fill</option>
+                        <option value="hug">Hug</option>
+                      </select>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {/* Grid placement inputs per child */}
+                    {isGrid && (
+                      <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>Col</span>
+                        <input
+                          type="number"
+                          style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                          value={child.gridPlacement?.column ?? ''}
+                          placeholder="-"
+                          min={0}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (val === '') {
+                              updateLayer(artboardId, child.id, { gridPlacement: undefined } as Partial<Layer>)
+                            } else {
+                              const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                              updateLayer(artboardId, child.id, {
+                                gridPlacement: { ...gp, column: Math.max(0, Number(val)) },
+                              } as Partial<Layer>)
+                            }
+                          }}
+                          title="Grid column (0-based)"
+                        />
+                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>Row</span>
+                        <input
+                          type="number"
+                          style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                          value={child.gridPlacement?.row ?? ''}
+                          placeholder="-"
+                          min={0}
+                          onChange={(e) => {
+                            const val = e.target.value
+                            if (val === '') {
+                              updateLayer(artboardId, child.id, { gridPlacement: undefined } as Partial<Layer>)
+                            } else {
+                              const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                              updateLayer(artboardId, child.id, {
+                                gridPlacement: { ...gp, row: Math.max(0, Number(val)) },
+                              } as Partial<Layer>)
+                            }
+                          }}
+                          title="Grid row (0-based)"
+                        />
+                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>CSpn</span>
+                        <input
+                          type="number"
+                          style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                          value={child.gridPlacement?.columnSpan ?? 1}
+                          min={1}
+                          onChange={(e) => {
+                            const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                            updateLayer(artboardId, child.id, {
+                              gridPlacement: { ...gp, columnSpan: Math.max(1, Number(e.target.value)) },
+                            } as Partial<Layer>)
+                          }}
+                          title="Column span"
+                        />
+                        <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>RSpn</span>
+                        <input
+                          type="number"
+                          style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                          value={child.gridPlacement?.rowSpan ?? 1}
+                          min={1}
+                          onChange={(e) => {
+                            const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                            updateLayer(artboardId, child.id, {
+                              gridPlacement: { ...gp, rowSpan: Math.max(1, Number(e.target.value)) },
+                            } as Partial<Layer>)
+                          }}
+                          title="Row span"
+                        />
+                      </div>
+                    )}
+                  </div>
+                ))}
             </div>
           )}
         </>
@@ -3554,9 +3687,7 @@ function BackgroundRemovalSection() {
           value={tolerance}
           onChange={(e) => setTolerance(Number(e.target.value))}
         />
-        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>
-          {tolerance}
-        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>{tolerance}</span>
       </div>
 
       {method === 'edge' && (
@@ -3588,9 +3719,7 @@ function BackgroundRemovalSection() {
           value={feather}
           onChange={(e) => setFeather(Number(e.target.value))}
         />
-        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>
-          {feather}px
-        </span>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 24, textAlign: 'right' }}>{feather}px</span>
       </div>
 
       <button style={{ ...btnStyle, width: '100%', marginTop: 4 }} onClick={handleApply}>

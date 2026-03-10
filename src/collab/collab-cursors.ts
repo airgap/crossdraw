@@ -80,13 +80,7 @@ export function renderCollabSelections(
 // ── Private Helpers ──
 
 /** Draw a cursor arrow at the given screen position. */
-function drawCursorArrow(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  color: string,
-  name: string,
-): void {
+function drawCursorArrow(ctx: CanvasRenderingContext2D, x: number, y: number, color: string, name: string): void {
   ctx.save()
 
   // Cursor arrow shape (12x18 pixels)

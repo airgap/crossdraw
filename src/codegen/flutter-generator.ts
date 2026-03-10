@@ -201,13 +201,20 @@ function generateTextFlutter(layer: TextLayer, indent: string): string {
 
 function generateGroupFlutter(layer: GroupLayer, indent: string): string {
   const auto = (layer as any).autoLayout as
-    | { direction?: string; gap?: number; alignItems?: string; justifyContent?: string; paddingTop?: number; paddingRight?: number; paddingBottom?: number; paddingLeft?: number }
+    | {
+        direction?: string
+        gap?: number
+        alignItems?: string
+        justifyContent?: string
+        paddingTop?: number
+        paddingRight?: number
+        paddingBottom?: number
+        paddingLeft?: number
+      }
     | undefined
 
   const childIndent = indent + '    '
-  const children = layer.children
-    .map((child) => generateFlutterBody(child, childIndent))
-    .join(',\n')
+  const children = layer.children.map((child) => generateFlutterBody(child, childIndent)).join(',\n')
 
   if (auto) {
     const isColumn = auto.direction === 'column'
@@ -249,9 +256,7 @@ function generateGroupFlutter(layer: GroupLayer, indent: string): string {
 
     // Insert SizedBox spacers for gap
     if (auto.gap && auto.gap > 0) {
-      const spacer = isColumn
-        ? `SizedBox(height: ${auto.gap})`
-        : `SizedBox(width: ${auto.gap})`
+      const spacer = isColumn ? `SizedBox(height: ${auto.gap})` : `SizedBox(width: ${auto.gap})`
       const spacedChildren = layer.children
         .map((child) => generateFlutterBody(child, innerIndent + '  '))
         .join(`,\n${innerIndent}  ${spacer},\n`)

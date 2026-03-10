@@ -122,17 +122,14 @@ export function PNGTuberPreview() {
   }, [simulateTalking])
 
   // Mouse parallax handler
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement>) => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const rect = canvas.getBoundingClientRect()
-      const x = (e.clientX - rect.left) / rect.width
-      const y = (e.clientY - rect.top) / rect.height
-      setMousePos({ x, y })
-    },
-    [],
-  )
+  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const rect = canvas.getBoundingClientRect()
+    const x = (e.clientX - rect.left) / rect.width
+    const y = (e.clientY - rect.top) / rect.height
+    setMousePos({ x, y })
+  }, [])
 
   // Render the preview
   useEffect(() => {
@@ -158,17 +155,10 @@ export function PNGTuberPreview() {
 
     // Draw artboard background
     ctx.fillStyle = artboard.backgroundColor || '#ffffff'
-    ctx.fillRect(
-      offsetX * scale,
-      offsetY * scale,
-      artboard.width * scale,
-      artboard.height * scale,
-    )
+    ctx.fillRect(offsetX * scale, offsetY * scale, artboard.width * scale, artboard.height * scale)
 
     // Sort layers by parallax depth (background first)
-    const sorted = [...visibleLayers].sort(
-      (a, b) => (a.parallaxDepth ?? 0) - (b.parallaxDepth ?? 0),
-    )
+    const sorted = [...visibleLayers].sort((a, b) => (a.parallaxDepth ?? 0) - (b.parallaxDepth ?? 0))
 
     // Render each visible layer with parallax offset
     const parallaxMaxShift = 8 // max pixels of shift at depth=1

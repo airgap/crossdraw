@@ -18,9 +18,7 @@ import type { RasterLayer } from '@/types/document'
  *
  * @param params  Optional overrides for the removal parameters.
  */
-export function applyBackgroundRemovalFilter(
-  params: Partial<BackgroundRemovalParams> = {},
-): void {
+export function applyBackgroundRemovalFilter(params: Partial<BackgroundRemovalParams> = {}): void {
   const state = useEditorStore.getState()
   const artboard = state.document.artboards[0]
   if (!artboard) return
@@ -37,11 +35,7 @@ export function applyBackgroundRemovalFilter(
   if (!srcData) return
 
   // Clone source for undo
-  const beforeData = new ImageData(
-    new Uint8ClampedArray(srcData.data),
-    srcData.width,
-    srcData.height,
-  )
+  const beforeData = new ImageData(new Uint8ClampedArray(srcData.data), srcData.width, srcData.height)
 
   const fullParams: BackgroundRemovalParams = {
     ...DEFAULT_REMOVAL_PARAMS,

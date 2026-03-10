@@ -2,17 +2,7 @@ import type { Segment, Path } from '@/types'
 
 // ── Warp Presets ───────────────────────────────────────────────
 
-export type WarpPreset =
-  | 'arc'
-  | 'arch'
-  | 'bulge'
-  | 'flag'
-  | 'wave'
-  | 'fish'
-  | 'rise'
-  | 'squeeze'
-  | 'twist'
-  | 'none'
+export type WarpPreset = 'arc' | 'arch' | 'bulge' | 'flag' | 'wave' | 'fish' | 'rise' | 'squeeze' | 'twist' | 'none'
 
 export interface EnvelopeParams {
   preset: WarpPreset
@@ -38,12 +28,7 @@ export interface Bounds {
  * Coordinates are in local path space; bounds define the bounding box
  * over which the distortion is applied.
  */
-export function warpPoint(
-  x: number,
-  y: number,
-  bounds: Bounds,
-  params: EnvelopeParams,
-): { x: number; y: number } {
+export function warpPoint(x: number, y: number, bounds: Bounds, params: EnvelopeParams): { x: number; y: number } {
   if (params.preset === 'none') return { x, y }
 
   const { minX, minY, width, height } = bounds
@@ -68,11 +53,7 @@ export function warpPoint(
 
 // ── Preset implementations ─────────────────────────────────────
 
-function applyPreset(
-  nx: number,
-  ny: number,
-  params: EnvelopeParams,
-): { dx: number; dy: number } {
+function applyPreset(nx: number, ny: number, params: EnvelopeParams): { dx: number; dy: number } {
   const { preset, bend } = params
   const strength = bend
 
@@ -104,11 +85,7 @@ function applyPreset(
  * Arc: circular bend along horizontal axis.
  * Points near the center are pushed up/down based on bend.
  */
-function arcPreset(
-  nx: number,
-  _ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function arcPreset(nx: number, _ny: number, strength: number): { dx: number; dy: number } {
   // Parabolic arc: maximum displacement at center (nx=0.5), zero at edges
   const factor = 4 * nx * (1 - nx)
   return { dx: 0, dy: -strength * factor * 50 }
@@ -118,11 +95,7 @@ function arcPreset(
  * Arch: parabolic arch — similar to arc but also affects x.
  * Creates an arch shape that curves the content.
  */
-function archPreset(
-  nx: number,
-  ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function archPreset(nx: number, ny: number, strength: number): { dx: number; dy: number } {
   // Parabolic factor from x position
   const factor = 4 * nx * (1 - nx)
   // Y displacement is strongest at top, tapers at bottom
@@ -137,11 +110,7 @@ function archPreset(
  * Bulge: pinch/expand from center.
  * Points are pushed away from (or toward) the center.
  */
-function bulgePreset(
-  nx: number,
-  ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function bulgePreset(nx: number, ny: number, strength: number): { dx: number; dy: number } {
   const cx = nx - 0.5
   const cy = ny - 0.5
   const dist = Math.sqrt(cx * cx + cy * cy)
@@ -157,11 +126,7 @@ function bulgePreset(
 /**
  * Flag: sinusoidal wave — single period sine wave along x.
  */
-function flagPreset(
-  nx: number,
-  _ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function flagPreset(nx: number, _ny: number, strength: number): { dx: number; dy: number } {
   const dy = strength * Math.sin(nx * Math.PI * 2) * 30
   return { dx: 0, dy }
 }
@@ -169,11 +134,7 @@ function flagPreset(
 /**
  * Wave: multi-period sinusoidal wave.
  */
-function wavePreset(
-  nx: number,
-  _ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function wavePreset(nx: number, _ny: number, strength: number): { dx: number; dy: number } {
   const dy = strength * Math.sin(nx * Math.PI * 4) * 25
   const dx = strength * Math.sin(nx * Math.PI * 3) * 10
   return { dx, dy }
@@ -182,11 +143,7 @@ function wavePreset(
 /**
  * Fish: fisheye lens distortion — radial expansion from center.
  */
-function fishPreset(
-  nx: number,
-  ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function fishPreset(nx: number, ny: number, strength: number): { dx: number; dy: number } {
   const cx = nx - 0.5
   const cy = ny - 0.5
   const r = Math.sqrt(cx * cx + cy * cy)
@@ -206,11 +163,7 @@ function fishPreset(
 /**
  * Rise: vertical skew increasing left-to-right.
  */
-function risePreset(
-  nx: number,
-  _ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function risePreset(nx: number, _ny: number, strength: number): { dx: number; dy: number } {
   // Linear ramp: left side stays, right side rises
   return {
     dx: 0,
@@ -221,11 +174,7 @@ function risePreset(
 /**
  * Squeeze: horizontal compression at center.
  */
-function squeezePreset(
-  nx: number,
-  ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function squeezePreset(nx: number, ny: number, strength: number): { dx: number; dy: number } {
   // Squeeze horizontally, with maximum effect at the vertical center
   const yCenterFactor = 4 * ny * (1 - ny)
   const xDisplace = (nx - 0.5) * strength * yCenterFactor * 40
@@ -238,11 +187,7 @@ function squeezePreset(
 /**
  * Twist: rotational distortion from center.
  */
-function twistPreset(
-  nx: number,
-  ny: number,
-  strength: number,
-): { dx: number; dy: number } {
+function twistPreset(nx: number, ny: number, strength: number): { dx: number; dy: number } {
   const cx = nx - 0.5
   const cy = ny - 0.5
   const dist = Math.sqrt(cx * cx + cy * cy)
@@ -311,11 +256,7 @@ export function computeSegmentBounds(segments: Segment[]): Bounds {
  * Transform all segments through the envelope distortion.
  * Control points for cubic and quadratic curves are also warped.
  */
-export function warpSegments(
-  segments: Segment[],
-  bounds: Bounds,
-  params: EnvelopeParams,
-): Segment[] {
+export function warpSegments(segments: Segment[], bounds: Bounds, params: EnvelopeParams): Segment[] {
   if (params.preset === 'none') return segments
 
   return segments.map((seg): Segment => {

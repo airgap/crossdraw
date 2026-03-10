@@ -2,6 +2,16 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { getLayerBBox } from '@/math/bbox'
 import type { DesignDocument, Artboard, Layer, Interaction, Transition } from '@/types'
 
+/** Only allow http: and https: URLs to prevent javascript: injection */
+function isSafeUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url, window.location.href)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 interface Props {
   document: DesignDocument
   startArtboardId: string
@@ -61,10 +71,7 @@ function getTransitionExitTo(type: Transition['type']): string {
 }
 
 /** Render an artboard to an offscreen canvas and return it as an ImageBitmap-backed canvas */
-function renderArtboardToCanvas(
-  doc: DesignDocument,
-  artboard: Artboard,
-): HTMLCanvasElement {
+function renderArtboardToCanvas(doc: DesignDocument, artboard: Artboard): HTMLCanvasElement {
   const canvas = document.createElement('canvas')
   canvas.width = artboard.width
   canvas.height = artboard.height
@@ -418,9 +425,13 @@ export function PrototypePlayer({ document: doc, startArtboardId, onClose }: Pro
         case 'back':
           goBack(interaction.action.transition)
           break
-        case 'url':
-          window.open(interaction.action.url, '_blank')
+        case 'url': {
+          const url = interaction.action.url
+          if (isSafeUrl(url)) {
+            window.open(url, '_blank')
+          }
           break
+        }
         case 'scroll-to':
           // Basic scroll-to: not implemented for canvas rendering
           break
@@ -530,9 +541,7 @@ export function PrototypePlayer({ document: doc, startArtboardId, onClose }: Pro
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <span style={{ color: '#888', fontSize: 13 }}>Prototype Preview</span>
-          <span style={{ color: '#555', fontSize: 12 }}>
-            {currentArtboard.name}
-          </span>
+          <span style={{ color: '#555', fontSize: 12 }}>{currentArtboard.name}</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <button
@@ -603,12 +612,21 @@ export function PrototypePlayer({ document: doc, startArtboardId, onClose }: Pro
           {transitioning && transitionStyle ? (
             <>
               {/* Exiting (current) artboard */}
-              <div style={{ ...transitionStyle.exiting, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div
+                style={{ ...transitionStyle.exiting, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
                 <ArtboardImage canvas={artboardCanvas} scale={scale} />
               </div>
               {/* Entering (next) artboard */}
               {targetCanvas && (
-                <div style={{ ...transitionStyle.entering, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    ...transitionStyle.entering,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
                   <ArtboardImage canvas={targetCanvas} scale={scale} />
                 </div>
               )}
@@ -625,7 +643,8 @@ export function PrototypePlayer({ document: doc, startArtboardId, onClose }: Pro
               position: 'absolute',
               inset: 0,
               display: 'flex',
-              alignItems: overlayPosition === 'top' ? 'flex-start' : overlayPosition === 'bottom' ? 'flex-end' : 'center',
+              alignItems:
+                overlayPosition === 'top' ? 'flex-start' : overlayPosition === 'bottom' ? 'flex-end' : 'center',
               justifyContent: 'center',
               background: overlayVisible ? 'rgba(0,0,0,0.5)' : 'rgba(0,0,0,0)',
               transition: 'background 200ms ease',
@@ -648,10 +667,7 @@ export function PrototypePlayer({ document: doc, startArtboardId, onClose }: Pro
               }}
               onClick={(e) => e.stopPropagation()}
             >
-              <ArtboardImage
-                canvas={renderArtboardToCanvas(doc, overlayArtboard)}
-                scale={scale * 0.8}
-              />
+              <ArtboardImage canvas={renderArtboardToCanvas(doc, overlayArtboard)} scale={scale * 0.8} />
             </div>
           </div>
         )}

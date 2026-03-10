@@ -58,9 +58,14 @@ function makeWhiteBgRedSquare(): ImageData {
  * right half a different colour.
  */
 function makeTwoColorImage(
-  w: number, h: number,
-  leftR: number, leftG: number, leftB: number,
-  rightR: number, rightG: number, rightB: number,
+  w: number,
+  h: number,
+  leftR: number,
+  leftG: number,
+  leftB: number,
+  rightR: number,
+  rightG: number,
+  rightB: number,
 ): ImageData {
   const data: number[] = []
   for (let y = 0; y < h; y++) {
@@ -172,10 +177,10 @@ describe('removeBackgroundByColor', () => {
 
     // Center pixel (5,5) should remain opaque (red square)
     const centerIdx = (5 * 10 + 5) * 4
-    expect(result.data[centerIdx]!).toBe(255)     // R
-    expect(result.data[centerIdx + 1]!).toBe(0)   // G
-    expect(result.data[centerIdx + 2]!).toBe(0)   // B
-    expect(result.data[centerIdx + 3]!).toBe(255)  // A
+    expect(result.data[centerIdx]!).toBe(255) // R
+    expect(result.data[centerIdx + 1]!).toBe(0) // G
+    expect(result.data[centerIdx + 2]!).toBe(0) // B
+    expect(result.data[centerIdx + 3]!).toBe(255) // A
   })
 
   it('preserves all pixels when tolerance is zero and colours differ', () => {
@@ -258,8 +263,8 @@ describe('applyFeathering', () => {
     // At the boundary (x=9,10), the values should be intermediate
     // Instead of a sharp 0->255 jump, we should see gradual values
     const midRow = 5
-    const leftEdge = feathered[midRow * w + 8]!  // just left of boundary
-    const boundary = feathered[midRow * w + 10]!  // at boundary
+    const leftEdge = feathered[midRow * w + 8]! // just left of boundary
+    const boundary = feathered[midRow * w + 10]! // at boundary
     const rightEdge = feathered[midRow * w + 12]! // just right of boundary
 
     // The feathered boundary should be between 0 and 255
@@ -330,10 +335,22 @@ describe('removeBackgroundByThreshold', () => {
     const w = 4
     const h = 1
     const data = [
-      255, 255, 255, 255, // pure white
-      230, 230, 230, 255, // light grey (lum ~230)
-      100, 100, 100, 255, // medium grey (lum ~100)
-      0, 0, 0, 255,       // black
+      255,
+      255,
+      255,
+      255, // pure white
+      230,
+      230,
+      230,
+      255, // light grey (lum ~230)
+      100,
+      100,
+      100,
+      255, // medium grey (lum ~100)
+      0,
+      0,
+      0,
+      255, // black
     ]
     const img = makeImageData(data, w, h)
 
@@ -407,9 +424,9 @@ describe('removeBackground integration', () => {
 
     // The red square pixels should have unchanged RGB
     const centerIdx = (5 * 10 + 5) * 4
-    expect(result.data[centerIdx]!).toBe(255)     // R
-    expect(result.data[centerIdx + 1]!).toBe(0)   // G
-    expect(result.data[centerIdx + 2]!).toBe(0)   // B
+    expect(result.data[centerIdx]!).toBe(255) // R
+    expect(result.data[centerIdx + 1]!).toBe(0) // G
+    expect(result.data[centerIdx + 2]!).toBe(0) // B
   })
 
   it('does not modify the original image data', () => {

@@ -61,7 +61,10 @@ function msToFrame(ms: number, frameRate: number): number {
  * Map our easing types to Lottie bezier easing handles.
  * Lottie uses `i` (in tangent) and `o` (out tangent) as bezier curve points.
  */
-function getEasingHandles(easing: Keyframe['easing']): { i: { x: number[]; y: number[] }; o: { x: number[]; y: number[] } } {
+function getEasingHandles(easing: Keyframe['easing']): {
+  i: { x: number[]; y: number[] }
+  o: { x: number[]; y: number[] }
+} {
   switch (easing) {
     case 'linear':
       return {
@@ -187,11 +190,7 @@ function buildPropertyKeyframes(
 /**
  * Build Lottie animated property with scalar values (e.g., rotation, opacity).
  */
-function buildScalarKeyframes(
-  keyframes: Keyframe[],
-  frameRate: number,
-  getValue: (kf: Keyframe) => number,
-): object {
+function buildScalarKeyframes(keyframes: Keyframe[], frameRate: number, getValue: (kf: Keyframe) => number): object {
   if (keyframes.length === 0) {
     return { a: 0, k: 0 }
   }

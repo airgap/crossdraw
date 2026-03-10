@@ -237,10 +237,7 @@ function segmentsToVertices(segments: Segment[]): { x: number; y: number }[] {
  * Front face at z=0, back face at z=depth.
  * Side quads connect corresponding vertices.
  */
-export function extrudePath(
-  segments: Segment[],
-  depth: number,
-): ExtrudedGeometry {
+export function extrudePath(segments: Segment[], depth: number): ExtrudedGeometry {
   const verts2D = segmentsToVertices(segments)
   if (verts2D.length === 0) {
     return { front: [], back: [], sides: [] }
@@ -265,11 +262,7 @@ export function extrudePath(
  * Orthographic projection: drop z, center within given bounds.
  * Returns x, y in output space and depth for sorting.
  */
-export function projectTo2D(
-  point: Vec3,
-  width: number,
-  height: number,
-): ProjectedPoint {
+export function projectTo2D(point: Vec3, width: number, height: number): ProjectedPoint {
   return {
     x: point.x + width / 2,
     y: point.y + height / 2,
@@ -294,10 +287,7 @@ export function computeFaceNormal(p1: Vec3, p2: Vec3, p3: Vec3): Vec3 {
 /** Parse hex color to RGB components (0-255). */
 function parseHexColor(hex: string): { r: number; g: number; b: number } {
   const clean = hex.replace('#', '')
-  const fullHex =
-    clean.length === 3
-      ? clean[0]! + clean[0]! + clean[1]! + clean[1]! + clean[2]! + clean[2]!
-      : clean
+  const fullHex = clean.length === 3 ? clean[0]! + clean[0]! + clean[1]! + clean[1]! + clean[2]! + clean[2]! : clean
   return {
     r: parseInt(fullHex.substring(0, 2), 16),
     g: parseInt(fullHex.substring(2, 4), 16),
@@ -439,13 +429,7 @@ export function render3DLayer(
   for (const face of faces) {
     if (face.points2D.length < 3) continue
 
-    const color = computePhongShading(
-      face.normal,
-      config.lighting.direction,
-      viewDir,
-      config.material,
-      config.lighting,
-    )
+    const color = computePhongShading(face.normal, config.lighting.direction, viewDir, config.material, config.lighting)
 
     ctx.beginPath()
     ctx.moveTo(face.points2D[0]!.x, face.points2D[0]!.y)

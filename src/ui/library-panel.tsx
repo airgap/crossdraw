@@ -269,9 +269,7 @@ export function LibraryPanel() {
                   >
                     {lib.name}
                   </span>
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 11, flexShrink: 0 }}>
-                    v{lib.version}
-                  </span>
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 11, flexShrink: 0 }}>v{lib.version}</span>
                   {updateAvailable && (
                     <span
                       style={{

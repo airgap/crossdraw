@@ -64,7 +64,10 @@ const SAMPLE_INTERVAL = 2 // pixels between samples
  * Sample a segment list into evenly-spaced points along the path.
  * Returns the polyline and cumulative arc-length at each point.
  */
-export function sampleSegments(segments: Segment[], interval: number = SAMPLE_INTERVAL): { points: Point[]; lengths: number[] } {
+export function sampleSegments(
+  segments: Segment[],
+  interval: number = SAMPLE_INTERVAL,
+): { points: Point[]; lengths: number[] } {
   // First flatten segments to a raw polyline
   const raw: Point[] = []
   let cx = 0

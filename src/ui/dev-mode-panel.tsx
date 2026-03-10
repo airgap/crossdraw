@@ -227,9 +227,7 @@ function AnnotationsList({ artboard }: { artboard: Artboard }) {
 
   if (annotated.length === 0) {
     return (
-      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>
-        No annotations in this artboard
-      </div>
+      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 8 }}>No annotations in this artboard</div>
     )
   }
 
@@ -263,9 +261,7 @@ function SimplifiedLayerTree({ artboard }: { artboard: Artboard }) {
     <div style={{ marginTop: 8 }}>
       <strong style={{ color: 'var(--text-primary)', fontSize: 11 }}>Named Layers:</strong>
       {namedLayers.length === 0 ? (
-        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>
-          No named layers
-        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 4 }}>No named layers</div>
       ) : (
         namedLayers.map((layer) => (
           <div
@@ -322,9 +318,7 @@ function ReadyForDevArtboards() {
             onChange={(e) => setReadyForDev(artboard.id, e.target.checked)}
             title="Mark as ready for development"
           />
-          <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1 }}>
-            {artboard.name}
-          </span>
+          <span style={{ fontSize: 11, color: 'var(--text-primary)', flex: 1 }}>{artboard.name}</span>
           {artboard.readyForDev && (
             <span
               style={{
@@ -364,9 +358,7 @@ export function DevModePanel() {
   const colorStyles = document.styles?.colorStyles ?? []
   const effectStyles = document.styles?.effectStyles ?? []
 
-  const linkedTextStyle = selectedLayer?.textStyleId
-    ? textStyles.find((s) => s.id === selectedLayer.textStyleId)
-    : null
+  const linkedTextStyle = selectedLayer?.textStyleId ? textStyles.find((s) => s.id === selectedLayer.textStyleId) : null
   const linkedColorStyle = selectedLayer?.fillStyleId
     ? colorStyles.find((s) => s.id === selectedLayer.fillStyleId)
     : null

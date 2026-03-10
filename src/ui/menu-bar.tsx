@@ -1421,7 +1421,19 @@ function buildMenus(): MenuDef[] {
     ],
   }
 
-  return [fileMenu, editMenu, viewMenu, layerMenu, pathMenu, typeMenu, filterMenu, aiMenu, collabMenu, windowMenu, helpMenu]
+  return [
+    fileMenu,
+    editMenu,
+    viewMenu,
+    layerMenu,
+    pathMenu,
+    typeMenu,
+    filterMenu,
+    aiMenu,
+    collabMenu,
+    windowMenu,
+    helpMenu,
+  ]
 }
 
 // ── Component ──

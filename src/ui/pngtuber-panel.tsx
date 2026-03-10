@@ -3,7 +3,16 @@ import { useEditorStore } from '@/store/editor.store'
 import type { Layer, PNGTuberTag } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 
-const PART_TAGS: (PNGTuberTag | 'none')[] = ['none', 'head', 'eyes', 'mouth', 'body', 'accessory', 'background', 'effect']
+const PART_TAGS: (PNGTuberTag | 'none')[] = [
+  'none',
+  'head',
+  'eyes',
+  'mouth',
+  'body',
+  'accessory',
+  'background',
+  'effect',
+]
 const REQUIRED_TAGS: PNGTuberTag[] = ['head', 'eyes', 'mouth', 'body']
 
 function collectAllLayers(layers: Layer[]): Layer[] {
@@ -22,10 +31,7 @@ interface ValidationWarning {
   message: string
 }
 
-function computeValidation(
-  allLayers: Layer[],
-  expressions: string[],
-): ValidationWarning[] {
+function computeValidation(allLayers: Layer[], expressions: string[]): ValidationWarning[] {
   const warnings: ValidationWarning[] = []
 
   // Check for required tags
@@ -41,9 +47,7 @@ function computeValidation(
 
   // Check each expression has at least one unique layer
   for (const expr of expressions) {
-    const hasUniqueLayers = allLayers.some(
-      (l) => l.pngtuberTag && l.pngtuberExpression === expr,
-    )
+    const hasUniqueLayers = allLayers.some((l) => l.pngtuberTag && l.pngtuberExpression === expr)
     if (!hasUniqueLayers) {
       warnings.push({
         type: 'no-unique-layers',
@@ -167,11 +171,7 @@ export function PNGTuberPanel() {
       {/* Enable/Disable Toggle */}
       <div style={sectionStyle}>
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={enabled}
-            onChange={(e) => setPNGTuberEnabled(e.target.checked)}
-          />
+          <input type="checkbox" checked={enabled} onChange={(e) => setPNGTuberEnabled(e.target.checked)} />
           <span style={{ fontWeight: 'bold' }}>PNGtuber Mode</span>
         </label>
       </div>
@@ -272,9 +272,7 @@ export function PNGTuberPanel() {
           {/* Per-Layer Controls */}
           {selectedLayer && selectedArtboardId && (
             <div style={sectionStyle}>
-              <span style={{ ...labelStyle, fontWeight: 'bold' }}>
-                Layer: {selectedLayer.name}
-              </span>
+              <span style={{ ...labelStyle, fontWeight: 'bold' }}>Layer: {selectedLayer.name}</span>
 
               {/* Part Tag */}
               <div style={{ marginBottom: '6px' }}>
@@ -284,11 +282,7 @@ export function PNGTuberPanel() {
                   value={selectedLayer.pngtuberTag ?? 'none'}
                   onChange={(e) => {
                     const val = e.target.value as PNGTuberTag | 'none'
-                    setLayerPNGTuberTag(
-                      selectedArtboardId,
-                      selectedLayer.id,
-                      val === 'none' ? undefined : val,
-                    )
+                    setLayerPNGTuberTag(selectedArtboardId, selectedLayer.id, val === 'none' ? undefined : val)
                   }}
                 >
                   {PART_TAGS.map((tag) => (
@@ -307,11 +301,7 @@ export function PNGTuberPanel() {
                   value={selectedLayer.pngtuberExpression ?? 'all'}
                   onChange={(e) => {
                     const val = e.target.value
-                    setLayerExpression(
-                      selectedArtboardId,
-                      selectedLayer.id,
-                      val === 'all' ? undefined : val,
-                    )
+                    setLayerExpression(selectedArtboardId, selectedLayer.id, val === 'all' ? undefined : val)
                   }}
                 >
                   <option value="all">All expressions</option>
@@ -325,9 +315,7 @@ export function PNGTuberPanel() {
 
               {/* Parallax Depth */}
               <div style={{ marginBottom: '6px' }}>
-                <span style={labelStyle}>
-                  Parallax Depth: {(selectedLayer.parallaxDepth ?? 0).toFixed(2)}
-                </span>
+                <span style={labelStyle}>Parallax Depth: {(selectedLayer.parallaxDepth ?? 0).toFixed(2)}</span>
                 <input
                   type="range"
                   min="0"
@@ -335,15 +323,18 @@ export function PNGTuberPanel() {
                   step="0.01"
                   value={selectedLayer.parallaxDepth ?? 0}
                   onChange={(e) => {
-                    setLayerParallaxDepth(
-                      selectedArtboardId,
-                      selectedLayer.id,
-                      parseFloat(e.target.value),
-                    )
+                    setLayerParallaxDepth(selectedArtboardId, selectedLayer.id, parseFloat(e.target.value))
                   }}
                   style={{ width: '100%' }}
                 />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-tertiary, #666)' }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    fontSize: '10px',
+                    color: 'var(--text-tertiary, #666)',
+                  }}
+                >
                   <span>Background (0)</span>
                   <span>Foreground (1)</span>
                 </div>

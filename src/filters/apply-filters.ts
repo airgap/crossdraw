@@ -154,9 +154,15 @@ export function applyChannelMixerFilter(): void {
   const beforeData = cloneImageData(srcData)
   // Default: identity matrix (no change) — users would customise via a dialog.
   const result = applyChannelMixer(srcData, {
-    rr: 1, rg: 0, rb: 0,
-    gr: 0, gg: 1, gb: 0,
-    br: 0, bg: 0, bb: 1,
+    rr: 1,
+    rg: 0,
+    rb: 0,
+    gr: 0,
+    gg: 1,
+    gb: 0,
+    br: 0,
+    bg: 0,
+    bb: 1,
   })
   commitResult('Filter: Channel Mixer', chunkId, beforeData, result)
 }

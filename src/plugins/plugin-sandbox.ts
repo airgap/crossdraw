@@ -6,6 +6,67 @@
 import type { CrossdrawPluginAPI } from './plugin-api'
 
 /**
+ * Property names that allow escaping the sandbox via the constructor chain
+ * (e.g. `api.getDocument.constructor('return this')()`) or prototype
+ * manipulation. Accessing any of these on a proxied object returns `undefined`.
+ */
+const DANGEROUS_PROPS: ReadonlySet<string | symbol> = new Set([
+  'constructor',
+  'prototype',
+  '__proto__',
+  '__defineGetter__',
+  '__defineSetter__',
+  '__lookupGetter__',
+  '__lookupSetter__',
+])
+
+/**
+ * Wrap an object in a Proxy that blocks access to prototype-climbing
+ * properties. Any function values returned from the proxy are themselves
+ * wrapped so the entire object graph is protected — a plugin cannot reach
+ * the real `Function` constructor through *any* reference chain.
+ *
+ * A WeakMap cache ensures each source object is wrapped at most once,
+ * preventing infinite recursion on circular references.
+ */
+function createSafeProxy<T extends object>(obj: T, cache = new WeakMap<object, object>()): T {
+  if (cache.has(obj)) return cache.get(obj) as T
+
+  const proxy = new Proxy(obj, {
+    get(target, prop, receiver) {
+      if (DANGEROUS_PROPS.has(prop)) return undefined
+
+      const value = Reflect.get(target, prop, receiver)
+
+      // Wrap returned functions so that fn.constructor is also blocked
+      if (typeof value === 'function') {
+        const wrappedFn = function (this: unknown, ...args: unknown[]) {
+          return value.apply(this === proxy ? target : this, args)
+        }
+        // The wrapped function itself needs a safe proxy to block
+        // wrappedFn.constructor access
+        return createSafeProxy(wrappedFn, cache)
+      }
+
+      // Wrap returned objects (but not null/primitives)
+      if (value !== null && typeof value === 'object') {
+        return createSafeProxy(value as object, cache)
+      }
+
+      return value
+    },
+
+    set(target, prop, value) {
+      if (DANGEROUS_PROPS.has(prop)) return true // silently discard
+      return Reflect.set(target, prop, value)
+    },
+  })
+
+  cache.set(obj, proxy)
+  return proxy as T
+}
+
+/**
  * List of global names that should be explicitly masked (set to undefined)
  * inside the sandbox so plugin code cannot reach them.
  */
@@ -64,7 +125,7 @@ export function runPluginInSandbox(code: string, api: CrossdrawPluginAPI): void 
   // Build the parameter names and values arrays.
   // The first parameter is always `api`, followed by all blocked globals set to undefined.
   const paramNames: string[] = ['api', ...BLOCKED_GLOBALS]
-  const paramValues: unknown[] = [api]
+  const paramValues: unknown[] = [createSafeProxy(api as unknown as object)]
 
   // All blocked globals receive `undefined`
   for (let i = 0; i < BLOCKED_GLOBALS.length; i++) {

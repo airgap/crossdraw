@@ -460,12 +460,7 @@ describe('depth sorting order', () => {
 
   it('painter sort puts far faces before near faces', () => {
     // Simulate what render3DLayer does: sort by centroidDepth descending
-    const faces = [
-      { depth: 10 },
-      { depth: 50 },
-      { depth: 0 },
-      { depth: 30 },
-    ]
+    const faces = [{ depth: 10 }, { depth: 50 }, { depth: 0 }, { depth: 30 }]
     faces.sort((a, b) => b.depth - a.depth)
     expect(faces[0]!.depth).toBe(50) // farthest first
     expect(faces[faces.length - 1]!.depth).toBe(0) // nearest last

@@ -1,16 +1,7 @@
 import { describe, it, expect } from 'bun:test'
-import {
-  getInheritedVariables,
-  getEffectiveValue,
-  wouldCreateCycle,
-} from '@/variables/variable-types'
+import { getInheritedVariables, getEffectiveValue, wouldCreateCycle } from '@/variables/variable-types'
 import { resolveVariable } from '@/variables/variable-resolver'
-import type {
-  VariableCollection,
-  Variable,
-  VariableMode,
-  VariableType,
-} from '@/variables/variable-types'
+import type { VariableCollection, Variable, VariableMode, VariableType } from '@/variables/variable-types'
 
 // ── Test helpers ──
 
@@ -146,10 +137,7 @@ describe('theme-extensions: multi-level chain', () => {
     const grandparent = createCollection({
       id: 'gp',
       name: 'Foundation',
-      variables: [
-        createVariable('var-a', 'A', 'color', 'gp'),
-        createVariable('var-b', 'B', 'number', 'gp'),
-      ],
+      variables: [createVariable('var-a', 'A', 'color', 'gp'), createVariable('var-b', 'B', 'number', 'gp')],
       values: {
         'var-a': { 'mode-1': { type: 'color', value: '#111' } },
         'var-b': { 'mode-1': { type: 'number', value: 10 } },

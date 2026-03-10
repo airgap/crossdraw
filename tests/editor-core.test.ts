@@ -1,18 +1,32 @@
 import { describe, test, expect } from 'bun:test'
-import {
-  TOKEN_TO_CSS_VAR,
-  getModeConfig,
-  type CrossdrawThemeTokens,
-} from '../packages/editor-core/src/index'
+import { TOKEN_TO_CSS_VAR, getModeConfig, type CrossdrawThemeTokens } from '../packages/editor-core/src/index'
 
 describe('theme-contract', () => {
   test('TOKEN_TO_CSS_VAR maps all token keys', () => {
     const tokenKeys: (keyof CrossdrawThemeTokens)[] = [
-      'bgBase', 'bgSurface', 'bgElevated', 'bgOverlay', 'bgInput', 'bgHover', 'bgActive', 'canvasBg',
-      'borderSubtle', 'borderDefault', 'borderStrong',
-      'textPrimary', 'textSecondary', 'textDisabled', 'textAccent',
-      'accent', 'accentHover', 'accentActive', 'accentDisabled',
-      'success', 'warning', 'error', 'info',
+      'bgBase',
+      'bgSurface',
+      'bgElevated',
+      'bgOverlay',
+      'bgInput',
+      'bgHover',
+      'bgActive',
+      'canvasBg',
+      'borderSubtle',
+      'borderDefault',
+      'borderStrong',
+      'textPrimary',
+      'textSecondary',
+      'textDisabled',
+      'textAccent',
+      'accent',
+      'accentHover',
+      'accentActive',
+      'accentDisabled',
+      'success',
+      'warning',
+      'error',
+      'info',
     ]
     for (const key of tokenKeys) {
       expect(TOKEN_TO_CSS_VAR[key]).toBeDefined()

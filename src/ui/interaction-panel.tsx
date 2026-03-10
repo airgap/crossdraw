@@ -161,7 +161,11 @@ export function InteractionPanel() {
     updateInteraction(artboardInfo.artboardId, selectedLayerId, interactionId, { trigger })
   }
 
-  const handleUpdateAction = (interactionId: string, actionType: InteractionAction['type'], currentAction: InteractionAction) => {
+  const handleUpdateAction = (
+    interactionId: string,
+    actionType: InteractionAction['type'],
+    currentAction: InteractionAction,
+  ) => {
     let newAction: InteractionAction
     const firstArtboardId = doc.artboards[0]?.id ?? ''
 
@@ -353,9 +357,7 @@ export function InteractionPanel() {
                     max={5000}
                     step={50}
                     value={(ix.action as { transition: Transition }).transition.duration}
-                    onChange={(e) =>
-                      handleUpdateTransition(ix.id, ix.action, { duration: Number(e.target.value) })
-                    }
+                    onChange={(e) => handleUpdateTransition(ix.id, ix.action, { duration: Number(e.target.value) })}
                     style={{ ...inputStyle, width: 70 }}
                   />
                   <span style={{ color: 'var(--text-secondary)', fontSize: 11 }}>ms</span>

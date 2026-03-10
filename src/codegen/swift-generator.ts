@@ -62,9 +62,10 @@ function generateVectorSwiftUI(layer: VectorLayer, indent: string): string {
       shape = 'Ellipse()'
     } else if (layer.shapeParams.shapeType === 'rectangle') {
       if (layer.shapeParams.cornerRadius !== undefined) {
-        const cr = typeof layer.shapeParams.cornerRadius === 'number'
-          ? layer.shapeParams.cornerRadius
-          : layer.shapeParams.cornerRadius[0]
+        const cr =
+          typeof layer.shapeParams.cornerRadius === 'number'
+            ? layer.shapeParams.cornerRadius
+            : layer.shapeParams.cornerRadius[0]
         shape = `RoundedRectangle(cornerRadius: ${cr})`
       }
     } else if (layer.shapeParams.shapeType === 'polygon') {
@@ -118,7 +119,9 @@ function generateTextSwiftUI(layer: TextLayer, indent: string): string {
   const escapedText = layer.text.replace(/"/g, '\\"')
 
   lines.push(`${indent}Text("${escapedText}")`)
-  lines.push(`${indent}    .font(.system(size: ${layer.fontSize}, weight: ${layer.fontWeight === 'bold' ? '.bold' : '.regular'}))`)
+  lines.push(
+    `${indent}    .font(.system(size: ${layer.fontSize}, weight: ${layer.fontWeight === 'bold' ? '.bold' : '.regular'}))`,
+  )
 
   if (layer.fontStyle === 'italic') {
     lines.push(`${indent}    .italic()`)
@@ -174,9 +177,7 @@ function generateTextSwiftUI(layer: TextLayer, indent: string): string {
 }
 
 function generateGroupSwiftUI(layer: GroupLayer, indent: string): string {
-  const auto = (layer as any).autoLayout as
-    | { direction?: string; gap?: number; alignItems?: string }
-    | undefined
+  const auto = (layer as any).autoLayout as { direction?: string; gap?: number; alignItems?: string } | undefined
 
   let stack = 'ZStack'
   let alignment = ''
@@ -203,9 +204,7 @@ function generateGroupSwiftUI(layer: GroupLayer, indent: string): string {
   const params = [spacing, alignment].filter(Boolean).join(', ')
   const header = params ? `${stack}(${params})` : `${stack}`
 
-  const children = layer.children
-    .map((child) => generateSwiftUIBody(child, indent + '    '))
-    .join('\n')
+  const children = layer.children.map((child) => generateSwiftUIBody(child, indent + '    ')).join('\n')
 
   const lines: string[] = []
   lines.push(`${indent}${header} {`)

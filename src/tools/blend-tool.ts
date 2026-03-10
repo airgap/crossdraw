@@ -96,7 +96,15 @@ function promoteToCubic(
 }
 
 /** Interpolate two segments of any type by promoting to cubic when types differ. */
-function interpolateSegment(seg1: Segment, seg2: Segment, t: number, prev1X: number, prev1Y: number, prev2X: number, prev2Y: number): Segment {
+function interpolateSegment(
+  seg1: Segment,
+  seg2: Segment,
+  t: number,
+  prev1X: number,
+  prev1Y: number,
+  prev2X: number,
+  prev2Y: number,
+): Segment {
   // If both are 'close', result is close
   if (seg1.type === 'close' && seg2.type === 'close') return { type: 'close' }
 
@@ -321,11 +329,7 @@ function interpolateStroke(s1: Stroke | null, s2: Stroke | null, t: number): Str
 
 // ── Generate blend ──
 
-export function generateBlend(
-  layer1: VectorLayer,
-  layer2: VectorLayer,
-  config: BlendConfig,
-): VectorLayer[] {
+export function generateBlend(layer1: VectorLayer, layer2: VectorLayer, config: BlendConfig): VectorLayer[] {
   const intermediates: VectorLayer[] = []
 
   for (let i = 1; i <= config.steps; i++) {

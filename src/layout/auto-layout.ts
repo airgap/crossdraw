@@ -51,9 +51,7 @@ export function createDefaultGridConfig(): GridLayoutConfig {
       { size: 1, unit: 'fr' },
       { size: 1, unit: 'fr' },
     ],
-    rows: [
-      { size: 1, unit: 'fr' },
-    ],
+    rows: [{ size: 1, unit: 'fr' }],
     columnGap: 8,
     rowGap: 8,
     alignItems: 'stretch',
@@ -342,7 +340,8 @@ function applyGridLayout(
   }
 
   // Compute hug dimensions
-  const totalColumnWidth = columnSizes.reduce((a, b) => a + b, 0) + Math.max(0, columnSizes.length - 1) * gridConfig.columnGap
+  const totalColumnWidth =
+    columnSizes.reduce((a, b) => a + b, 0) + Math.max(0, columnSizes.length - 1) * gridConfig.columnGap
   const totalRowHeight = rowSizes.reduce((a, b) => a + b, 0) + Math.max(0, rowSizes.length - 1) * gridConfig.rowGap
   const hugWidth = config.paddingLeft + totalColumnWidth + config.paddingRight
   const hugHeight = config.paddingTop + totalRowHeight + config.paddingBottom

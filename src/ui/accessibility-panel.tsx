@@ -388,7 +388,7 @@ export function AccessibilityPanel() {
   }, [])
 
   const totalIssues = results
-    ? (results.contrastIssues.filter((c) => !c.passAA).length + results.touchTargetIssues.length)
+    ? results.contrastIssues.filter((c) => !c.passAA).length + results.touchTargetIssues.length
     : 0
 
   const contrastFailCount = results ? results.contrastIssues.filter((c) => !c.passAA).length : 0
@@ -433,10 +433,14 @@ export function AccessibilityPanel() {
       {results && totalIssues > 0 && (
         <div style={{ fontSize: 10, color: 'var(--text-secondary)', lineHeight: '16px' }}>
           {contrastFailCount > 0 && (
-            <div>{contrastFailCount} contrast issue{contrastFailCount !== 1 ? 's' : ''}</div>
+            <div>
+              {contrastFailCount} contrast issue{contrastFailCount !== 1 ? 's' : ''}
+            </div>
           )}
           {touchFailCount > 0 && (
-            <div>{touchFailCount} touch target issue{touchFailCount !== 1 ? 's' : ''}</div>
+            <div>
+              {touchFailCount} touch target issue{touchFailCount !== 1 ? 's' : ''}
+            </div>
           )}
         </div>
       )}

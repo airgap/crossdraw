@@ -394,9 +394,7 @@ describe('mergeSnapshots', () => {
 describe('VersionSnapshot structure', () => {
   it('snapshot roundtrips document data via JSON', () => {
     const doc = createTestDocument()
-    doc.artboards[0]!.layers.push(
-      createVectorLayer('layer-1', 'Test Layer', { opacity: 0.75 }),
-    )
+    doc.artboards[0]!.layers.push(createVectorLayer('layer-1', 'Test Layer', { opacity: 0.75 }))
 
     const snapshot = makeSnapshot(doc, 'test-snapshot')
 

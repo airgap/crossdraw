@@ -1,11 +1,5 @@
 import { describe, it, expect } from 'bun:test'
-import {
-  warpPoint,
-  warpSegments,
-  warpPaths,
-  computeSegmentBounds,
-  WARP_PRESETS,
-} from '@/render/envelope-distort'
+import { warpPoint, warpSegments, warpPaths, computeSegmentBounds, WARP_PRESETS } from '@/render/envelope-distort'
 import type { EnvelopeParams, Bounds } from '@/render/envelope-distort'
 import type { Segment, Path } from '@/types'
 
@@ -15,12 +9,7 @@ import type { Segment, Path } from '@/types'
 const unitBounds: Bounds = { minX: 0, minY: 0, width: 100, height: 100 }
 
 /** Build params with defaults. */
-function params(
-  preset: EnvelopeParams['preset'],
-  bend = 0.5,
-  hDist = 0,
-  vDist = 0,
-): EnvelopeParams {
+function params(preset: EnvelopeParams['preset'], bend = 0.5, hDist = 0, vDist = 0): EnvelopeParams {
   return { preset, bend, horizontalDistortion: hDist, verticalDistortion: vDist }
 }
 
@@ -124,9 +113,7 @@ describe('warpPoint with wave preset', () => {
     const p2 = warpPoint(37, 50, unitBounds, params('wave', 1))
     const p3 = warpPoint(63, 50, unitBounds, params('wave', 1))
     // At least some y values should differ from the original 50
-    const displaced = [p1, p2, p3].some(
-      (p) => Math.abs(p.y - 50) > 0.1 || Math.abs(p.x - p.y + 50 - 12) > 0.1,
-    )
+    const displaced = [p1, p2, p3].some((p) => Math.abs(p.y - 50) > 0.1 || Math.abs(p.x - p.y + 50 - 12) > 0.1)
     expect(displaced).toBe(true)
   })
 
@@ -254,11 +241,7 @@ describe('warpSegments', () => {
   })
 
   it('handles close segments', () => {
-    const segs: Segment[] = [
-      { type: 'move', x: 0, y: 0 },
-      { type: 'line', x: 100, y: 0 },
-      { type: 'close' },
-    ]
+    const segs: Segment[] = [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 100, y: 0 }, { type: 'close' }]
     const result = warpSegments(segs, unitBounds, params('wave', 0.5))
     expect(result).toHaveLength(3)
     expect(result[2]!.type).toBe('close')
@@ -350,11 +333,7 @@ describe('computeSegmentBounds', () => {
   })
 
   it('handles close segments (no coordinates)', () => {
-    const segs: Segment[] = [
-      { type: 'move', x: 10, y: 10 },
-      { type: 'line', x: 50, y: 50 },
-      { type: 'close' },
-    ]
+    const segs: Segment[] = [{ type: 'move', x: 10, y: 10 }, { type: 'line', x: 50, y: 50 }, { type: 'close' }]
     const bounds = computeSegmentBounds(segs)
     expect(bounds.minX).toBe(10)
     expect(bounds.minY).toBe(10)
@@ -367,17 +346,29 @@ describe('computeSegmentBounds', () => {
 
 describe('warpPaths', () => {
   it('returns original paths for none preset', () => {
-    const paths: Path[] = [
-      { id: 'p1', segments: rectangleSegments(), closed: true },
-    ]
+    const paths: Path[] = [{ id: 'p1', segments: rectangleSegments(), closed: true }]
     const result = warpPaths(paths, params('none'))
     expect(result).toBe(paths)
   })
 
   it('warps multiple paths using unified bounds', () => {
     const paths: Path[] = [
-      { id: 'p1', segments: [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 50, y: 50 }], closed: false },
-      { id: 'p2', segments: [{ type: 'move', x: 50, y: 50 }, { type: 'line', x: 100, y: 100 }], closed: false },
+      {
+        id: 'p1',
+        segments: [
+          { type: 'move', x: 0, y: 0 },
+          { type: 'line', x: 50, y: 50 },
+        ],
+        closed: false,
+      },
+      {
+        id: 'p2',
+        segments: [
+          { type: 'move', x: 50, y: 50 },
+          { type: 'line', x: 100, y: 100 },
+        ],
+        closed: false,
+      },
     ]
     const result = warpPaths(paths, params('arc', 0.5))
     expect(result).toHaveLength(2)
@@ -391,9 +382,7 @@ describe('warpPaths', () => {
   })
 
   it('preserves path metadata (id, closed, fillRule)', () => {
-    const paths: Path[] = [
-      { id: 'test-path', segments: rectangleSegments(), closed: true, fillRule: 'evenodd' },
-    ]
+    const paths: Path[] = [{ id: 'test-path', segments: rectangleSegments(), closed: true, fillRule: 'evenodd' }]
     const result = warpPaths(paths, params('bulge', 0.3))
     expect(result[0]!.id).toBe('test-path')
     expect(result[0]!.closed).toBe(true)
@@ -417,8 +406,18 @@ describe('all presets produce finite results', () => {
 describe('horizontal and vertical distortion', () => {
   it('horizontal distortion shifts x based on y position', () => {
     // Use 'arc' with bend=0 so the preset itself produces no distortion, only h-distortion applies
-    const topArc = warpPoint(50, 0, unitBounds, { preset: 'arc', bend: 0, horizontalDistortion: 0.5, verticalDistortion: 0 })
-    const bottomArc = warpPoint(50, 100, unitBounds, { preset: 'arc', bend: 0, horizontalDistortion: 0.5, verticalDistortion: 0 })
+    const topArc = warpPoint(50, 0, unitBounds, {
+      preset: 'arc',
+      bend: 0,
+      horizontalDistortion: 0.5,
+      verticalDistortion: 0,
+    })
+    const bottomArc = warpPoint(50, 100, unitBounds, {
+      preset: 'arc',
+      bend: 0,
+      horizontalDistortion: 0.5,
+      verticalDistortion: 0,
+    })
     // At y=0 (top), ny=0, factor=(0-0.5)*width*hDist = -0.5*100*0.5 = -25
     // At y=100 (bottom), ny=1, factor=(1-0.5)*width*hDist = 0.5*100*0.5 = 25
     expect(topArc.x).toBeLessThan(50)
@@ -426,8 +425,18 @@ describe('horizontal and vertical distortion', () => {
   })
 
   it('vertical distortion shifts y based on x position', () => {
-    const leftArc = warpPoint(0, 50, unitBounds, { preset: 'arc', bend: 0, horizontalDistortion: 0, verticalDistortion: 0.5 })
-    const rightArc = warpPoint(100, 50, unitBounds, { preset: 'arc', bend: 0, horizontalDistortion: 0, verticalDistortion: 0.5 })
+    const leftArc = warpPoint(0, 50, unitBounds, {
+      preset: 'arc',
+      bend: 0,
+      horizontalDistortion: 0,
+      verticalDistortion: 0.5,
+    })
+    const rightArc = warpPoint(100, 50, unitBounds, {
+      preset: 'arc',
+      bend: 0,
+      horizontalDistortion: 0,
+      verticalDistortion: 0.5,
+    })
     expect(leftArc.y).toBeLessThan(50)
     expect(rightArc.y).toBeGreaterThan(50)
   })

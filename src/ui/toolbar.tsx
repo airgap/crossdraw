@@ -345,64 +345,66 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           alignItems: 'center',
         }}
       >
-        {tools.filter((tool) => {
-          if (!modeConfig) return true
-          if (tool === 'separator' || tool === 'shapes') return true
-          return modeConfig.tools.includes(tool.id)
-        }).map((tool, idx) => {
-          if (tool === 'separator') {
+        {tools
+          .filter((tool) => {
+            if (!modeConfig) return true
+            if (tool === 'separator' || tool === 'shapes') return true
+            return modeConfig.tools.includes(tool.id)
+          })
+          .map((tool, idx) => {
+            if (tool === 'separator') {
+              return (
+                <div
+                  key={`sep-${idx}`}
+                  role="separator"
+                  style={{ width: 24, height: 1, background: 'var(--border-subtle)', margin: '2px 0' }}
+                />
+              )
+            }
+            if (tool === 'shapes') {
+              return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={handleSetActiveTool} />
+            }
+            const Icon = tool.icon
+            const isActive = activeTool === tool.id
             return (
-              <div
-                key={`sep-${idx}`}
-                role="separator"
-                style={{ width: 24, height: 1, background: 'var(--border-subtle)', margin: '2px 0' }}
-              />
+              <button
+                key={tool.id}
+                data-tool-id={tool.id}
+                onClick={() => handleSetActiveTool(tool.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleSetActiveTool(tool.id)
+                  }
+                }}
+                title={`${tool.id} (${tool.key.toUpperCase()})`}
+                role="button"
+                tabIndex={0}
+                aria-label={`${toolLabel(tool.id)} tool (${tool.key.toUpperCase()})`}
+                aria-pressed={isActive}
+                style={{
+                  width: 'var(--height-toolbar)',
+                  height: 'var(--height-toolbar)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isActive ? '#fff' : 'var(--text-secondary)',
+                  background: isActive ? 'var(--accent)' : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+                }}
+                onMouseLeave={(e) => {
+                  if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
+                }}
+              >
+                <Icon size={16} strokeWidth={1.75} />
+              </button>
             )
-          }
-          if (tool === 'shapes') {
-            return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={handleSetActiveTool} />
-          }
-          const Icon = tool.icon
-          const isActive = activeTool === tool.id
-          return (
-            <button
-              key={tool.id}
-              data-tool-id={tool.id}
-              onClick={() => handleSetActiveTool(tool.id)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  handleSetActiveTool(tool.id)
-                }
-              }}
-              title={`${tool.id} (${tool.key.toUpperCase()})`}
-              role="button"
-              tabIndex={0}
-              aria-label={`${toolLabel(tool.id)} tool (${tool.key.toUpperCase()})`}
-              aria-pressed={isActive}
-              style={{
-                width: 'var(--height-toolbar)',
-                height: 'var(--height-toolbar)',
-                border: 'none',
-                borderRadius: 'var(--radius-md)',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: isActive ? '#fff' : 'var(--text-secondary)',
-                background: isActive ? 'var(--accent)' : 'transparent',
-              }}
-              onMouseEnter={(e) => {
-                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-              }}
-              onMouseLeave={(e) => {
-                if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
-              }}
-            >
-              <Icon size={16} strokeWidth={1.75} />
-            </button>
-          )
-        })}
+          })}
         <div style={{ flex: 1 }} />
         <button
           onClick={() => setShowShortcuts(true)}

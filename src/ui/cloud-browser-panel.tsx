@@ -251,14 +251,8 @@ export function CloudBrowserPanel() {
             flexShrink: 0,
           }}
         />
-        <span style={{ flex: 1, color: 'var(--text-secondary, #aaa)' }}>
-          {STATUS_LABELS[status]}
-        </span>
-        <button
-          style={btnStyle}
-          onClick={refresh}
-          disabled={loading || !config.serverUrl}
-        >
+        <span style={{ flex: 1, color: 'var(--text-secondary, #aaa)' }}>{STATUS_LABELS[status]}</span>
+        <button style={btnStyle} onClick={refresh} disabled={loading || !config.serverUrl}>
           Refresh
         </button>
       </div>
@@ -381,14 +375,15 @@ export function CloudBrowserPanel() {
             style={{
               padding: '8px 10px',
               marginBottom: '4px',
-              background: cloudFileId === entry.id ? 'var(--bg-selected, rgba(59, 130, 246, 0.15))' : 'var(--bg-surface, #1e1e1e)',
+              background:
+                cloudFileId === entry.id
+                  ? 'var(--bg-selected, rgba(59, 130, 246, 0.15))'
+                  : 'var(--bg-surface, #1e1e1e)',
               borderRadius: '6px',
               border: `1px solid ${cloudFileId === entry.id ? 'var(--accent-color, #3b82f6)' : 'var(--border-color, #333)'}`,
             }}
           >
-            <div style={{ fontWeight: 500, marginBottom: '4px', wordBreak: 'break-word' }}>
-              {entry.name}
-            </div>
+            <div style={{ fontWeight: 500, marginBottom: '4px', wordBreak: 'break-word' }}>{entry.name}</div>
             <div
               style={{
                 display: 'flex',
@@ -402,35 +397,20 @@ export function CloudBrowserPanel() {
               <span>{formatDate(entry.updatedAt)}</span>
             </div>
             <div style={{ display: 'flex', gap: '6px' }}>
-              <button
-                style={btnStyle}
-                onClick={() => handleOpen(entry)}
-                disabled={loading}
-              >
+              <button style={btnStyle} onClick={() => handleOpen(entry)} disabled={loading}>
                 Open
               </button>
               {confirmDeleteId === entry.id ? (
                 <>
-                  <button
-                    style={btnDangerStyle}
-                    onClick={() => handleDelete(entry.id)}
-                    disabled={loading}
-                  >
+                  <button style={btnDangerStyle} onClick={() => handleDelete(entry.id)} disabled={loading}>
                     Confirm
                   </button>
-                  <button
-                    style={btnStyle}
-                    onClick={() => setConfirmDeleteId(null)}
-                  >
+                  <button style={btnStyle} onClick={() => setConfirmDeleteId(null)}>
                     Cancel
                   </button>
                 </>
               ) : (
-                <button
-                  style={btnStyle}
-                  onClick={() => setConfirmDeleteId(entry.id)}
-                  disabled={loading}
-                >
+                <button style={btnStyle} onClick={() => setConfirmDeleteId(entry.id)} disabled={loading}>
                   Delete
                 </button>
               )}

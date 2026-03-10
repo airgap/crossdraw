@@ -60,10 +60,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('computes bounds for multiple children', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 100, 50),
-        makeVectorChild('c2', 'B', 200, 80),
-      ]
+      const children = [makeVectorChild('c1', 'A', 100, 50), makeVectorChild('c2', 'B', 200, 80)]
       const bounds = computeLayerBounds(children)
       expect(bounds.get('c1')).toEqual({ width: 100, height: 50 })
       expect(bounds.get('c2')).toEqual({ width: 200, height: 80 })
@@ -104,10 +101,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('applies padding', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 100, 50),
-        makeVectorChild('c2', 'B', 80, 50),
-      ]
+      const children = [makeVectorChild('c1', 'A', 100, 50), makeVectorChild('c2', 'B', 80, 50)]
       const config: AutoLayoutConfig = {
         direction: 'horizontal',
         gap: 10,
@@ -132,10 +126,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('centers children on cross-axis', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 100, 30),
-        makeVectorChild('c2', 'B', 80, 50),
-      ]
+      const children = [makeVectorChild('c1', 'A', 100, 30), makeVectorChild('c2', 'B', 80, 50)]
       const config: AutoLayoutConfig = {
         direction: 'horizontal',
         gap: 10,
@@ -160,9 +151,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('aligns children to end on cross-axis', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 100, 30),
-      ]
+      const children = [makeVectorChild('c1', 'A', 100, 30)]
       const config: AutoLayoutConfig = {
         direction: 'horizontal',
         gap: 0,
@@ -185,10 +174,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('justify center distributes children', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 50, 50),
-        makeVectorChild('c2', 'B', 50, 50),
-      ]
+      const children = [makeVectorChild('c1', 'A', 50, 50), makeVectorChild('c2', 'B', 50, 50)]
       const config: AutoLayoutConfig = {
         direction: 'horizontal',
         gap: 10,
@@ -275,10 +261,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('centers children on cross-axis (x)', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 60, 40),
-        makeVectorChild('c2', 'B', 100, 40),
-      ]
+      const children = [makeVectorChild('c1', 'A', 60, 40), makeVectorChild('c2', 'B', 100, 40)]
       const config: AutoLayoutConfig = {
         direction: 'vertical',
         gap: 10,
@@ -303,10 +286,7 @@ describe('Auto Layout Engine', () => {
     })
 
     test('justify end pushes children to bottom', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 100, 30),
-        makeVectorChild('c2', 'B', 100, 30),
-      ]
+      const children = [makeVectorChild('c1', 'A', 100, 30), makeVectorChild('c2', 'B', 100, 30)]
       const config: AutoLayoutConfig = {
         direction: 'vertical',
         gap: 10,
@@ -406,10 +386,7 @@ describe('Auto Layout Engine', () => {
 
   describe('hug sizing result', () => {
     test('returns hug dimensions when group has hug sizing', () => {
-      const children = [
-        makeVectorChild('c1', 'A', 100, 50),
-        makeVectorChild('c2', 'B', 80, 70),
-      ]
+      const children = [makeVectorChild('c1', 'A', 100, 50), makeVectorChild('c2', 'B', 80, 70)]
       const config: AutoLayoutConfig = {
         direction: 'horizontal',
         gap: 10,

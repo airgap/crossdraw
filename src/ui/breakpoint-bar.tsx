@@ -141,13 +141,7 @@ const widthIndicatorStyle: React.CSSProperties = {
 
 // ── Component ──
 
-function PresetMenu({
-  artboard,
-  onClose,
-}: {
-  artboard: Artboard
-  onClose: () => void
-}) {
+function PresetMenu({ artboard, onClose }: { artboard: Artboard; onClose: () => void }) {
   const addBreakpoint = useEditorStore((s) => s.addBreakpoint)
   const existingWidths = new Set(artboard.breakpoints?.map((b) => b.width) ?? [])
 
@@ -187,7 +181,7 @@ function PresetMenu({
               if (!alreadyAdded) (e.target as HTMLElement).style.background = 'var(--bg-hover)'
             }}
             onMouseLeave={(e) => {
-              (e.target as HTMLElement).style.background = 'transparent'
+              ;(e.target as HTMLElement).style.background = 'transparent'
             }}
           >
             <span>{preset.name}</span>
@@ -200,10 +194,10 @@ function PresetMenu({
         style={presetItemStyle}
         onClick={handleAddCustom}
         onMouseEnter={(e) => {
-          (e.target as HTMLElement).style.background = 'var(--bg-hover)'
+          ;(e.target as HTMLElement).style.background = 'var(--bg-hover)'
         }}
         onMouseLeave={(e) => {
-          (e.target as HTMLElement).style.background = 'transparent'
+          ;(e.target as HTMLElement).style.background = 'transparent'
         }}
       >
         Custom...
@@ -262,9 +256,7 @@ export function BreakpointBar() {
   if (breakpoints.length === 0) {
     return (
       <div style={barStyle}>
-        <span style={{ color: 'var(--text-disabled)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>
-          Responsive
-        </span>
+        <span style={{ color: 'var(--text-disabled)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>Responsive</span>
         <div ref={addRef} style={{ position: 'relative', flexShrink: 0 }}>
           <button
             style={{ ...bpButtonStyle, gap: 4 }}
@@ -275,10 +267,7 @@ export function BreakpointBar() {
           </button>
           {showPresets && (
             <>
-              <div
-                style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-                onClick={() => setShowPresets(false)}
-              />
+              <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowPresets(false)} />
               <PresetMenu artboard={artboard} onClose={() => setShowPresets(false)} />
             </>
           )}
@@ -289,9 +278,7 @@ export function BreakpointBar() {
 
   return (
     <div style={barStyle}>
-      <span style={{ color: 'var(--text-disabled)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>
-        Breakpoints
-      </span>
+      <span style={{ color: 'var(--text-disabled)', fontSize: 10, marginRight: 4, flexShrink: 0 }}>Breakpoints</span>
 
       <span style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
 
@@ -329,33 +316,23 @@ export function BreakpointBar() {
 
       {/* Add breakpoint */}
       <div ref={addRef} style={{ position: 'relative', flexShrink: 0 }}>
-        <button
-          style={addButtonStyle}
-          onClick={() => setShowPresets((v) => !v)}
-          title="Add breakpoint"
-        >
+        <button style={addButtonStyle} onClick={() => setShowPresets((v) => !v)} title="Add breakpoint">
           +
         </button>
         {showPresets && (
           <>
-            <div
-              style={{ position: 'fixed', inset: 0, zIndex: 99 }}
-              onClick={() => setShowPresets(false)}
-            />
+            <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowPresets(false)} />
             <PresetMenu artboard={artboard} onClose={() => setShowPresets(false)} />
           </>
         )}
       </div>
 
       {/* Active width indicator */}
-      {activeId != null && (() => {
-        const activeBp = breakpoints.find((b) => b.id === activeId)
-        return activeBp ? (
-          <span style={widthIndicatorStyle}>
-            Preview: {activeBp.width}px wide
-          </span>
-        ) : null
-      })()}
+      {activeId != null &&
+        (() => {
+          const activeBp = breakpoints.find((b) => b.id === activeId)
+          return activeBp ? <span style={widthIndicatorStyle}>Preview: {activeBp.width}px wide</span> : null
+        })()}
 
       {/* Exit preview button (only when a breakpoint is active) */}
       {activeId != null && (

@@ -1,13 +1,6 @@
 import { describe, it, expect } from 'bun:test'
 import { v4 as uuid } from 'uuid'
-import type {
-  SymbolDefinition,
-  SymbolInstanceLayer,
-  GroupLayer,
-  VectorLayer,
-  Layer,
-  TextLayer,
-} from '@/types'
+import type { SymbolDefinition, SymbolInstanceLayer, GroupLayer, VectorLayer, Layer, TextLayer } from '@/types'
 import { resolveSymbolLayers } from '@/render/viewport'
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -54,10 +47,7 @@ function makeTextLayer(text: string, overrides: Partial<TextLayer> = {}): TextLa
   }
 }
 
-function makeGroupLayer(
-  children: Layer[],
-  overrides: Partial<GroupLayer> = {},
-): GroupLayer {
+function makeGroupLayer(children: Layer[], overrides: Partial<GroupLayer> = {}): GroupLayer {
   return {
     id: uuid(),
     name: 'Group',
@@ -73,11 +63,7 @@ function makeGroupLayer(
   }
 }
 
-function makeSlotGroup(
-  slotName: string,
-  defaultChildren: Layer[],
-  overrides: Partial<GroupLayer> = {},
-): GroupLayer {
+function makeSlotGroup(slotName: string, defaultChildren: Layer[], overrides: Partial<GroupLayer> = {}): GroupLayer {
   return makeGroupLayer(defaultChildren, {
     name: slotName,
     isSlot: true,
@@ -97,10 +83,7 @@ function makeSymbolDef(layers: Layer[], overrides: Partial<SymbolDefinition> = {
   }
 }
 
-function makeInstance(
-  symbolId: string,
-  overrides: Partial<SymbolInstanceLayer> = {},
-): SymbolInstanceLayer {
+function makeInstance(symbolId: string, overrides: Partial<SymbolInstanceLayer> = {}): SymbolInstanceLayer {
   return {
     id: uuid(),
     name: 'Instance',

@@ -276,17 +276,12 @@ function PropertyRow({ name, value }: { name: string; value: string }) {
   )
 }
 
-function BoxModelDiagram({
-  layer,
-  artboard,
-}: {
-  layer: Layer
-  artboard: Artboard
-}) {
+function BoxModelDiagram({ layer, artboard }: { layer: Layer; artboard: Artboard }) {
   const bbox = getLayerBBox(layer, artboard)
   const w = round2(bbox.maxX - bbox.minX)
   const h = round2(bbox.maxY - bbox.minY)
-  const strokeWidth = layer.type === 'vector' && (layer as VectorLayer).stroke ? (layer as VectorLayer).stroke!.width : 0
+  const strokeWidth =
+    layer.type === 'vector' && (layer as VectorLayer).stroke ? (layer as VectorLayer).stroke!.width : 0
   const parentGroup = findParentGroup(artboard.layers, layer.id)
 
   // Margin = gap to parent edges
@@ -362,7 +357,16 @@ function BoxModelDiagram({
           }}
         >
           {borderThickness > 0 && (
-            <span style={{ position: 'absolute', top: 1, left: '50%', transform: 'translateX(-50%)', color: 'rgb(252, 229, 105)', fontSize: 8 }}>
+            <span
+              style={{
+                position: 'absolute',
+                top: 1,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                color: 'rgb(252, 229, 105)',
+                fontSize: 8,
+              }}
+            >
               {strokeWidth}px
             </span>
           )}
@@ -472,9 +476,7 @@ export function CSSInspectPanel() {
 
   const cssProps = selectedLayer && artboard ? buildCSSProperties(selectedLayer, artboard) : []
   const cssBlock = cssProps.map((p) => `  ${p.name}: ${p.value};`).join('\n')
-  const fullCSS = selectedLayer
-    ? `.${selectedLayer.name.replace(/\s+/g, '-').toLowerCase()} {\n${cssBlock}\n}`
-    : ''
+  const fullCSS = selectedLayer ? `.${selectedLayer.name.replace(/\s+/g, '-').toLowerCase()} {\n${cssBlock}\n}` : ''
 
   const copyAll = useCallback(() => {
     if (!fullCSS) return
@@ -486,9 +488,7 @@ export function CSSInspectPanel() {
 
   if (!artboard) {
     return (
-      <div style={{ padding: 'var(--space-2, 8px)', color: 'var(--text-tertiary)', fontSize: 12 }}>
-        No artboard
-      </div>
+      <div style={{ padding: 'var(--space-2, 8px)', color: 'var(--text-tertiary)', fontSize: 12 }}>No artboard</div>
     )
   }
 
@@ -520,16 +520,23 @@ export function CSSInspectPanel() {
     ].includes(p.name),
   )
   const visualProps = cssProps.filter((p) =>
-    ['background', 'border', 'border-radius', 'opacity', 'box-shadow', 'filter', 'backdrop-filter', 'mix-blend-mode'].includes(p.name),
+    [
+      'background',
+      'border',
+      'border-radius',
+      'opacity',
+      'box-shadow',
+      'filter',
+      'backdrop-filter',
+      'mix-blend-mode',
+    ].includes(p.name),
   )
 
   return (
     <div style={{ padding: 'var(--space-2, 8px)', display: 'flex', flexDirection: 'column', gap: 8, overflow: 'auto' }}>
       {/* Header with Copy All */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>
-          {selectedLayer.name}
-        </span>
+        <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 600 }}>{selectedLayer.name}</span>
         <button
           onClick={copyAll}
           style={{

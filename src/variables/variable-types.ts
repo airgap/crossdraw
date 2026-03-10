@@ -5,7 +5,7 @@ export type VariableType = 'color' | 'number' | 'string' | 'boolean'
 
 /** Discriminated union for variable values by type */
 export type VariableValue =
-  | { type: 'color'; value: string }       // hex color string e.g. '#ff0000'
+  | { type: 'color'; value: string } // hex color string e.g. '#ff0000'
   | { type: 'number'; value: number }
   | { type: 'string'; value: string }
   | { type: 'boolean'; value: boolean }

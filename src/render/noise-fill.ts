@@ -175,10 +175,10 @@ export function cellular2D(x: number, y: number, perm: Uint8Array, _rng: () => n
       const cx = ix + dx
       const cy = iy + dy
       // Deterministic point position within cell using permutation
-      const hash = perm[((cx & 255) + perm[(cy & 255)]!) & 511]!
-      const px = cx + (hash / 255)
-      const hash2 = perm[((cx + 37 & 255) + perm[((cy + 17) & 255)]!) & 511]!
-      const py = cy + (hash2 / 255)
+      const hash = perm[((cx & 255) + perm[cy & 255]!) & 511]!
+      const px = cx + hash / 255
+      const hash2 = perm[(((cx + 37) & 255) + perm[(cy + 17) & 255]!) & 511]!
+      const py = cy + hash2 / 255
       const ddx = x - px
       const ddy = y - py
       const dist = Math.sqrt(ddx * ddx + ddy * ddy)
@@ -225,18 +225,10 @@ function parseHexColor(hex: string): [number, number, number] {
   const r = parseInt(h.substring(0, 2), 16)
   const g = parseInt(h.substring(2, 4), 16)
   const b = parseInt(h.substring(4, 6), 16)
-  return [
-    isNaN(r) ? 0 : r,
-    isNaN(g) ? 0 : g,
-    isNaN(b) ? 0 : b,
-  ]
+  return [isNaN(r) ? 0 : r, isNaN(g) ? 0 : g, isNaN(b) ? 0 : b]
 }
 
-function lerpColor(
-  c1: [number, number, number],
-  c2: [number, number, number],
-  t: number,
-): [number, number, number] {
+function lerpColor(c1: [number, number, number], c2: [number, number, number], t: number): [number, number, number] {
   return [
     Math.round(c1[0] + (c2[0] - c1[0]) * t),
     Math.round(c1[1] + (c2[1] - c1[1]) * t),
@@ -289,9 +281,7 @@ export function generateNoiseFill(width: number, height: number, params: NoiseFi
         const nx = px * invScale
         const ny = py * invScale
 
-        const noiseFn = noiseType === 'simplex' ? simplexFn
-          : noiseType === 'perlin' ? perlinFn
-          : cellularFn
+        const noiseFn = noiseType === 'simplex' ? simplexFn : noiseType === 'perlin' ? perlinFn : cellularFn
 
         noiseVal = fractalNoise(nx, ny, octaves, persistence, noiseFn, perm, rng)
       }

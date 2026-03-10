@@ -534,12 +534,7 @@ function buildTransform(layer: SketchLayer): Transform {
  * Sketch stores normalized (0-1) coordinates relative to the layer's frame.
  * We scale them to the frame's width and height.
  */
-function convertCurvePoints(
-  points: SketchCurvePoint[],
-  width: number,
-  height: number,
-  isClosed: boolean,
-): Segment[] {
+function convertCurvePoints(points: SketchCurvePoint[], width: number, height: number, isClosed: boolean): Segment[] {
   if (points.length === 0) return []
 
   const segments: Segment[] = []
@@ -888,9 +883,8 @@ function convertText(sk: SketchLayer): TextLayer {
   // Determine font weight and style from font name heuristics
   const fontNameLower = fontFamily.toLowerCase()
   const fontWeight: 'normal' | 'bold' = fontNameLower.includes('bold') ? 'bold' : 'normal'
-  const fontStyle: 'normal' | 'italic' = fontNameLower.includes('italic') || fontNameLower.includes('oblique')
-    ? 'italic'
-    : 'normal'
+  const fontStyle: 'normal' | 'italic' =
+    fontNameLower.includes('italic') || fontNameLower.includes('oblique') ? 'italic' : 'normal'
 
   return {
     id: uuid(),
@@ -1077,11 +1071,12 @@ export async function importSketch(buffer: ArrayBuffer): Promise<DesignDocument>
   const pageIds = meta?.pagesAndArtboards ? Object.keys(meta.pagesAndArtboards) : []
 
   // Find page JSON files
-  const pageFiles = pageIds.length > 0
-    ? pageIds
-    : Object.keys(files)
-        .filter((p) => p.startsWith('pages/') && p.endsWith('.json'))
-        .map((p) => p.replace('pages/', '').replace('.json', ''))
+  const pageFiles =
+    pageIds.length > 0
+      ? pageIds
+      : Object.keys(files)
+          .filter((p) => p.startsWith('pages/') && p.endsWith('.json'))
+          .map((p) => p.replace('pages/', '').replace('.json', ''))
 
   for (const pageId of pageFiles) {
     const pagePath = `pages/${pageId}.json`

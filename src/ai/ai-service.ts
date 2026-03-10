@@ -4,7 +4,14 @@
  */
 
 import type { Layer } from '@/types'
-import { buildLayoutPrompt, buildPalettePrompt, buildCritiquePrompt, buildTextPrompt, buildRenamePrompt, buildVectorArtPrompt } from './prompt-templates'
+import {
+  buildLayoutPrompt,
+  buildPalettePrompt,
+  buildCritiquePrompt,
+  buildTextPrompt,
+  buildRenamePrompt,
+  buildVectorArtPrompt,
+} from './prompt-templates'
 import type { RenameLayerInfo } from './prompt-templates'
 
 // ── Types ──
@@ -69,11 +76,7 @@ function getConfigOrThrow(): AIServiceConfig {
   return config
 }
 
-async function callClaude(
-  systemPrompt: string,
-  messages: ClaudeMessage[],
-  config: AIServiceConfig,
-): Promise<string> {
+async function callClaude(systemPrompt: string, messages: ClaudeMessage[], config: AIServiceConfig): Promise<string> {
   const baseUrl = config.baseUrl || 'https://api.anthropic.com'
   const url = `${baseUrl}/v1/messages`
 
@@ -146,19 +149,11 @@ export function extractSVG(text: string): string {
 
 // ── Public API ──
 
-export async function generateVectorArt(
-  prompt: string,
-  width: number,
-  height: number,
-): Promise<string> {
+export async function generateVectorArt(prompt: string, width: number, height: number): Promise<string> {
   const config = getConfigOrThrow()
   const { system, user } = buildVectorArtPrompt(prompt, width, height)
 
-  const responseText = await callClaude(
-    system,
-    [{ role: 'user', content: user }],
-    config,
-  )
+  const responseText = await callClaude(system, [{ role: 'user', content: user }], config)
 
   const svgString = extractSVG(responseText)
 
@@ -276,10 +271,7 @@ export async function critiqueDesign(layers: Layer[]): Promise<DesignCritique> {
   }
 }
 
-export async function generatePlaceholderText(
-  context: string,
-  length: 'short' | 'medium' | 'long',
-): Promise<string> {
+export async function generatePlaceholderText(context: string, length: 'short' | 'medium' | 'long'): Promise<string> {
   const config = getConfigOrThrow()
   const { system, user } = buildTextPrompt(context, length)
 
@@ -292,9 +284,7 @@ export interface LayerRename {
   newName: string
 }
 
-export async function bulkRenameLayers(
-  layers: RenameLayerInfo[],
-): Promise<LayerRename[]> {
+export async function bulkRenameLayers(layers: RenameLayerInfo[]): Promise<LayerRename[]> {
   if (layers.length === 0) return []
 
   const config = getConfigOrThrow()

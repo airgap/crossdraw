@@ -24,12 +24,7 @@ function makeRect(x: number, y: number, w: number, h: number): Segment[] {
   ]
 }
 
-function makeVectorLayer(
-  id: string,
-  segments: Segment[],
-  tx = 0,
-  ty = 0,
-): VectorLayer {
+function makeVectorLayer(id: string, segments: Segment[], tx = 0, ty = 0): VectorLayer {
   return {
     id,
     name: id,
@@ -78,9 +73,7 @@ describe('computeRegions', () => {
     const regions = computeRegions([layerA, layerB])
 
     // The intersection region should reference both layers
-    const intersectionRegions = regions.filter(
-      (r) => r.sourceLayerIds.includes('a') && r.sourceLayerIds.includes('b'),
-    )
+    const intersectionRegions = regions.filter((r) => r.sourceLayerIds.includes('a') && r.sourceLayerIds.includes('b'))
     expect(intersectionRegions.length).toBeGreaterThanOrEqual(1)
   })
 

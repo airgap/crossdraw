@@ -333,11 +333,7 @@ describe('applyInvert', () => {
 
 describe('applyDesaturate', () => {
   it('produces equal R=G=B channels', () => {
-    const src = makeImageData(
-      [255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 100, 150, 200, 255],
-      4,
-      1,
-    )
+    const src = makeImageData([255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 100, 150, 200, 255], 4, 1)
     const result = applyDesaturate(src)
     const d = result.data
 
@@ -376,21 +372,19 @@ describe('applyVibrance', () => {
   it('increases less-saturated colours more than already-saturated ones', () => {
     // Low-saturation pixel: (150, 140, 130) — close to grey
     // High-saturation pixel: (255, 0, 0) — pure red
-    const src = makeImageData(
-      [150, 140, 130, 255, 255, 0, 0, 255],
-      2,
-      1,
-    )
+    const src = makeImageData([150, 140, 130, 255, 255, 0, 0, 255], 2, 1)
     const result = applyVibrance(src, { amount: 0.8 })
 
     // For the low-sat pixel, compute the spread (max - min) before and after.
     const lowSpreadBefore = 150 - 130 // = 20
-    const lowSpreadAfter = Math.max(result.data[0]!, result.data[1]!, result.data[2]!) -
+    const lowSpreadAfter =
+      Math.max(result.data[0]!, result.data[1]!, result.data[2]!) -
       Math.min(result.data[0]!, result.data[1]!, result.data[2]!)
 
     // For the high-sat pixel, compute spread before and after.
     const highSpreadBefore = 255 - 0 // = 255
-    const highSpreadAfter = Math.max(result.data[4]!, result.data[5]!, result.data[6]!) -
+    const highSpreadAfter =
+      Math.max(result.data[4]!, result.data[5]!, result.data[6]!) -
       Math.min(result.data[4]!, result.data[5]!, result.data[6]!)
 
     // Low-saturation colour should get a proportionally larger boost.
@@ -414,7 +408,8 @@ describe('applyVibrance', () => {
     const result = applyVibrance(src, { amount: -0.8 })
     // After desaturation, channels should be closer together
     const spreadBefore = Math.max(200, 100, 150) - Math.min(200, 100, 150) // 100
-    const spreadAfter = Math.max(result.data[0]!, result.data[1]!, result.data[2]!) -
+    const spreadAfter =
+      Math.max(result.data[0]!, result.data[1]!, result.data[2]!) -
       Math.min(result.data[0]!, result.data[1]!, result.data[2]!)
     expect(spreadAfter).toBeLessThan(spreadBefore)
   })
@@ -424,15 +419,17 @@ describe('applyVibrance', () => {
 
 describe('applyChannelMixer', () => {
   it('identity matrix produces no change', () => {
-    const src = makeImageData(
-      [100, 150, 200, 255, 50, 75, 100, 255],
-      2,
-      1,
-    )
+    const src = makeImageData([100, 150, 200, 255, 50, 75, 100, 255], 2, 1)
     const result = applyChannelMixer(src, {
-      rr: 1, rg: 0, rb: 0,
-      gr: 0, gg: 1, gb: 0,
-      br: 0, bg: 0, bb: 1,
+      rr: 1,
+      rg: 0,
+      rb: 0,
+      gr: 0,
+      gg: 1,
+      gb: 0,
+      br: 0,
+      bg: 0,
+      bb: 1,
     })
 
     for (let i = 0; i < src.data.length; i++) {
@@ -443,9 +440,15 @@ describe('applyChannelMixer', () => {
   it('swaps red and blue channels', () => {
     const src = makeImageData([100, 150, 200, 255], 1, 1)
     const result = applyChannelMixer(src, {
-      rr: 0, rg: 0, rb: 1,
-      gr: 0, gg: 1, gb: 0,
-      br: 1, bg: 0, bb: 0,
+      rr: 0,
+      rg: 0,
+      rb: 1,
+      gr: 0,
+      gg: 1,
+      gb: 0,
+      br: 1,
+      bg: 0,
+      bb: 0,
     })
 
     expect(result.data[0]).toBe(200) // was blue -> now red
@@ -457,9 +460,15 @@ describe('applyChannelMixer', () => {
   it('zero matrix produces black', () => {
     const src = makeImageData([100, 150, 200, 255], 1, 1)
     const result = applyChannelMixer(src, {
-      rr: 0, rg: 0, rb: 0,
-      gr: 0, gg: 0, gb: 0,
-      br: 0, bg: 0, bb: 0,
+      rr: 0,
+      rg: 0,
+      rb: 0,
+      gr: 0,
+      gg: 0,
+      gb: 0,
+      br: 0,
+      bg: 0,
+      bb: 0,
     })
 
     expect(result.data[0]).toBe(0)
@@ -471,9 +480,15 @@ describe('applyChannelMixer', () => {
   it('clamps values that exceed 255', () => {
     const src = makeImageData([200, 200, 200, 255], 1, 1)
     const result = applyChannelMixer(src, {
-      rr: 2, rg: 0, rb: 0,
-      gr: 0, gg: 2, gb: 0,
-      br: 0, bg: 0, bb: 2,
+      rr: 2,
+      rg: 0,
+      rb: 0,
+      gr: 0,
+      gg: 2,
+      gb: 0,
+      br: 0,
+      bg: 0,
+      bb: 2,
     })
 
     expect(result.data[0]).toBe(255) // 200*2=400, clamped to 255

@@ -40,6 +40,55 @@ const CLAUDE_MODELS = [
   { id: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
 ]
 
+// ── SVG sanitizer (prevent XSS from AI-generated SVG) ──
+
+function sanitizeSVG(raw: string): string {
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(raw, 'image/svg+xml')
+
+  // If parsing failed, return empty string rather than rendering broken/malicious markup
+  const parseError = doc.querySelector('parsererror')
+  if (parseError) return ''
+
+  const walk = (node: Element) => {
+    // Remove dangerous elements
+    const dangerous = node.querySelectorAll('script, foreignObject')
+    for (const el of dangerous) {
+      el.remove()
+    }
+
+    // Process all remaining elements
+    const allElements = [node, ...node.querySelectorAll('*')]
+    for (const el of allElements) {
+      // Remove event handler attributes (anything starting with "on")
+      const attrsToRemove: string[] = []
+      for (const attr of el.attributes) {
+        if (attr.name.toLowerCase().startsWith('on')) {
+          attrsToRemove.push(attr.name)
+        }
+        // Remove javascript: and data: URIs from href/xlink:href
+        if (
+          attr.name.toLowerCase() === 'href' ||
+          attr.name.toLowerCase() === 'xlink:href'
+        ) {
+          const val = attr.value.trim().toLowerCase()
+          if (val.startsWith('javascript:') || val.startsWith('data:')) {
+            attrsToRemove.push(attr.name)
+          }
+        }
+      }
+      for (const name of attrsToRemove) {
+        el.removeAttribute(name)
+      }
+    }
+  }
+
+  walk(doc.documentElement)
+
+  const serializer = new XMLSerializer()
+  return serializer.serializeToString(doc.documentElement)
+}
+
 // ── Component ──
 
 export function AIPanel() {
@@ -297,7 +346,15 @@ export function AIPanel() {
   const configured = isConfigured()
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', flex: 1, fontSize: 'var(--font-size-base)' }}>
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        flex: 1,
+        fontSize: 'var(--font-size-base)',
+      }}
+    >
       {/* Header */}
       <div
         style={{
@@ -343,7 +400,15 @@ export function AIPanel() {
             gap: 'var(--space-2)',
           }}
         >
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              color: 'var(--text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+            }}
+          >
             API Key
             <input
               type="password"
@@ -360,7 +425,15 @@ export function AIPanel() {
               }}
             />
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              color: 'var(--text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+            }}
+          >
             Model
             <select
               value={model}
@@ -381,7 +454,15 @@ export function AIPanel() {
               ))}
             </select>
           </label>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 2, color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)' }}>
+          <label
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 2,
+              color: 'var(--text-secondary)',
+              fontSize: 'var(--font-size-sm)',
+            }}
+          >
             Base URL (optional)
             <input
               type="text"
@@ -429,12 +510,8 @@ export function AIPanel() {
             textAlign: 'center',
           }}
         >
-          <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>
-            Welcome to AI Assistant
-          </p>
-          <p style={{ margin: '0 0 8px 0' }}>
-            To get started, configure your Claude API key in Settings above.
-          </p>
+          <p style={{ margin: '0 0 8px 0', fontWeight: 600, color: 'var(--text-primary)' }}>Welcome to AI Assistant</p>
+          <p style={{ margin: '0 0 8px 0' }}>To get started, configure your Claude API key in Settings above.</p>
           <button
             onClick={() => setShowSettings(true)}
             style={{
@@ -462,14 +539,16 @@ export function AIPanel() {
           borderBottom: '1px solid var(--border-subtle)',
         }}
       >
-        {([
-          { key: 'layout', label: 'Generate Layout' },
-          { key: 'vectorart', label: 'Vector Art' },
-          { key: 'colors', label: 'Suggest Colors' },
-          { key: 'critique', label: 'Critique Design' },
-          { key: 'text', label: 'Generate Text' },
-          { key: 'rename', label: 'Rename Layers' },
-        ] as const).map(({ key, label }) => (
+        {(
+          [
+            { key: 'layout', label: 'Generate Layout' },
+            { key: 'vectorart', label: 'Vector Art' },
+            { key: 'colors', label: 'Suggest Colors' },
+            { key: 'critique', label: 'Critique Design' },
+            { key: 'text', label: 'Generate Text' },
+            { key: 'rename', label: 'Rename Layers' },
+          ] as const
+        ).map(({ key, label }) => (
           <button
             key={key}
             onClick={() => {
@@ -786,7 +865,7 @@ export function AIPanel() {
                   maxHeight: 200,
                   overflow: 'hidden',
                 }}
-                dangerouslySetInnerHTML={{ __html: msg.svgPreview }}
+                dangerouslySetInnerHTML={{ __html: sanitizeSVG(msg.svgPreview) }}
               />
             )}
 
@@ -912,9 +991,7 @@ export function AIPanel() {
             }
           }}
           placeholder={
-            activeQuickAction === 'layout'
-              ? 'Describe your design...'
-              : 'Type a message or use quick actions...'
+            activeQuickAction === 'layout' ? 'Describe your design...' : 'Type a message or use quick actions...'
           }
           disabled={loading}
           style={{

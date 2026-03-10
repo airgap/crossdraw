@@ -330,10 +330,30 @@ describe('Sketch Import — Transform Conversion', () => {
 
 describe('Sketch Import — Blend Mode', () => {
   it('maps known blend modes', () => {
-    expect(extractBlendMode({ _class: 'style', contextSettings: { _class: 'graphicsContextSettings', blendMode: 0, opacity: 1 } })).toBe('normal')
-    expect(extractBlendMode({ _class: 'style', contextSettings: { _class: 'graphicsContextSettings', blendMode: 2, opacity: 1 } })).toBe('multiply')
-    expect(extractBlendMode({ _class: 'style', contextSettings: { _class: 'graphicsContextSettings', blendMode: 5, opacity: 1 } })).toBe('screen')
-    expect(extractBlendMode({ _class: 'style', contextSettings: { _class: 'graphicsContextSettings', blendMode: 7, opacity: 1 } })).toBe('overlay')
+    expect(
+      extractBlendMode({
+        _class: 'style',
+        contextSettings: { _class: 'graphicsContextSettings', blendMode: 0, opacity: 1 },
+      }),
+    ).toBe('normal')
+    expect(
+      extractBlendMode({
+        _class: 'style',
+        contextSettings: { _class: 'graphicsContextSettings', blendMode: 2, opacity: 1 },
+      }),
+    ).toBe('multiply')
+    expect(
+      extractBlendMode({
+        _class: 'style',
+        contextSettings: { _class: 'graphicsContextSettings', blendMode: 5, opacity: 1 },
+      }),
+    ).toBe('screen')
+    expect(
+      extractBlendMode({
+        _class: 'style',
+        contextSettings: { _class: 'graphicsContextSettings', blendMode: 7, opacity: 1 },
+      }),
+    ).toBe('overlay')
   })
 
   it('defaults to normal for missing context settings', () => {
@@ -498,11 +518,7 @@ describe('Sketch Import — Curve Points', () => {
 describe('Sketch Import — Segment Offset', () => {
   it('offsets move and line segments', () => {
     const result = offsetSegments(
-      [
-        { type: 'move', x: 0, y: 0 },
-        { type: 'line', x: 100, y: 100 },
-        { type: 'close' },
-      ],
+      [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 100, y: 100 }, { type: 'close' }],
       50,
       25,
     )
@@ -975,9 +991,7 @@ describe('Figma Import — Full Clipboard Import', () => {
 
   it('imports a nodes object wrapper', () => {
     const json = JSON.stringify({
-      nodes: [
-        { id: '1', name: 'Test', type: 'ELLIPSE', visible: true, size: { x: 50, y: 50 } },
-      ],
+      nodes: [{ id: '1', name: 'Test', type: 'ELLIPSE', visible: true, size: { x: 50, y: 50 } }],
     })
 
     const doc = importFigmaClipboard(json)

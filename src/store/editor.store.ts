@@ -45,10 +45,7 @@ import {
   createSnapshot as createVersionSnapshotDB,
   getSnapshot as getVersionSnapshotDB,
 } from '@/versioning/version-store'
-import {
-  defaultVariableValue as varDefaultValue,
-  wouldCreateCycle,
-} from '@/variables/variable-types'
+import { defaultVariableValue as varDefaultValue, wouldCreateCycle } from '@/variables/variable-types'
 import { generateBlend, createBlendGroup } from '@/tools/blend-tool'
 import { generateRepeaterInstances, createRepeaterGroup } from '@/tools/repeater'
 import { createDefaultPerspectiveConfig } from '@/render/perspective-grid'

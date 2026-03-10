@@ -128,8 +128,10 @@ function layerToClipperPaths(layer: VectorLayer): ClipperLib.Paths {
         for (let i = 1; i <= steps; i++) {
           const t2 = i / steps
           const mt = 1 - t2
-          const px = mt * mt * mt * prevX + 3 * mt * mt * t2 * seg.cp1x + 3 * mt * t2 * t2 * seg.cp2x + t2 * t2 * t2 * seg.x
-          const py = mt * mt * mt * prevY + 3 * mt * mt * t2 * seg.cp1y + 3 * mt * t2 * t2 * seg.cp2y + t2 * t2 * t2 * seg.y
+          const px =
+            mt * mt * mt * prevX + 3 * mt * mt * t2 * seg.cp1x + 3 * mt * t2 * t2 * seg.cp2x + t2 * t2 * t2 * seg.x
+          const py =
+            mt * mt * mt * prevY + 3 * mt * mt * t2 * seg.cp1y + 3 * mt * t2 * t2 * seg.cp2y + t2 * t2 * t2 * seg.y
           cp.push({
             X: Math.round((px * t.scaleX + t.x) * SCALE),
             Y: Math.round((py * t.scaleY + t.y) * SCALE),
@@ -176,11 +178,7 @@ function clipperPathToSegments(cp: ClipperLib.Path): Segment[] {
   return segments
 }
 
-function clipperExecute(
-  subject: ClipperLib.Paths,
-  clip: ClipperLib.Paths,
-  clipType: number,
-): ClipperLib.Paths {
+function clipperExecute(subject: ClipperLib.Paths, clip: ClipperLib.Paths, clipType: number): ClipperLib.Paths {
   const clipper = new ClipperLib.Clipper()
   clipper.AddPaths(subject, ClipperLib.PolyType.ptSubject, true)
   clipper.AddPaths(clip, ClipperLib.PolyType.ptClip, true)
@@ -217,11 +215,7 @@ export function computeRegions(layers: VectorLayer[]): RegionInfo[] {
   // For each pair of layers, compute their intersection region
   for (let i = 0; i < layers.length; i++) {
     for (let j = i + 1; j < layers.length; j++) {
-      const intersection = clipperExecute(
-        allClipperPaths[i]!,
-        allClipperPaths[j]!,
-        ClipperLib.ClipType.ctIntersection,
-      )
+      const intersection = clipperExecute(allClipperPaths[i]!, allClipperPaths[j]!, ClipperLib.ClipType.ctIntersection)
 
       for (const cp of intersection) {
         if (cp.length < 3) continue
@@ -242,11 +236,7 @@ export function computeRegions(layers: VectorLayer[]): RegionInfo[] {
 
     for (let j = 0; j < layers.length; j++) {
       if (i === j) continue
-      const diff = clipperExecute(
-        remaining,
-        allClipperPaths[j]!,
-        ClipperLib.ClipType.ctDifference,
-      )
+      const diff = clipperExecute(remaining, allClipperPaths[j]!, ClipperLib.ClipType.ctDifference)
       remaining = diff
     }
 
@@ -271,11 +261,7 @@ export function computeRegions(layers: VectorLayer[]): RegionInfo[] {
  * Determine which region contains the given point.
  * Uses winding-number point-in-polygon test.
  */
-export function hitTestRegion(
-  x: number,
-  y: number,
-  regions: RegionInfo[],
-): RegionInfo | null {
+export function hitTestRegion(x: number, y: number, regions: RegionInfo[]): RegionInfo | null {
   for (const region of regions) {
     // Quick bounds check
     const b = region.bounds
@@ -323,11 +309,7 @@ function pointInPolygon(px: number, py: number, segments: Segment[]): boolean {
   return winding !== 0
 }
 
-function windingEdge(
-  px: number, py: number,
-  x1: number, y1: number,
-  x2: number, y2: number,
-): number {
+function windingEdge(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
   if (y1 <= py) {
     if (y2 > py) {
       // Upward crossing
@@ -484,9 +466,7 @@ export function finalizeShapeBuilder(): void {
 
   // Get styling from the first source layer
   const firstSourceId = state.selectedLayerIds[0]
-  const firstSource = firstSourceId
-    ? (findLayer(artboard.layers, firstSourceId) as VectorLayer | null)
-    : null
+  const firstSource = firstSourceId ? (findLayer(artboard.layers, firstSourceId) as VectorLayer | null) : null
 
   // Merge all kept regions into one combined path set
   const allSegments: Segment[][] = keptRegions.map((r) => r.segments)
@@ -507,9 +487,7 @@ export function finalizeShapeBuilder(): void {
     transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     effects: [],
     paths,
-    fill: firstSource?.fill
-      ? { ...firstSource.fill }
-      : { type: 'solid', color: '#000000', opacity: 1 },
+    fill: firstSource?.fill ? { ...firstSource.fill } : { type: 'solid', color: '#000000', opacity: 1 },
     stroke: firstSource?.stroke ? { ...firstSource.stroke } : null,
   }
 
@@ -527,10 +505,7 @@ export function finalizeShapeBuilder(): void {
  * Finalize the shape builder with specific kept region IDs,
  * for programmatic use and testing.
  */
-export function finalizeShapeBuilderWithRegions(
-  keptRegionIds: string[],
-  artboardId: string,
-): VectorLayer | null {
+export function finalizeShapeBuilderWithRegions(keptRegionIds: string[], artboardId: string): VectorLayer | null {
   if (!state.active) return null
 
   const store = useEditorStore.getState()
@@ -541,9 +516,7 @@ export function finalizeShapeBuilderWithRegions(
   if (keptRegions.length === 0) return null
 
   const firstSourceId = state.selectedLayerIds[0]
-  const firstSource = firstSourceId
-    ? (findLayer(artboard.layers, firstSourceId) as VectorLayer | null)
-    : null
+  const firstSource = firstSourceId ? (findLayer(artboard.layers, firstSourceId) as VectorLayer | null) : null
 
   const paths: Path[] = keptRegions.map((r) => ({
     id: uuid(),
@@ -562,9 +535,7 @@ export function finalizeShapeBuilderWithRegions(
     transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
     effects: [],
     paths,
-    fill: firstSource?.fill
-      ? { ...firstSource.fill }
-      : { type: 'solid', color: '#000000', opacity: 1 },
+    fill: firstSource?.fill ? { ...firstSource.fill } : { type: 'solid', color: '#000000', opacity: 1 },
     stroke: firstSource?.stroke ? { ...firstSource.stroke } : null,
   }
 
@@ -585,10 +556,7 @@ export function finalizeShapeBuilderWithRegions(
  * Render shape builder overlays on the canvas.
  * Called from the viewport render loop when the shape-builder tool is active.
  */
-export function renderShapeBuilderOverlay(
-  ctx: CanvasRenderingContext2D,
-  zoom: number,
-): void {
+export function renderShapeBuilderOverlay(ctx: CanvasRenderingContext2D, zoom: number): void {
   if (!state.active) return
 
   for (const region of state.regions) {
@@ -624,13 +592,14 @@ export function renderShapeBuilderOverlay(
     ctx.fill()
 
     // Stroke outline
-    ctx.strokeStyle = status === 'kept'
-      ? 'rgba(0, 200, 100, 0.8)'
-      : status === 'removed'
-        ? 'rgba(255, 60, 60, 0.8)'
-        : isHovered
-          ? 'rgba(74, 125, 255, 0.8)'
-          : 'rgba(128, 128, 128, 0.4)'
+    ctx.strokeStyle =
+      status === 'kept'
+        ? 'rgba(0, 200, 100, 0.8)'
+        : status === 'removed'
+          ? 'rgba(255, 60, 60, 0.8)'
+          : isHovered
+            ? 'rgba(74, 125, 255, 0.8)'
+            : 'rgba(128, 128, 128, 0.4)'
     ctx.lineWidth = (isHovered ? 2 : 1) / zoom
     ctx.stroke()
   }

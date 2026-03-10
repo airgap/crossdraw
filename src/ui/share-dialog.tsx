@@ -109,9 +109,7 @@ export function ShareDialog({ onClose }: Props) {
       <div style={dialogStyle} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={headerStyle}>
-          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff' }}>
-            Share Prototype
-          </h2>
+          <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#fff' }}>Share Prototype</h2>
           <button onClick={onClose} style={closeButtonStyle} title="Close">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <line x1="18" y1="6" x2="6" y2="18" />
@@ -191,16 +189,12 @@ export function ShareDialog({ onClose }: Props) {
         {/* Existing shares */}
         {shares.length > 0 && (
           <div style={{ ...sectionStyle, borderTop: '1px solid #2a2a2a', marginTop: 0 }}>
-            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#999', marginBottom: 8 }}>
-              Active Share Links
-            </h3>
+            <h3 style={{ fontSize: 13, fontWeight: 600, color: '#999', marginBottom: 8 }}>Active Share Links</h3>
             <div style={{ maxHeight: 240, overflowY: 'auto' }}>
               {shares.map((share) => (
                 <div key={share.slug} style={shareRowStyle}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 500, color: '#ddd', marginBottom: 2 }}>
-                      {share.name}
-                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#ddd', marginBottom: 2 }}>{share.name}</div>
                     <div style={{ fontSize: 11, color: '#777' }}>
                       {share.viewCount} view{share.viewCount !== 1 ? 's' : ''}
                       {' \u00b7 '}
@@ -210,27 +204,26 @@ export function ShareDialog({ onClose }: Props) {
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    <button
-                      onClick={() => handleCopyLink(share.slug)}
-                      style={iconButtonStyle}
-                      title="Copy link"
-                    >
+                    <button onClick={() => handleCopyLink(share.slug)} style={iconButtonStyle} title="Copy link">
                       {copied === share.slug ? (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       ) : (
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
                           <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
                           <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                         </svg>
                       )}
                     </button>
-                    <button
-                      onClick={() => handleDeleteShare(share.slug)}
-                      style={iconButtonStyle}
-                      title="Delete share"
-                    >
+                    <button onClick={() => handleDeleteShare(share.slug)} style={iconButtonStyle} title="Delete share">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="3 6 5 6 21 6" />
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />

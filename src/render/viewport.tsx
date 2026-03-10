@@ -910,7 +910,19 @@ export function Viewport() {
     if (activeTool === 'eyedropper' && eyedropperHover.current && canvasRef.current) {
       renderLoupe(ctx, canvasRef.current, eyedropperHover.current.x, eyedropperHover.current.y)
     }
-  }, [viewport, document, activeTool, selection, showRulers, showGrid, gridSize, activeSnapLines, showInspectOverlay, selectedCommentId, prototypeMode])
+  }, [
+    viewport,
+    document,
+    activeTool,
+    selection,
+    showRulers,
+    showGrid,
+    gridSize,
+    activeSnapLines,
+    showInspectOverlay,
+    selectedCommentId,
+    prototypeMode,
+  ])
 
   useEffect(() => {
     render()
@@ -1559,16 +1571,14 @@ export function Viewport() {
         )
         const newConfig = { ...ab.perspectiveGrid, vanishingPoints: newVPs }
         // Use silent update to avoid undo spam during drag
-        useEditorStore.setState(
-          (s) => ({
-            document: {
-              ...s.document,
-              artboards: s.document.artboards.map((a) =>
-                a.id === vpDragState.current!.artboardId ? { ...a, perspectiveGrid: newConfig } : a,
-              ),
-            },
-          }),
-        )
+        useEditorStore.setState((s) => ({
+          document: {
+            ...s.document,
+            artboards: s.document.artboards.map((a) =>
+              a.id === vpDragState.current!.artboardId ? { ...a, perspectiveGrid: newConfig } : a,
+            ),
+          },
+        }))
         render()
       }
       return
@@ -2180,7 +2190,17 @@ function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
 
 function applyTransform(
   ctx: CanvasRenderingContext2D,
-  t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number; skewX?: number; skewY?: number; anchorX?: number; anchorY?: number },
+  t: {
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+    rotation: number
+    skewX?: number
+    skewY?: number
+    anchorX?: number
+    anchorY?: number
+  },
   bounds?: { width: number; height: number },
 ) {
   ctx.translate(t.x, t.y)
@@ -2313,7 +2333,8 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
 
 function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
   // Pre-compute local bounds for anchor point support
-  let localW = 100, localH = 100
+  let localW = 100,
+    localH = 100
   for (const p of layer.paths) {
     for (const seg of p.segments) {
       if ('x' in seg) {
@@ -2343,19 +2364,14 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
 
   // Apply envelope distortion if configured
   const renderPaths =
-    layer.envelope && layer.envelope.preset !== 'none'
-      ? warpPaths(layer.paths, layer.envelope)
-      : layer.paths
+    layer.envelope && layer.envelope.preset !== 'none' ? warpPaths(layer.paths, layer.envelope) : layer.paths
 
   // Compute bounding box for gradient/noise sizing
   let bboxX = 0,
     bboxY = 0,
     bboxW = 100,
     bboxH = 100
-  if (
-    (layer.fill?.type === 'gradient' && layer.fill.gradient) ||
-    (layer.fill?.type === 'noise' && layer.fill.noise)
-  ) {
+  if ((layer.fill?.type === 'gradient' && layer.fill.gradient) || (layer.fill?.type === 'noise' && layer.fill.noise)) {
     // Approximate bbox from paths
     let minX = Infinity,
       minY = Infinity,
@@ -3374,11 +3390,7 @@ function collectLayersRecursive(
 }
 
 /** Render prototype flow overlay: arrows from interactive layers to target artboards */
-function renderPrototypeFlowOverlay(
-  ctx: CanvasRenderingContext2D,
-  doc: DesignDocument,
-  zoom: number,
-) {
+function renderPrototypeFlowOverlay(ctx: CanvasRenderingContext2D, doc: DesignDocument, zoom: number) {
   const interactiveLayers = collectAllInteractiveLayers(doc)
   if (interactiveLayers.length === 0) return
 
@@ -3493,7 +3505,12 @@ function renderPrototypeFlowOverlay(
       ctx.strokeStyle = '#00cc88'
       ctx.lineWidth = 3 / zoom
       ctx.setLineDash([8 / zoom, 4 / zoom])
-      ctx.strokeRect(artboard.x - 2 / zoom, artboard.y - 2 / zoom, artboard.width + 4 / zoom, artboard.height + 4 / zoom)
+      ctx.strokeRect(
+        artboard.x - 2 / zoom,
+        artboard.y - 2 / zoom,
+        artboard.width + 4 / zoom,
+        artboard.height + 4 / zoom,
+      )
       ctx.setLineDash([])
 
       // "Start" label

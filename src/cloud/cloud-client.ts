@@ -77,11 +77,7 @@ export async function listCloudFiles(config?: CloudConfig): Promise<CloudFileEnt
   return (await res.json()) as CloudFileEntry[]
 }
 
-export async function uploadFile(
-  name: string,
-  data: ArrayBuffer,
-  config?: CloudConfig,
-): Promise<CloudFileEntry> {
+export async function uploadFile(name: string, data: ArrayBuffer, config?: CloudConfig): Promise<CloudFileEntry> {
   const { serverUrl, apiKey } = config ?? getCloudConfig()
   const url = buildUrl(serverUrl, '/api/files')
   const res = await fetch(url, {
@@ -111,11 +107,7 @@ export async function downloadFile(id: string, config?: CloudConfig): Promise<Ar
   return res.arrayBuffer()
 }
 
-export async function updateFile(
-  id: string,
-  data: ArrayBuffer,
-  config?: CloudConfig,
-): Promise<CloudFileEntry> {
+export async function updateFile(id: string, data: ArrayBuffer, config?: CloudConfig): Promise<CloudFileEntry> {
   const { serverUrl, apiKey } = config ?? getCloudConfig()
   const url = buildUrl(serverUrl, `/api/files/${id}`)
   const res = await fetch(url, {

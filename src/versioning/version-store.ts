@@ -177,11 +177,7 @@ export async function deleteSnapshot(id: string): Promise<void> {
 
 // ── Branch CRUD ──
 
-export async function createBranch(
-  docId: string,
-  name: string,
-  fromSnapshotId: string,
-): Promise<VersionBranch> {
+export async function createBranch(docId: string, name: string, fromSnapshotId: string): Promise<VersionBranch> {
   const branch: VersionBranch = {
     name,
     headSnapshotId: fromSnapshotId,

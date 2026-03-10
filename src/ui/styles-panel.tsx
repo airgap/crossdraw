@@ -1,15 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { v4 as uuid } from 'uuid'
-import type {
-  TextStyle,
-  ColorStyle,
-  EffectStyle,
-  Layer,
-  VectorLayer,
-  TextLayer,
-  GroupLayer,
-} from '@/types'
+import type { TextStyle, ColorStyle, EffectStyle, Layer, VectorLayer, TextLayer, GroupLayer } from '@/types'
 
 // ── Helpers ──
 
@@ -119,9 +111,7 @@ function TextStylesSection() {
         </button>
       </div>
       {styles.length === 0 && (
-        <div style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '4px 0' }}>
-          No text styles defined
-        </div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '4px 0' }}>No text styles defined</div>
       )}
       {styles.map((style) => (
         <div
@@ -209,29 +199,30 @@ function TextStylesSection() {
           </button>
         </div>
       ))}
-      {selection.layerIds.length > 0 && (() => {
-        const artboard = document.artboards[0]
-        if (!artboard) return null
-        const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
-        if (!layer || !layer.textStyleId) return null
-        return (
-          <button
-            onClick={handleDetach}
-            style={{
-              marginTop: 4,
-              background: 'none',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontSize: 11,
-              padding: '2px 8px',
-              borderRadius: 3,
-            }}
-          >
-            Detach Text Style
-          </button>
-        )
-      })()}
+      {selection.layerIds.length > 0 &&
+        (() => {
+          const artboard = document.artboards[0]
+          if (!artboard) return null
+          const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
+          if (!layer || !layer.textStyleId) return null
+          return (
+            <button
+              onClick={handleDetach}
+              style={{
+                marginTop: 4,
+                background: 'none',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 3,
+              }}
+            >
+              Detach Text Style
+            </button>
+          )
+        })()}
     </div>
   )
 }
@@ -324,9 +315,7 @@ function ColorStylesSection() {
         </button>
       </div>
       {styles.length === 0 && (
-        <div style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '4px 0' }}>
-          No color styles defined
-        </div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '4px 0' }}>No color styles defined</div>
       )}
       {styles.map((style) => (
         <div
@@ -409,29 +398,30 @@ function ColorStylesSection() {
           </button>
         </div>
       ))}
-      {selection.layerIds.length > 0 && (() => {
-        const artboard = document.artboards[0]
-        if (!artboard) return null
-        const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
-        if (!layer || !layer.fillStyleId) return null
-        return (
-          <button
-            onClick={handleDetach}
-            style={{
-              marginTop: 4,
-              background: 'none',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontSize: 11,
-              padding: '2px 8px',
-              borderRadius: 3,
-            }}
-          >
-            Detach Color Style
-          </button>
-        )
-      })()}
+      {selection.layerIds.length > 0 &&
+        (() => {
+          const artboard = document.artboards[0]
+          if (!artboard) return null
+          const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
+          if (!layer || !layer.fillStyleId) return null
+          return (
+            <button
+              onClick={handleDetach}
+              style={{
+                marginTop: 4,
+                background: 'none',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 3,
+              }}
+            >
+              Detach Color Style
+            </button>
+          )
+        })()}
     </div>
   )
 }
@@ -525,9 +515,7 @@ function EffectStylesSection() {
         </button>
       </div>
       {styles.length === 0 && (
-        <div style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '4px 0' }}>
-          No effect styles defined
-        </div>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 11, padding: '4px 0' }}>No effect styles defined</div>
       )}
       {styles.map((style) => (
         <div
@@ -611,29 +599,30 @@ function EffectStylesSection() {
           </button>
         </div>
       ))}
-      {selection.layerIds.length > 0 && (() => {
-        const artboard = document.artboards[0]
-        if (!artboard) return null
-        const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
-        if (!layer || !layer.effectStyleId) return null
-        return (
-          <button
-            onClick={handleDetach}
-            style={{
-              marginTop: 4,
-              background: 'none',
-              border: '1px solid var(--border-subtle)',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              fontSize: 11,
-              padding: '2px 8px',
-              borderRadius: 3,
-            }}
-          >
-            Detach Effect Style
-          </button>
-        )
-      })()}
+      {selection.layerIds.length > 0 &&
+        (() => {
+          const artboard = document.artboards[0]
+          if (!artboard) return null
+          const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
+          if (!layer || !layer.effectStyleId) return null
+          return (
+            <button
+              onClick={handleDetach}
+              style={{
+                marginTop: 4,
+                background: 'none',
+                border: '1px solid var(--border-subtle)',
+                color: 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 3,
+              }}
+            >
+              Detach Effect Style
+            </button>
+          )
+        })()}
     </div>
   )
 }

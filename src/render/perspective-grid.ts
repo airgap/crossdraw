@@ -340,14 +340,7 @@ export function snapToPerspective(
 }
 
 /** Perpendicular distance from point (px,py) to line through (lx0,ly0)-(lx1,ly1). */
-function pointToLineDistance(
-  px: number,
-  py: number,
-  lx0: number,
-  ly0: number,
-  lx1: number,
-  ly1: number,
-): number {
+function pointToLineDistance(px: number, py: number, lx0: number, ly0: number, lx1: number, ly1: number): number {
   const dx = lx1 - lx0
   const dy = ly1 - ly0
   const lenSq = dx * dx + dy * dy

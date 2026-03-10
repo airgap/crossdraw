@@ -168,9 +168,7 @@ describe('CSS Grid Layout Engine', () => {
           { size: 1, unit: 'fr' },
           { size: 1, unit: 'fr' },
         ],
-        rows: [
-          { size: 50, unit: 'px' },
-        ],
+        rows: [{ size: 50, unit: 'px' }],
         columnGap: 0,
         rowGap: 0,
         alignItems: 'start',
@@ -194,10 +192,7 @@ describe('CSS Grid Layout Engine', () => {
 
   describe('explicit grid placement', () => {
     test('children placed at specified grid positions', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 40),
-        makeVectorChild('b', 'B', 40, 40),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 40), makeVectorChild('b', 'B', 40, 40)]
       // Place B at (0,0) and A at (1,1) - reversed from source order
       children[0]!.gridPlacement = { column: 1, row: 1, columnSpan: 1, rowSpan: 1 }
       children[1]!.gridPlacement = { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
@@ -271,10 +266,7 @@ describe('CSS Grid Layout Engine', () => {
 
   describe('column/row spanning', () => {
     test('child spanning 2 columns gets double width cell', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 40),
-        makeVectorChild('b', 'B', 40, 40),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 40), makeVectorChild('b', 'B', 40, 40)]
       // A spans 2 columns
       children[0]!.gridPlacement = { column: 0, row: 0, columnSpan: 2, rowSpan: 1 }
 
@@ -347,9 +339,7 @@ describe('CSS Grid Layout Engine', () => {
     })
 
     test('spanning includes inter-track gaps in cell size', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 40),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 40)]
       children[0]!.gridPlacement = { column: 0, row: 0, columnSpan: 2, rowSpan: 1 }
 
       const gridConfig: GridLayoutConfig = {
@@ -357,9 +347,7 @@ describe('CSS Grid Layout Engine', () => {
           { size: 1, unit: 'fr' },
           { size: 1, unit: 'fr' },
         ],
-        rows: [
-          { size: 1, unit: 'fr' },
-        ],
+        rows: [{ size: 1, unit: 'fr' }],
         columnGap: 20,
         rowGap: 0,
         alignItems: 'start',
@@ -379,18 +367,13 @@ describe('CSS Grid Layout Engine', () => {
 
   describe('gap between tracks', () => {
     test('column gap offsets subsequent columns', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 40),
-        makeVectorChild('b', 'B', 40, 40),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 40), makeVectorChild('b', 'B', 40, 40)]
       const gridConfig: GridLayoutConfig = {
         columns: [
           { size: 1, unit: 'fr' },
           { size: 1, unit: 'fr' },
         ],
-        rows: [
-          { size: 1, unit: 'fr' },
-        ],
+        rows: [{ size: 1, unit: 'fr' }],
         columnGap: 20,
         rowGap: 0,
         alignItems: 'start',
@@ -408,14 +391,9 @@ describe('CSS Grid Layout Engine', () => {
     })
 
     test('row gap offsets subsequent rows', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 40),
-        makeVectorChild('b', 'B', 40, 40),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 40), makeVectorChild('b', 'B', 40, 40)]
       const gridConfig: GridLayoutConfig = {
-        columns: [
-          { size: 1, unit: 'fr' },
-        ],
+        columns: [{ size: 1, unit: 'fr' }],
         rows: [
           { size: 1, unit: 'fr' },
           { size: 1, unit: 'fr' },
@@ -439,9 +417,7 @@ describe('CSS Grid Layout Engine', () => {
 
   describe('align/justify items within cells', () => {
     test('alignItems center vertically centers child in cell', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 20),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 20)]
       const gridConfig: GridLayoutConfig = {
         columns: [{ size: 1, unit: 'fr' }],
         rows: [{ size: 1, unit: 'fr' }],
@@ -462,9 +438,7 @@ describe('CSS Grid Layout Engine', () => {
     })
 
     test('justifyItems center horizontally centers child in cell', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 20),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 20)]
       const gridConfig: GridLayoutConfig = {
         columns: [{ size: 1, unit: 'fr' }],
         rows: [{ size: 1, unit: 'fr' }],
@@ -485,9 +459,7 @@ describe('CSS Grid Layout Engine', () => {
     })
 
     test('alignItems end aligns child to bottom of cell', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 20),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 20)]
       const gridConfig: GridLayoutConfig = {
         columns: [{ size: 1, unit: 'fr' }],
         rows: [{ size: 1, unit: 'fr' }],
@@ -508,9 +480,7 @@ describe('CSS Grid Layout Engine', () => {
     })
 
     test('stretch fills child to cell dimensions', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 20),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 20)]
       children[0]!.layoutSizing = { horizontal: 'fill', vertical: 'fill' }
 
       const gridConfig: GridLayoutConfig = {
@@ -537,9 +507,7 @@ describe('CSS Grid Layout Engine', () => {
 
   describe('padding', () => {
     test('padding offsets all grid content', () => {
-      const children = [
-        makeVectorChild('a', 'A', 40, 40),
-      ]
+      const children = [makeVectorChild('a', 'A', 40, 40)]
       const gridConfig: GridLayoutConfig = {
         columns: [{ size: 1, unit: 'fr' }],
         rows: [{ size: 1, unit: 'fr' }],
@@ -575,10 +543,7 @@ describe('CSS Grid Layout Engine', () => {
 
   describe('backwards compatibility', () => {
     test('layout without layoutMode defaults to flex behavior', () => {
-      const children = [
-        makeVectorChild('a', 'A', 50, 50),
-        makeVectorChild('b', 'B', 50, 50),
-      ]
+      const children = [makeVectorChild('a', 'A', 50, 50), makeVectorChild('b', 'B', 50, 50)]
       const group: GroupLayer = {
         id: 'g1',
         name: 'Group',

@@ -1,7 +1,15 @@
 import { useState } from 'react'
 import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
-import type { ComponentProperty, SymbolVariant, SymbolDefinition, GroupLayer, Layer, SymbolInstanceLayer, VectorLayer } from '@/types'
+import type {
+  ComponentProperty,
+  SymbolVariant,
+  SymbolDefinition,
+  GroupLayer,
+  Layer,
+  SymbolInstanceLayer,
+  VectorLayer,
+} from '@/types'
 
 const smallInputStyle: React.CSSProperties = {
   background: 'var(--bg-input)',
@@ -251,11 +259,7 @@ export function SymbolsPanel() {
               </button>
 
               {/* Delete button */}
-              <button
-                onClick={() => deleteSymbolDefinition(sym.id)}
-                title="Delete symbol"
-                style={tinyBtnStyle}
-              >
+              <button onClick={() => deleteSymbolDefinition(sym.id)} title="Delete symbol" style={tinyBtnStyle}>
                 Delete
               </button>
             </div>
@@ -324,10 +328,7 @@ function SymbolDetail({
   const variants = symbol.variants ?? []
 
   /** Flatten layers for the target layer picker */
-  function flattenLayers(
-    layers: import('@/types').Layer[],
-    prefix = '',
-  ): { id: string; label: string }[] {
+  function flattenLayers(layers: import('@/types').Layer[], prefix = ''): { id: string; label: string }[] {
     const result: { id: string; label: string }[] = []
     for (const l of layers) {
       result.push({ id: l.id, label: prefix + l.name })
@@ -348,7 +349,13 @@ function SymbolDetail({
       name,
       type: newPropType,
       defaultValue: newPropType === 'boolean' ? newPropDefault === 'true' : newPropDefault,
-      options: newPropType === 'enum' ? newPropOptions.split(',').map((s) => s.trim()).filter(Boolean) : undefined,
+      options:
+        newPropType === 'enum'
+          ? newPropOptions
+              .split(',')
+              .map((s) => s.trim())
+              .filter(Boolean)
+          : undefined,
       targetLayerId: newPropTargetLayer || undefined,
     }
     addComponentProperty(symbol.id, prop)
@@ -384,9 +391,7 @@ function SymbolDetail({
       {/* ── Component Properties ── */}
       <div style={sectionLabelStyle}>Component Properties</div>
       {props.length === 0 && (
-        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-          No properties defined
-        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>No properties defined</div>
       )}
       {props.map((prop) => (
         <div
@@ -410,9 +415,7 @@ function SymbolDetail({
             title={`${prop.name} (${prop.type}) — default: ${String(prop.defaultValue)}${prop.targetLayerId ? ` — target: ${prop.targetLayerId}` : ''}`}
           >
             {prop.name}
-            <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>
-              {prop.type}
-            </span>
+            <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>{prop.type}</span>
           </span>
           <button
             onClick={() => removeComponentProperty(symbol.id, prop.id)}
@@ -495,10 +498,7 @@ function SymbolDetail({
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowNewProp(true)}
-          style={{ ...tinyBtnStyle, marginTop: 4, fontSize: 10 }}
-        >
+        <button onClick={() => setShowNewProp(true)} style={{ ...tinyBtnStyle, marginTop: 4, fontSize: 10 }}>
           + Add Property
         </button>
       )}
@@ -506,9 +506,7 @@ function SymbolDetail({
       {/* ── Variants ── */}
       <div style={{ ...sectionLabelStyle, marginTop: 12 }}>Variants</div>
       {variants.length === 0 && (
-        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>
-          No variants defined
-        </div>
+        <div style={{ fontSize: 10, color: 'var(--text-tertiary)', marginBottom: 4 }}>No variants defined</div>
       )}
       {variants.map((variant) => (
         <div
@@ -576,10 +574,7 @@ function SymbolDetail({
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => setShowNewVariant(true)}
-          style={{ ...tinyBtnStyle, marginTop: 4, fontSize: 10 }}
-        >
+        <button onClick={() => setShowNewVariant(true)} style={{ ...tinyBtnStyle, marginTop: 4, fontSize: 10 }}>
           + Add Variant
         </button>
       )}
@@ -799,7 +794,9 @@ function InstanceSlotEditor({
                 >
                   {slot.slotName}
                   <span style={{ color: 'var(--text-tertiary)', marginLeft: 4 }}>
-                    {isFilled ? `${filled.length} layer${filled.length !== 1 ? 's' : ''}` : `default (${slot.defaultChildCount})`}
+                    {isFilled
+                      ? `${filled.length} layer${filled.length !== 1 ? 's' : ''}`
+                      : `default (${slot.defaultChildCount})`}
                   </span>
                 </span>
                 <button

@@ -66,10 +66,7 @@ export function removeBackgroundByColor(imageData: ImageData, params: Background
   const mask = new Uint8Array(w * h)
   for (let i = 0; i < w * h; i++) {
     const idx = i * 4
-    const dist = colorDistance(
-      src[idx]!, src[idx + 1]!, src[idx + 2]!,
-      bgColor[0], bgColor[1], bgColor[2],
-    )
+    const dist = colorDistance(src[idx]!, src[idx + 1]!, src[idx + 2]!, bgColor[0], bgColor[1], bgColor[2])
     if (dist <= tolerance) {
       mask[i] = 0
     } else if (dist <= tolerance + feather * 8 && feather > 0) {
@@ -219,12 +216,7 @@ export function sobelEdgeDetect(imageData: ImageData): Float32Array {
  *
  * @returns Uint8Array where 1 = part of region, 0 = outside
  */
-export function floodFillMask(
-  imageData: ImageData,
-  startX: number,
-  startY: number,
-  tolerance: number,
-): Uint8Array {
+export function floodFillMask(imageData: ImageData, startX: number, startY: number, tolerance: number): Uint8Array {
   const w = imageData.width
   const h = imageData.height
   const src = imageData.data
@@ -258,10 +250,7 @@ export function floodFillMask(
       if (mask[ni]) continue
 
       const nidx = ni * 4
-      const dist = colorDistance(
-        src[nidx]!, src[nidx + 1]!, src[nidx + 2]!,
-        seedR, seedG, seedB,
-      )
+      const dist = colorDistance(src[nidx]!, src[nidx + 1]!, src[nidx + 2]!, seedR, seedG, seedB)
 
       if (dist <= tolerance) {
         mask[ni] = 1
@@ -281,12 +270,7 @@ export function floodFillMask(
  *
  * @returns A new Uint8Array with the feathered mask.
  */
-export function applyFeathering(
-  mask: Uint8Array,
-  width: number,
-  height: number,
-  radius: number,
-): Uint8Array {
+export function applyFeathering(mask: Uint8Array, width: number, height: number, radius: number): Uint8Array {
   if (radius <= 0) return new Uint8Array(mask)
 
   // Use float buffer for precision during blur passes
@@ -313,10 +297,7 @@ export function applyFeathering(
 // ── Internal helpers ─────────────────────────────────────────
 
 /** Euclidean colour distance in RGB space. */
-function colorDistance(
-  r1: number, g1: number, b1: number,
-  r2: number, g2: number, b2: number,
-): number {
+function colorDistance(r1: number, g1: number, b1: number, r2: number, g2: number, b2: number): number {
   const dr = r1 - r2
   const dg = g1 - g2
   const db = b1 - b2
@@ -333,24 +314,22 @@ function sampleCornerColor(imageData: ImageData): [number, number, number] {
   const src = imageData.data
 
   const corners = [
-    0,                              // top-left
-    (w - 1) * 4,                    // top-right
-    ((h - 1) * w) * 4,             // bottom-left
-    ((h - 1) * w + w - 1) * 4,    // bottom-right
+    0, // top-left
+    (w - 1) * 4, // top-right
+    (h - 1) * w * 4, // bottom-left
+    ((h - 1) * w + w - 1) * 4, // bottom-right
   ]
 
-  let rSum = 0, gSum = 0, bSum = 0
+  let rSum = 0,
+    gSum = 0,
+    bSum = 0
   for (const idx of corners) {
     rSum += src[idx]!
     gSum += src[idx + 1]!
     bSum += src[idx + 2]!
   }
 
-  return [
-    Math.round(rSum / 4),
-    Math.round(gSum / 4),
-    Math.round(bSum / 4),
-  ]
+  return [Math.round(rSum / 4), Math.round(gSum / 4), Math.round(bSum / 4)]
 }
 
 /** Export sampleCornerColor for testing */
@@ -406,10 +385,7 @@ function edgeAwareFloodFill(
       if (edges[ni]! > edgeThreshold) continue
 
       const nidx = ni * 4
-      const dist = colorDistance(
-        src[nidx]!, src[nidx + 1]!, src[nidx + 2]!,
-        seedR, seedG, seedB,
-      )
+      const dist = colorDistance(src[nidx]!, src[nidx + 1]!, src[nidx + 2]!, seedR, seedG, seedB)
 
       if (dist <= tolerance) {
         bgMask[ni] = 1

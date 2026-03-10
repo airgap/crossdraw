@@ -1,4 +1,16 @@
-import type { Layer, VectorLayer, TextLayer, GroupLayer, Fill, Stroke, Effect, ShadowParams, BlurParams, GlowParams, InnerShadowParams } from '@/types'
+import type {
+  Layer,
+  VectorLayer,
+  TextLayer,
+  GroupLayer,
+  Fill,
+  Stroke,
+  Effect,
+  ShadowParams,
+  BlurParams,
+  GlowParams,
+  InnerShadowParams,
+} from '@/types'
 
 export interface CSSOptions {
   units?: 'px' | 'rem'
@@ -33,10 +45,12 @@ function fillToCSS(fill: Fill): string {
   }
   if (fill.type === 'gradient' && fill.gradient) {
     const g = fill.gradient
-    const stops = g.stops.map((s) => {
-      const color = hexToRGBA(s.color, s.opacity * fill.opacity)
-      return `${color} ${Math.round(s.offset * 100)}%`
-    }).join(', ')
+    const stops = g.stops
+      .map((s) => {
+        const color = hexToRGBA(s.color, s.opacity * fill.opacity)
+        return `${color} ${Math.round(s.offset * 100)}%`
+      })
+      .join(', ')
 
     if (g.type === 'linear') {
       const angle = g.angle ?? 0
@@ -105,7 +119,10 @@ function effectsToCSS(effects: Effect[], opts: Required<CSSOptions>): Record<str
   return props
 }
 
-function cornerRadiusToCSS(cornerRadius: number | [number, number, number, number], opts: Required<CSSOptions>): string {
+function cornerRadiusToCSS(
+  cornerRadius: number | [number, number, number, number],
+  opts: Required<CSSOptions>,
+): string {
   if (typeof cornerRadius === 'number') {
     return u(cornerRadius, opts)
   }
@@ -279,11 +296,12 @@ function propsToString(props: Record<string, string>, indent: string = '  '): st
 }
 
 function sanitizeClassName(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    || 'layer'
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'layer'
+  )
 }
 
 export function generateCSS(layer: Layer, options?: CSSOptions): string {

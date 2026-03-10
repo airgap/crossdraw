@@ -138,9 +138,7 @@ export function VersionPanel() {
     if (!sourceSnapshot || !targetSnapshot) return
 
     // Find common ancestor (use the source's parent if available, otherwise target is base)
-    const baseSnapshot = sourceSnapshot.parentId
-      ? await getSnapshot(sourceSnapshot.parentId)
-      : targetSnapshot
+    const baseSnapshot = sourceSnapshot.parentId ? await getSnapshot(sourceSnapshot.parentId) : targetSnapshot
 
     if (!baseSnapshot) return
 
@@ -159,11 +157,7 @@ export function VersionPanel() {
       })
 
       // Create a merge snapshot
-      await createSnapshot(
-        result.merged,
-        `Merge ${mergeBranchName} into ${activeBranch}`,
-        activeBranch,
-      )
+      await createSnapshot(result.merged, `Merge ${mergeBranchName} into ${activeBranch}`, activeBranch)
       setShowMerge(false)
       setMergeBranchName('')
       await refreshData()
@@ -171,9 +165,7 @@ export function VersionPanel() {
   }
 
   const handleResolveConflict = (index: number, resolution: 'ours' | 'theirs') => {
-    setMergeConflicts((prev) =>
-      prev.map((c, i) => (i === index ? { ...c, resolution } : c)),
-    )
+    setMergeConflicts((prev) => prev.map((c, i) => (i === index ? { ...c, resolution } : c)))
   }
 
   const handleApplyResolutions = async () => {
@@ -188,9 +180,7 @@ export function VersionPanel() {
     const targetSnapshot = await getSnapshot(targetBranch.headSnapshotId)
     if (!sourceSnapshot || !targetSnapshot) return
 
-    const baseSnapshot = sourceSnapshot.parentId
-      ? await getSnapshot(sourceSnapshot.parentId)
-      : targetSnapshot
+    const baseSnapshot = sourceSnapshot.parentId ? await getSnapshot(sourceSnapshot.parentId) : targetSnapshot
     if (!baseSnapshot) return
 
     const result = mergeSnapshots(baseSnapshot, sourceSnapshot, targetSnapshot)
@@ -217,11 +207,7 @@ export function VersionPanel() {
       isDirty: true,
     })
 
-    await createSnapshot(
-      result.merged,
-      `Merge ${mergeBranchName} into ${activeBranch} (resolved)`,
-      activeBranch,
-    )
+    await createSnapshot(result.merged, `Merge ${mergeBranchName} into ${activeBranch} (resolved)`, activeBranch)
     setMergeConflicts([])
     setShowMerge(false)
     setMergeBranchName('')
@@ -445,9 +431,7 @@ export function VersionPanel() {
                 border: '1px solid var(--border-default)',
               }}
             >
-              <div style={{ color: 'var(--text-primary)', marginBottom: 4 }}>
-                {conflict.layerName} (Layer)
-              </div>
+              <div style={{ color: 'var(--text-primary)', marginBottom: 4 }}>{conflict.layerName} (Layer)</div>
               <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
                 <button
                   onClick={() => handleResolveConflict(i, 'ours')}
@@ -674,9 +658,7 @@ export function VersionPanel() {
             diff.removedLayers.length === 0 &&
             diff.modifiedLayers.length === 0 &&
             diff.addedArtboards.length === 0 &&
-            diff.removedArtboards.length === 0 && (
-              <div style={{ color: 'var(--text-disabled)' }}>No changes</div>
-            )}
+            diff.removedArtboards.length === 0 && <div style={{ color: 'var(--text-disabled)' }}>No changes</div>}
         </div>
       )}
     </div>

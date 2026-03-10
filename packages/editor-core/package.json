@@ -1,18 +1,60 @@
 {
-  "name": "@crossdraw/editor-core",
+  "name": "crossdraw",
   "version": "0.1.0",
-  "description": "Mountable Crossdraw design editor — embed in any web application",
+  "description": "Mountable vector & raster design editor — embed Crossdraw in any web application",
+  "author": "airgap",
+  "homepage": "https://crossdraw.app",
+  "repository": {
+    "type": "git",
+    "url": "https://t.muzz.in/muzzin/Crossdraw.git",
+    "directory": "packages/editor-core"
+  },
+  "license": "MIT",
   "type": "module",
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts",
-    "./theme-contract": "./src/theme-contract.ts",
-    "./mode-config": "./src/mode-config.ts"
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./theme-contract": {
+      "import": "./dist/theme-contract.js",
+      "types": "./dist/theme-contract.d.ts"
+    },
+    "./mode-config": {
+      "import": "./dist/mode-config.js",
+      "types": "./dist/mode-config.d.ts"
+    }
   },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts"
+  ],
+  "keywords": [
+    "design-editor",
+    "vector-editor",
+    "raster-editor",
+    "canvas",
+    "svg",
+    "drawing",
+    "illustration",
+    "embeddable",
+    "react",
+    "pngtuber"
+  ],
   "peerDependencies": {
-    "react": "^18.0.0",
-    "react-dom": "^18.0.0"
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
   },
-  "license": "MIT"
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.7",
+    "typescript": "^5.7.3"
+  },
+  "scripts": {
+    "build": "vite build && cp src/*.d.ts dist/ 2>/dev/null; true",
+    "prepublishOnly": "bun run build"
+  }
 }

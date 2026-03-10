@@ -80,6 +80,20 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   const payloadBytes = bytes.slice(headerSize, headerSize + payloadLength)
   let raw = unpack(payloadBytes) as Record<string, unknown>
 
+  // Basic schema validation
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('Invalid .xd file: payload is not an object')
+  }
+  if (typeof raw.id !== 'string') {
+    throw new Error('Invalid .xd file: missing required field "id" (string)')
+  }
+  if (!raw.metadata || typeof raw.metadata !== 'object' || Array.isArray(raw.metadata)) {
+    throw new Error('Invalid .xd file: missing required field "metadata" (object)')
+  }
+  if (!Array.isArray(raw.artboards)) {
+    throw new Error('Invalid .xd file: missing required field "artboards" (array)')
+  }
+
   // Apply migrations if needed
   if (version < FORMAT_VERSION) {
     if (!canMigrate(version, FORMAT_VERSION)) {

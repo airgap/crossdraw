@@ -186,11 +186,7 @@ describe('interpolatePaths – mismatched segment counts (subdivision)', () => {
 
 describe('subdivideSegments', () => {
   it('adds segments to reach target count', () => {
-    const segs: Segment[] = [
-      { type: 'move', x: 0, y: 0 },
-      { type: 'line', x: 100, y: 0 },
-      { type: 'close' },
-    ]
+    const segs: Segment[] = [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 100, y: 0 }, { type: 'close' }]
     // 2 drawable segments, target 4
     const result = subdivideSegments(segs, 4)
     const drawables = result.filter((s) => s.type !== 'close')
@@ -198,11 +194,7 @@ describe('subdivideSegments', () => {
   })
 
   it('preserves close segment', () => {
-    const segs: Segment[] = [
-      { type: 'move', x: 0, y: 0 },
-      { type: 'line', x: 100, y: 0 },
-      { type: 'close' },
-    ]
+    const segs: Segment[] = [{ type: 'move', x: 0, y: 0 }, { type: 'line', x: 100, y: 0 }, { type: 'close' }]
     const result = subdivideSegments(segs, 4)
     expect(result[result.length - 1]!.type).toBe('close')
   })
@@ -335,11 +327,27 @@ describe('stroke width interpolation', () => {
   it('interpolates stroke width', () => {
     const layer1 = makeVectorLayer({
       paths: [makeSquarePath(100)],
-      stroke: { width: 2, color: '#000000', opacity: 1, position: 'center', linecap: 'butt', linejoin: 'miter', miterLimit: 4 },
+      stroke: {
+        width: 2,
+        color: '#000000',
+        opacity: 1,
+        position: 'center',
+        linecap: 'butt',
+        linejoin: 'miter',
+        miterLimit: 4,
+      },
     })
     const layer2 = makeVectorLayer({
       paths: [makeSquarePath(100)],
-      stroke: { width: 10, color: '#000000', opacity: 1, position: 'center', linecap: 'butt', linejoin: 'miter', miterLimit: 4 },
+      stroke: {
+        width: 10,
+        color: '#000000',
+        opacity: 1,
+        position: 'center',
+        linecap: 'butt',
+        linejoin: 'miter',
+        miterLimit: 4,
+      },
     })
     const config: BlendConfig = { steps: 1, spacing: 'even' }
     const result = generateBlend(layer1, layer2, config)
@@ -350,11 +358,27 @@ describe('stroke width interpolation', () => {
   it('interpolates stroke color', () => {
     const layer1 = makeVectorLayer({
       paths: [makeSquarePath(100)],
-      stroke: { width: 2, color: '#000000', opacity: 1, position: 'center', linecap: 'butt', linejoin: 'miter', miterLimit: 4 },
+      stroke: {
+        width: 2,
+        color: '#000000',
+        opacity: 1,
+        position: 'center',
+        linecap: 'butt',
+        linejoin: 'miter',
+        miterLimit: 4,
+      },
     })
     const layer2 = makeVectorLayer({
       paths: [makeSquarePath(100)],
-      stroke: { width: 2, color: '#ffffff', opacity: 1, position: 'center', linecap: 'butt', linejoin: 'miter', miterLimit: 4 },
+      stroke: {
+        width: 2,
+        color: '#ffffff',
+        opacity: 1,
+        position: 'center',
+        linecap: 'butt',
+        linejoin: 'miter',
+        miterLimit: 4,
+      },
     })
     const config: BlendConfig = { steps: 1, spacing: 'even' }
     const result = generateBlend(layer1, layer2, config)
@@ -368,7 +392,15 @@ describe('stroke width interpolation', () => {
     })
     const layer2 = makeVectorLayer({
       paths: [makeSquarePath(100)],
-      stroke: { width: 4, color: '#ff0000', opacity: 1, position: 'center', linecap: 'round', linejoin: 'round', miterLimit: 4 },
+      stroke: {
+        width: 4,
+        color: '#ff0000',
+        opacity: 1,
+        position: 'center',
+        linecap: 'round',
+        linejoin: 'round',
+        miterLimit: 4,
+      },
     })
     const config: BlendConfig = { steps: 1, spacing: 'even' }
     const result = generateBlend(layer1, layer2, config)

@@ -83,9 +83,7 @@ export function VariablesPanel() {
   function filterVariables(variables: Variable[]): Variable[] {
     if (!searchQuery.trim()) return variables
     const q = searchQuery.toLowerCase()
-    return variables.filter(
-      (v) => v.name.toLowerCase().includes(q) || v.type.toLowerCase().includes(q),
-    )
+    return variables.filter((v) => v.name.toLowerCase().includes(q) || v.type.toLowerCase().includes(q))
   }
 
   // ── Drag to reorder ──
@@ -160,9 +158,7 @@ export function VariablesPanel() {
               collection={collection}
               allCollections={collections}
               expanded={expandedCollectionId === collection.id}
-              onToggleExpand={() =>
-                setExpandedCollectionId((prev) => (prev === collection.id ? null : collection.id))
-              }
+              onToggleExpand={() => setExpandedCollectionId((prev) => (prev === collection.id ? null : collection.id))}
               onRename={(name) => renameVariableCollection(collection.id, name)}
               onDelete={() => removeVariableCollection(collection.id)}
               onAddMode={(name) => addVariableMode(collection.id, name)}
@@ -244,15 +240,7 @@ export function VariablesPanel() {
 
 // ── Context menu item ──
 
-function ContextMenuItem({
-  label,
-  onClick,
-  danger,
-}: {
-  label: string
-  onClick: () => void
-  danger?: boolean
-}) {
+function ContextMenuItem({ label, onClick, danger }: { label: string; onClick: () => void; danger?: boolean }) {
   const [hovered, setHovered] = useState(false)
   return (
     <div
@@ -652,9 +640,10 @@ function VariableRow({
   onDrop,
 }: VariableRowProps) {
   // For inherited variables, resolve the effective value from the chain
-  const currentValue = isInherited && !hasLocalOverride
-    ? getEffectiveValue(collection, variable.id, activeModeId, allCollections)
-    : collection.values[variable.id]?.[activeModeId] ?? null
+  const currentValue =
+    isInherited && !hasLocalOverride
+      ? getEffectiveValue(collection, variable.id, activeModeId, allCollections)
+      : (collection.values[variable.id]?.[activeModeId] ?? null)
 
   return (
     <div
@@ -704,11 +693,7 @@ function VariableRow({
 
       {/* Name */}
       {isEditing ? (
-        <InlineEdit
-          value={variable.name}
-          onCommit={() => setEditingName(null)}
-          onCancel={() => setEditingName(null)}
-        />
+        <InlineEdit value={variable.name} onCommit={() => setEditingName(null)} onCancel={() => setEditingName(null)} />
       ) : (
         <span
           style={{

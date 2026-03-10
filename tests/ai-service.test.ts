@@ -1,10 +1,5 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
-import {
-  buildLayoutPrompt,
-  buildPalettePrompt,
-  buildCritiquePrompt,
-  buildTextPrompt,
-} from '@/ai/prompt-templates'
+import { buildLayoutPrompt, buildPalettePrompt, buildCritiquePrompt, buildTextPrompt } from '@/ai/prompt-templates'
 import type { Layer, VectorLayer, TextLayer, GroupLayer } from '@/types'
 
 // ── Mock localStorage ──

@@ -1361,8 +1361,8 @@ function resolveGradient(
 
   if (type === 'linear') {
     // Parse x1, y1, x2, y2 — fall back to inherited values, then SVG defaults
-    const x1 = parseFloatAttr(el, 'x1') ?? (inherited?.x ?? 0)
-    const y1 = parseFloatAttr(el, 'y1') ?? (inherited?.y ?? 0)
+    const x1 = parseFloatAttr(el, 'x1') ?? inherited?.x ?? 0
+    const y1 = parseFloatAttr(el, 'y1') ?? inherited?.y ?? 0
     const x2 = parseFloatAttr(el, 'x2') ?? 1
     const y2 = parseFloatAttr(el, 'y2') ?? 0
 
@@ -1385,9 +1385,9 @@ function resolveGradient(
     }
   } else {
     // radialGradient
-    const cx = parseFloatAttr(el, 'cx') ?? (inherited?.x ?? 0.5)
-    const cy = parseFloatAttr(el, 'cy') ?? (inherited?.y ?? 0.5)
-    const r = parseFloatAttr(el, 'r') ?? (inherited?.radius ?? 0.5)
+    const cx = parseFloatAttr(el, 'cx') ?? inherited?.x ?? 0.5
+    const cy = parseFloatAttr(el, 'cy') ?? inherited?.y ?? 0.5
+    const r = parseFloatAttr(el, 'r') ?? inherited?.radius ?? 0.5
 
     // Focal point: fx/fy default to cx/cy per SVG spec
     const fx = parseFloatAttr(el, 'fx') ?? cx

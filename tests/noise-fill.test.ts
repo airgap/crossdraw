@@ -189,11 +189,15 @@ describe('generateNoiseFill', () => {
   })
 
   it('color interpolation between color1 and color2', () => {
-    const result = generateNoiseFill(32, 32, makeParams({
-      color1: '#ff0000',
-      color2: '#0000ff',
-      noiseType: 'simplex',
-    }))
+    const result = generateNoiseFill(
+      32,
+      32,
+      makeParams({
+        color1: '#ff0000',
+        color2: '#0000ff',
+        noiseType: 'simplex',
+      }),
+    )
 
     // Check that pixels have color values: R channel from 0-255 (red), B from 0-255 (blue)
     // and G channel should stay near 0 (neither red nor blue contribute to green)

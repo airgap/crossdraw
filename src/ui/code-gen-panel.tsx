@@ -177,7 +177,14 @@ export function CodeGenPanel() {
           </div>
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <label
-              style={{ ...labelStyle, marginBottom: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+              style={{
+                ...labelStyle,
+                marginBottom: 0,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+              }}
             >
               <input
                 type="checkbox"
