@@ -105,6 +105,60 @@ Evaluate:
   }
 }
 
+export interface RenameLayerInfo {
+  id: string
+  name: string
+  type: string
+  details: string
+}
+
+export function buildRenamePrompt(layers: RenameLayerInfo[]): PromptPair {
+  const layerList = layers
+    .map((l) => `- id: "${l.id}", name: "${l.name}", type: ${l.type}, details: ${l.details}`)
+    .join('\n')
+
+  return {
+    system: `You are an expert UI/UX designer helping rename layers in a design file.
+Your task is to suggest clear, semantic, meaningful names for design layers based on their type, properties, and context within the design.
+
+Rules for naming:
+- Use descriptive, human-readable names (e.g., "Hero Background", "Nav Link Text", "Submit Button")
+- Infer purpose from layer type, position, color, content, and relationships to other layers
+- Use title case for names
+- Keep names concise but descriptive (2-4 words ideal)
+- For text layers, use the text content as a naming hint
+- For groups, name by the logical grouping purpose
+- Do NOT use generic names like "Layer 1", "Rectangle", "Group", "Vector"
+- Preserve names that are already meaningful and specific
+
+Return ONLY a JSON array of objects with "id" and "newName" fields.
+No markdown, no explanation, no code fences.
+Example: [{"id": "abc", "newName": "Hero Background"}]`,
+    user: `Rename these ${layers.length} layers to meaningful, semantic names:\n${layerList}`,
+  }
+}
+
+export function buildVectorArtPrompt(userPrompt: string, width: number, height: number): PromptPair {
+  return {
+    system: `You are a professional vector illustrator. Given a description, produce a clean, valid SVG illustration.
+
+Output rules:
+- Output ONLY valid SVG markup. No explanation, no markdown fences, no surrounding text.
+- The root <svg> element must include xmlns="http://www.w3.org/2000/svg" and viewBox="0 0 ${width} ${height}".
+- Use clean vector elements: <path>, <rect>, <circle>, <ellipse>, <polygon>, <line>, <polyline>.
+- Use <linearGradient> and <radialGradient> inside <defs> for visual richness.
+- Use <g> elements to organize related shapes into logical groups.
+- Do NOT embed raster images (<image>), scripts (<script>), or external references (xlink:href to URLs).
+- Do NOT use <foreignObject> or any HTML elements inside the SVG.
+- Use descriptive id attributes on groups and major shapes.
+- Aim for a clean, professional vector illustration style with good use of color, shape, and composition.
+- Fill the viewBox appropriately — the illustration should be well-composed within the ${width}x${height} canvas.`,
+    user: `Create a vector illustration of: ${userPrompt}
+
+Produce clean SVG markup for a ${width}x${height} canvas.`,
+  }
+}
+
 export function buildTextPrompt(context: string, length: 'short' | 'medium' | 'long'): PromptPair {
   const lengthGuide = {
     short: '1-2 sentences (20-40 words)',

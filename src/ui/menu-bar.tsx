@@ -42,6 +42,8 @@ import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import { exportLottie, downloadLottie } from '@/io/lottie-export'
 import { createDefaultRepeaterConfig } from '@/tools/repeater'
+import { bulkRenameLayers as aiBulkRename } from '@/ai/ai-service'
+import type { RenameLayerInfo } from '@/ai/prompt-templates'
 
 // ── Menu data types ──
 
@@ -64,6 +66,38 @@ interface MenuDef {
 function isDisabled(item: MenuItem): boolean {
   if (typeof item.disabled === 'function') return item.disabled()
   return !!item.disabled
+}
+
+// ── Helpers ──
+
+/**
+ * Collect layer metadata for AI bulk rename. Recursively collects from groups.
+ */
+function collectLayerInfos(layers: import('@/types').Layer[]): RenameLayerInfo[] {
+  const result: RenameLayerInfo[] = []
+  for (const layer of layers) {
+    let details = ''
+    if (layer.type === 'text') {
+      details = `text="${layer.text}", font=${layer.fontFamily} ${layer.fontSize}px, color=${layer.color}`
+    } else if (layer.type === 'vector') {
+      const fillColor = layer.fill?.color ?? 'none'
+      const strokeColor = layer.stroke?.color ?? 'none'
+      details = `fill=${fillColor}, stroke=${strokeColor}, pos=(${layer.transform.x}, ${layer.transform.y})`
+    } else if (layer.type === 'group') {
+      details = `${layer.children.length} children`
+    } else if (layer.type === 'raster') {
+      details = `${layer.width}x${layer.height}`
+    } else {
+      details = `pos=(${layer.transform.x}, ${layer.transform.y})`
+    }
+
+    result.push({ id: layer.id, name: layer.name, type: layer.type, details })
+
+    if (layer.type === 'group') {
+      result.push(...collectLayerInfos(layer.children))
+    }
+  }
+  return result
 }
 
 // ── Build menu definitions ──
@@ -325,6 +359,29 @@ function buildMenus(): MenuDef[] {
           })
         },
       },
+      { label: '', divider: true },
+      {
+        label: 'Save to Cloud',
+        action: () => {
+          window.dispatchEvent(new Event('crossdraw:cloud-save'))
+        },
+      },
+      {
+        label: 'Open from Cloud\u2026',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('cloud-files')
+          })
+        },
+      },
+      {
+        label: 'Cloud Files',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('cloud-files')
+          })
+        },
+      },
     ],
   }
 
@@ -431,6 +488,30 @@ function buildMenus(): MenuDef[] {
           import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
             usePanelLayoutStore.getState().focusTab('find-replace')
           })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'AI Rename Layers\u2026',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || artboard.layers.length === 0) return
+
+          const layerInfos = collectLayerInfos(artboard.layers)
+          try {
+            const renames = await aiBulkRename(layerInfos)
+            s.bulkRenameLayers(
+              artboard.id,
+              renames.map((r) => ({ layerId: r.id, newName: r.newName })),
+            )
+          } catch (err) {
+            console.error('AI rename failed:', err)
+          }
+        },
+        disabled: () => {
+          const artboard = store().document.artboards[0]
+          return !artboard || artboard.layers.length === 0
         },
       },
       { label: '', divider: true },
@@ -1199,6 +1280,30 @@ function buildMenus(): MenuDef[] {
           import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
             usePanelLayoutStore.getState().focusTab('ai-assistant')
           })
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Rename Layers\u2026',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || artboard.layers.length === 0) return
+
+          const layerInfos = collectLayerInfos(artboard.layers)
+          try {
+            const renames = await aiBulkRename(layerInfos)
+            s.bulkRenameLayers(
+              artboard.id,
+              renames.map((r) => ({ layerId: r.id, newName: r.newName })),
+            )
+          } catch (err) {
+            console.error('AI rename failed:', err)
+          }
+        },
+        disabled: () => {
+          const artboard = store().document.artboards[0]
+          return !artboard || artboard.layers.length === 0
         },
       },
     ],

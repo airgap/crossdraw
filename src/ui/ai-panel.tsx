@@ -7,10 +7,14 @@ import {
   suggestColorPalette,
   critiqueDesign,
   generatePlaceholderText,
+  generateVectorArt,
+  bulkRenameLayers as aiBulkRename,
 } from '@/ai/ai-service'
 import type { AIServiceConfig, DesignCritique } from '@/ai/ai-service'
+import type { RenameLayerInfo } from '@/ai/prompt-templates'
+import { importSVG } from '@/io/svg-import'
 import { v4 as uuid } from 'uuid'
-import type { NamedColor } from '@/types'
+import type { NamedColor, Layer } from '@/types'
 
 // ── Message types ──
 
@@ -22,6 +26,8 @@ interface ChatMessage {
   /** Attached data for actionable messages */
   palette?: string[]
   critique?: DesignCritique
+  /** SVG preview markup for generated vector art */
+  svgPreview?: string
 }
 
 // ── Available models ──
@@ -48,6 +54,7 @@ export function AIPanel() {
   const [paletteMood, setPaletteMood] = useState('')
   const [textContext, setTextContext] = useState('')
   const [textLength, setTextLength] = useState<'short' | 'medium' | 'long'>('medium')
+  const [vectorArtDescription, setVectorArtDescription] = useState('')
   const [activeQuickAction, setActiveQuickAction] = useState<string | null>(null)
 
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -167,6 +174,99 @@ export function AIPanel() {
       setLoading(false)
     }
   }, [textContext, textLength, addMessage])
+
+  const handleGenerateVectorArt = useCallback(async () => {
+    if (!vectorArtDescription.trim()) return
+    addMessage('user', `Generate vector art: ${vectorArtDescription}`)
+    setLoading(true)
+    setActiveQuickAction(null)
+
+    try {
+      const store = useEditorStore.getState()
+      const artboard = store.document.artboards[0]
+      if (!artboard) throw new Error('No artboard found.')
+
+      const svgString = await generateVectorArt(vectorArtDescription, artboard.width, artboard.height)
+
+      // Parse SVG into layers via the existing SVG importer
+      const svgDoc = importSVG(svgString)
+      const sourceArtboard = svgDoc.artboards[0]
+      if (!sourceArtboard || sourceArtboard.layers.length === 0) {
+        throw new Error('Generated SVG produced no importable layers.')
+      }
+
+      // Add all layers to the artboard in a single undo step
+      store.importLayersToArtboard(artboard.id, sourceArtboard.layers)
+
+      // Select the first imported layer
+      store.selectLayer(sourceArtboard.layers[0]!.id)
+
+      addMessage(
+        'assistant',
+        `Generated ${sourceArtboard.layers.length} vector layer${sourceArtboard.layers.length !== 1 ? 's' : ''} from "${vectorArtDescription}".`,
+        { svgPreview: svgString },
+      )
+      setVectorArtDescription('')
+    } catch (err) {
+      addMessage('assistant', `Error: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [vectorArtDescription, addMessage])
+
+  const collectLayerInfos = useCallback((layers: Layer[]): RenameLayerInfo[] => {
+    const result: RenameLayerInfo[] = []
+    for (const layer of layers) {
+      let details = ''
+      if (layer.type === 'text') {
+        details = `text="${layer.text}", font=${layer.fontFamily} ${layer.fontSize}px, color=${layer.color}`
+      } else if (layer.type === 'vector') {
+        const fillColor = layer.fill?.color ?? 'none'
+        const strokeColor = layer.stroke?.color ?? 'none'
+        details = `fill=${fillColor}, stroke=${strokeColor}, pos=(${layer.transform.x}, ${layer.transform.y})`
+      } else if (layer.type === 'group') {
+        details = `${layer.children.length} children`
+      } else if (layer.type === 'raster') {
+        details = `${layer.width}x${layer.height}`
+      } else {
+        details = `pos=(${layer.transform.x}, ${layer.transform.y})`
+      }
+      result.push({ id: layer.id, name: layer.name, type: layer.type, details })
+      if (layer.type === 'group') {
+        result.push(...collectLayerInfos(layer.children))
+      }
+    }
+    return result
+  }, [])
+
+  const handleRenameLayers = useCallback(async () => {
+    addMessage('user', 'AI rename all layers on the active artboard')
+    setLoading(true)
+    setActiveQuickAction(null)
+
+    try {
+      const s = useEditorStore.getState()
+      const artboard = s.document.artboards[0]
+      if (!artboard) throw new Error('No artboard found.')
+      if (artboard.layers.length === 0) throw new Error('Artboard has no layers to rename.')
+
+      const layerInfos = collectLayerInfos(artboard.layers)
+      const renames = await aiBulkRename(layerInfos)
+      s.bulkRenameLayers(
+        artboard.id,
+        renames.map((r) => ({ layerId: r.id, newName: r.newName })),
+      )
+
+      const renameList = renames
+        .map((r) => `  "${layerInfos.find((l) => l.id === r.id)?.name ?? r.id}" -> "${r.newName}"`)
+        .join('\n')
+      addMessage('assistant', `Renamed ${renames.length} layer${renames.length !== 1 ? 's' : ''}:\n${renameList}`)
+    } catch (err) {
+      addMessage('assistant', `Error: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [addMessage, collectLayerInfos])
 
   const handleAddPaletteColor = useCallback(
     (color: string) => {
@@ -364,9 +464,11 @@ export function AIPanel() {
       >
         {([
           { key: 'layout', label: 'Generate Layout' },
+          { key: 'vectorart', label: 'Vector Art' },
           { key: 'colors', label: 'Suggest Colors' },
           { key: 'critique', label: 'Critique Design' },
           { key: 'text', label: 'Generate Text' },
+          { key: 'rename', label: 'Rename Layers' },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
@@ -374,6 +476,12 @@ export function AIPanel() {
               if (key === 'critique') {
                 if (configured) {
                   handleCritique()
+                } else {
+                  addMessage('assistant', 'Please configure your API key first.')
+                }
+              } else if (key === 'rename') {
+                if (configured) {
+                  handleRenameLayers()
                 } else {
                   addMessage('assistant', 'Please configure your API key first.')
                 }
@@ -545,6 +653,55 @@ export function AIPanel() {
         </div>
       )}
 
+      {activeQuickAction === 'vectorart' && (
+        <div
+          style={{
+            padding: 'var(--space-2)',
+            borderBottom: '1px solid var(--border-subtle)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
+          }}
+        >
+          <input
+            type="text"
+            value={vectorArtDescription}
+            onChange={(e) => setVectorArtDescription(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleGenerateVectorArt()
+              }
+            }}
+            placeholder="Describe an illustration: e.g., a sunset over mountains"
+            style={{
+              padding: '4px 6px',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-sm)',
+              background: 'var(--bg-input)',
+              color: 'var(--text-primary)',
+              fontSize: 'var(--font-size-sm)',
+            }}
+          />
+          <button
+            onClick={handleGenerateVectorArt}
+            disabled={loading || !configured || !vectorArtDescription.trim()}
+            style={{
+              padding: '6px 12px',
+              background: 'var(--accent)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius-sm)',
+              cursor: loading ? 'wait' : 'pointer',
+              fontSize: 'var(--font-size-sm)',
+              opacity: loading || !configured || !vectorArtDescription.trim() ? 0.6 : 1,
+            }}
+          >
+            Generate Vector Art
+          </button>
+        </div>
+      )}
+
       {/* Messages area */}
       <div
         ref={scrollRef}
@@ -616,6 +773,21 @@ export function AIPanel() {
                   />
                 ))}
               </div>
+            )}
+
+            {/* SVG preview */}
+            {msg.svgPreview && (
+              <div
+                style={{
+                  padding: '8px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border-subtle)',
+                  background: '#fff',
+                  maxHeight: 200,
+                  overflow: 'hidden',
+                }}
+                dangerouslySetInnerHTML={{ __html: msg.svgPreview }}
+              />
             )}
 
             {/* Design critique details */}

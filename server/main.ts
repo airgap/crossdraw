@@ -11,8 +11,9 @@
  *   crossdraw-server --host 127.0.0.1 --port 9000
  */
 
-import { readFileSync, existsSync, readdirSync } from 'fs'
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, unlinkSync } from 'fs'
 import { join, extname, resolve } from 'path'
+import { createHash } from 'crypto'
 
 // ── CLI args ────────────────────────────────────────────────────
 
@@ -104,14 +105,247 @@ try {
   scanDir(DIST_DIR)
 }
 
+// ── Cloud file storage ──────────────────────────────────────────
+
+export interface CloudFileMetadata {
+  id: string
+  name: string
+  size: number
+  createdAt: string
+  updatedAt: string
+  checksum: string
+}
+
+export interface FileIndex {
+  files: CloudFileMetadata[]
+}
+
+const DATA_DIR = resolve(import.meta.dir, '..', 'data')
+const FILES_DIR = join(DATA_DIR, 'files')
+const INDEX_PATH = join(DATA_DIR, 'index.json')
+const API_KEY = process.env['CROSSDRAW_API_KEY'] ?? ''
+
+// Ensure data directories exist on startup
+mkdirSync(FILES_DIR, { recursive: true })
+
+export function loadIndex(): FileIndex {
+  if (!existsSync(INDEX_PATH)) {
+    return { files: [] }
+  }
+  try {
+    const raw = readFileSync(INDEX_PATH, 'utf-8')
+    return JSON.parse(raw) as FileIndex
+  } catch {
+    return { files: [] }
+  }
+}
+
+export function saveIndex(index: FileIndex): void {
+  writeFileSync(INDEX_PATH, JSON.stringify(index, null, 2), 'utf-8')
+}
+
+export function addFileEntry(index: FileIndex, entry: CloudFileMetadata): FileIndex {
+  return { files: [...index.files, entry] }
+}
+
+export function updateFileEntry(index: FileIndex, id: string, updates: Partial<CloudFileMetadata>): FileIndex {
+  return {
+    files: index.files.map((f) => (f.id === id ? { ...f, ...updates } : f)),
+  }
+}
+
+export function removeFileEntry(index: FileIndex, id: string): FileIndex {
+  return { files: index.files.filter((f) => f.id !== id) }
+}
+
+function generateId(): string {
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  let id = ''
+  for (let i = 0; i < 16; i++) {
+    id += chars[Math.floor(Math.random() * chars.length)]
+  }
+  return id
+}
+
+function computeChecksum(data: Uint8Array): string {
+  return createHash('sha256').update(data).digest('hex').slice(0, 16)
+}
+
+function checkAuth(req: Request): boolean {
+  if (!API_KEY) return true // No auth required in dev mode
+  const header = req.headers.get('X-API-Key')
+  return header === API_KEY
+}
+
+function jsonResponse(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+    },
+  })
+}
+
+function errorResponse(message: string, status: number): Response {
+  return jsonResponse({ error: message }, status)
+}
+
+function corsHeaders(): Record<string, string> {
+  return {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+  }
+}
+
+async function handleApiRequest(req: Request, pathname: string): Promise<Response> {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { status: 204, headers: corsHeaders() })
+  }
+
+  // Auth check
+  if (!checkAuth(req)) {
+    return errorResponse('Unauthorized', 401)
+  }
+
+  // POST /api/files — upload a file
+  if (pathname === '/api/files' && req.method === 'POST') {
+    const contentType = req.headers.get('Content-Type') ?? ''
+    let fileData: Uint8Array
+    let fileName: string
+
+    if (contentType.includes('multipart/form-data')) {
+      const formData = await req.formData()
+      const file = formData.get('file')
+      if (!file || !(file instanceof File)) {
+        return errorResponse('Missing "file" field in form data', 400)
+      }
+      fileData = new Uint8Array(await file.arrayBuffer())
+      fileName = formData.get('name')?.toString() ?? file.name ?? 'Untitled.design'
+    } else {
+      fileData = new Uint8Array(await req.arrayBuffer())
+      fileName = req.headers.get('X-File-Name') ?? 'Untitled.design'
+    }
+
+    const id = generateId()
+    const now = new Date().toISOString()
+    const checksum = computeChecksum(fileData)
+
+    const entry: CloudFileMetadata = {
+      id,
+      name: fileName,
+      size: fileData.length,
+      createdAt: now,
+      updatedAt: now,
+      checksum,
+    }
+
+    // Write file to disk
+    const filePath = join(FILES_DIR, id)
+    writeFileSync(filePath, fileData)
+
+    // Update index
+    const index = loadIndex()
+    const updated = addFileEntry(index, entry)
+    saveIndex(updated)
+
+    return jsonResponse(entry, 201)
+  }
+
+  // GET /api/files — list all files
+  if (pathname === '/api/files' && req.method === 'GET') {
+    const index = loadIndex()
+    return jsonResponse(index.files)
+  }
+
+  // Routes with :id
+  const fileMatch = pathname.match(/^\/api\/files\/([a-z0-9]+)$/)
+  const metaMatch = pathname.match(/^\/api\/files\/([a-z0-9]+)\/meta$/)
+
+  // GET /api/files/:id/meta — file metadata only
+  if (metaMatch && req.method === 'GET') {
+    const id = metaMatch[1]!
+    const index = loadIndex()
+    const entry = index.files.find((f) => f.id === id)
+    if (!entry) return errorResponse('File not found', 404)
+    return jsonResponse(entry)
+  }
+
+  if (fileMatch) {
+    const id = fileMatch[1]!
+    const index = loadIndex()
+    const entry = index.files.find((f) => f.id === id)
+
+    // GET /api/files/:id — download file
+    if (req.method === 'GET') {
+      if (!entry) return errorResponse('File not found', 404)
+      const filePath = join(FILES_DIR, id)
+      if (!existsSync(filePath)) return errorResponse('File data missing', 404)
+      const data = readFileSync(filePath)
+      return new Response(data, {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': String(data.length),
+          'Content-Disposition': `attachment; filename="${entry.name}"`,
+          'Access-Control-Allow-Origin': '*',
+        },
+      })
+    }
+
+    // PUT /api/files/:id — update file
+    if (req.method === 'PUT') {
+      if (!entry) return errorResponse('File not found', 404)
+      const fileData = new Uint8Array(await req.arrayBuffer())
+      const now = new Date().toISOString()
+      const checksum = computeChecksum(fileData)
+      const newName = req.headers.get('X-File-Name') ?? entry.name
+
+      const filePath = join(FILES_DIR, id)
+      writeFileSync(filePath, fileData)
+
+      const updatedIndex = updateFileEntry(index, id, {
+        name: newName,
+        size: fileData.length,
+        updatedAt: now,
+        checksum,
+      })
+      saveIndex(updatedIndex)
+
+      const updatedEntry = updatedIndex.files.find((f) => f.id === id)!
+      return jsonResponse(updatedEntry)
+    }
+
+    // DELETE /api/files/:id — delete file
+    if (req.method === 'DELETE') {
+      if (!entry) return errorResponse('File not found', 404)
+      const filePath = join(FILES_DIR, id)
+      if (existsSync(filePath)) {
+        unlinkSync(filePath)
+      }
+      const updatedIndex = removeFileEntry(index, id)
+      saveIndex(updatedIndex)
+      return new Response(null, { status: 204, headers: corsHeaders() })
+    }
+  }
+
+  return errorResponse('Not found', 404)
+}
+
 // ── HTTP server ─────────────────────────────────────────────────
 
 const server = Bun.serve({
   port,
   hostname: host,
-  fetch(req) {
+  async fetch(req) {
     const url = new URL(req.url)
     let pathname = url.pathname
+
+    // API routes
+    if (pathname.startsWith('/api/')) {
+      return handleApiRequest(req, pathname)
+    }
 
     // Try exact match
     let file = fileCache.get(pathname)
@@ -155,4 +389,6 @@ console.log(`
 
   http://${host}:${port}
   ${fileCache.size} files, ${totalKB}KB
+  Cloud storage: ${DATA_DIR}
+  API auth: ${API_KEY ? 'enabled' : 'disabled (dev mode)'}
 `)

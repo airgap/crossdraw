@@ -46,6 +46,7 @@ import {
 } from '@/versioning/version-store'
 import {
   defaultVariableValue as varDefaultValue,
+  wouldCreateCycle,
 } from '@/variables/variable-types'
 import { generateBlend, createBlendGroup } from '@/tools/blend-tool'
 import { generateRepeaterInstances, createRepeaterGroup } from '@/tools/repeater'
@@ -144,6 +145,7 @@ export interface EditorActions {
 
   // Layer
   addLayer: (artboardId: string, layer: Layer) => void
+  importLayersToArtboard: (artboardId: string, layers: Layer[]) => void
   deleteLayer: (artboardId: string, layerId: string) => void
   updateLayer: (artboardId: string, layerId: string, updates: Partial<Layer>) => void
   /** Update without creating an undo entry — for live drag previews. */
@@ -337,6 +339,8 @@ export interface EditorActions {
     value: import('@/variables/variable-types').VariableValue,
   ) => void
   setActiveMode: (collectionId: string, modeId: string) => void
+  setCollectionExtends: (collectionId: string, extendsId: string | null) => void
+  removeVariableOverride: (collectionId: string, variableId: string) => void
   bindLayerProperty: (
     layerId: string,
     artboardId: string,
@@ -374,6 +378,9 @@ export interface EditorActions {
 
   // Repeater
   createRepeater: (artboardId: string, layerId: string, config: import('@/tools/repeater').RepeaterConfig) => void
+
+  // AI bulk rename
+  bulkRenameLayers: (artboardId: string, renames: { layerId: string; newName: string }[]) => void
 }
 
 interface NewDocumentOptions {
@@ -704,6 +711,18 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       mutateDocument(`Add layer "${layer.name}"`, (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (artboard) artboard.layers.push(layer)
+      })
+    },
+
+    importLayersToArtboard(artboardId, layers) {
+      if (layers.length === 0) return
+      mutateDocument(`Import ${layers.length} layer${layers.length !== 1 ? 's' : ''}`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) {
+          for (const layer of layers) {
+            artboard.layers.push(layer)
+          }
+        }
       })
     },
 
@@ -2161,6 +2180,31 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       set({ activeModeIds: { ...get().activeModeIds, [collectionId]: modeId } })
     },
 
+    setCollectionExtends(collectionId, extendsId) {
+      const collections = get().document.variableCollections ?? []
+      // Reject if it would create a cycle
+      if (extendsId !== null && wouldCreateCycle(collectionId, extendsId, collections)) return
+      mutateDocument('Set collection extends', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection) return
+        if (extendsId === null) {
+          delete collection.extendsCollectionId
+        } else {
+          collection.extendsCollectionId = extendsId
+        }
+      })
+    },
+
+    removeVariableOverride(collectionId, variableId) {
+      mutateDocument('Remove variable override', (draft) => {
+        if (!draft.variableCollections) return
+        const collection = draft.variableCollections.find((c) => c.id === collectionId)
+        if (!collection) return
+        delete collection.values[variableId]
+      })
+    },
+
     bindLayerProperty(layerId, artboardId, propertyPath, variableId, collectionId) {
       mutateDocument('Bind layer property to variable', (draft) => {
         const artboard = draft.artboards.find((a) => a.id === artboardId)
@@ -2500,6 +2544,24 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
         // Remove the source layer and insert the repeater group
         ab.layers.splice(idx, 1, repeaterGroup)
+      })
+    },
+
+    // ── AI bulk rename ──
+
+    bulkRenameLayers(artboardId, renames) {
+      if (renames.length === 0) return
+
+      mutateDocument('AI bulk rename layers', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+
+        for (const { layerId, newName } of renames) {
+          const layer = findLayerDeep(artboard.layers, layerId)
+          if (layer) {
+            layer.name = newName
+          }
+        }
       })
     },
   }

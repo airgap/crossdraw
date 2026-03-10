@@ -2,8 +2,47 @@ import type { VariableCollection, VariableValue, VariableBinding } from './varia
 import type { Layer } from '@/types'
 
 /**
+ * Resolve a variable's value within a single collection, walking up the
+ * extends chain if needed. Returns null if no value is found.
+ */
+function resolveInChain(
+  collection: VariableCollection,
+  variableId: string,
+  modeId: string,
+  allCollections: VariableCollection[],
+  visited: Set<string>,
+): VariableValue | null {
+  if (visited.has(collection.id)) return null // cycle guard
+  visited.add(collection.id)
+
+  const valuesForVar = collection.values[variableId]
+  if (valuesForVar) {
+    const value = valuesForVar[modeId]
+    if (value) return value
+    // Fall back to first mode within this collection
+    const firstModeId = collection.modes[0]?.id
+    if (firstModeId && firstModeId !== modeId) {
+      const fallback = valuesForVar[firstModeId]
+      if (fallback) return fallback
+    }
+  }
+
+  // Walk up inheritance chain
+  if (collection.extendsCollectionId) {
+    const parent = allCollections.find((c) => c.id === collection.extendsCollectionId)
+    if (parent) {
+      return resolveInChain(parent, variableId, modeId, allCollections, visited)
+    }
+  }
+
+  return null
+}
+
+/**
  * Resolve a single variable to its value for the given active modes.
  * Falls back to the first mode if the active mode is not found.
+ * Supports inheritance: if a variable is not found in the owning
+ * collection's values, the extends chain is walked.
  * Returns null if the variable or collection doesn't exist.
  */
 export function resolveVariable(
@@ -12,26 +51,39 @@ export function resolveVariable(
   activeModeIds: Record<string, string>,
 ): VariableValue | null {
   for (const collection of collections) {
+    // Check if this collection owns the variable directly
     const variable = collection.variables.find((v) => v.id === variableId)
     if (!variable) continue
-
-    const valuesForVar = collection.values[variableId]
-    if (!valuesForVar) return null
 
     // Use the active mode for this collection, or fall back to the first mode
     const activeModeId = activeModeIds[collection.id] ?? collection.modes[0]?.id
     if (!activeModeId) return null
 
-    const value = valuesForVar[activeModeId]
-    if (value) return value
+    return resolveInChain(collection, variableId, activeModeId, collections, new Set())
+  }
 
-    // Fall back to first mode
-    const firstModeId = collection.modes[0]?.id
-    if (firstModeId) {
-      return valuesForVar[firstModeId] ?? null
+  // Variable not found as a direct member of any collection — check if it's
+  // inherited by any collection via the extends chain
+  for (const collection of collections) {
+    if (!collection.extendsCollectionId) continue
+    // See if this variable exists somewhere in the ancestor chain
+    const activeModeId = activeModeIds[collection.id] ?? collection.modes[0]?.id
+    if (!activeModeId) continue
+    const visited = new Set<string>()
+    visited.add(collection.id)
+    let parentId: string | undefined = collection.extendsCollectionId
+    while (parentId) {
+      if (visited.has(parentId)) break
+      visited.add(parentId)
+      const parent = collections.find((c) => c.id === parentId)
+      if (!parent) break
+      const parentVar = parent.variables.find((v) => v.id === variableId)
+      if (parentVar) {
+        // Found the variable in an ancestor — resolve from the child collection
+        return resolveInChain(collection, variableId, activeModeId, collections, new Set())
+      }
+      parentId = parent.extendsCollectionId
     }
-
-    return null
   }
 
   return null

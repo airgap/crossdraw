@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import type { VariableCollection, Variable, VariableValue, VariableType } from '@/variables/variable-types'
+import { getInheritedVariables, getEffectiveValue, wouldCreateCycle } from '@/variables/variable-types'
 
 // ── Variables Panel ──
 
@@ -16,6 +17,8 @@ export function VariablesPanel() {
   const removeVariable = useEditorStore((s) => s.removeVariable)
   const setVariableValue = useEditorStore((s) => s.setVariableValue)
   const setActiveMode = useEditorStore((s) => s.setActiveMode)
+  const setCollectionExtends = useEditorStore((s) => s.setCollectionExtends)
+  const removeVariableOverride = useEditorStore((s) => s.removeVariableOverride)
 
   const [expandedCollectionId, setExpandedCollectionId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -148,33 +151,41 @@ export function VariablesPanel() {
           </div>
         )}
 
-        {collections.map((collection) => (
-          <CollectionRow
-            key={collection.id}
-            collection={collection}
-            expanded={expandedCollectionId === collection.id}
-            onToggleExpand={() =>
-              setExpandedCollectionId((prev) => (prev === collection.id ? null : collection.id))
-            }
-            onRename={(name) => renameVariableCollection(collection.id, name)}
-            onDelete={() => removeVariableCollection(collection.id)}
-            onAddMode={(name) => addVariableMode(collection.id, name)}
-            onRemoveMode={(modeId) => removeVariableMode(collection.id, modeId)}
-            onCreateVariable={(type) => handleCreateVariable(collection.id, type)}
-            filteredVariables={filterVariables(collection.variables)}
-            activeModeId={activeModeIds[collection.id] ?? collection.modes[0]?.id ?? ''}
-            onSetActiveMode={(modeId) => setActiveMode(collection.id, modeId)}
-            onSetVariableValue={(variableId, modeId, value) =>
-              setVariableValue(collection.id, variableId, modeId, value)
-            }
-            onContextMenu={handleContextMenu}
-            editingName={editingName}
-            setEditingName={setEditingName}
-            onDragStart={handleDragStart}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          />
-        ))}
+        {collections.map((collection) => {
+          const allVars = getInheritedVariables(collection, collections)
+          const ownVarIds = new Set(collection.variables.map((v) => v.id))
+          return (
+            <CollectionRow
+              key={collection.id}
+              collection={collection}
+              allCollections={collections}
+              expanded={expandedCollectionId === collection.id}
+              onToggleExpand={() =>
+                setExpandedCollectionId((prev) => (prev === collection.id ? null : collection.id))
+              }
+              onRename={(name) => renameVariableCollection(collection.id, name)}
+              onDelete={() => removeVariableCollection(collection.id)}
+              onAddMode={(name) => addVariableMode(collection.id, name)}
+              onRemoveMode={(modeId) => removeVariableMode(collection.id, modeId)}
+              onCreateVariable={(type) => handleCreateVariable(collection.id, type)}
+              filteredVariables={filterVariables(allVars)}
+              ownVariableIds={ownVarIds}
+              activeModeId={activeModeIds[collection.id] ?? collection.modes[0]?.id ?? ''}
+              onSetActiveMode={(modeId) => setActiveMode(collection.id, modeId)}
+              onSetVariableValue={(variableId, modeId, value) =>
+                setVariableValue(collection.id, variableId, modeId, value)
+              }
+              onSetExtends={(extendsId) => setCollectionExtends(collection.id, extendsId)}
+              onRemoveOverride={(variableId) => removeVariableOverride(collection.id, variableId)}
+              onContextMenu={handleContextMenu}
+              editingName={editingName}
+              setEditingName={setEditingName}
+              onDragStart={handleDragStart}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+            />
+          )
+        })}
       </div>
 
       {/* Bottom toolbar */}
@@ -265,6 +276,7 @@ function ContextMenuItem({
 
 interface CollectionRowProps {
   collection: VariableCollection
+  allCollections: VariableCollection[]
   expanded: boolean
   onToggleExpand: () => void
   onRename: (name: string) => void
@@ -273,9 +285,12 @@ interface CollectionRowProps {
   onRemoveMode: (modeId: string) => void
   onCreateVariable: (type: VariableType) => void
   filteredVariables: Variable[]
+  ownVariableIds: Set<string>
   activeModeId: string
   onSetActiveMode: (modeId: string) => void
   onSetVariableValue: (variableId: string, modeId: string, value: VariableValue) => void
+  onSetExtends: (extendsId: string | null) => void
+  onRemoveOverride: (variableId: string) => void
   onContextMenu: (e: React.MouseEvent, variableId: string, collectionId: string) => void
   editingName: { type: 'collection' | 'variable'; id: string } | null
   setEditingName: (v: { type: 'collection' | 'variable'; id: string } | null) => void
@@ -286,6 +301,7 @@ interface CollectionRowProps {
 
 function CollectionRow({
   collection,
+  allCollections,
   expanded,
   onToggleExpand,
   onRename,
@@ -294,9 +310,12 @@ function CollectionRow({
   onRemoveMode,
   onCreateVariable,
   filteredVariables,
+  ownVariableIds,
   activeModeId,
   onSetActiveMode,
   onSetVariableValue,
+  onSetExtends,
+  onRemoveOverride,
   onContextMenu,
   editingName,
   setEditingName,
@@ -306,6 +325,11 @@ function CollectionRow({
 }: CollectionRowProps) {
   const [showTypeSelector, setShowTypeSelector] = useState(false)
   const isEditingCollectionName = editingName?.type === 'collection' && editingName.id === collection.id
+
+  // Compute eligible collections for the "Extends" dropdown (exclude self and anything that would cycle)
+  const eligibleExtends = allCollections.filter(
+    (c) => c.id !== collection.id && !wouldCreateCycle(collection.id, c.id, allCollections),
+  )
 
   return (
     <div style={{ marginBottom: 'var(--space-1)' }}>
@@ -441,22 +465,68 @@ function CollectionRow({
             </button>
           </div>
 
+          {/* Extends dropdown */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 'var(--space-1)',
+              padding: '6px 0',
+              borderBottom: '1px solid var(--border-subtle)',
+            }}
+          >
+            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-secondary)', marginRight: 4 }}>
+              Extends:
+            </span>
+            <select
+              value={collection.extendsCollectionId ?? ''}
+              onChange={(e) => {
+                const val = e.target.value
+                onSetExtends(val === '' ? null : val)
+              }}
+              style={{
+                flex: 1,
+                padding: '2px 4px',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--bg-input)',
+                color: 'var(--text-primary)',
+                fontSize: 'var(--font-size-sm)',
+              }}
+            >
+              <option value="">None</option>
+              {eligibleExtends.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Variable rows */}
-          {filteredVariables.map((variable) => (
-            <VariableRow
-              key={variable.id}
-              variable={variable}
-              collection={collection}
-              activeModeId={activeModeId}
-              onSetValue={(modeId, value) => onSetVariableValue(variable.id, modeId, value)}
-              onContextMenu={(e) => onContextMenu(e, variable.id, collection.id)}
-              isEditing={editingName?.type === 'variable' && editingName.id === variable.id}
-              setEditingName={setEditingName}
-              onDragStart={() => onDragStart(variable.id, collection.id)}
-              onDragOver={onDragOver}
-              onDrop={() => onDrop(variable.id, collection.id)}
-            />
-          ))}
+          {filteredVariables.map((variable) => {
+            const isInherited = !ownVariableIds.has(variable.id)
+            const hasLocalOverride = variable.id in (collection.values ?? {})
+            return (
+              <VariableRow
+                key={variable.id}
+                variable={variable}
+                collection={collection}
+                allCollections={allCollections}
+                activeModeId={activeModeId}
+                isInherited={isInherited}
+                hasLocalOverride={hasLocalOverride}
+                onSetValue={(modeId, value) => onSetVariableValue(variable.id, modeId, value)}
+                onResetOverride={isInherited && hasLocalOverride ? () => onRemoveOverride(variable.id) : undefined}
+                onContextMenu={(e) => onContextMenu(e, variable.id, collection.id)}
+                isEditing={editingName?.type === 'variable' && editingName.id === variable.id}
+                setEditingName={setEditingName}
+                onDragStart={() => onDragStart(variable.id, collection.id)}
+                onDragOver={onDragOver}
+                onDrop={() => onDrop(variable.id, collection.id)}
+              />
+            )
+          })}
 
           {filteredVariables.length === 0 && collection.variables.length > 0 && (
             <div
@@ -551,8 +621,12 @@ function typeIcon(type: VariableType): string {
 interface VariableRowProps {
   variable: Variable
   collection: VariableCollection
+  allCollections: VariableCollection[]
   activeModeId: string
+  isInherited: boolean
+  hasLocalOverride: boolean
   onSetValue: (modeId: string, value: VariableValue) => void
+  onResetOverride?: () => void
   onContextMenu: (e: React.MouseEvent) => void
   isEditing: boolean
   setEditingName: (v: { type: 'collection' | 'variable'; id: string } | null) => void
@@ -564,8 +638,12 @@ interface VariableRowProps {
 function VariableRow({
   variable,
   collection,
+  allCollections,
   activeModeId,
+  isInherited,
+  hasLocalOverride,
   onSetValue,
+  onResetOverride,
   onContextMenu,
   isEditing,
   setEditingName,
@@ -573,7 +651,10 @@ function VariableRow({
   onDragOver,
   onDrop,
 }: VariableRowProps) {
-  const currentValue = collection.values[variable.id]?.[activeModeId]
+  // For inherited variables, resolve the effective value from the chain
+  const currentValue = isInherited && !hasLocalOverride
+    ? getEffectiveValue(collection, variable.id, activeModeId, allCollections)
+    : collection.values[variable.id]?.[activeModeId] ?? null
 
   return (
     <div
@@ -589,8 +670,25 @@ function VariableRow({
         gap: 'var(--space-2)',
         borderBottom: '1px solid var(--border-subtle)',
         cursor: 'grab',
+        opacity: isInherited && !hasLocalOverride ? 0.6 : 1,
       }}
     >
+      {/* Inherited indicator */}
+      {isInherited && (
+        <span
+          title="Inherited from parent collection"
+          style={{
+            fontSize: 10,
+            color: 'var(--text-secondary)',
+            width: 14,
+            textAlign: 'center',
+            flexShrink: 0,
+          }}
+        >
+          {'\u2191'}
+        </span>
+      )}
+
       {/* Type indicator */}
       <span
         style={{
@@ -616,10 +714,11 @@ function VariableRow({
           style={{
             flex: 1,
             fontSize: 'var(--font-size-sm)',
-            color: 'var(--text-primary)',
+            color: isInherited ? 'var(--text-secondary)' : 'var(--text-primary)',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
+            fontStyle: isInherited && !hasLocalOverride ? 'italic' : 'normal',
           }}
           onDoubleClick={() => setEditingName({ type: 'variable', id: variable.id })}
         >
@@ -631,10 +730,32 @@ function VariableRow({
       <div style={{ flexShrink: 0 }}>
         <VariableValueEditor
           type={variable.type}
-          value={currentValue ?? null}
+          value={currentValue}
           onChange={(val) => onSetValue(activeModeId, val)}
         />
       </div>
+
+      {/* Reset to inherited button */}
+      {onResetOverride && (
+        <button
+          title="Reset to inherited value"
+          onClick={(e) => {
+            e.stopPropagation()
+            onResetOverride()
+          }}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 10,
+            padding: '0 4px',
+            flexShrink: 0,
+          }}
+        >
+          {'\u21A9'}
+        </button>
+      )}
     </div>
   )
 }

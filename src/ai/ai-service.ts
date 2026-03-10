@@ -4,7 +4,8 @@
  */
 
 import type { Layer } from '@/types'
-import { buildLayoutPrompt, buildPalettePrompt, buildCritiquePrompt, buildTextPrompt } from './prompt-templates'
+import { buildLayoutPrompt, buildPalettePrompt, buildCritiquePrompt, buildTextPrompt, buildRenamePrompt, buildVectorArtPrompt } from './prompt-templates'
+import type { RenameLayerInfo } from './prompt-templates'
 
 // ── Types ──
 
@@ -124,7 +125,50 @@ function extractJSON(text: string): string {
   return text.trim()
 }
 
+/**
+ * Extract SVG markup from a response that might contain markdown code fences or surrounding text.
+ */
+export function extractSVG(text: string): string {
+  // Try to extract from code fences first (```svg or ```xml or plain ```)
+  const fenceMatch = text.match(/```(?:svg|xml|html)?\s*\n?([\s\S]*?)\n?```/)
+  if (fenceMatch?.[1]) {
+    const inner = fenceMatch[1].trim()
+    if (inner.includes('<svg')) return inner
+  }
+
+  // Try to extract the <svg...>...</svg> block directly
+  const svgMatch = text.match(/<svg[\s\S]*<\/svg>/)
+  if (svgMatch?.[0]) return svgMatch[0].trim()
+
+  // Fall back to the trimmed text
+  return text.trim()
+}
+
 // ── Public API ──
+
+export async function generateVectorArt(
+  prompt: string,
+  width: number,
+  height: number,
+): Promise<string> {
+  const config = getConfigOrThrow()
+  const { system, user } = buildVectorArtPrompt(prompt, width, height)
+
+  const responseText = await callClaude(
+    system,
+    [{ role: 'user', content: user }],
+    config,
+  )
+
+  const svgString = extractSVG(responseText)
+
+  // Validate that the result looks like SVG
+  if (!svgString.includes('<svg')) {
+    throw new Error('AI response does not contain valid SVG markup.')
+  }
+
+  return svgString
+}
 
 export async function generateDesignFromPrompt(
   prompt: string,
@@ -241,4 +285,46 @@ export async function generatePlaceholderText(
 
   const responseText = await callClaude(system, [{ role: 'user', content: user }], config)
   return responseText.trim()
+}
+
+export interface LayerRename {
+  id: string
+  newName: string
+}
+
+export async function bulkRenameLayers(
+  layers: RenameLayerInfo[],
+): Promise<LayerRename[]> {
+  if (layers.length === 0) return []
+
+  const config = getConfigOrThrow()
+  const { system, user } = buildRenamePrompt(layers)
+
+  const responseText = await callClaude(system, [{ role: 'user', content: user }], config)
+  const jsonStr = extractJSON(responseText)
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(jsonStr)
+  } catch {
+    throw new Error(`Failed to parse rename response as JSON. Response:\n${responseText.slice(0, 200)}`)
+  }
+
+  if (!Array.isArray(parsed)) {
+    throw new Error('Rename response is not an array.')
+  }
+
+  const renames = parsed.filter((item): item is LayerRename => {
+    if (typeof item !== 'object' || item === null) return false
+    const obj = item as Record<string, unknown>
+    return typeof obj.id === 'string' && typeof obj.newName === 'string' && obj.newName.length > 0
+  })
+
+  if (renames.length === 0) {
+    throw new Error('No valid renames in AI response.')
+  }
+
+  // Only return renames for layer IDs that were in the input
+  const inputIds = new Set(layers.map((l) => l.id))
+  return renames.filter((r) => inputIds.has(r.id))
 }
