@@ -1,4 +1,4 @@
-import type { GroupLayer, Layer, AutoLayoutConfig } from '@/types'
+import type { GroupLayer, Layer, AutoLayoutConfig, GridLayoutConfig, GridTrack } from '@/types'
 
 /**
  * Measure a child's natural (content) bounds: width and height.
@@ -38,6 +38,26 @@ export function createDefaultAutoLayout(): AutoLayoutConfig {
     alignItems: 'start',
     justifyContent: 'start',
     wrap: false,
+    layoutMode: 'flex',
+  }
+}
+
+/**
+ * Default grid layout config for newly enabled grid mode.
+ */
+export function createDefaultGridConfig(): GridLayoutConfig {
+  return {
+    columns: [
+      { size: 1, unit: 'fr' },
+      { size: 1, unit: 'fr' },
+    ],
+    rows: [
+      { size: 1, unit: 'fr' },
+    ],
+    columnGap: 8,
+    rowGap: 8,
+    alignItems: 'stretch',
+    justifyItems: 'stretch',
   }
 }
 
@@ -68,12 +88,272 @@ export function applyAutoLayout(
     }
   }
 
+  // Branch on layout mode
+  if (config.layoutMode === 'grid' && config.gridConfig) {
+    return applyGridLayout(group, config, visibleChildren, layerBounds, groupWidth, groupHeight)
+  }
+
   if (config.direction === 'horizontal') {
     return layoutHorizontal(group, config, visibleChildren, layerBounds, groupWidth, groupHeight)
   } else {
     return layoutVertical(group, config, visibleChildren, layerBounds, groupWidth, groupHeight)
   }
 }
+
+// ─── Grid Layout Engine ──────────────────────────────────────
+
+/**
+ * Resolve grid track sizes from a list of GridTrack definitions.
+ * - 'px' tracks use their fixed size
+ * - 'auto' tracks use the maximum content size of children in that track
+ * - 'fr' tracks divide the remaining space proportionally
+ *
+ * @param tracks - Track definitions
+ * @param availableSpace - Total available space (after padding)
+ * @param contentSizes - Map of track index -> max content size (for 'auto' tracks)
+ */
+export function resolveTrackSizes(
+  tracks: GridTrack[],
+  availableSpace: number,
+  gap: number,
+  contentSizes: Map<number, number>,
+): number[] {
+  const totalGaps = Math.max(0, tracks.length - 1) * gap
+  let usedSpace = totalGaps
+  let totalFr = 0
+  const resolved: number[] = new Array(tracks.length).fill(0)
+
+  // First pass: resolve px and auto tracks
+  for (let i = 0; i < tracks.length; i++) {
+    const track = tracks[i]!
+    if (track.unit === 'px') {
+      resolved[i] = track.size
+      usedSpace += track.size
+    } else if (track.unit === 'auto') {
+      const contentSize = contentSizes.get(i) ?? 0
+      resolved[i] = contentSize
+      usedSpace += contentSize
+    } else {
+      // 'fr'
+      totalFr += track.size
+    }
+  }
+
+  // Second pass: distribute remaining space to fr tracks
+  const remainingSpace = Math.max(0, availableSpace - usedSpace)
+  if (totalFr > 0) {
+    for (let i = 0; i < tracks.length; i++) {
+      const track = tracks[i]!
+      if (track.unit === 'fr') {
+        resolved[i] = (track.size / totalFr) * remainingSpace
+      }
+    }
+  }
+
+  return resolved
+}
+
+/**
+ * Build a placement map: for each child, determine which grid cell (column, row) it occupies.
+ * Children with explicit `gridPlacement` use that; others are auto-placed in source order,
+ * filling row-by-row left to right.
+ */
+function buildPlacementMap(
+  children: Layer[],
+  numColumns: number,
+  numRows: number,
+): Array<{ child: Layer; col: number; row: number; colSpan: number; rowSpan: number }> {
+  // Track which cells are occupied (for auto-placement)
+  const occupied = new Set<string>()
+  const placements: Array<{ child: Layer; col: number; row: number; colSpan: number; rowSpan: number }> = []
+
+  function cellKey(c: number, r: number): string {
+    return `${c},${r}`
+  }
+
+  function markOccupied(col: number, row: number, colSpan: number, rowSpan: number): void {
+    for (let r = row; r < row + rowSpan; r++) {
+      for (let c = col; c < col + colSpan; c++) {
+        occupied.add(cellKey(c, r))
+      }
+    }
+  }
+
+  // First pass: place explicitly positioned children
+  for (const child of children) {
+    const placement = child.gridPlacement
+    if (placement) {
+      const col = Math.max(0, Math.min(placement.column, numColumns - 1))
+      const row = Math.max(0, Math.min(placement.row, numRows - 1))
+      const colSpan = Math.max(1, Math.min(placement.columnSpan, numColumns - col))
+      const rowSpan = Math.max(1, Math.min(placement.rowSpan, numRows - row))
+      placements.push({ child, col, row, colSpan, rowSpan })
+      markOccupied(col, row, colSpan, rowSpan)
+    }
+  }
+
+  // Second pass: auto-place remaining children
+  let autoCol = 0
+  let autoRow = 0
+
+  for (const child of children) {
+    if (child.gridPlacement) continue
+
+    // Find next unoccupied cell
+    while (autoRow < numRows && occupied.has(cellKey(autoCol, autoRow))) {
+      autoCol++
+      if (autoCol >= numColumns) {
+        autoCol = 0
+        autoRow++
+      }
+    }
+
+    // If we've exceeded available rows, extend the grid (add implicit rows)
+    const row = autoRow
+    const col = autoCol
+
+    placements.push({ child, col, row, colSpan: 1, rowSpan: 1 })
+    markOccupied(col, row, 1, 1)
+
+    autoCol++
+    if (autoCol >= numColumns) {
+      autoCol = 0
+      autoRow++
+    }
+  }
+
+  return placements
+}
+
+/**
+ * Apply CSS Grid layout to a group's children.
+ */
+function applyGridLayout(
+  group: GroupLayer,
+  config: AutoLayoutConfig,
+  children: Layer[],
+  layerBounds: Map<string, { width: number; height: number }>,
+  groupWidth: number,
+  groupHeight: number,
+): AutoLayoutResult {
+  const gridConfig = config.gridConfig!
+  const availableWidth = groupWidth - config.paddingLeft - config.paddingRight
+  const availableHeight = groupHeight - config.paddingTop - config.paddingBottom
+
+  const numColumns = gridConfig.columns.length
+  const numRows = gridConfig.rows.length
+
+  // Build placement map
+  const placements = buildPlacementMap(children, numColumns, numRows)
+
+  // Determine the actual number of rows needed (may exceed defined rows for auto-placed items)
+  let maxRowUsed = numRows - 1
+  for (const p of placements) {
+    maxRowUsed = Math.max(maxRowUsed, p.row + p.rowSpan - 1)
+  }
+  const actualNumRows = maxRowUsed + 1
+
+  // Build extended row tracks if needed (implicit rows get 'auto' sizing)
+  const extendedRows: GridTrack[] = [...gridConfig.rows]
+  while (extendedRows.length < actualNumRows) {
+    extendedRows.push({ size: 0, unit: 'auto' })
+  }
+
+  // Compute content sizes for 'auto' tracks
+  const columnContentSizes = new Map<number, number>()
+  const rowContentSizes = new Map<number, number>()
+
+  for (const p of placements) {
+    const natural = getChildNaturalSize(p.child, layerBounds)
+    // Only count single-span children for auto track sizing
+    if (p.colSpan === 1) {
+      const current = columnContentSizes.get(p.col) ?? 0
+      columnContentSizes.set(p.col, Math.max(current, natural.width))
+    }
+    if (p.rowSpan === 1) {
+      const current = rowContentSizes.get(p.row) ?? 0
+      rowContentSizes.set(p.row, Math.max(current, natural.height))
+    }
+  }
+
+  // Resolve track sizes
+  const columnSizes = resolveTrackSizes(gridConfig.columns, availableWidth, gridConfig.columnGap, columnContentSizes)
+  const rowSizes = resolveTrackSizes(extendedRows, availableHeight, gridConfig.rowGap, rowContentSizes)
+
+  // Compute track positions (cumulative offsets)
+  const columnPositions: number[] = []
+  let colOffset = config.paddingLeft
+  for (let i = 0; i < columnSizes.length; i++) {
+    columnPositions.push(colOffset)
+    colOffset += columnSizes[i]! + (i < columnSizes.length - 1 ? gridConfig.columnGap : 0)
+  }
+
+  const rowPositions: number[] = []
+  let rowOffset = config.paddingTop
+  for (let i = 0; i < rowSizes.length; i++) {
+    rowPositions.push(rowOffset)
+    rowOffset += rowSizes[i]! + (i < rowSizes.length - 1 ? gridConfig.rowGap : 0)
+  }
+
+  // Position each child in its cell
+  for (const p of placements) {
+    const child = p.child
+    const cellX = columnPositions[p.col] ?? config.paddingLeft
+    const cellY = rowPositions[p.row] ?? config.paddingTop
+
+    // Cell dimensions (spanning multiple tracks + gaps between spanned tracks)
+    let cellWidth = 0
+    for (let c = p.col; c < p.col + p.colSpan && c < columnSizes.length; c++) {
+      cellWidth += columnSizes[c]!
+      if (c > p.col) cellWidth += gridConfig.columnGap
+    }
+    let cellHeight = 0
+    for (let r = p.row; r < p.row + p.rowSpan && r < rowSizes.length; r++) {
+      cellHeight += rowSizes[r]!
+      if (r > p.row) cellHeight += gridConfig.rowGap
+    }
+
+    const natural = getChildNaturalSize(child, layerBounds)
+    const childWidth = gridConfig.justifyItems === 'stretch' ? cellWidth : natural.width
+    const childHeight = gridConfig.alignItems === 'stretch' ? cellHeight : natural.height
+
+    // Horizontal alignment within cell (justifyItems)
+    if (gridConfig.justifyItems === 'center') {
+      child.transform.x = cellX + (cellWidth - childWidth) / 2
+    } else if (gridConfig.justifyItems === 'end') {
+      child.transform.x = cellX + cellWidth - childWidth
+    } else {
+      // 'start' or 'stretch'
+      child.transform.x = cellX
+    }
+
+    // Vertical alignment within cell (alignItems)
+    if (gridConfig.alignItems === 'center') {
+      child.transform.y = cellY + (cellHeight - childHeight) / 2
+    } else if (gridConfig.alignItems === 'end') {
+      child.transform.y = cellY + cellHeight - childHeight
+    } else {
+      // 'start' or 'stretch'
+      child.transform.y = cellY
+    }
+
+    // Apply sizing for stretch mode
+    applyChildSize(child, childWidth, childHeight, layerBounds)
+  }
+
+  // Compute hug dimensions
+  const totalColumnWidth = columnSizes.reduce((a, b) => a + b, 0) + Math.max(0, columnSizes.length - 1) * gridConfig.columnGap
+  const totalRowHeight = rowSizes.reduce((a, b) => a + b, 0) + Math.max(0, rowSizes.length - 1) * gridConfig.rowGap
+  const hugWidth = config.paddingLeft + totalColumnWidth + config.paddingRight
+  const hugHeight = config.paddingTop + totalRowHeight + config.paddingBottom
+
+  return {
+    groupWidth: group.layoutSizing?.horizontal === 'hug' ? hugWidth : groupWidth,
+    groupHeight: group.layoutSizing?.vertical === 'hug' ? hugHeight : groupHeight,
+  }
+}
+
+// ─── Flex Layout Engine ──────────────────────────────────────
 
 function layoutHorizontal(
   group: GroupLayer,

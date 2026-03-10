@@ -1,3 +1,30 @@
+// --- Shared Styles ---
+
+export interface TextStyle {
+  id: string
+  name: string
+  fontFamily: string
+  fontSize: number
+  fontWeight: 'normal' | 'bold'
+  fontStyle: 'normal' | 'italic'
+  lineHeight: number
+  letterSpacing: number
+  color: string
+}
+
+export interface ColorStyle {
+  id: string
+  name: string
+  color: string
+  opacity: number
+}
+
+export interface EffectStyle {
+  id: string
+  name: string
+  effects: Effect[]
+}
+
 export interface DesignDocument {
   id: string
   metadata: DocumentMetadata
@@ -10,6 +37,11 @@ export interface DesignDocument {
   symbols?: SymbolDefinition[]
   comments?: Comment[]
   variableCollections?: import('@/variables/variable-types').VariableCollection[]
+  styles?: {
+    textStyles: TextStyle[]
+    colorStyles: ColorStyle[]
+    effectStyles: EffectStyle[]
+  }
 }
 
 export interface Comment {
@@ -86,6 +118,8 @@ export interface Artboard {
   activeBreakpointId?: string
   /** Is this artboard a flow starting point? */
   flowStarting?: boolean
+  /** Whether this artboard is marked as ready for developer handoff. */
+  readyForDev?: boolean
 }
 
 export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | TextLayer | SymbolInstanceLayer
@@ -109,6 +143,8 @@ export interface BaseLayer {
     horizontal: 'fixed' | 'fill' | 'hug' // fixed=use transform width, fill=stretch to parent, hug=fit content
     vertical: 'fixed' | 'fill' | 'hug'
   }
+  /** Grid placement when this layer is a child of a CSS Grid auto-layout group. */
+  gridPlacement?: GridPlacement
   /** Per-breakpoint overrides. Key is breakpoint ID. */
   breakpointOverrides?: Record<string, {
     visible?: boolean
@@ -123,6 +159,14 @@ export interface BaseLayer {
   animation?: AnimationTrack
   /** Variable bindings: keys are property paths like 'fill.color', 'opacity', 'transform.x' */
   variableBindings?: Record<string, import('@/variables/variable-types').VariableBinding>
+  /** Linked text style ID (shared styles system). */
+  textStyleId?: string
+  /** Linked fill/color style ID (shared styles system). */
+  fillStyleId?: string
+  /** Linked effect style ID (shared styles system). */
+  effectStyleId?: string
+  /** Developer annotation for dev handoff. */
+  devAnnotation?: string
 }
 
 // --- Animation ---
@@ -189,6 +233,27 @@ export interface GroupLayer extends BaseLayer {
   autoLayout?: AutoLayoutConfig
 }
 
+export interface GridTrack {
+  size: number
+  unit: 'px' | 'fr' | 'auto'
+}
+
+export interface GridLayoutConfig {
+  columns: GridTrack[]
+  rows: GridTrack[]
+  columnGap: number
+  rowGap: number
+  alignItems: 'start' | 'center' | 'end' | 'stretch'
+  justifyItems: 'start' | 'center' | 'end' | 'stretch'
+}
+
+export interface GridPlacement {
+  column: number
+  row: number
+  columnSpan: number
+  rowSpan: number
+}
+
 export interface AutoLayoutConfig {
   direction: 'horizontal' | 'vertical'
   gap: number // spacing between children
@@ -199,6 +264,8 @@ export interface AutoLayoutConfig {
   alignItems: 'start' | 'center' | 'end' | 'stretch' // cross-axis alignment
   justifyContent: 'start' | 'center' | 'end' | 'space-between' // main-axis distribution
   wrap: boolean // wrap to next line
+  layoutMode?: 'flex' | 'grid' // default 'flex' for backwards compatibility
+  gridConfig?: GridLayoutConfig
 }
 
 // Adjustment layer params — discriminated union, no `any`

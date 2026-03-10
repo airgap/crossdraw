@@ -80,6 +80,17 @@ import {
 } from '@/tools/artboard-tool'
 import { beginSliceDrag, updateSliceDrag, endSliceDrag, getSliceDragRect, isSliceDragging } from '@/tools/slice-tool'
 import {
+  initShapeBuilder,
+  isShapeBuilderActive,
+  shapeBuilderHover,
+  shapeBuilderMouseDown,
+  shapeBuilderMouseDrag,
+  shapeBuilderMouseUp,
+  finalizeShapeBuilder,
+  cancelShapeBuilder,
+  renderShapeBuilderOverlay,
+} from '@/tools/shape-builder'
+import {
   setCloneSource,
   beginCloneStamp,
   paintCloneStamp,
@@ -551,6 +562,13 @@ export function Viewport() {
       }
     }
 
+    // Shape Builder regions overlay
+    if (activeTool === 'shape-builder' && isShapeBuilderActive()) {
+      ctx.save()
+      renderShapeBuilderOverlay(ctx, viewport.zoom)
+      ctx.restore()
+    }
+
     // Artboard creation rect
     if (activeTool === 'artboard' && isArtboardDragging()) {
       const ar = getArtboardDragRect(mouseDocPos.current.x, mouseDocPos.current.y)
@@ -911,6 +929,18 @@ export function Viewport() {
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
         e.preventDefault()
         deleteSelectedNodes()
+      }
+      // Shape Builder: Enter to finalize, Escape to cancel
+      if (activeTool === 'shape-builder' && isShapeBuilderActive()) {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          finalizeShapeBuilder()
+          render()
+        } else if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelShapeBuilder()
+          render()
+        }
       }
     }
     window.addEventListener('keydown', handler)
@@ -1374,6 +1404,21 @@ export function Viewport() {
       return
     }
 
+    // Shape Builder tool
+    if (activeTool === 'shape-builder') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      // Initialize shape builder on first click if not already active
+      if (!isShapeBuilderActive()) {
+        const selectedIds = useEditorStore.getState().selection.layerIds
+        if (selectedIds.length < 2) return
+        if (!initShapeBuilder(selectedIds)) return
+      }
+      shapeBuilderMouseDown(docPoint.x, docPoint.y, e.nativeEvent.altKey)
+      isDragging.current = true
+      render()
+      return
+    }
+
     // Artboard tool
     if (activeTool === 'artboard') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1635,6 +1680,18 @@ export function Viewport() {
       return
     }
 
+    // Shape Builder tool drag / hover
+    if (activeTool === 'shape-builder' && isShapeBuilderActive()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      if (isDragging.current) {
+        shapeBuilderMouseDrag(docPoint.x, docPoint.y)
+      } else {
+        shapeBuilderHover(docPoint.x, docPoint.y)
+      }
+      render()
+      return
+    }
+
     // Artboard tool drag
     if (activeTool === 'artboard' && isDragging.current && isArtboardDragging()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1844,6 +1901,14 @@ export function Viewport() {
     // Knife tool
     if (isKnifeCutting()) {
       endKnifeCut()
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Shape Builder tool
+    if (activeTool === 'shape-builder' && isShapeBuilderActive()) {
+      shapeBuilderMouseUp()
       isDragging.current = false
       render()
       return

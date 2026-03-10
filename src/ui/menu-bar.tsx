@@ -561,6 +561,12 @@ function buildMenus(): MenuDef[] {
           })
         },
       },
+      { label: '', divider: true },
+      {
+        label: 'Toggle Dev Mode',
+        shortcut: 'Ctrl+Shift+D',
+        action: () => store().toggleDevMode(),
+      },
     ],
   }
 
@@ -827,9 +833,30 @@ function buildMenus(): MenuDef[] {
       },
       { label: '', divider: true },
       {
+        label: 'Shape Builder Tool',
+        shortcut: 'Shift+M',
+        action: () => store().setActiveTool('shape-builder'),
+      },
+      { label: '', divider: true },
+      {
         label: 'Trace Image\u2026',
         action: () => traceSelectedRasterLayer(),
         disabled: () => !hasSelectedRaster(),
+      },
+      { label: '', divider: true },
+      {
+        label: 'Blend\u2026',
+        action: () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 2) return
+          const stepsStr = prompt('Number of blend steps:', '5')
+          if (!stepsStr) return
+          const steps = parseInt(stepsStr, 10)
+          if (isNaN(steps) || steps < 1) return
+          s.createBlend(artboard.id, s.selection.layerIds[0]!, s.selection.layerIds[1]!, steps)
+        },
+        disabled: () => store().selection.layerIds.length !== 2,
       },
     ],
   }
@@ -912,6 +939,22 @@ function buildMenus(): MenuDef[] {
         action: () => {
           import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
             usePanelLayoutStore.getState().focusTab('variables')
+          })
+        },
+      },
+      {
+        label: 'Styles',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('styles')
+          })
+        },
+      },
+      {
+        label: 'Dev Mode',
+        action: () => {
+          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
+            usePanelLayoutStore.getState().focusTab('dev-mode')
           })
         },
       },

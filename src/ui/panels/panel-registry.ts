@@ -67,6 +67,12 @@ const LazyVersionPanel = React.lazy(() =>
 const LazyVariablesPanel = React.lazy(() =>
   import('@/ui/variables-panel').then((m) => ({ default: m.VariablesPanel })),
 )
+const LazyStylesPanel = React.lazy(() =>
+  import('@/ui/styles-panel').then((m) => ({ default: m.StylesPanel })),
+)
+const LazyDevModePanel = React.lazy(() =>
+  import('@/ui/dev-mode-panel').then((m) => ({ default: m.DevModePanel })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -95,6 +101,8 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'ai-assistant', label: 'AI Assistant', icon: '\u2728', component: LazyAIPanel },
   { id: 'versions', label: 'Version Control', icon: '\u{1F4C0}', component: LazyVersionPanel },
   { id: 'variables', label: 'Variables', icon: '\u{1F4D0}', component: LazyVariablesPanel },
+  { id: 'styles', label: 'Shared Styles', icon: '\u{1F3A8}', component: LazyStylesPanel },
+  { id: 'dev-mode', label: 'Dev Mode', icon: '\u{1F6E0}', component: LazyDevModePanel },
 ]
 
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))

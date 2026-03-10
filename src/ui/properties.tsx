@@ -25,12 +25,14 @@ import type {
   DitheringConfig,
   GroupLayer,
   AutoLayoutConfig,
+  GridLayoutConfig,
+  GridTrack,
   SymbolInstanceLayer,
   ComponentProperty,
   NoiseFillConfig,
   WiggleStrokeConfig,
 } from '@/types'
-import { createDefaultAutoLayout } from '@/layout/auto-layout'
+import { createDefaultAutoLayout, createDefaultGridConfig } from '@/layout/auto-layout'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { downloadPDF } from '@/io/pdf-export'
@@ -2711,10 +2713,38 @@ function AutoLayoutSection({
   const config = group.autoLayout
   const isEnabled = !!config
   const [linkedPadding, setLinkedPadding] = useState(true)
+  const updateLayer = useEditorStore((s) => s.updateLayer)
+
+  const isGrid = config?.layoutMode === 'grid'
+  const gridConfig = config?.gridConfig
 
   function updateConfig(partial: Partial<AutoLayoutConfig>) {
     if (!config) return
     setAutoLayout(artboardId, group.id, { ...config, ...partial })
+  }
+
+  function updateGridConfig(partial: Partial<GridLayoutConfig>) {
+    if (!config || !gridConfig) return
+    setAutoLayout(artboardId, group.id, { ...config, gridConfig: { ...gridConfig, ...partial } })
+  }
+
+  function updateTrack(axis: 'columns' | 'rows', index: number, partial: Partial<GridTrack>) {
+    if (!gridConfig) return
+    const tracks = [...gridConfig[axis]]
+    tracks[index] = { ...tracks[index]!, ...partial }
+    updateGridConfig({ [axis]: tracks })
+  }
+
+  function addTrack(axis: 'columns' | 'rows') {
+    if (!gridConfig) return
+    updateGridConfig({ [axis]: [...gridConfig[axis], { size: 1, unit: 'fr' as const }] })
+  }
+
+  function removeTrack(axis: 'columns' | 'rows', index: number) {
+    if (!gridConfig) return
+    const tracks = gridConfig[axis].filter((_, i) => i !== index)
+    if (tracks.length === 0) return // don't allow removing all tracks
+    updateGridConfig({ [axis]: tracks })
   }
 
   function handlePaddingChange(key: 'paddingTop' | 'paddingRight' | 'paddingBottom' | 'paddingLeft', value: number) {
@@ -2737,17 +2767,24 @@ function AutoLayoutSection({
       </div>
       {config && (
         <>
+          {/* Layout Mode Toggle: Flex / Grid */}
           <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Direction</span>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Mode</span>
             <div style={{ display: 'flex', gap: 2 }}>
-              <button style={config.direction === 'horizontal' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'horizontal' })} title="Horizontal">H</button>
-              <button style={config.direction === 'vertical' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'vertical' })} title="Vertical">V</button>
+              <button
+                style={!isGrid ? activeBtnStyle : toggleBtnStyle}
+                onClick={() => updateConfig({ layoutMode: 'flex' })}
+                title="Flex layout"
+              >Flex</button>
+              <button
+                style={isGrid ? activeBtnStyle : toggleBtnStyle}
+                onClick={() => updateConfig({ layoutMode: 'grid', gridConfig: gridConfig ?? createDefaultGridConfig() })}
+                title="Grid layout"
+              >Grid</button>
             </div>
           </div>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Gap</span>
-            <input type="number" style={smallInputStyle} value={config.gap} min={0} onChange={(e) => updateConfig({ gap: Math.max(0, Number(e.target.value)) })} />
-          </div>
+
+          {/* Shared: Padding */}
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Padding</span>
             <label style={{ display: 'flex', alignItems: 'center', gap: 2, cursor: 'pointer' }}>
@@ -2776,45 +2813,236 @@ function AutoLayoutSection({
               </div>
             </>
           )}
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Align</span>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {(['start', 'center', 'end', 'stretch'] as const).map((a) => (
-                <button key={a} style={config.alignItems === a ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ alignItems: a })} title={`Align ${a}`}>
-                  {a[0]!.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Justify</span>
-            <div style={{ display: 'flex', gap: 2 }}>
-              {(['start', 'center', 'end', 'space-between'] as const).map((j) => (
-                <button key={j} style={config.justifyContent === j ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ justifyContent: j })} title={j}>
-                  {j === 'space-between' ? 'SB' : j[0]!.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Wrap</span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
-              <input type="checkbox" checked={config.wrap} onChange={(e) => updateConfig({ wrap: e.target.checked })} />
-              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{config.wrap ? 'On' : 'Off'}</span>
-            </label>
-          </div>
+
+          {/* ─── Flex-specific controls ─── */}
+          {!isGrid && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Direction</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  <button style={config.direction === 'horizontal' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'horizontal' })} title="Horizontal">H</button>
+                  <button style={config.direction === 'vertical' ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ direction: 'vertical' })} title="Vertical">V</button>
+                </div>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Gap</span>
+                <input type="number" style={smallInputStyle} value={config.gap} min={0} onChange={(e) => updateConfig({ gap: Math.max(0, Number(e.target.value)) })} />
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Align</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {(['start', 'center', 'end', 'stretch'] as const).map((a) => (
+                    <button key={a} style={config.alignItems === a ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ alignItems: a })} title={`Align ${a}`}>
+                      {a[0]!.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Justify</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {(['start', 'center', 'end', 'space-between'] as const).map((j) => (
+                    <button key={j} style={config.justifyContent === j ? activeBtnStyle : toggleBtnStyle} onClick={() => updateConfig({ justifyContent: j })} title={j}>
+                      {j === 'space-between' ? 'SB' : j[0]!.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Wrap</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+                  <input type="checkbox" checked={config.wrap} onChange={(e) => updateConfig({ wrap: e.target.checked })} />
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>{config.wrap ? 'On' : 'Off'}</span>
+                </label>
+              </div>
+            </>
+          )}
+
+          {/* ─── Grid-specific controls ─── */}
+          {isGrid && gridConfig && (
+            <>
+              {/* Columns */}
+              <div style={{ marginTop: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>Columns</span>
+                  <button style={{ ...btnStyle, padding: '1px 6px', fontSize: 9 }} onClick={() => addTrack('columns')}>+</button>
+                </div>
+                {gridConfig.columns.map((track, i) => (
+                  <div key={`col-${i}`} style={{ display: 'flex', gap: 2, marginBottom: 2, alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      style={{ ...smallInputStyle, width: 40 }}
+                      value={track.size}
+                      min={0}
+                      step={track.unit === 'fr' ? 1 : 10}
+                      onChange={(e) => updateTrack('columns', i, { size: Math.max(0, Number(e.target.value)) })}
+                    />
+                    <select
+                      style={{ ...inputStyle, width: 44, fontSize: 9, padding: '1px 2px' }}
+                      value={track.unit}
+                      onChange={(e) => updateTrack('columns', i, { unit: e.target.value as 'px' | 'fr' | 'auto' })}
+                    >
+                      <option value="fr">fr</option>
+                      <option value="px">px</option>
+                      <option value="auto">auto</option>
+                    </select>
+                    {gridConfig.columns.length > 1 && (
+                      <button style={{ ...btnStyle, padding: '1px 4px', fontSize: 9, color: 'var(--text-tertiary)' }} onClick={() => removeTrack('columns', i)}>x</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Rows */}
+              <div style={{ marginTop: 4 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', fontWeight: 600 }}>Rows</span>
+                  <button style={{ ...btnStyle, padding: '1px 6px', fontSize: 9 }} onClick={() => addTrack('rows')}>+</button>
+                </div>
+                {gridConfig.rows.map((track, i) => (
+                  <div key={`row-${i}`} style={{ display: 'flex', gap: 2, marginBottom: 2, alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      style={{ ...smallInputStyle, width: 40 }}
+                      value={track.size}
+                      min={0}
+                      step={track.unit === 'fr' ? 1 : 10}
+                      onChange={(e) => updateTrack('rows', i, { size: Math.max(0, Number(e.target.value)) })}
+                    />
+                    <select
+                      style={{ ...inputStyle, width: 44, fontSize: 9, padding: '1px 2px' }}
+                      value={track.unit}
+                      onChange={(e) => updateTrack('rows', i, { unit: e.target.value as 'px' | 'fr' | 'auto' })}
+                    >
+                      <option value="fr">fr</option>
+                      <option value="px">px</option>
+                      <option value="auto">auto</option>
+                    </select>
+                    {gridConfig.rows.length > 1 && (
+                      <button style={{ ...btnStyle, padding: '1px 4px', fontSize: 9, color: 'var(--text-tertiary)' }} onClick={() => removeTrack('rows', i)}>x</button>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Column Gap / Row Gap */}
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Col Gap</span>
+                <input type="number" style={smallInputStyle} value={gridConfig.columnGap} min={0} onChange={(e) => updateGridConfig({ columnGap: Math.max(0, Number(e.target.value)) })} />
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Row Gap</span>
+                <input type="number" style={smallInputStyle} value={gridConfig.rowGap} min={0} onChange={(e) => updateGridConfig({ rowGap: Math.max(0, Number(e.target.value)) })} />
+              </div>
+
+              {/* Align Items */}
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Align</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {(['start', 'center', 'end', 'stretch'] as const).map((a) => (
+                    <button key={a} style={gridConfig.alignItems === a ? activeBtnStyle : toggleBtnStyle} onClick={() => updateGridConfig({ alignItems: a })} title={`Align ${a}`}>
+                      {a[0]!.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Justify Items */}
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Justify</span>
+                <div style={{ display: 'flex', gap: 2 }}>
+                  {(['start', 'center', 'end', 'stretch'] as const).map((j) => (
+                    <button key={j} style={gridConfig.justifyItems === j ? activeBtnStyle : toggleBtnStyle} onClick={() => updateGridConfig({ justifyItems: j })} title={`Justify ${j}`}>
+                      {j[0]!.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Child Sizing + Grid Placement */}
           {group.children.length > 0 && (
             <div style={{ marginTop: 6 }}>
-              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>Child Sizing</div>
+              <div style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 4, fontWeight: 600 }}>
+                {isGrid ? 'Child Placement' : 'Child Sizing'}
+              </div>
               {group.children.filter((c) => c.visible).map((child) => (
-                <div key={child.id} style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 2, padding: '2px 4px', background: '#222', borderRadius: 3, fontSize: 10 }}>
-                  <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={child.name}>{child.name}</span>
-                  <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.horizontal ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: e.target.value as 'fixed' | 'fill' | 'hug', vertical: child.layoutSizing?.vertical ?? 'fixed' }) }} title="Horizontal sizing">
-                    <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
-                  </select>
-                  <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.vertical ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: child.layoutSizing?.horizontal ?? 'fixed', vertical: e.target.value as 'fixed' | 'fill' | 'hug' }) }} title="Vertical sizing">
-                    <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
-                  </select>
+                <div key={child.id} style={{ marginBottom: 4, padding: '2px 4px', background: '#222', borderRadius: 3, fontSize: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: isGrid ? 2 : 0 }}>
+                    <span style={{ color: 'var(--text-secondary)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={child.name}>{child.name}</span>
+                    <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.horizontal ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: e.target.value as 'fixed' | 'fill' | 'hug', vertical: child.layoutSizing?.vertical ?? 'fixed' }) }} title="Horizontal sizing">
+                      <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
+                    </select>
+                    <select style={{ ...inputStyle, width: 52, fontSize: 9, padding: '1px 2px' }} value={child.layoutSizing?.vertical ?? 'fixed'} onChange={(e) => { setLayoutSizing(artboardId, child.id, { horizontal: child.layoutSizing?.horizontal ?? 'fixed', vertical: e.target.value as 'fixed' | 'fill' | 'hug' }) }} title="Vertical sizing">
+                      <option value="fixed">Fix</option><option value="fill">Fill</option><option value="hug">Hug</option>
+                    </select>
+                  </div>
+                  {/* Grid placement inputs per child */}
+                  {isGrid && (
+                    <div style={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>Col</span>
+                      <input
+                        type="number"
+                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                        value={child.gridPlacement?.column ?? ''}
+                        placeholder="-"
+                        min={0}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          if (val === '') {
+                            updateLayer(artboardId, child.id, { gridPlacement: undefined } as Partial<Layer>)
+                          } else {
+                            const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                            updateLayer(artboardId, child.id, { gridPlacement: { ...gp, column: Math.max(0, Number(val)) } } as Partial<Layer>)
+                          }
+                        }}
+                        title="Grid column (0-based)"
+                      />
+                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>Row</span>
+                      <input
+                        type="number"
+                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                        value={child.gridPlacement?.row ?? ''}
+                        placeholder="-"
+                        min={0}
+                        onChange={(e) => {
+                          const val = e.target.value
+                          if (val === '') {
+                            updateLayer(artboardId, child.id, { gridPlacement: undefined } as Partial<Layer>)
+                          } else {
+                            const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                            updateLayer(artboardId, child.id, { gridPlacement: { ...gp, row: Math.max(0, Number(val)) } } as Partial<Layer>)
+                          }
+                        }}
+                        title="Grid row (0-based)"
+                      />
+                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>CSpn</span>
+                      <input
+                        type="number"
+                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                        value={child.gridPlacement?.columnSpan ?? 1}
+                        min={1}
+                        onChange={(e) => {
+                          const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                          updateLayer(artboardId, child.id, { gridPlacement: { ...gp, columnSpan: Math.max(1, Number(e.target.value)) } } as Partial<Layer>)
+                        }}
+                        title="Column span"
+                      />
+                      <span style={{ fontSize: 9, color: 'var(--text-tertiary)', width: 22 }}>RSpn</span>
+                      <input
+                        type="number"
+                        style={{ ...smallInputStyle, width: 32, fontSize: 9, padding: '1px 2px' }}
+                        value={child.gridPlacement?.rowSpan ?? 1}
+                        min={1}
+                        onChange={(e) => {
+                          const gp = child.gridPlacement ?? { column: 0, row: 0, columnSpan: 1, rowSpan: 1 }
+                          updateLayer(artboardId, child.id, { gridPlacement: { ...gp, rowSpan: Math.max(1, Number(e.target.value)) } } as Partial<Layer>)
+                        }}
+                        title="Row span"
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

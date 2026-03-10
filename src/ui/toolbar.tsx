@@ -34,6 +34,7 @@ import {
   ScissorsLineDashed,
   Stamp,
   MessageCircle,
+  Combine,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -93,6 +94,7 @@ const tools: (ToolEntry | 'shapes' | 'separator')[] = [
   { id: 'marquee', icon: SquareDashed, key: 'm' },
   { id: 'lasso', icon: Lasso, key: 'q' },
   { id: 'knife', icon: Scissors, key: 'k' },
+  { id: 'shape-builder', icon: Combine, key: 'shift+m' },
   { id: 'slice', icon: ScissorsLineDashed, key: 'w' },
   'separator',
   { id: 'hand', icon: Hand, key: 'h' },

@@ -28,6 +28,10 @@ import type {
   Comment,
   CommentReply,
   Interaction,
+  TextStyle,
+  ColorStyle,
+  EffectStyle,
+  TextLayer,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
@@ -43,6 +47,7 @@ import {
 import {
   defaultVariableValue as varDefaultValue,
 } from '@/variables/variable-types'
+import { generateBlend, createBlendGroup } from '@/tools/blend-tool'
 
 enablePatches()
 
@@ -88,6 +93,7 @@ export interface EditorState {
     | 'slice'
     | 'clone-stamp'
     | 'comment'
+    | 'shape-builder'
   selectedCommentId: string | null
   showRulers: boolean
   showGrid: boolean
@@ -116,6 +122,10 @@ export interface EditorState {
   // Collaboration
   collabProvider: import('@/collab/collab-provider').CollabProvider | null
   collabPresences: import('@/collab/collab-provider').UserPresence[]
+
+  // Dev mode
+  devMode: boolean
+  devModeReadOnly: boolean
 
   // Design variables
   activeModeIds: Record<string, string>
@@ -328,6 +338,32 @@ export interface EditorActions {
     collectionId: string,
   ) => void
   unbindLayerProperty: (layerId: string, artboardId: string, propertyPath: string) => void
+
+  // Shared styles
+  addTextStyle: (style: TextStyle) => void
+  updateTextStyle: (id: string, changes: Partial<TextStyle>) => void
+  removeTextStyle: (id: string) => void
+  addColorStyle: (style: ColorStyle) => void
+  updateColorStyle: (id: string, changes: Partial<ColorStyle>) => void
+  removeColorStyle: (id: string) => void
+  addEffectStyle: (style: EffectStyle) => void
+  updateEffectStyle: (id: string, changes: Partial<EffectStyle>) => void
+  removeEffectStyle: (id: string) => void
+  applyTextStyle: (layerId: string, artboardId: string, styleId: string) => void
+  detachTextStyle: (layerId: string, artboardId: string) => void
+  applyColorStyle: (layerId: string, artboardId: string, styleId: string) => void
+  detachColorStyle: (layerId: string, artboardId: string) => void
+  applyEffectStyle: (layerId: string, artboardId: string, styleId: string) => void
+  detachEffectStyle: (layerId: string, artboardId: string) => void
+
+  // Dev mode
+  toggleDevMode: () => void
+  toggleDevModeReadOnly: () => void
+  setReadyForDev: (artboardId: string, ready: boolean) => void
+  setDevAnnotation: (layerId: string, artboardId: string, annotation: string) => void
+
+  // Blend
+  createBlend: (artboardId: string, layerId1: string, layerId2: string, steps: number) => void
 }
 
 interface NewDocumentOptions {
@@ -589,6 +625,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     // Collaboration
     collabProvider: null,
     collabPresences: [],
+
+    // Dev mode
+    devMode: false,
+    devModeReadOnly: false,
 
     // Design variables
     activeModeIds: {},
@@ -2074,6 +2114,301 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (!layer) return
         if (!layer.variableBindings) return
         delete layer.variableBindings[propertyPath]
+      })
+    },
+
+    // ── Shared Styles ──
+
+    addTextStyle(style) {
+      mutateDocument('Add text style', (draft) => {
+        if (!draft.styles) draft.styles = { textStyles: [], colorStyles: [], effectStyles: [] }
+        draft.styles.textStyles.push(style)
+      })
+    },
+
+    updateTextStyle(id, changes) {
+      mutateDocument('Update text style', (draft) => {
+        if (!draft.styles) return
+        const style = draft.styles.textStyles.find((s) => s.id === id)
+        if (!style) return
+        Object.assign(style, changes)
+        // Propagate changes to all linked layers
+        for (const artboard of draft.artboards) {
+          const propagate = (layers: Layer[]) => {
+            for (const layer of layers) {
+              if (layer.textStyleId === id && layer.type === 'text') {
+                const tl = layer as TextLayer
+                if (changes.fontFamily !== undefined) tl.fontFamily = changes.fontFamily
+                if (changes.fontSize !== undefined) tl.fontSize = changes.fontSize
+                if (changes.fontWeight !== undefined) tl.fontWeight = changes.fontWeight
+                if (changes.fontStyle !== undefined) tl.fontStyle = changes.fontStyle
+                if (changes.lineHeight !== undefined) tl.lineHeight = changes.lineHeight
+                if (changes.letterSpacing !== undefined) tl.letterSpacing = changes.letterSpacing
+                if (changes.color !== undefined) tl.color = changes.color
+              }
+              if (layer.type === 'group') {
+                propagate((layer as GroupLayer).children)
+              }
+            }
+          }
+          propagate(artboard.layers)
+        }
+      })
+    },
+
+    removeTextStyle(id) {
+      mutateDocument('Remove text style', (draft) => {
+        if (!draft.styles) return
+        draft.styles.textStyles = draft.styles.textStyles.filter((s) => s.id !== id)
+        for (const artboard of draft.artboards) {
+          const detach = (layers: Layer[]) => {
+            for (const layer of layers) {
+              if (layer.textStyleId === id) delete layer.textStyleId
+              if (layer.type === 'group') detach((layer as GroupLayer).children)
+            }
+          }
+          detach(artboard.layers)
+        }
+      })
+    },
+
+    addColorStyle(style) {
+      mutateDocument('Add color style', (draft) => {
+        if (!draft.styles) draft.styles = { textStyles: [], colorStyles: [], effectStyles: [] }
+        draft.styles.colorStyles.push(style)
+      })
+    },
+
+    updateColorStyle(id, changes) {
+      mutateDocument('Update color style', (draft) => {
+        if (!draft.styles) return
+        const style = draft.styles.colorStyles.find((s) => s.id === id)
+        if (!style) return
+        Object.assign(style, changes)
+        for (const artboard of draft.artboards) {
+          const propagate = (layers: Layer[]) => {
+            for (const layer of layers) {
+              if (layer.fillStyleId === id && layer.type === 'vector') {
+                const vecLayer = layer as VectorLayer
+                if (vecLayer.fill) {
+                  if (changes.color !== undefined) vecLayer.fill.color = changes.color
+                  if (changes.opacity !== undefined) vecLayer.fill.opacity = changes.opacity
+                }
+              }
+              if (layer.type === 'group') propagate((layer as GroupLayer).children)
+            }
+          }
+          propagate(artboard.layers)
+        }
+      })
+    },
+
+    removeColorStyle(id) {
+      mutateDocument('Remove color style', (draft) => {
+        if (!draft.styles) return
+        draft.styles.colorStyles = draft.styles.colorStyles.filter((s) => s.id !== id)
+        for (const artboard of draft.artboards) {
+          const detach = (layers: Layer[]) => {
+            for (const layer of layers) {
+              if (layer.fillStyleId === id) delete layer.fillStyleId
+              if (layer.type === 'group') detach((layer as GroupLayer).children)
+            }
+          }
+          detach(artboard.layers)
+        }
+      })
+    },
+
+    addEffectStyle(style) {
+      mutateDocument('Add effect style', (draft) => {
+        if (!draft.styles) draft.styles = { textStyles: [], colorStyles: [], effectStyles: [] }
+        draft.styles.effectStyles.push(style)
+      })
+    },
+
+    updateEffectStyle(id, changes) {
+      mutateDocument('Update effect style', (draft) => {
+        if (!draft.styles) return
+        const style = draft.styles.effectStyles.find((s) => s.id === id)
+        if (!style) return
+        Object.assign(style, changes)
+        for (const artboard of draft.artboards) {
+          const propagate = (layers: Layer[]) => {
+            for (const layer of layers) {
+              if (layer.effectStyleId === id) {
+                if (changes.effects !== undefined) {
+                  layer.effects = JSON.parse(JSON.stringify(changes.effects))
+                }
+              }
+              if (layer.type === 'group') propagate((layer as GroupLayer).children)
+            }
+          }
+          propagate(artboard.layers)
+        }
+      })
+    },
+
+    removeEffectStyle(id) {
+      mutateDocument('Remove effect style', (draft) => {
+        if (!draft.styles) return
+        draft.styles.effectStyles = draft.styles.effectStyles.filter((s) => s.id !== id)
+        for (const artboard of draft.artboards) {
+          const detach = (layers: Layer[]) => {
+            for (const layer of layers) {
+              if (layer.effectStyleId === id) delete layer.effectStyleId
+              if (layer.type === 'group') detach((layer as GroupLayer).children)
+            }
+          }
+          detach(artboard.layers)
+        }
+      })
+    },
+
+    applyTextStyle(layerId, artboardId, styleId) {
+      mutateDocument('Apply text style', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const style = draft.styles?.textStyles.find((s) => s.id === styleId)
+        if (!style) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer || layer.type !== 'text') return
+        const tl = layer as TextLayer
+        tl.textStyleId = styleId
+        tl.fontFamily = style.fontFamily
+        tl.fontSize = style.fontSize
+        tl.fontWeight = style.fontWeight
+        tl.fontStyle = style.fontStyle
+        tl.lineHeight = style.lineHeight
+        tl.letterSpacing = style.letterSpacing
+        tl.color = style.color
+      })
+    },
+
+    detachTextStyle(layerId, artboardId) {
+      mutateDocument('Detach text style', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        delete layer.textStyleId
+      })
+    },
+
+    applyColorStyle(layerId, artboardId, styleId) {
+      mutateDocument('Apply color style', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const style = draft.styles?.colorStyles.find((s) => s.id === styleId)
+        if (!style) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer || layer.type !== 'vector') return
+        const vecLayer = layer as VectorLayer
+        vecLayer.fillStyleId = styleId
+        if (!vecLayer.fill) {
+          vecLayer.fill = { type: 'solid', color: style.color, opacity: style.opacity }
+        } else {
+          vecLayer.fill.color = style.color
+          vecLayer.fill.opacity = style.opacity
+        }
+      })
+    },
+
+    detachColorStyle(layerId, artboardId) {
+      mutateDocument('Detach color style', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        delete layer.fillStyleId
+      })
+    },
+
+    applyEffectStyle(layerId, artboardId, styleId) {
+      mutateDocument('Apply effect style', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const style = draft.styles?.effectStyles.find((s) => s.id === styleId)
+        if (!style) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        layer.effectStyleId = styleId
+        layer.effects = JSON.parse(JSON.stringify(style.effects))
+      })
+    },
+
+    detachEffectStyle(layerId, artboardId) {
+      mutateDocument('Detach effect style', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        delete layer.effectStyleId
+      })
+    },
+
+    // ── Dev Mode ──
+
+    toggleDevMode() {
+      const current = get().devMode
+      set({ devMode: !current, devModeReadOnly: !current ? get().devModeReadOnly : false })
+    },
+
+    toggleDevModeReadOnly() {
+      set({ devModeReadOnly: !get().devModeReadOnly })
+    },
+
+    setReadyForDev(artboardId, ready) {
+      mutateDocument(ready ? 'Mark artboard ready for dev' : 'Unmark artboard ready for dev', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) artboard.readyForDev = ready
+      })
+    },
+
+    setDevAnnotation(layerId, artboardId, annotation) {
+      mutateDocument('Set dev annotation', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, layerId)
+        if (!layer) return
+        if (annotation) {
+          layer.devAnnotation = annotation
+        } else {
+          delete layer.devAnnotation
+        }
+      })
+    },
+
+    createBlend(artboardId, layerId1, layerId2, steps) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard) return
+
+      const layer1 = findLayerDeep(artboard.layers, layerId1) as VectorLayer | undefined
+      const layer2 = findLayerDeep(artboard.layers, layerId2) as VectorLayer | undefined
+      if (!layer1 || !layer2 || layer1.type !== 'vector' || layer2.type !== 'vector') return
+
+      const config = { steps, spacing: 'even' as const }
+      const intermediates = generateBlend(layer1, layer2, config)
+      const blendGroup = createBlendGroup(layer1, layer2, intermediates, artboardId)
+
+      mutateDocument('Create blend', (draft) => {
+        const ab = findArtboard(draft, artboardId)
+        if (!ab) return
+
+        // Find indices of the two layers (top-level)
+        const idx1 = ab.layers.findIndex((l) => l.id === layerId1)
+        const idx2 = ab.layers.findIndex((l) => l.id === layerId2)
+        if (idx1 === -1 || idx2 === -1) return
+
+        const minIdx = Math.min(idx1, idx2)
+        const maxIdx = Math.max(idx1, idx2)
+
+        // Remove the two layers (in reverse order to preserve indices)
+        ab.layers.splice(maxIdx, 1)
+        ab.layers.splice(minIdx, 1)
+
+        // Insert the blend group at the position of the first layer
+        ab.layers.splice(minIdx, 0, blendGroup)
       })
     },
   }
