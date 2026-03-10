@@ -25,10 +25,23 @@ import { performBooleanOp } from '@/tools/boolean-ops'
 import { traceSelectedRasterLayer } from '@/tools/image-trace'
 import { applyDistortFilter } from '@/filters/apply-distort'
 import { applyProgressiveBlurFilter } from '@/filters/apply-progressive-blur'
+import {
+  applySharpenFilter,
+  applyUnsharpMaskFilter,
+  applyMotionBlurFilter,
+  applyRadialBlurFilter,
+  applyPosterizeFilter,
+  applyThresholdFilter,
+  applyInvertFilter,
+  applyDesaturateFilter,
+  applyVibranceFilter,
+  applyChannelMixerFilter,
+} from '@/filters/apply-filters'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import { exportLottie, downloadLottie } from '@/io/lottie-export'
+import { createDefaultRepeaterConfig } from '@/tools/repeater'
 
 // ── Menu data types ──
 
@@ -672,6 +685,15 @@ function buildMenus(): MenuDef[] {
     return !!layer && layer.type === 'raster'
   }
 
+  const hasSelectedVector = (): boolean => {
+    const s = store()
+    if (s.selection.layerIds.length === 0) return false
+    const artboard = s.document.artboards[0]
+    if (!artboard) return false
+    const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
+    return !!layer && layer.type === 'vector'
+  }
+
   const filterMenu: MenuDef = {
     label: 'Filter',
     items: [
@@ -799,6 +821,71 @@ function buildMenus(): MenuDef[] {
           },
         ],
       },
+      {
+        label: 'Sharpen',
+        submenu: [
+          {
+            label: 'Sharpen\u2026',
+            action: () => applySharpenFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Unsharp Mask\u2026',
+            action: () => applyUnsharpMaskFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
+      {
+        label: 'Blur',
+        submenu: [
+          {
+            label: 'Motion Blur\u2026',
+            action: () => applyMotionBlurFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Radial Blur\u2026',
+            action: () => applyRadialBlurFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
+      {
+        label: 'Adjustments',
+        submenu: [
+          {
+            label: 'Posterize\u2026',
+            action: () => applyPosterizeFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Threshold\u2026',
+            action: () => applyThresholdFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Invert',
+            action: () => applyInvertFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Desaturate',
+            action: () => applyDesaturateFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Vibrance\u2026',
+            action: () => applyVibranceFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+          {
+            label: 'Channel Mixer\u2026',
+            action: () => applyChannelMixerFilter(),
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
     ],
   }
 
@@ -857,6 +944,68 @@ function buildMenus(): MenuDef[] {
           s.createBlend(artboard.id, s.selection.layerIds[0]!, s.selection.layerIds[1]!, steps)
         },
         disabled: () => store().selection.layerIds.length !== 2,
+      },
+      { label: '', divider: true },
+      {
+        label: 'Envelope Distort\u2026',
+        action: () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const layer = artboard.layers.find((l) => l.id === layerId)
+          if (!layer || layer.type !== 'vector') return
+          const presetStr = prompt(
+            'Envelope preset (arc, arch, bulge, flag, wave, fish, rise, squeeze, twist, none):',
+            layer.envelope?.preset ?? 'arc',
+          )
+          if (!presetStr) return
+          const preset = presetStr.trim().toLowerCase()
+          const validPresets = ['arc', 'arch', 'bulge', 'flag', 'wave', 'fish', 'rise', 'squeeze', 'twist', 'none']
+          if (!validPresets.includes(preset)) return
+          const bendStr = prompt('Bend (-100 to 100):', String(Math.round((layer.envelope?.bend ?? 0.5) * 100)))
+          if (!bendStr) return
+          const bend = Math.max(-100, Math.min(100, parseInt(bendStr, 10))) / 100
+          s.updateLayer(artboard.id, layerId, {
+            envelope: {
+              preset: preset as import('@/types').WarpPreset,
+              bend,
+              horizontalDistortion: layer.envelope?.horizontalDistortion ?? 0,
+              verticalDistortion: layer.envelope?.verticalDistortion ?? 0,
+            },
+          } as Partial<import('@/types').Layer>)
+        },
+        disabled: () => !hasSelectedVector(),
+      },
+      { label: '', divider: true },
+      {
+        label: 'Repeat\u2026',
+        action: () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+
+          const modeStr = prompt('Repeat mode (linear / radial / grid):', 'linear')
+          if (!modeStr) return
+          const mode = modeStr.trim().toLowerCase()
+          if (mode !== 'linear' && mode !== 'radial' && mode !== 'grid') {
+            alert('Invalid mode. Use "linear", "radial", or "grid".')
+            return
+          }
+
+          const countStr = prompt('Number of copies:', '5')
+          if (!countStr) return
+          const count = parseInt(countStr, 10)
+          if (isNaN(count) || count < 1) return
+
+          const config = createDefaultRepeaterConfig()
+          config.mode = mode
+          config.count = count
+
+          s.createRepeater(artboard.id, layerId, config)
+        },
+        disabled: () => store().selection.layerIds.length !== 1,
       },
     ],
   }

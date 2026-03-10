@@ -14,6 +14,7 @@ import { renderMeshGradient } from '@/render/mesh-gradient'
 import { createNoisePattern } from '@/render/noise-fill'
 import { renderVariableStroke } from '@/render/variable-stroke'
 import { renderWiggleStroke } from '@/render/wiggle-stroke'
+import { warpPaths } from '@/render/envelope-distort'
 import {
   penMouseDown,
   penMouseDrag,
@@ -2102,15 +2103,36 @@ function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
 
 function applyTransform(
   ctx: CanvasRenderingContext2D,
-  t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number; skewX?: number; skewY?: number },
+  t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number; skewX?: number; skewY?: number; anchorX?: number; anchorY?: number },
+  bounds?: { width: number; height: number },
 ) {
   ctx.translate(t.x, t.y)
-  ctx.scale(t.scaleX, t.scaleY)
-  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
-  if (t.skewX || t.skewY) {
-    const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
-    const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
-    ctx.transform(1, sy, sx, 1, 0, 0)
+
+  // If anchor point is set and bounds are known, offset the transform origin
+  const ax = t.anchorX ?? 0.5
+  const ay = t.anchorY ?? 0.5
+  const hasCustomAnchor = bounds && (Math.abs(ax - 0.5) > 0.001 || Math.abs(ay - 0.5) > 0.001)
+
+  if (hasCustomAnchor) {
+    const ox = ax * bounds.width
+    const oy = ay * bounds.height
+    ctx.translate(ox, oy)
+    ctx.scale(t.scaleX, t.scaleY)
+    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+    if (t.skewX || t.skewY) {
+      const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
+      const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
+      ctx.transform(1, sy, sx, 1, 0, 0)
+    }
+    ctx.translate(-ox, -oy)
+  } else {
+    ctx.scale(t.scaleX, t.scaleY)
+    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+    if (t.skewX || t.skewY) {
+      const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
+      const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
+      ctx.transform(1, sy, sx, 1, 0, 0)
+    }
   }
 }
 
@@ -2213,8 +2235,25 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
 }
 
 function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
+  // Pre-compute local bounds for anchor point support
+  let localW = 100, localH = 100
+  for (const p of layer.paths) {
+    for (const seg of p.segments) {
+      if ('x' in seg) {
+        if (seg.x > localW) localW = seg.x
+        if (seg.y > localH) localH = seg.y
+      }
+    }
+  }
+
   ctx.save()
-  applyTransform(ctx, layer.transform)
+  applyTransform(ctx, layer.transform, { width: localW, height: localH })
+
+  // Apply envelope distortion if configured
+  const renderPaths =
+    layer.envelope && layer.envelope.preset !== 'none'
+      ? warpPaths(layer.paths, layer.envelope)
+      : layer.paths
 
   // Compute bounding box for gradient/noise sizing
   let bboxX = 0,
@@ -2230,7 +2269,7 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
       minY = Infinity,
       maxX = -Infinity,
       maxY = -Infinity
-    for (const p of layer.paths) {
+    for (const p of renderPaths) {
       for (const seg of p.segments) {
         if ('x' in seg) {
           if (seg.x < minX) minX = seg.x
@@ -2248,7 +2287,7 @@ function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
     }
   }
 
-  for (const path of layer.paths) {
+  for (const path of renderPaths) {
     const path2d = segmentsToPath2D(path.segments)
     const fillRule = path.fillRule ?? 'nonzero'
 
@@ -2403,7 +2442,7 @@ function renderRasterLayer(ctx: CanvasRenderingContext2D, layer: RasterLayer) {
   if (!rasterCanvas) return
 
   ctx.save()
-  applyTransform(ctx, layer.transform)
+  applyTransform(ctx, layer.transform, { width: layer.width, height: layer.height })
 
   ctx.drawImage(rasterCanvas, 0, 0)
   ctx.restore()
@@ -2425,7 +2464,7 @@ function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
  * property values, active variant overrides, and per-layer overrides at
  * render time (never mutates stored data).
  */
-function resolveSymbolLayers(instance: SymbolInstanceLayer, symbolDef: SymbolDefinition): Layer[] {
+export function resolveSymbolLayers(instance: SymbolInstanceLayer, symbolDef: SymbolDefinition): Layer[] {
   const layers: Layer[] = JSON.parse(JSON.stringify(symbolDef.layers))
 
   // 1. Collect effective property values: defaults -> variant -> instance overrides
@@ -2491,7 +2530,28 @@ function resolveSymbolLayers(instance: SymbolInstanceLayer, symbolDef: SymbolDef
     }
   }
 
-  // 4. Apply instance-level per-layer overrides (existing overrides field)
+  // 4. Resolve slot content — replace slot group children with injected content
+  function resolveSlots(ls: Layer[]) {
+    for (let i = 0; i < ls.length; i++) {
+      const l = ls[i]!
+      if (l.type === 'group') {
+        const group = l as GroupLayer
+        if (group.isSlot && group.slotName) {
+          const injected = instance.slotContent?.[group.slotName]
+          if (injected && injected.length > 0) {
+            // Replace group children with injected content (deep clone)
+            group.children = JSON.parse(JSON.stringify(injected))
+          }
+          // else: keep original children as default content
+        }
+        // Recurse into children (whether replaced or default)
+        resolveSlots(group.children)
+      }
+    }
+  }
+  resolveSlots(layers)
+
+  // 5. Apply instance-level per-layer overrides (existing overrides field)
   if (instance.overrides) {
     for (const [layerId, overrides] of Object.entries(instance.overrides)) {
       const target = layerMap.get(layerId)

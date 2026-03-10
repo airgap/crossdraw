@@ -48,6 +48,7 @@ import {
   defaultVariableValue as varDefaultValue,
 } from '@/variables/variable-types'
 import { generateBlend, createBlendGroup } from '@/tools/blend-tool'
+import { generateRepeaterInstances, createRepeaterGroup } from '@/tools/repeater'
 
 enablePatches()
 
@@ -253,6 +254,12 @@ export interface EditorActions {
   setInstanceProperty: (artboardId: string, layerId: string, propId: string, value: string | boolean) => void
   setInstanceVariant: (artboardId: string, layerId: string, variantName: string) => void
 
+  // Slots
+  markAsSlot: (symbolId: string, layerId: string, slotName: string) => void
+  unmarkSlot: (symbolId: string, layerId: string) => void
+  setSlotContent: (artboardId: string, instanceLayerId: string, slotName: string, content: Layer[]) => void
+  clearSlotContent: (artboardId: string, instanceLayerId: string, slotName: string) => void
+
   // Document colors
   addDocumentColor: (color: NamedColor) => void
   removeDocumentColor: (id: string) => void
@@ -364,6 +371,9 @@ export interface EditorActions {
 
   // Blend
   createBlend: (artboardId: string, layerId1: string, layerId2: string, steps: number) => void
+
+  // Repeater
+  createRepeater: (artboardId: string, layerId: string, config: import('@/tools/repeater').RepeaterConfig) => void
 }
 
 interface NewDocumentOptions {
@@ -1605,6 +1615,62 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       })
     },
 
+    // Slots
+    markAsSlot(symbolId, layerId, slotName) {
+      mutateDocument(`Mark layer as slot "${slotName}"`, (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (!sym) return
+        const layer = findLayerDeep(sym.layers, layerId)
+        if (!layer || layer.type !== 'group') return
+        const group = layer as GroupLayer
+        group.isSlot = true
+        group.slotName = slotName
+      })
+    },
+
+    unmarkSlot(symbolId, layerId) {
+      mutateDocument('Unmark slot', (draft) => {
+        if (!draft.symbols) return
+        const sym = draft.symbols.find((s) => s.id === symbolId)
+        if (!sym) return
+        const layer = findLayerDeep(sym.layers, layerId)
+        if (!layer || layer.type !== 'group') return
+        const group = layer as GroupLayer
+        delete group.isSlot
+        delete group.slotName
+        delete group.slotDefaultContent
+      })
+    },
+
+    setSlotContent(artboardId, instanceLayerId, slotName, content) {
+      mutateDocument(`Set slot "${slotName}" content`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, instanceLayerId)
+        if (!layer || layer.type !== 'symbol-instance') return
+        const inst = layer as SymbolInstanceLayer
+        if (!inst.slotContent) inst.slotContent = {}
+        inst.slotContent[slotName] = JSON.parse(JSON.stringify(content))
+      })
+    },
+
+    clearSlotContent(artboardId, instanceLayerId, slotName) {
+      mutateDocument(`Clear slot "${slotName}"`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        const layer = findLayerDeep(artboard.layers, instanceLayerId)
+        if (!layer || layer.type !== 'symbol-instance') return
+        const inst = layer as SymbolInstanceLayer
+        if (inst.slotContent) {
+          delete inst.slotContent[slotName]
+          if (Object.keys(inst.slotContent).length === 0) {
+            delete inst.slotContent
+          }
+        }
+      })
+    },
+
     // Document colors
     addDocumentColor(color) {
       mutateDocument(`Add document color "${color.name}"`, (draft) => {
@@ -2409,6 +2475,31 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
         // Insert the blend group at the position of the first layer
         ab.layers.splice(minIdx, 0, blendGroup)
+      })
+    },
+
+    // ── Repeater ──
+
+    createRepeater(artboardId, layerId, config) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard) return
+
+      const sourceLayer = findLayerDeep(artboard.layers, layerId)
+      if (!sourceLayer) return
+
+      const instances = generateRepeaterInstances(sourceLayer, config)
+      const repeaterGroup = createRepeaterGroup(sourceLayer, instances)
+
+      mutateDocument('Create repeater', (draft) => {
+        const ab = findArtboard(draft, artboardId)
+        if (!ab) return
+
+        const idx = ab.layers.findIndex((l) => l.id === layerId)
+        if (idx === -1) return
+
+        // Remove the source layer and insert the repeater group
+        ab.layers.splice(idx, 1, repeaterGroup)
       })
     },
   }

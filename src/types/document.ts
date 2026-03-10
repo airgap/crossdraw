@@ -195,6 +195,28 @@ export interface KeyframeProperties {
   strokeColor?: string
 }
 
+export type WarpPreset =
+  | 'arc'
+  | 'arch'
+  | 'bulge'
+  | 'flag'
+  | 'wave'
+  | 'fish'
+  | 'rise'
+  | 'squeeze'
+  | 'twist'
+  | 'none'
+
+export interface EnvelopeConfig {
+  preset: WarpPreset
+  /** Primary bend amount (-1 to 1) */
+  bend: number
+  /** Horizontal distortion (-1 to 1) */
+  horizontalDistortion: number
+  /** Vertical distortion (-1 to 1) */
+  verticalDistortion: number
+}
+
 export interface VectorLayer extends BaseLayer {
   type: 'vector'
   paths: Path[]
@@ -204,6 +226,8 @@ export interface VectorLayer extends BaseLayer {
   additionalFills?: Fill[]
   /** Additional strokes rendered in order (below the primary stroke). */
   additionalStrokes?: Stroke[]
+  /** Envelope distortion / warp configuration. */
+  envelope?: EnvelopeConfig
   /** Shape metadata for parametric regeneration. */
   shapeParams?: {
     shapeType: 'rectangle' | 'ellipse' | 'polygon' | 'star'
@@ -231,6 +255,12 @@ export interface GroupLayer extends BaseLayer {
   children: Layer[]
   /** Auto-layout configuration. When set, children are arranged automatically. */
   autoLayout?: AutoLayoutConfig
+  /** Marks this group as a content slot within a symbol definition. */
+  isSlot?: boolean
+  /** Name identifying this slot (used as key in SymbolInstanceLayer.slotContent). */
+  slotName?: string
+  /** Default content shown when the slot is unfilled. Falls back to children if omitted. */
+  slotDefaultContent?: Layer[]
 }
 
 export interface GridTrack {
@@ -538,6 +568,10 @@ export interface Transform {
   rotation: number
   skewX?: number
   skewY?: number
+  /** Anchor point X (0-1 range, default 0.5 = center). Controls the origin for rotation/scale. */
+  anchorX?: number
+  /** Anchor point Y (0-1 range, default 0.5 = center). Controls the origin for rotation/scale. */
+  anchorY?: number
 }
 
 export type BlendMode =
@@ -624,6 +658,8 @@ export interface SymbolInstanceLayer extends BaseLayer {
   propertyValues?: Record<string, string | boolean>
   /** Active variant name. */
   activeVariant?: string
+  /** Content injected into named slots, keyed by slot name. */
+  slotContent?: Record<string, Layer[]>
 }
 
 // --- ICC Color Profile ---

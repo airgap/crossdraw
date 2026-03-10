@@ -31,7 +31,10 @@ import type {
   ComponentProperty,
   NoiseFillConfig,
   WiggleStrokeConfig,
+  EnvelopeConfig,
+  WarpPreset,
 } from '@/types'
+import { WARP_PRESETS } from '@/render/envelope-distort'
 import { createDefaultAutoLayout, createDefaultGridConfig } from '@/layout/auto-layout'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
@@ -134,6 +137,71 @@ const blendModes: BlendMode[] = [
   'color',
   'luminosity',
 ]
+
+// ── Anchor Point Grid (9-point selector) ──
+
+const ANCHOR_POINTS: { label: string; x: number; y: number }[] = [
+  { label: 'TL', x: 0, y: 0 },
+  { label: 'TC', x: 0.5, y: 0 },
+  { label: 'TR', x: 1, y: 0 },
+  { label: 'ML', x: 0, y: 0.5 },
+  { label: 'MC', x: 0.5, y: 0.5 },
+  { label: 'MR', x: 1, y: 0.5 },
+  { label: 'BL', x: 0, y: 1 },
+  { label: 'BC', x: 0.5, y: 1 },
+  { label: 'BR', x: 1, y: 1 },
+]
+
+function AnchorPointGrid({
+  anchorX,
+  anchorY,
+  onChange,
+}: {
+  anchorX: number
+  anchorY: number
+  onChange: (ax: number, ay: number) => void
+}) {
+  const gridContainerStyle: React.CSSProperties = {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, 14px)',
+    gridTemplateRows: 'repeat(3, 14px)',
+    gap: 2,
+    marginTop: 4,
+    marginBottom: 4,
+  }
+
+  const dotStyle = (isActive: boolean): React.CSSProperties => ({
+    width: 14,
+    height: 14,
+    borderRadius: '50%',
+    border: `1.5px solid ${isActive ? 'var(--accent-primary, #4a7dff)' : 'var(--border-default)'}`,
+    background: isActive ? 'var(--accent-primary, #4a7dff)' : 'transparent',
+    cursor: 'pointer',
+    transition: 'background 0.15s, border-color 0.15s',
+    boxSizing: 'border-box',
+  })
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }} title="Anchor">
+        A
+      </span>
+      <div style={gridContainerStyle}>
+        {ANCHOR_POINTS.map((pt) => {
+          const isActive = Math.abs(anchorX - pt.x) < 0.01 && Math.abs(anchorY - pt.y) < 0.01
+          return (
+            <div
+              key={pt.label}
+              style={dotStyle(isActive)}
+              title={pt.label}
+              onClick={() => onChange(pt.x, pt.y)}
+            />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 export function PropertiesPanel() {
   const selection = useEditorStore((s) => s.selection)
@@ -320,6 +388,17 @@ export function PropertiesPanel() {
                   }}
                 />
               </div>
+              {/* Anchor Point Grid */}
+              <AnchorPointGrid
+                anchorX={selectedLayer.transform.anchorX ?? 0.5}
+                anchorY={selectedLayer.transform.anchorY ?? 0.5}
+                onChange={(ax, ay) => {
+                  if (!artboard) return
+                  updateLayer(artboard.id, selectedLayer.id, {
+                    transform: { ...selectedLayer.transform, anchorX: ax, anchorY: ay },
+                  })
+                }}
+              />
             </div>
 
             {/* Appearance */}
@@ -649,6 +728,15 @@ export function PropertiesPanel() {
                 <FillSection artboardId={artboard.id} layer={selectedLayer} setFill={setFill} />
                 <StrokeSection artboardId={artboard.id} layer={selectedLayer} setStroke={setStroke} />
               </>
+            )}
+
+            {/* Envelope distortion (vector only) */}
+            {selectedLayer.type === 'vector' && artboard && (
+              <EnvelopeSection
+                artboardId={artboard.id}
+                layer={selectedLayer}
+                updateLayer={updateLayer}
+              />
             )}
 
             {/* Effects */}
@@ -3047,6 +3135,100 @@ function AutoLayoutSection({
               ))}
             </div>
           )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── Envelope Distort section ──────────────────────────────────
+
+function EnvelopeSection({
+  artboardId,
+  layer,
+  updateLayer,
+}: {
+  artboardId: string
+  layer: VectorLayer
+  updateLayer: (a: string, l: string, u: Partial<Layer>) => void
+}) {
+  const envelope: EnvelopeConfig = layer.envelope ?? {
+    preset: 'none',
+    bend: 0,
+    horizontalDistortion: 0,
+    verticalDistortion: 0,
+  }
+
+  const setEnvelope = (updates: Partial<EnvelopeConfig>) => {
+    updateLayer(artboardId, layer.id, {
+      envelope: { ...envelope, ...updates },
+    } as Partial<Layer>)
+  }
+
+  return (
+    <div style={sectionStyle}>
+      <div style={labelStyle}>Envelope</div>
+      <div style={rowStyle}>
+        <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Preset</span>
+        <select
+          style={{ ...inputStyle, flex: 1 }}
+          value={envelope.preset}
+          onChange={(e) => setEnvelope({ preset: e.target.value as WarpPreset })}
+        >
+          {WARP_PRESETS.map((p) => (
+            <option key={p} value={p}>
+              {p === 'none' ? 'None' : p[0]!.toUpperCase() + p.slice(1)}
+            </option>
+          ))}
+        </select>
+      </div>
+      {envelope.preset !== 'none' && (
+        <>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>Bend</span>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(envelope.bend * 100)}
+              onChange={(e) => setEnvelope({ bend: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(envelope.bend * 100)}
+            </span>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>H Dist</span>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(envelope.horizontalDistortion * 100)}
+              onChange={(e) => setEnvelope({ horizontalDistortion: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(envelope.horizontalDistortion * 100)}
+            </span>
+          </div>
+          <div style={rowStyle}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 50 }}>V Dist</span>
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              step="1"
+              style={{ flex: 1 }}
+              value={Math.round(envelope.verticalDistortion * 100)}
+              onChange={(e) => setEnvelope({ verticalDistortion: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30, textAlign: 'right' }}>
+              {Math.round(envelope.verticalDistortion * 100)}
+            </span>
+          </div>
         </>
       )}
     </div>
