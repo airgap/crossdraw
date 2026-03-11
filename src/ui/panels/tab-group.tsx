@@ -36,15 +36,12 @@ function DraggableTab({
     tornOff: boolean
   } | null>(null)
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (e.button !== 0) return
-      e.preventDefault()
-      ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-      dragState.current = { startX: e.clientX, startY: e.clientY, started: false, tornOff: false }
-    },
-    [],
-  )
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return
+    e.preventDefault()
+    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
+    dragState.current = { startX: e.clientX, startY: e.clientY, started: false, tornOff: false }
+  }, [])
 
   const handlePointerMove = useCallback(
     (e: React.PointerEvent) => {
@@ -281,13 +278,7 @@ function InsertionIndicator({
 
 // ── SplitDropZone — shown between groups ──
 
-export function SplitDropZone({
-  column,
-  insertAtIndex,
-}: {
-  column: 'left' | 'right'
-  insertAtIndex: number
-}) {
+export function SplitDropZone({ column, insertAtIndex }: { column: 'left' | 'right'; insertAtIndex: number }) {
   const dragTabId = usePanelDragStore((s) => s.tabId)
   const dropTarget = usePanelDragStore((s) => s.dropTarget)
   const [hovered, setHovered] = useState(false)

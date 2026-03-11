@@ -944,6 +944,14 @@ export function Viewport() {
   // Global keyboard listener for pen/node/text tools
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.tagName === 'SELECT' ||
+        target.isContentEditable
+      )
+        return
       // Text editing takes priority
       if (getTextEditState().active) {
         if (textEditKeyDown(e)) return
@@ -952,8 +960,6 @@ export function Viewport() {
         penKeyDown(e)
       }
       if (activeTool === 'node' && (e.key === 'Delete' || e.key === 'Backspace')) {
-        const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
         e.preventDefault()
         deleteSelectedNodes()
       }
@@ -979,7 +985,13 @@ export function Viewport() {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === ' ' && !spaceHeld.current) {
         const target = e.target as HTMLElement
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return
+        if (
+          target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable
+        )
+          return
         e.preventDefault()
         spaceHeld.current = true
         if (canvasRef.current) canvasRef.current.style.cursor = 'grab'

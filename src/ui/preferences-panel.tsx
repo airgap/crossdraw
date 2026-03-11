@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { getThemeName, setTheme } from '@/ui/theme'
+import { isAIEnabled, setAIEnabled } from '@/ui/panels/panel-registry'
 
 // ── localStorage helpers ──
 
@@ -129,6 +130,9 @@ export function PreferencesPanel() {
   // Canvas — local pref
   const [pixelGridThreshold, setPixelGridThreshold] = useState(() => loadPref('crossdraw:pixel-grid-threshold', 8))
 
+  // AI toggle
+  const [aiOn, setAiOn] = useState(isAIEnabled)
+
   // Performance prefs
   const [renderQuality, setRenderQuality] = useState(() => loadPref('crossdraw:render-quality', 'medium'))
   const [gpuAccel, setGpuAccel] = useState(() => loadPref('crossdraw:gpu-accel', true))
@@ -172,6 +176,12 @@ export function PreferencesPanel() {
     savePref('crossdraw:gpu-accel', value)
   }, [])
 
+  const handleAIToggle = useCallback((value: boolean) => {
+    setAiOn(value)
+    setAIEnabled(value)
+    window.dispatchEvent(new Event('crossdraw:ai-toggled'))
+  }, [])
+
   return (
     <div
       style={{
@@ -211,6 +221,11 @@ export function PreferencesPanel() {
           <option value="300">5 min</option>
           <option value="600">10 min</option>
         </select>
+      </div>
+
+      <div style={rowStyle}>
+        <span style={labelStyle}>AI features</span>
+        <ToggleSwitch checked={aiOn} onChange={handleAIToggle} />
       </div>
 
       {/* ── Canvas ── */}

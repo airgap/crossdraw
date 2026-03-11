@@ -606,7 +606,13 @@ export function initShortcuts() {
   const handler = (e: KeyboardEvent) => {
     // Don't intercept when typing in inputs
     const target = e.target as HTMLElement
-    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
+    if (
+      target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.tagName === 'SELECT' ||
+      target.isContentEditable
+    )
+      return
 
     for (const binding of bindings) {
       if (matchesCombo(e, binding.key)) {

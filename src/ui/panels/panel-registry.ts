@@ -101,12 +101,37 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'pngtuber-preview', label: 'PNGtuber Preview', icon: '\uD83C\uDFAD', component: LazyPNGTuberPreview },
 ]
 
+const AI_PANEL_IDS = new Set(['ai-assistant'])
+
 const panelMap = new Map<string, PanelDefinition>(PANEL_DEFINITIONS.map((p) => [p.id, p]))
 
+let _aiOverride: boolean | null = null
+
+export function isAIEnabled(): boolean {
+  if (_aiOverride !== null) return _aiOverride
+  try {
+    const raw = localStorage.getItem('crossdraw:ai-enabled')
+    return raw === null ? false : JSON.parse(raw) === true
+  } catch {
+    return false
+  }
+}
+
+export function setAIEnabled(enabled: boolean): void {
+  _aiOverride = enabled
+  try {
+    localStorage.setItem('crossdraw:ai-enabled', JSON.stringify(enabled))
+  } catch {
+    /* no localStorage in test env */
+  }
+}
+
 export function getPanelDefinition(id: string): PanelDefinition | undefined {
+  if (AI_PANEL_IDS.has(id) && !isAIEnabled()) return undefined
   return panelMap.get(id)
 }
 
 export function getAllPanelIds(): string[] {
-  return PANEL_DEFINITIONS.map((p) => p.id)
+  const aiOn = isAIEnabled()
+  return PANEL_DEFINITIONS.filter((p) => aiOn || !AI_PANEL_IDS.has(p.id)).map((p) => p.id)
 }

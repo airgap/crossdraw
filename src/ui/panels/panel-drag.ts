@@ -40,7 +40,12 @@ interface PanelDragState {
   updatePosition: (x: number, y: number) => void
   setDropTarget: (target: DropTarget | null) => void
   /** Returns the drag info and clears state. Called once on pointerup. */
-  endDrag: () => { tabId: string; sourceColumn: string | null; sourceGroupIndex: number; dropTarget: DropTarget | null } | null
+  endDrag: () => {
+    tabId: string
+    sourceColumn: string | null
+    sourceGroupIndex: number
+    dropTarget: DropTarget | null
+  } | null
   cancelDrag: () => void
 }
 

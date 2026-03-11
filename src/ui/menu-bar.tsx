@@ -11,6 +11,7 @@ import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import type { RenameLayerInfo } from '@/ai/prompt-templates'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
+import { isAIEnabled } from '@/ui/panels/panel-registry'
 import { addToast } from '@/ui/toast'
 import { getRecentFiles, clearRecentFiles } from '@/io/recent-files'
 import { decodeDocument } from '@/io/file-format'
@@ -1529,7 +1530,7 @@ function buildMenus(): MenuDef[] {
     ],
   }
 
-  return [
+  const allMenus = [
     fileMenu,
     editMenu,
     viewMenu,
@@ -1537,11 +1538,22 @@ function buildMenus(): MenuDef[] {
     pathMenu,
     typeMenu,
     filterMenu,
-    aiMenu,
+    ...(isAIEnabled() ? [aiMenu] : []),
     collabMenu,
     windowMenu,
     helpMenu,
   ]
+
+  // Strip AI-specific items from menus when AI is disabled
+  if (!isAIEnabled()) {
+    for (const menu of allMenus) {
+      menu.items = menu.items.filter((item) => !item.label.startsWith('AI '))
+      // Collapse consecutive dividers
+      menu.items = menu.items.filter((item, i, arr) => !item.divider || !arr[i - 1]?.divider)
+    }
+  }
+
+  return allMenus
 }
 
 // ── Component ──
@@ -1549,7 +1561,18 @@ function buildMenus(): MenuDef[] {
 export function MenuBar() {
   const [openMenu, setOpenMenu] = useState<string | null>(null)
   const barRef = useRef<HTMLDivElement>(null)
-  const menus = useRef(buildMenus()).current
+  const [menuVersion, setMenuVersion] = useState(0)
+  const menus = useRef(buildMenus())
+  // Rebuild menus when AI toggle changes
+  useEffect(() => {
+    const handler = () => {
+      menus.current = buildMenus()
+      setMenuVersion((v) => v + 1)
+    }
+    window.addEventListener('crossdraw:ai-toggled', handler)
+    return () => window.removeEventListener('crossdraw:ai-toggled', handler)
+  }, [])
+  void menuVersion // used to trigger re-render
 
   // Close on Escape
   useEffect(() => {
@@ -1613,7 +1636,7 @@ export function MenuBar() {
         flexShrink: 0,
       }}
     >
-      {menus.map((menu) => (
+      {menus.current.map((menu) => (
         <div key={menu.label} style={{ position: 'relative' }}>
           {/* Menu trigger button */}
           <div

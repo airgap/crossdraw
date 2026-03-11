@@ -1,5 +1,9 @@
-import { describe, test, expect } from 'bun:test'
-import { PANEL_DEFINITIONS, getPanelDefinition, getAllPanelIds } from '@/ui/panels/panel-registry'
+import { describe, test, expect, beforeAll } from 'bun:test'
+import { PANEL_DEFINITIONS, getPanelDefinition, getAllPanelIds, setAIEnabled } from '@/ui/panels/panel-registry'
+
+beforeAll(() => {
+  setAIEnabled(true)
+})
 
 describe('panel-registry', () => {
   describe('PANEL_DEFINITIONS', () => {
