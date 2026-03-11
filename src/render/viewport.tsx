@@ -193,7 +193,6 @@ export function Viewport() {
   const document = useEditorStore((s) => s.document)
   const activeTool = useEditorStore((s) => s.activeTool)
   const selection = useEditorStore((s) => s.selection)
-  const setZoom = useEditorStore((s) => s.setZoom)
   const setPan = useEditorStore((s) => s.setPan)
   const selectLayer = useEditorStore((s) => s.selectLayer)
   const deselectAll = useEditorStore((s) => s.deselectAll)
@@ -1142,24 +1141,32 @@ export function Viewport() {
     return null
   }
 
-  function handleWheel(e: React.WheelEvent) {
-    e.preventDefault()
-    const rect = getCanvasRect()
+  // Wheel handler is attached natively with { passive: false } so preventDefault works
+  // (React registers wheel listeners as passive by default)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const handler = (e: WheelEvent) => {
+      e.preventDefault()
+      const rect = canvas.getBoundingClientRect()
 
-    if (e.ctrlKey || e.metaKey) {
-      // Ctrl/Cmd + scroll = zoom (trackpad pinch sends ctrlKey + wheel)
-      const delta = -e.deltaY * 0.01
-      const newViewport = zoomAtPoint(viewport, { x: e.clientX, y: e.clientY }, rect, delta)
-      setZoom(newViewport.zoom)
-      setPan(newViewport.panX, newViewport.panY)
-    } else if (e.shiftKey) {
-      // Shift + scroll = horizontal pan
-      setPan(viewport.panX - e.deltaY, viewport.panY)
-    } else {
-      // Default scroll = pan (two-finger trackpad scroll, mouse wheel)
-      setPan(viewport.panX - e.deltaX, viewport.panY - e.deltaY)
+      if (e.ctrlKey || e.metaKey) {
+        const delta = -e.deltaY * 0.01
+        const vp = useEditorStore.getState().viewport
+        const newViewport = zoomAtPoint(vp, { x: e.clientX, y: e.clientY }, rect, delta)
+        useEditorStore.getState().setZoom(newViewport.zoom)
+        useEditorStore.getState().setPan(newViewport.panX, newViewport.panY)
+      } else if (e.shiftKey) {
+        const vp = useEditorStore.getState().viewport
+        useEditorStore.getState().setPan(vp.panX - e.deltaY, vp.panY)
+      } else {
+        const vp = useEditorStore.getState().viewport
+        useEditorStore.getState().setPan(vp.panX - e.deltaX, vp.panY - e.deltaY)
+      }
     }
-  }
+    canvas.addEventListener('wheel', handler, { passive: false })
+    return () => canvas.removeEventListener('wheel', handler)
+  }, []) // reads from store directly, no deps needed
 
   function handleMouseDown(e: React.MouseEvent) {
     if (e.button === 1) {
@@ -2116,7 +2123,6 @@ export function Viewport() {
         cursor: cursor ?? undefined,
         touchAction: touchMode ? 'none' : undefined,
       }}
-      onWheel={handleWheel}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
