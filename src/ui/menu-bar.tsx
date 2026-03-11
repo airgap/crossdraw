@@ -10,8 +10,10 @@ import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import type { RenameLayerInfo } from '@/ai/prompt-templates'
+import { v4 as uuid } from 'uuid'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { isAIEnabled } from '@/ui/panels/panel-registry'
+import type { TextLayer } from '@/types'
 import { addToast } from '@/ui/toast'
 import { getRecentFiles, clearRecentFiles } from '@/io/recent-files'
 import { decodeDocument } from '@/io/file-format'
@@ -848,16 +850,76 @@ function buildMenus(): MenuDef[] {
     ],
   }
 
+  const getSelectedTextLayer = (): TextLayer | null => {
+    const s = store()
+    const artboard = s.document.artboards[0]
+    if (!artboard) return null
+    const layerId = s.selection.layerIds[0]
+    if (!layerId) return null
+    const layer = artboard.layers.find((l) => l.id === layerId)
+    return layer?.type === 'text' ? (layer as TextLayer) : null
+  }
+
+  const hasSelectedText = (): boolean => getSelectedTextLayer() !== null
+
+  const updateSelectedText = (updates: Partial<TextLayer>) => {
+    const s = store()
+    const artboard = s.document.artboards[0]
+    if (!artboard) return
+    const layerId = s.selection.layerIds[0]
+    if (!layerId) return
+    s.updateLayer(artboard.id, layerId, updates as any)
+  }
+
   const typeMenu: MenuDef = {
     label: 'Type',
     items: [
-      { label: 'Bold', shortcut: 'Ctrl+B', disabled: true },
-      { label: 'Italic', shortcut: 'Ctrl+I', disabled: true },
-      { label: 'Underline', shortcut: 'Ctrl+U', disabled: true },
+      {
+        label: 'Bold',
+        shortcut: 'Ctrl+B',
+        action: () => {
+          const tl = getSelectedTextLayer()
+          if (!tl) return
+          updateSelectedText({ fontWeight: tl.fontWeight === 'bold' ? 'normal' : 'bold' })
+        },
+        disabled: () => !hasSelectedText(),
+      },
+      {
+        label: 'Italic',
+        shortcut: 'Ctrl+I',
+        action: () => {
+          const tl = getSelectedTextLayer()
+          if (!tl) return
+          updateSelectedText({ fontStyle: tl.fontStyle === 'italic' ? 'normal' : 'italic' })
+        },
+        disabled: () => !hasSelectedText(),
+      },
+      {
+        label: 'Underline',
+        shortcut: 'Ctrl+U',
+        action: () => {
+          const tl = getSelectedTextLayer()
+          if (!tl) return
+          updateSelectedText({ textDecoration: tl.textDecoration === 'underline' ? 'none' : 'underline' })
+        },
+        disabled: () => !hasSelectedText(),
+      },
       { label: '', divider: true },
-      { label: 'Align Left', disabled: true },
-      { label: 'Align Center', disabled: true },
-      { label: 'Align Right', disabled: true },
+      {
+        label: 'Align Left',
+        action: () => updateSelectedText({ textAlign: 'left' }),
+        disabled: () => !hasSelectedText(),
+      },
+      {
+        label: 'Align Center',
+        action: () => updateSelectedText({ textAlign: 'center' }),
+        disabled: () => !hasSelectedText(),
+      },
+      {
+        label: 'Align Right',
+        action: () => updateSelectedText({ textAlign: 'right' }),
+        disabled: () => !hasSelectedText(),
+      },
     ],
   }
 
@@ -880,86 +942,165 @@ function buildMenus(): MenuDef[] {
     return !!layer && layer.type === 'vector'
   }
 
+  const hasSelected = (): boolean => store().selection.layerIds.length > 0
+
+  const addEffectToSelected = (effect: import('@/types').Effect) => {
+    const s = store()
+    const artboard = s.document.artboards[0]
+    if (!artboard) return
+    const layerId = s.selection.layerIds[0]
+    if (!layerId) return
+    s.addEffect(artboard.id, layerId, effect)
+  }
+
   const filterMenu: MenuDef = {
     label: 'Filter',
     items: [
-      { label: 'Gaussian Blur\u2026', disabled: true },
-      { label: 'Drop Shadow\u2026', disabled: true },
-      { label: 'Inner Shadow\u2026', disabled: true },
-      { label: 'Outer Glow\u2026', disabled: true },
+      {
+        label: 'Gaussian Blur\u2026',
+        action: () =>
+          addEffectToSelected({
+            id: uuid(),
+            type: 'blur',
+            enabled: true,
+            opacity: 1,
+            params: { kind: 'blur', radius: 4, quality: 'medium' },
+          }),
+        disabled: () => !hasSelected(),
+      },
+      {
+        label: 'Drop Shadow\u2026',
+        action: () =>
+          addEffectToSelected({
+            id: uuid(),
+            type: 'drop-shadow',
+            enabled: true,
+            opacity: 1,
+            params: {
+              kind: 'shadow',
+              offsetX: 4,
+              offsetY: 4,
+              blurRadius: 8,
+              spread: 0,
+              color: '#000000',
+              opacity: 0.5,
+            },
+          }),
+        disabled: () => !hasSelected(),
+      },
+      {
+        label: 'Inner Shadow\u2026',
+        action: () =>
+          addEffectToSelected({
+            id: uuid(),
+            type: 'inner-shadow',
+            enabled: true,
+            opacity: 1,
+            params: { kind: 'inner-shadow', offsetX: 2, offsetY: 2, blurRadius: 4, color: '#000000', opacity: 0.5 },
+          }),
+        disabled: () => !hasSelected(),
+      },
+      {
+        label: 'Outer Glow\u2026',
+        action: () =>
+          addEffectToSelected({
+            id: uuid(),
+            type: 'outer-glow',
+            enabled: true,
+            opacity: 1,
+            params: { kind: 'glow', radius: 8, spread: 0, color: '#ffffff', opacity: 0.75 },
+          }),
+        disabled: () => !hasSelected(),
+      },
       { label: '', divider: true },
-      { label: 'Background Blur\u2026', disabled: true },
+      {
+        label: 'Background Blur\u2026',
+        action: () =>
+          addEffectToSelected({
+            id: uuid(),
+            type: 'background-blur',
+            enabled: true,
+            opacity: 1,
+            params: { kind: 'background-blur', radius: 10 },
+          }),
+        disabled: () => !hasSelected(),
+      },
       {
         label: 'Progressive Blur\u2026',
-        action: async () => {
-          const m = await lazyImport.applyProgressiveBlur()
-          m.applyProgressiveBlurFilter()
-        },
-        disabled: () => !hasSelectedRaster(),
+        action: () =>
+          addEffectToSelected({
+            id: uuid(),
+            type: 'progressive-blur',
+            enabled: true,
+            opacity: 1,
+            params: {
+              kind: 'progressive-blur',
+              direction: 'linear',
+              angle: 0,
+              startRadius: 0,
+              endRadius: 20,
+              startPosition: 0,
+              endPosition: 1,
+            },
+          }),
+        disabled: () => !hasSelected(),
       },
       { label: '', divider: true },
       {
         label: 'Noise',
         submenu: [
           {
-            label: 'Add Gaussian Noise\u2026',
-            action: () => {
-              const s = store()
-              const artboard = s.document.artboards[0]
-              if (!artboard) return
-              const layerId = s.selection.layerIds[0]
-              if (!layerId) return
-              s.applyFilter(artboard.id, layerId, 'gaussian-noise', {
-                amount: 25,
-                monochrome: false,
-                seed: Date.now(),
-              })
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Gaussian Noise',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'noise',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'noise', noiseType: 'gaussian', amount: 25, monochrome: false, seed: Date.now() },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Add Uniform Noise\u2026',
-            action: () => {
-              const s = store()
-              const artboard = s.document.artboards[0]
-              if (!artboard) return
-              const layerId = s.selection.layerIds[0]
-              if (!layerId) return
-              s.applyFilter(artboard.id, layerId, 'uniform-noise', {
-                amount: 25,
-                monochrome: false,
-                seed: Date.now(),
-              })
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Uniform Noise',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'noise',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'noise', noiseType: 'uniform', amount: 25, monochrome: false, seed: Date.now() },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Add Film Grain\u2026',
-            action: () => {
-              const s = store()
-              const artboard = s.document.artboards[0]
-              if (!artboard) return
-              const layerId = s.selection.layerIds[0]
-              if (!layerId) return
-              s.applyFilter(artboard.id, layerId, 'film-grain', {
-                amount: 25,
-                size: 3,
-                seed: Date.now(),
-              })
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Film Grain',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'noise',
+                enabled: true,
+                opacity: 1,
+                params: {
+                  kind: 'noise',
+                  noiseType: 'film-grain',
+                  amount: 25,
+                  monochrome: false,
+                  seed: Date.now(),
+                  size: 3,
+                },
+              }),
+            disabled: () => !hasSelected(),
           },
           { label: '', divider: true },
           {
-            label: 'Apply Noise Fill',
+            label: 'Noise Fill',
             action: () => {
               const s = store()
               const artboard = s.document.artboards[0]
               if (!artboard) return
               const layerId = s.selection.layerIds[0]
               if (!layerId) return
-              const layer = artboard.layers.find((l) => l.id === layerId)
-              if (!layer || layer.type !== 'vector') return
               s.setFill(artboard.id, layerId, {
                 type: 'noise',
                 noise: {
@@ -974,14 +1115,7 @@ function buildMenus(): MenuDef[] {
                 opacity: 1,
               })
             },
-            disabled: () => {
-              const s = store()
-              if (s.selection.layerIds.length === 0) return true
-              const artboard = s.document.artboards[0]
-              if (!artboard) return true
-              const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
-              return !layer || layer.type !== 'vector'
-            },
+            disabled: () => !hasSelectedVector(),
           },
         ],
       },
@@ -989,36 +1123,52 @@ function buildMenus(): MenuDef[] {
         label: 'Distort',
         submenu: [
           {
-            label: 'Wave\u2026',
-            action: async () => {
-              const m = await lazyImport.applyDistort()
-              m.applyDistortFilter('wave')
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Wave',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'wave',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'wave', amplitudeX: 10, amplitudeY: 10, frequencyX: 0.05, frequencyY: 0.05 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Twirl\u2026',
-            action: async () => {
-              const m = await lazyImport.applyDistort()
-              m.applyDistortFilter('twirl')
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Twirl',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'twirl',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'twirl', angle: Math.PI / 2, radius: 0 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Pinch/Bulge\u2026',
-            action: async () => {
-              const m = await lazyImport.applyDistort()
-              m.applyDistortFilter('pinch')
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Pinch/Bulge',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'pinch',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'pinch', amount: 0.5 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Spherize\u2026',
-            action: async () => {
-              const m = await lazyImport.applyDistort()
-              m.applyDistortFilter('spherize')
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Spherize',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'spherize',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'spherize', amount: 1 },
+              }),
+            disabled: () => !hasSelected(),
           },
         ],
       },
@@ -1026,20 +1176,28 @@ function buildMenus(): MenuDef[] {
         label: 'Sharpen',
         submenu: [
           {
-            label: 'Sharpen\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applySharpenFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Sharpen',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'sharpen',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'sharpen', amount: 1.5, radius: 1, threshold: 0 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Unsharp Mask\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyUnsharpMaskFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Unsharp Mask',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'sharpen',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'sharpen', amount: 0.8, radius: 2, threshold: 4 },
+              }),
+            disabled: () => !hasSelected(),
           },
         ],
       },
@@ -1047,20 +1205,28 @@ function buildMenus(): MenuDef[] {
         label: 'Blur',
         submenu: [
           {
-            label: 'Motion Blur\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyMotionBlurFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Motion Blur',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'motion-blur',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'motion-blur', angle: 0, distance: 10 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Radial Blur\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyRadialBlurFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Radial Blur',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'radial-blur',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'radial-blur', centerX: 0.5, centerY: 0.5, amount: 10 },
+              }),
+            disabled: () => !hasSelected(),
           },
         ],
       },
@@ -1068,52 +1234,80 @@ function buildMenus(): MenuDef[] {
         label: 'Adjustments',
         submenu: [
           {
-            label: 'Posterize\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyPosterizeFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Posterize',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'color-adjust',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'color-adjust', adjustType: 'posterize', levels: 4 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Threshold\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyThresholdFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Threshold',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'color-adjust',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'color-adjust', adjustType: 'threshold', thresholdValue: 128 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
             label: 'Invert',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyInvertFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'color-adjust',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'color-adjust', adjustType: 'invert' },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
             label: 'Desaturate',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyDesaturateFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'color-adjust',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'color-adjust', adjustType: 'desaturate' },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Vibrance\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyVibranceFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Vibrance',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'color-adjust',
+                enabled: true,
+                opacity: 1,
+                params: { kind: 'color-adjust', adjustType: 'vibrance', vibranceAmount: 50 },
+              }),
+            disabled: () => !hasSelected(),
           },
           {
-            label: 'Channel Mixer\u2026',
-            action: async () => {
-              const m = await lazyImport.applyFilters()
-              m.applyChannelMixerFilter()
-            },
-            disabled: () => !hasSelectedRaster(),
+            label: 'Channel Mixer',
+            action: () =>
+              addEffectToSelected({
+                id: uuid(),
+                type: 'color-adjust',
+                enabled: true,
+                opacity: 1,
+                params: {
+                  kind: 'color-adjust',
+                  adjustType: 'channel-mixer',
+                  channelMatrix: { rr: 1, rg: 0, rb: 0, gr: 0, gg: 1, gb: 0, br: 0, bg: 0, bb: 1 },
+                },
+              }),
+            disabled: () => !hasSelected(),
           },
         ],
       },

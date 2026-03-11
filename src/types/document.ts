@@ -543,6 +543,15 @@ export interface Effect {
     | 'inner-shadow'
     | 'background-blur'
     | 'progressive-blur'
+    | 'noise'
+    | 'sharpen'
+    | 'motion-blur'
+    | 'radial-blur'
+    | 'color-adjust'
+    | 'wave'
+    | 'twirl'
+    | 'pinch'
+    | 'spherize'
   enabled: boolean
   opacity: number
   params:
@@ -553,6 +562,15 @@ export interface Effect {
     | InnerShadowParams
     | BackgroundBlurParams
     | ProgressiveBlurParams
+    | NoiseEffectParams
+    | SharpenEffectParams
+    | MotionBlurEffectParams
+    | RadialBlurEffectParams
+    | ColorAdjustEffectParams
+    | WaveEffectParams
+    | TwirlEffectParams
+    | PinchEffectParams
+    | SpherizeEffectParams
 }
 
 export interface GlowParams {
@@ -598,6 +616,78 @@ export interface DistortParams {
   distortType: 'warp' | 'wave' | 'twist'
   intensity: number
   scale: number
+}
+
+export interface NoiseEffectParams {
+  kind: 'noise'
+  noiseType: 'gaussian' | 'uniform' | 'film-grain'
+  amount: number
+  monochrome: boolean
+  seed: number
+  size?: number
+}
+
+export interface SharpenEffectParams {
+  kind: 'sharpen'
+  amount: number
+  radius: number
+  threshold: number
+}
+
+export interface MotionBlurEffectParams {
+  kind: 'motion-blur'
+  angle: number
+  distance: number
+}
+
+export interface RadialBlurEffectParams {
+  kind: 'radial-blur'
+  centerX: number
+  centerY: number
+  amount: number
+}
+
+export interface ColorAdjustEffectParams {
+  kind: 'color-adjust'
+  adjustType: 'posterize' | 'threshold' | 'invert' | 'desaturate' | 'vibrance' | 'channel-mixer'
+  levels?: number
+  thresholdValue?: number
+  vibranceAmount?: number
+  channelMatrix?: {
+    rr: number
+    rg: number
+    rb: number
+    gr: number
+    gg: number
+    gb: number
+    br: number
+    bg: number
+    bb: number
+  }
+}
+
+export interface WaveEffectParams {
+  kind: 'wave'
+  amplitudeX: number
+  amplitudeY: number
+  frequencyX: number
+  frequencyY: number
+}
+
+export interface TwirlEffectParams {
+  kind: 'twirl'
+  angle: number
+  radius: number
+}
+
+export interface PinchEffectParams {
+  kind: 'pinch'
+  amount: number
+}
+
+export interface SpherizeEffectParams {
+  kind: 'spherize'
+  amount: number
 }
 
 export interface Transform {

@@ -32,6 +32,15 @@ import type {
   WiggleStrokeConfig,
   EnvelopeConfig,
   WarpPreset,
+  NoiseEffectParams,
+  SharpenEffectParams,
+  MotionBlurEffectParams,
+  RadialBlurEffectParams,
+  ColorAdjustEffectParams,
+  WaveEffectParams,
+  TwirlEffectParams,
+  PinchEffectParams,
+  SpherizeEffectParams,
 } from '@/types'
 import { WARP_PRESETS } from '@/render/envelope-distort'
 import { createDefaultExtrude3DConfig } from '@/render/extrude-3d'
@@ -1849,6 +1858,28 @@ function AlignSection({ selectionCount }: { selectionCount: number }) {
 
 // ─── Effects section ──────────────────────────────────────────
 
+const EFFECT_LABELS: Record<string, string> = {
+  blur: 'Blur',
+  shadow: 'Drop Shadow',
+  glow: 'Outer Glow',
+  'inner-shadow': 'Inner Shadow',
+  'background-blur': 'BG Blur',
+  'progressive-blur': 'Progressive Blur',
+  noise: 'Noise',
+  sharpen: 'Sharpen',
+  'motion-blur': 'Motion Blur',
+  'radial-blur': 'Radial Blur',
+  'color-adjust': 'Color Adjust',
+  wave: 'Wave',
+  twirl: 'Twirl',
+  pinch: 'Pinch',
+  spherize: 'Spherize',
+}
+
+function effectLabel(kind: string): string {
+  return EFFECT_LABELS[kind] ?? kind
+}
+
 function EffectsSection({
   artboardId,
   layer,
@@ -1994,17 +2025,7 @@ function EffectsSection({
                 checked={effect.enabled}
                 onChange={(e) => updateEffect(artboardId, layer.id, effect.id, { enabled: e.target.checked })}
               />
-              {effect.params.kind === 'blur'
-                ? 'Blur'
-                : effect.params.kind === 'progressive-blur'
-                  ? 'Progressive Blur'
-                  : effect.params.kind === 'glow'
-                    ? 'Outer Glow'
-                    : effect.params.kind === 'inner-shadow'
-                      ? 'Inner Shadow'
-                      : effect.params.kind === 'background-blur'
-                        ? 'BG Blur'
-                        : 'Drop Shadow'}
+              {effectLabel(effect.params.kind)}
             </label>
             <button
               style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
@@ -2318,6 +2339,447 @@ function EffectsSection({
                 </span>
               </div>
             </>
+          )}
+          {effect.params.kind === 'noise' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Type</span>
+                <select
+                  style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                  value={(effect.params as NoiseEffectParams).noiseType}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, noiseType: e.target.value } as NoiseEffectParams,
+                    })
+                  }
+                >
+                  <option value="gaussian">Gaussian</option>
+                  <option value="uniform">Uniform</option>
+                  <option value="film-grain">Film Grain</option>
+                </select>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Amount</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={(effect.params as NoiseEffectParams).amount}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, amount: Number(e.target.value) } as NoiseEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as NoiseEffectParams).amount}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 4,
+                    fontSize: 10,
+                    color: 'var(--text-secondary)',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={(effect.params as NoiseEffectParams).monochrome}
+                    onChange={(e) =>
+                      updateEffect(artboardId, layer.id, effect.id, {
+                        params: { ...effect.params, monochrome: e.target.checked } as NoiseEffectParams,
+                      })
+                    }
+                  />
+                  Mono
+                </label>
+              </div>
+            </>
+          )}
+          {effect.params.kind === 'sharpen' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="500"
+                  style={{ flex: 1 }}
+                  value={(effect.params as SharpenEffectParams).amount}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, amount: Number(e.target.value) } as SharpenEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {(effect.params as SharpenEffectParams).amount}%
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Radius</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  style={{ flex: 1 }}
+                  value={(effect.params as SharpenEffectParams).radius}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, radius: Number(e.target.value) } as SharpenEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as SharpenEffectParams).radius}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Threshold</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="255"
+                  style={{ flex: 1 }}
+                  value={(effect.params as SharpenEffectParams).threshold}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, threshold: Number(e.target.value) } as SharpenEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as SharpenEffectParams).threshold}
+                </span>
+              </div>
+            </>
+          )}
+          {effect.params.kind === 'motion-blur' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Angle</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="360"
+                  style={{ flex: 1 }}
+                  value={(effect.params as MotionBlurEffectParams).angle}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, angle: Number(e.target.value) } as MotionBlurEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {(effect.params as MotionBlurEffectParams).angle}&deg;
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Distance</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={(effect.params as MotionBlurEffectParams).distance}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, distance: Number(e.target.value) } as MotionBlurEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as MotionBlurEffectParams).distance}
+                </span>
+              </div>
+            </>
+          )}
+          {effect.params.kind === 'radial-blur' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={(effect.params as RadialBlurEffectParams).amount}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, amount: Number(e.target.value) } as RadialBlurEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as RadialBlurEffectParams).amount}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 20 }}>cX</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={Math.round((effect.params as RadialBlurEffectParams).centerX * 100)}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, centerX: Number(e.target.value) / 100 } as RadialBlurEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 20 }}>cY</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={Math.round((effect.params as RadialBlurEffectParams).centerY * 100)}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, centerY: Number(e.target.value) / 100 } as RadialBlurEffectParams,
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
+          {effect.params.kind === 'color-adjust' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Type</span>
+                <select
+                  style={{ ...inputStyle, width: 'auto', flex: 1 }}
+                  value={(effect.params as ColorAdjustEffectParams).adjustType}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, adjustType: e.target.value } as ColorAdjustEffectParams,
+                    })
+                  }
+                >
+                  <option value="posterize">Posterize</option>
+                  <option value="threshold">Threshold</option>
+                  <option value="invert">Invert</option>
+                  <option value="desaturate">Desaturate</option>
+                  <option value="vibrance">Vibrance</option>
+                  <option value="channel-mixer">Channel Mixer</option>
+                </select>
+              </div>
+              {(effect.params as ColorAdjustEffectParams).adjustType === 'posterize' && (
+                <div style={rowStyle}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Levels</span>
+                  <input
+                    type="range"
+                    min="2"
+                    max="32"
+                    style={{ flex: 1 }}
+                    value={(effect.params as ColorAdjustEffectParams).levels ?? 4}
+                    onChange={(e) =>
+                      updateEffect(artboardId, layer.id, effect.id, {
+                        params: { ...effect.params, levels: Number(e.target.value) } as ColorAdjustEffectParams,
+                      })
+                    }
+                  />
+                  <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                    {(effect.params as ColorAdjustEffectParams).levels ?? 4}
+                  </span>
+                </div>
+              )}
+              {(effect.params as ColorAdjustEffectParams).adjustType === 'threshold' && (
+                <div style={rowStyle}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Value</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="255"
+                    style={{ flex: 1 }}
+                    value={(effect.params as ColorAdjustEffectParams).thresholdValue ?? 128}
+                    onChange={(e) =>
+                      updateEffect(artboardId, layer.id, effect.id, {
+                        params: { ...effect.params, thresholdValue: Number(e.target.value) } as ColorAdjustEffectParams,
+                      })
+                    }
+                  />
+                  <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                    {(effect.params as ColorAdjustEffectParams).thresholdValue ?? 128}
+                  </span>
+                </div>
+              )}
+              {(effect.params as ColorAdjustEffectParams).adjustType === 'vibrance' && (
+                <div style={rowStyle}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
+                  <input
+                    type="range"
+                    min="-100"
+                    max="100"
+                    style={{ flex: 1 }}
+                    value={(effect.params as ColorAdjustEffectParams).vibranceAmount ?? 50}
+                    onChange={(e) =>
+                      updateEffect(artboardId, layer.id, effect.id, {
+                        params: { ...effect.params, vibranceAmount: Number(e.target.value) } as ColorAdjustEffectParams,
+                      })
+                    }
+                  />
+                  <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                    {(effect.params as ColorAdjustEffectParams).vibranceAmount ?? 50}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+          {effect.params.kind === 'wave' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Amp X</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={(effect.params as WaveEffectParams).amplitudeX}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, amplitudeX: Number(e.target.value) } as WaveEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as WaveEffectParams).amplitudeX}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Amp Y</span>
+                <input
+                  type="range"
+                  min="0"
+                  max="100"
+                  style={{ flex: 1 }}
+                  value={(effect.params as WaveEffectParams).amplitudeY}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, amplitudeY: Number(e.target.value) } as WaveEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                  {(effect.params as WaveEffectParams).amplitudeY}
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Freq X</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="50"
+                  style={{ flex: 1 }}
+                  value={Math.round((effect.params as WaveEffectParams).frequencyX * 100)}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, frequencyX: Number(e.target.value) / 100 } as WaveEffectParams,
+                    })
+                  }
+                />
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Freq Y</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="50"
+                  style={{ flex: 1 }}
+                  value={Math.round((effect.params as WaveEffectParams).frequencyY * 100)}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, frequencyY: Number(e.target.value) / 100 } as WaveEffectParams,
+                    })
+                  }
+                />
+              </div>
+            </>
+          )}
+          {effect.params.kind === 'twirl' && (
+            <>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Angle</span>
+                <input
+                  type="range"
+                  min="-720"
+                  max="720"
+                  style={{ flex: 1 }}
+                  value={(effect.params as TwirlEffectParams).angle}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, angle: Number(e.target.value) } as TwirlEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {(effect.params as TwirlEffectParams).angle}&deg;
+                </span>
+              </div>
+              <div style={rowStyle}>
+                <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 36 }}>Radius</span>
+                <input
+                  type="range"
+                  min="10"
+                  max="500"
+                  style={{ flex: 1 }}
+                  value={(effect.params as TwirlEffectParams).radius}
+                  onChange={(e) =>
+                    updateEffect(artboardId, layer.id, effect.id, {
+                      params: { ...effect.params, radius: Number(e.target.value) } as TwirlEffectParams,
+                    })
+                  }
+                />
+                <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                  {(effect.params as TwirlEffectParams).radius}
+                </span>
+              </div>
+            </>
+          )}
+          {effect.params.kind === 'pinch' && (
+            <div style={rowStyle}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
+              <input
+                type="range"
+                min="-100"
+                max="100"
+                style={{ flex: 1 }}
+                value={Math.round((effect.params as PinchEffectParams).amount * 100)}
+                onChange={(e) =>
+                  updateEffect(artboardId, layer.id, effect.id, {
+                    params: { ...effect.params, amount: Number(e.target.value) / 100 } as PinchEffectParams,
+                  })
+                }
+              />
+              <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                {Math.round((effect.params as PinchEffectParams).amount * 100)}%
+              </span>
+            </div>
+          )}
+          {effect.params.kind === 'spherize' && (
+            <div style={rowStyle}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
+              <input
+                type="range"
+                min="-100"
+                max="100"
+                style={{ flex: 1 }}
+                value={Math.round((effect.params as SpherizeEffectParams).amount * 100)}
+                onChange={(e) =>
+                  updateEffect(artboardId, layer.id, effect.id, {
+                    params: { ...effect.params, amount: Number(e.target.value) / 100 } as SpherizeEffectParams,
+                  })
+                }
+              />
+              <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+                {Math.round((effect.params as SpherizeEffectParams).amount * 100)}%
+              </span>
+            </div>
           )}
         </div>
       ))}
