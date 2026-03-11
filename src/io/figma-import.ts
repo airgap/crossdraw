@@ -443,9 +443,7 @@ function convertAutoLayout(node: FigmaNode): AutoLayoutConfig | undefined {
 
 // ── Constraints conversion ───────────────────────────────────────────────────
 
-function convertConstraints(
-  node: FigmaNode,
-):
+function convertConstraints(node: FigmaNode):
   | {
       horizontal: 'left' | 'right' | 'left-right' | 'center' | 'scale'
       vertical: 'top' | 'bottom' | 'top-bottom' | 'center' | 'scale'

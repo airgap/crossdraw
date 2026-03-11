@@ -1,5 +1,40 @@
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
 import { useEditorStore } from '../src/store/editor.store'
+
+// Save originals
+const origDocument = (globalThis as any).document
+const origImageData = globalThis.ImageData
+const origLocalStorage = globalThis.localStorage
+
+// Ensure document.documentElement exists for toggleTouchMode
+if (typeof globalThis.document === 'undefined') {
+  ;(globalThis as any).document = {
+    documentElement: { classList: { toggle: () => {}, add: () => {}, remove: () => {} }, style: {} },
+  }
+} else if (!globalThis.document?.documentElement?.classList) {
+  ;(globalThis.document as any).documentElement = {
+    classList: { toggle: () => {}, add: () => {}, remove: () => {} },
+    style: {},
+  }
+}
+
+afterAll(() => {
+  if (origDocument !== undefined) {
+    ;(globalThis as any).document = origDocument
+  } else {
+    delete (globalThis as any).document
+  }
+  if (origImageData !== undefined) {
+    globalThis.ImageData = origImageData
+  } else {
+    delete (globalThis as any).ImageData
+  }
+  if (origLocalStorage !== undefined) {
+    globalThis.localStorage = origLocalStorage
+  } else {
+    delete (globalThis as any).localStorage
+  }
+})
 
 // Polyfill ImageData for bun:test (no DOM)
 if (typeof globalThis.ImageData === 'undefined') {

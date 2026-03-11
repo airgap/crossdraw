@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { Viewport } from '@/render/viewport'
 import { Toolbar } from '@/ui/toolbar'
 import { CanvasContextMenu } from '@/ui/context-menu'
@@ -6,8 +6,6 @@ import { StatusBar } from '@/ui/status-bar'
 import { MenuBar } from '@/ui/menu-bar'
 import { setupKeyboardShortcuts } from '@/ui/keyboard'
 import { PanelShell } from '@/ui/panels/panel-shell'
-import { ExportModal } from '@/ui/export-modal'
-import { PrintDialog } from '@/ui/print-dialog'
 import { ToolOptionsBar } from '@/ui/tool-options-bar'
 import { BreakpointBar } from '@/ui/breakpoint-bar'
 import { DownloadPage } from '@/ui/download-page'
@@ -16,8 +14,12 @@ import { NewDocumentModal } from '@/ui/new-document-modal'
 import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
 import { useEditorStore } from '@/store/editor.store'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
-import { PrototypePlayer } from '@/prototype/prototype-player'
 import { ShareDialog } from '@/ui/share-dialog'
+
+// Lazy-loaded heavy components (export/print pull in raster-export, pdf, gif, tiff encoders)
+const ExportModal = lazy(() => import('@/ui/export-modal').then((m) => ({ default: m.ExportModal })))
+const PrintDialog = lazy(() => import('@/ui/print-dialog').then((m) => ({ default: m.PrintDialog })))
+const PrototypePlayer = lazy(() => import('@/prototype/prototype-player').then((m) => ({ default: m.PrototypePlayer })))
 
 function useHashRoute() {
   const [hash, setHash] = useState(window.location.hash)
@@ -166,16 +168,20 @@ export function App() {
       </div>
       <StatusBar />
       <CanvasContextMenu />
-      <ExportModal />
-      <PrintDialog />
+      <Suspense fallback={null}>
+        <ExportModal />
+        <PrintDialog />
+      </Suspense>
       {showShareDialog && <ShareDialog onClose={() => setShowShareDialog(false)} />}
       {showNewDoc && <NewDocumentModal onClose={() => setShowNewDoc(false)} onCreate={handleCreate} />}
       {showPrototypePlayer && prototypeStartArtboardId && (
-        <PrototypePlayer
-          document={editorDocument}
-          startArtboardId={prototypeStartArtboardId}
-          onClose={closePrototypePlayer}
-        />
+        <Suspense fallback={null}>
+          <PrototypePlayer
+            document={editorDocument}
+            startArtboardId={prototypeStartArtboardId}
+            onClose={closePrototypePlayer}
+          />
+        </Suspense>
       )}
     </div>
   )

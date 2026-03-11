@@ -147,7 +147,7 @@ export async function quickExport() {
       const text = await blob.text()
       downloadSVG(text, filename)
     } else {
-      downloadBlob(blob, filename)
+      await downloadBlob(blob, filename)
     }
     console.log(`Quick exported: ${filename} (${formatFileSize(blob.size)})`)
   } catch (err) {

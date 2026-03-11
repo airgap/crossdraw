@@ -67,10 +67,7 @@ function sanitizeSVG(raw: string): string {
           attrsToRemove.push(attr.name)
         }
         // Remove javascript: and data: URIs from href/xlink:href
-        if (
-          attr.name.toLowerCase() === 'href' ||
-          attr.name.toLowerCase() === 'xlink:href'
-        ) {
+        if (attr.name.toLowerCase() === 'href' || attr.name.toLowerCase() === 'xlink:href') {
           const val = attr.value.trim().toLowerCase()
           if (val.startsWith('javascript:') || val.startsWith('data:')) {
             attrsToRemove.push(attr.name)

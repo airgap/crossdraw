@@ -267,7 +267,10 @@ function computeChecksum(data: Uint8Array): string {
 
 // ── CORS origin allowlist ─────────────────────────────────────────
 const ALLOWED_ORIGINS: string[] = process.env['CROSSDRAW_ALLOWED_ORIGINS']
-  ? process.env['CROSSDRAW_ALLOWED_ORIGINS'].split(',').map((o) => o.trim()).filter(Boolean)
+  ? process.env['CROSSDRAW_ALLOWED_ORIGINS']
+      .split(',')
+      .map((o) => o.trim())
+      .filter(Boolean)
   : []
 
 function getAllowedOrigin(req: Request): string {

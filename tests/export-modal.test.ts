@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, afterAll } from 'bun:test'
 import {
   type ExportSettings,
   DEFAULT_EXPORT_SETTINGS,
@@ -7,6 +7,12 @@ import {
   formatFileSize,
   estimateExportDimensions,
 } from '@/ui/quick-export'
+
+const origLocalStorage = globalThis.localStorage
+
+afterAll(() => {
+  globalThis.localStorage = origLocalStorage
+})
 
 describe('Export Settings', () => {
   test('DEFAULT_EXPORT_SETTINGS has correct defaults', () => {

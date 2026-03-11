@@ -3,48 +3,36 @@ import { useEditorStore } from '@/store/editor.store'
 import { getWorkspacePresets, saveWorkspacePreset, loadWorkspacePreset, resetWorkspace } from '@/ui/workspace-presets'
 import { isElectron, electronOpen } from '@/io/electron-bridge'
 import { openFile } from '@/io/open-file'
-import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
-import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
-import { batchExportSlices, downloadBatchExport } from '@/io/batch-export'
-import {
-  extractDesignTokens,
-  exportTokensAsJSON,
-  exportTokensAsCSS,
-  exportTokensAsSCSS,
-  exportTokensAsTailwind,
-  downloadTokenFile,
-} from '@/io/design-tokens'
-import { importImageFromPicker } from '@/tools/import-image'
-import { importPSD } from '@/io/psd-import'
-import { importSketch } from '@/io/sketch-import'
-import { tryImportFigmaClipboard } from '@/io/figma-import'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
 import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
-import { performBooleanOp } from '@/tools/boolean-ops'
-import { traceSelectedRasterLayer } from '@/tools/image-trace'
-import { applyDistortFilter } from '@/filters/apply-distort'
-import { applyProgressiveBlurFilter } from '@/filters/apply-progressive-blur'
-import {
-  applySharpenFilter,
-  applyUnsharpMaskFilter,
-  applyMotionBlurFilter,
-  applyRadialBlurFilter,
-  applyPosterizeFilter,
-  applyThresholdFilter,
-  applyInvertFilter,
-  applyDesaturateFilter,
-  applyVibranceFilter,
-  applyChannelMixerFilter,
-} from '@/filters/apply-filters'
-import { applyBackgroundRemovalFilter } from '@/filters/apply-background-removal'
 import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
-import { exportLottie, downloadLottie } from '@/io/lottie-export'
-import { createDefaultRepeaterConfig } from '@/tools/repeater'
-import { bulkRenameLayers as aiBulkRename } from '@/ai/ai-service'
 import type { RenameLayerInfo } from '@/ai/prompt-templates'
+import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
+
+// ── Lazy imports — loaded on-demand when menu items are clicked ──
+
+const lazyImport = {
+  svgExport: () => import('@/io/svg-export'),
+  rasterExport: () => import('@/io/raster-export'),
+  batchExport: () => import('@/io/batch-export'),
+  designTokens: () => import('@/io/design-tokens'),
+  importImage: () => import('@/tools/import-image'),
+  psdImport: () => import('@/io/psd-import'),
+  sketchImport: () => import('@/io/sketch-import'),
+  figmaImport: () => import('@/io/figma-import'),
+  booleanOps: () => import('@/tools/boolean-ops'),
+  imageTrace: () => import('@/tools/image-trace'),
+  applyDistort: () => import('@/filters/apply-distort'),
+  applyProgressiveBlur: () => import('@/filters/apply-progressive-blur'),
+  applyFilters: () => import('@/filters/apply-filters'),
+  applyBgRemoval: () => import('@/filters/apply-background-removal'),
+  lottieExport: () => import('@/io/lottie-export'),
+  repeater: () => import('@/tools/repeater'),
+  aiService: () => import('@/ai/ai-service'),
+}
 
 // ── Menu data types ──
 
@@ -134,7 +122,10 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Import Image\u2026',
         shortcut: '',
-        action: () => importImageFromPicker(),
+        action: async () => {
+          const m = await lazyImport.importImage()
+          m.importImageFromPicker()
+        },
       },
       {
         label: 'Import PSD\u2026',
@@ -149,6 +140,7 @@ function buildMenus(): MenuDef[] {
             if (!file) return
             try {
               const buffer = await file.arrayBuffer()
+              const { importPSD } = await lazyImport.psdImport()
               const doc = await importPSD(buffer)
               const title = file.name.replace(/\.[^.]+$/, '') || 'PSD Import'
               doc.metadata.title = title
@@ -181,6 +173,7 @@ function buildMenus(): MenuDef[] {
             if (!file) return
             try {
               const buffer = await file.arrayBuffer()
+              const { importSketch } = await lazyImport.sketchImport()
               const doc = await importSketch(buffer)
               const title = file.name.replace(/\.[^.]+$/, '') || 'Sketch Import'
               doc.metadata.title = title
@@ -206,6 +199,7 @@ function buildMenus(): MenuDef[] {
         action: async () => {
           try {
             const text = await navigator.clipboard.readText()
+            const { tryImportFigmaClipboard } = await lazyImport.figmaImport()
             const doc = tryImportFigmaClipboard(text)
             if (!doc) {
               alert('No valid Figma data found in clipboard. Copy layers in Figma first, then try again.')
@@ -229,7 +223,8 @@ function buildMenus(): MenuDef[] {
       { label: '', divider: true },
       {
         label: 'Export SVG',
-        action: () => {
+        action: async () => {
+          const { exportArtboardToSVG, downloadSVG } = await lazyImport.svgExport()
           const doc = store().document
           const svg = exportArtboardToSVG(doc)
           downloadSVG(svg, `${doc.metadata.title || 'Untitled'}.svg`)
@@ -239,6 +234,7 @@ function buildMenus(): MenuDef[] {
         label: 'Export PNG',
         action: async () => {
           const doc = store().document
+          const { exportArtboardToBlob, downloadBlob } = await lazyImport.rasterExport()
           const blob = await exportArtboardToBlob(doc, { format: 'png', scale: 2 })
           downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.png`)
         },
@@ -247,6 +243,7 @@ function buildMenus(): MenuDef[] {
         label: 'Export JPEG',
         action: async () => {
           const doc = store().document
+          const { exportArtboardToBlob, downloadBlob } = await lazyImport.rasterExport()
           const blob = await exportArtboardToBlob(doc, { format: 'jpeg', quality: 0.9 })
           downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.jpg`)
         },
@@ -255,6 +252,7 @@ function buildMenus(): MenuDef[] {
         label: 'Export WebP',
         action: async () => {
           const doc = store().document
+          const { exportArtboardToBlob, downloadBlob } = await lazyImport.rasterExport()
           const blob = await exportArtboardToBlob(doc, { format: 'webp', quality: 0.9 })
           downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.webp`)
         },
@@ -263,6 +261,7 @@ function buildMenus(): MenuDef[] {
         label: 'Export GIF',
         action: async () => {
           const doc = store().document
+          const { exportArtboardToBlob, downloadBlob } = await lazyImport.rasterExport()
           const blob = await exportArtboardToBlob(doc, { format: 'gif' })
           downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.gif`)
         },
@@ -271,6 +270,7 @@ function buildMenus(): MenuDef[] {
         label: 'Export TIFF',
         action: async () => {
           const doc = store().document
+          const { exportArtboardToBlob, downloadBlob } = await lazyImport.rasterExport()
           const blob = await exportArtboardToBlob(doc, { format: 'tiff', scale: 1 })
           downloadBlob(blob, `${doc.metadata.title || 'Untitled'}.tiff`)
         },
@@ -281,6 +281,7 @@ function buildMenus(): MenuDef[] {
         action: async () => {
           try {
             const doc = store().document
+            const { batchExportSlices, downloadBatchExport } = await lazyImport.batchExport()
             const results = await batchExportSlices(doc)
             await downloadBatchExport(results)
           } catch (err) {
@@ -294,42 +295,46 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'JSON (W3C)',
-            action: () => {
+            action: async () => {
               const doc = store().document
-              const tokens = extractDesignTokens(doc)
-              const json = exportTokensAsJSON(tokens)
+              const dt = await lazyImport.designTokens()
+              const tokens = dt.extractDesignTokens(doc)
+              const json = dt.exportTokensAsJSON(tokens)
               const name = doc.metadata.title || 'Untitled'
-              downloadTokenFile(json, `${name}.tokens.json`, 'application/json')
+              dt.downloadTokenFile(json, `${name}.tokens.json`, 'application/json')
             },
           },
           {
             label: 'CSS Variables',
-            action: () => {
+            action: async () => {
               const doc = store().document
-              const tokens = extractDesignTokens(doc)
-              const css = exportTokensAsCSS(tokens)
+              const dt = await lazyImport.designTokens()
+              const tokens = dt.extractDesignTokens(doc)
+              const css = dt.exportTokensAsCSS(tokens)
               const name = doc.metadata.title || 'Untitled'
-              downloadTokenFile(css, `${name}.tokens.css`, 'text/css')
+              dt.downloadTokenFile(css, `${name}.tokens.css`, 'text/css')
             },
           },
           {
             label: 'SCSS Variables',
-            action: () => {
+            action: async () => {
               const doc = store().document
-              const tokens = extractDesignTokens(doc)
-              const scss = exportTokensAsSCSS(tokens)
+              const dt = await lazyImport.designTokens()
+              const tokens = dt.extractDesignTokens(doc)
+              const scss = dt.exportTokensAsSCSS(tokens)
               const name = doc.metadata.title || 'Untitled'
-              downloadTokenFile(scss, `${name}.tokens.scss`, 'text/x-scss')
+              dt.downloadTokenFile(scss, `${name}.tokens.scss`, 'text/x-scss')
             },
           },
           {
             label: 'Tailwind Config',
-            action: () => {
+            action: async () => {
               const doc = store().document
-              const tokens = extractDesignTokens(doc)
-              const tw = exportTokensAsTailwind(tokens)
+              const dt = await lazyImport.designTokens()
+              const tokens = dt.extractDesignTokens(doc)
+              const tw = dt.exportTokensAsTailwind(tokens)
               const name = doc.metadata.title || 'Untitled'
-              downloadTokenFile(tw, `${name}.tailwind.config.js`, 'application/javascript')
+              dt.downloadTokenFile(tw, `${name}.tailwind.config.js`, 'application/javascript')
             },
           },
         ],
@@ -355,9 +360,7 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Version History',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('versions')
-          })
+          usePanelLayoutStore.getState().focusTab('versions')
         },
       },
       { label: '', divider: true },
@@ -370,17 +373,13 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Open from Cloud\u2026',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('cloud-files')
-          })
+          usePanelLayoutStore.getState().focusTab('cloud-files')
         },
       },
       {
         label: 'Cloud Files',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('cloud-files')
-          })
+          usePanelLayoutStore.getState().focusTab('cloud-files')
         },
       },
       {
@@ -394,17 +393,13 @@ function buildMenus(): MenuDef[] {
         label: 'Publish Library\u2026',
         action: () => {
           window.dispatchEvent(new Event('crossdraw:publish-library'))
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('libraries')
-          })
+          usePanelLayoutStore.getState().focusTab('libraries')
         },
       },
       {
         label: 'Libraries',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('libraries')
-          })
+          usePanelLayoutStore.getState().focusTab('libraries')
         },
       },
     ],
@@ -510,9 +505,7 @@ function buildMenus(): MenuDef[] {
         label: 'Find & Replace\u2026',
         shortcut: 'Ctrl+F',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('find-replace')
-          })
+          usePanelLayoutStore.getState().focusTab('find-replace')
         },
       },
       { label: '', divider: true },
@@ -525,6 +518,7 @@ function buildMenus(): MenuDef[] {
 
           const layerInfos = collectLayerInfos(artboard.layers)
           try {
+            const { bulkRenameLayers: aiBulkRename } = await lazyImport.aiService()
             const renames = await aiBulkRename(layerInfos)
             s.bulkRenameLayers(
               artboard.id,
@@ -640,9 +634,7 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Accessibility Checker',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('accessibility')
-          })
+          usePanelLayoutStore.getState().focusTab('accessibility')
         },
       },
       { label: '', divider: true },
@@ -654,16 +646,15 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Animation Timeline',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('animation')
-          })
+          usePanelLayoutStore.getState().focusTab('animation')
         },
       },
       {
         label: 'Export Lottie\u2026',
-        action: () => {
+        action: async () => {
           const doc = store().document
           try {
+            const { exportLottie, downloadLottie } = await lazyImport.lottieExport()
             const lottie = exportLottie(doc, 0)
             downloadLottie(lottie, `${doc.metadata.title || 'Untitled'}-animation.json`)
           } catch (err) {
@@ -684,9 +675,7 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Interactions Panel',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('interactions')
-          })
+          usePanelLayoutStore.getState().focusTab('interactions')
         },
       },
       { label: '', divider: true },
@@ -828,7 +817,10 @@ function buildMenus(): MenuDef[] {
       { label: 'Background Blur\u2026', disabled: true },
       {
         label: 'Progressive Blur\u2026',
-        action: () => applyProgressiveBlurFilter(),
+        action: async () => {
+          const m = await lazyImport.applyProgressiveBlur()
+          m.applyProgressiveBlurFilter()
+        },
         disabled: () => !hasSelectedRaster(),
       },
       { label: '', divider: true },
@@ -924,22 +916,34 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Wave\u2026',
-            action: () => applyDistortFilter('wave'),
+            action: async () => {
+              const m = await lazyImport.applyDistort()
+              m.applyDistortFilter('wave')
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Twirl\u2026',
-            action: () => applyDistortFilter('twirl'),
+            action: async () => {
+              const m = await lazyImport.applyDistort()
+              m.applyDistortFilter('twirl')
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Pinch/Bulge\u2026',
-            action: () => applyDistortFilter('pinch'),
+            action: async () => {
+              const m = await lazyImport.applyDistort()
+              m.applyDistortFilter('pinch')
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Spherize\u2026',
-            action: () => applyDistortFilter('spherize'),
+            action: async () => {
+              const m = await lazyImport.applyDistort()
+              m.applyDistortFilter('spherize')
+            },
             disabled: () => !hasSelectedRaster(),
           },
         ],
@@ -949,12 +953,18 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Sharpen\u2026',
-            action: () => applySharpenFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applySharpenFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Unsharp Mask\u2026',
-            action: () => applyUnsharpMaskFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyUnsharpMaskFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
         ],
@@ -964,12 +974,18 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Motion Blur\u2026',
-            action: () => applyMotionBlurFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyMotionBlurFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Radial Blur\u2026',
-            action: () => applyRadialBlurFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyRadialBlurFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
         ],
@@ -979,32 +995,50 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Posterize\u2026',
-            action: () => applyPosterizeFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyPosterizeFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Threshold\u2026',
-            action: () => applyThresholdFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyThresholdFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Invert',
-            action: () => applyInvertFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyInvertFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Desaturate',
-            action: () => applyDesaturateFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyDesaturateFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Vibrance\u2026',
-            action: () => applyVibranceFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyVibranceFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Channel Mixer\u2026',
-            action: () => applyChannelMixerFilter(),
+            action: async () => {
+              const m = await lazyImport.applyFilters()
+              m.applyChannelMixerFilter()
+            },
             disabled: () => !hasSelectedRaster(),
           },
         ],
@@ -1015,17 +1049,26 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Color Match',
-            action: () => applyBackgroundRemovalFilter({ method: 'color' }),
+            action: async () => {
+              const m = await lazyImport.applyBgRemoval()
+              m.applyBackgroundRemovalFilter({ method: 'color' })
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Edge Detection',
-            action: () => applyBackgroundRemovalFilter({ method: 'edge' }),
+            action: async () => {
+              const m = await lazyImport.applyBgRemoval()
+              m.applyBackgroundRemovalFilter({ method: 'edge' })
+            },
             disabled: () => !hasSelectedRaster(),
           },
           {
             label: 'Threshold',
-            action: () => applyBackgroundRemovalFilter({ method: 'threshold' }),
+            action: async () => {
+              const m = await lazyImport.applyBgRemoval()
+              m.applyBackgroundRemovalFilter({ method: 'threshold' })
+            },
             disabled: () => !hasSelectedRaster(),
           },
         ],
@@ -1039,27 +1082,42 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Union',
         shortcut: 'Ctrl+Shift+U',
-        action: () => performBooleanOp('union'),
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('union')
+        },
         disabled: () => store().selection.layerIds.length < 2,
       },
       {
         label: 'Subtract',
-        action: () => performBooleanOp('subtract'),
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('subtract')
+        },
         disabled: () => store().selection.layerIds.length < 2,
       },
       {
         label: 'Intersect',
-        action: () => performBooleanOp('intersect'),
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('intersect')
+        },
         disabled: () => store().selection.layerIds.length < 2,
       },
       {
         label: 'Exclude',
-        action: () => performBooleanOp('xor'),
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('xor')
+        },
         disabled: () => store().selection.layerIds.length < 2,
       },
       {
         label: 'Divide',
-        action: () => performBooleanOp('divide'),
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('divide')
+        },
         disabled: () => store().selection.layerIds.length < 2,
       },
       { label: '', divider: true },
@@ -1071,7 +1129,10 @@ function buildMenus(): MenuDef[] {
       { label: '', divider: true },
       {
         label: 'Trace Image\u2026',
-        action: () => traceSelectedRasterLayer(),
+        action: async () => {
+          const m = await lazyImport.imageTrace()
+          m.traceSelectedRasterLayer()
+        },
         disabled: () => !hasSelectedRaster(),
       },
       { label: '', divider: true },
@@ -1148,7 +1209,7 @@ function buildMenus(): MenuDef[] {
       { label: '', divider: true },
       {
         label: 'Repeat\u2026',
-        action: () => {
+        action: async () => {
           const s = store()
           const artboard = s.document.artboards[0]
           if (!artboard || s.selection.layerIds.length !== 1) return
@@ -1167,6 +1228,7 @@ function buildMenus(): MenuDef[] {
           const count = parseInt(countStr, 10)
           if (isNaN(count) || count < 1) return
 
+          const { createDefaultRepeaterConfig } = await lazyImport.repeater()
           const config = createDefaultRepeaterConfig()
           config.mode = mode
           config.count = count
@@ -1205,99 +1267,75 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Layers Panel',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('layers')
-          })
+          usePanelLayoutStore.getState().focusTab('layers')
         },
       },
       {
         label: 'Properties Panel',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('properties')
-          })
+          usePanelLayoutStore.getState().focusTab('properties')
         },
       },
       {
         label: 'Color Palette',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('color-palette')
-          })
+          usePanelLayoutStore.getState().focusTab('color-palette')
         },
       },
       {
         label: 'History',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('history')
-          })
+          usePanelLayoutStore.getState().focusTab('history')
         },
       },
       {
         label: 'Symbols',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('symbols')
-          })
+          usePanelLayoutStore.getState().focusTab('symbols')
         },
       },
       {
         label: 'Align & Distribute',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('align')
-          })
+          usePanelLayoutStore.getState().focusTab('align')
         },
       },
       { label: '', divider: true },
       {
         label: 'Variables',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('variables')
-          })
+          usePanelLayoutStore.getState().focusTab('variables')
         },
       },
       {
         label: 'Styles',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('styles')
-          })
+          usePanelLayoutStore.getState().focusTab('styles')
         },
       },
       {
         label: 'Libraries',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('libraries')
-          })
+          usePanelLayoutStore.getState().focusTab('libraries')
         },
       },
       {
         label: 'Dev Mode',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('dev-mode')
-          })
+          usePanelLayoutStore.getState().focusTab('dev-mode')
         },
       },
       { label: '', divider: true },
       {
         label: 'PNGtuber',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('pngtuber')
-          })
+          usePanelLayoutStore.getState().focusTab('pngtuber')
         },
       },
       {
         label: 'PNGtuber Preview',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('pngtuber-preview')
-          })
+          usePanelLayoutStore.getState().focusTab('pngtuber-preview')
         },
       },
     ],
@@ -1335,17 +1373,13 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Start Collaboration Session\u2026',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('collaboration')
-          })
+          usePanelLayoutStore.getState().focusTab('collaboration')
         },
       },
       {
         label: 'Join Session\u2026',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('collaboration')
-          })
+          usePanelLayoutStore.getState().focusTab('collaboration')
         },
       },
       { label: '', divider: true },
@@ -1358,9 +1392,7 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Collaboration Panel',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('collaboration')
-          })
+          usePanelLayoutStore.getState().focusTab('collaboration')
         },
       },
     ],
@@ -1372,26 +1404,20 @@ function buildMenus(): MenuDef[] {
       {
         label: 'AI Assistant',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('ai-assistant')
-          })
+          usePanelLayoutStore.getState().focusTab('ai-assistant')
         },
       },
       { label: '', divider: true },
       {
         label: 'Generate Layout\u2026',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('ai-assistant')
-          })
+          usePanelLayoutStore.getState().focusTab('ai-assistant')
         },
       },
       {
         label: 'Critique Design',
         action: () => {
-          import('@/ui/panels/panel-layout-store').then(({ usePanelLayoutStore }) => {
-            usePanelLayoutStore.getState().focusTab('ai-assistant')
-          })
+          usePanelLayoutStore.getState().focusTab('ai-assistant')
         },
       },
       { label: '', divider: true },
@@ -1404,6 +1430,7 @@ function buildMenus(): MenuDef[] {
 
           const layerInfos = collectLayerInfos(artboard.layers)
           try {
+            const { bulkRenameLayers: aiBulkRename } = await lazyImport.aiService()
             const renames = await aiBulkRename(layerInfos)
             s.bulkRenameLayers(
               artboard.id,
