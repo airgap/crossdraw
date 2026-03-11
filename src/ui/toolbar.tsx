@@ -357,130 +357,167 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
         style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: 'var(--space-1)',
           padding: 'var(--space-1)',
           background: 'var(--bg-surface)',
           borderRight: '1px solid var(--border-subtle)',
           width: 40,
           alignItems: 'center',
+          overflow: 'hidden',
         }}
       >
-        {tools
-          .filter((tool) => {
-            if (!modeConfig) return true
-            if (tool === 'separator' || tool === 'shapes') return true
-            return modeConfig.tools.includes(tool.id)
-          })
-          .map((tool, idx) => {
-            if (tool === 'separator') {
+        {/* Scrollable tool list */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
+            alignItems: 'center',
+            flex: 1,
+            minHeight: 0,
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            scrollbarWidth: 'none',
+            width: '100%',
+          }}
+        >
+          {tools
+            .filter((tool) => {
+              if (!modeConfig) return true
+              if (tool === 'separator' || tool === 'shapes') return true
+              return modeConfig.tools.includes(tool.id)
+            })
+            .map((tool, idx) => {
+              if (tool === 'separator') {
+                return (
+                  <div
+                    key={`sep-${idx}`}
+                    role="separator"
+                    style={{
+                      width: 24,
+                      height: 1,
+                      background: 'var(--border-subtle)',
+                      margin: '2px 0',
+                      flexShrink: 0,
+                    }}
+                  />
+                )
+              }
+              if (tool === 'shapes') {
+                return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={handleSetActiveTool} />
+              }
+              const Icon = tool.icon
+              const isActive = activeTool === tool.id
               return (
-                <div
-                  key={`sep-${idx}`}
-                  role="separator"
-                  style={{ width: 24, height: 1, background: 'var(--border-subtle)', margin: '2px 0' }}
-                />
+                <button
+                  key={tool.id}
+                  data-tool-id={tool.id}
+                  onClick={() => handleSetActiveTool(tool.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleSetActiveTool(tool.id)
+                    }
+                  }}
+                  title={`${toolLabel(tool.id)} (${tool.key.toUpperCase()})`}
+                  role="button"
+                  tabIndex={0}
+                  aria-label={`${toolLabel(tool.id)} tool (${tool.key.toUpperCase()})`}
+                  aria-pressed={isActive}
+                  className="cd-hoverable"
+                  style={{
+                    width: 'var(--height-toolbar)',
+                    height: 'var(--height-toolbar)',
+                    border: 'none',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                    background: isActive ? 'var(--accent)' : 'transparent',
+                    flexShrink: 0,
+                  }}
+                >
+                  <Icon size={16} strokeWidth={1.75} />
+                </button>
               )
-            }
-            if (tool === 'shapes') {
-              return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={handleSetActiveTool} />
-            }
-            const Icon = tool.icon
-            const isActive = activeTool === tool.id
-            return (
-              <button
-                key={tool.id}
-                data-tool-id={tool.id}
-                onClick={() => handleSetActiveTool(tool.id)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault()
-                    handleSetActiveTool(tool.id)
-                  }
-                }}
-                title={`${toolLabel(tool.id)} (${tool.key.toUpperCase()})`}
-                role="button"
-                tabIndex={0}
-                aria-label={`${toolLabel(tool.id)} tool (${tool.key.toUpperCase()})`}
-                aria-pressed={isActive}
-                className="cd-hoverable"
-                style={{
-                  width: 'var(--height-toolbar)',
-                  height: 'var(--height-toolbar)',
-                  border: 'none',
-                  borderRadius: 'var(--radius-md)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: isActive ? '#fff' : 'var(--text-secondary)',
-                  background: isActive ? 'var(--accent)' : 'transparent',
-                }}
-              >
-                <Icon size={16} strokeWidth={1.75} />
-              </button>
-            )
-          })}
-        <div style={{ flex: 1 }} />
-        <button
-          onClick={() => setShowShortcuts(true)}
-          title="Keyboard shortcuts"
-          aria-label="Keyboard shortcuts"
-          className="cd-hoverable"
+            })}
+        </div>
+        {/* Pinned bottom buttons */}
+        <div
           style={{
-            width: 'var(--height-toolbar)',
-            height: 'var(--height-toolbar)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
             display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
             alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-secondary)',
-            background: 'transparent',
+            flexShrink: 0,
+            borderTop: '1px solid var(--border-subtle)',
+            paddingTop: 'var(--space-1)',
+            marginTop: 'var(--space-1)',
+            width: '100%',
           }}
         >
-          <Keyboard size={16} strokeWidth={1.75} />
-        </button>
-        <button
-          onClick={() => setShowSettings(true)}
-          title="UI Settings"
-          aria-label="UI Settings"
-          className="cd-hoverable"
-          style={{
-            width: 'var(--height-toolbar)',
-            height: 'var(--height-toolbar)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-secondary)',
-            background: 'transparent',
-          }}
-        >
-          <Settings size={16} strokeWidth={1.75} />
-        </button>
-        <button
-          onClick={handleToggleTheme}
-          title={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
-          aria-label={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
-          className="cd-hoverable"
-          style={{
-            width: 'var(--height-toolbar)',
-            height: 'var(--height-toolbar)',
-            border: 'none',
-            borderRadius: 'var(--radius-md)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'var(--text-secondary)',
-            background: 'transparent',
-          }}
-        >
-          {themeName === 'dark' ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
-        </button>
+          <button
+            onClick={() => setShowShortcuts(true)}
+            title="Keyboard shortcuts"
+            aria-label="Keyboard shortcuts"
+            className="cd-hoverable"
+            style={{
+              width: 'var(--height-toolbar)',
+              height: 'var(--height-toolbar)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-secondary)',
+              background: 'transparent',
+            }}
+          >
+            <Keyboard size={16} strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={() => setShowSettings(true)}
+            title="UI Settings"
+            aria-label="UI Settings"
+            className="cd-hoverable"
+            style={{
+              width: 'var(--height-toolbar)',
+              height: 'var(--height-toolbar)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-secondary)',
+              background: 'transparent',
+            }}
+          >
+            <Settings size={16} strokeWidth={1.75} />
+          </button>
+          <button
+            onClick={handleToggleTheme}
+            title={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
+            aria-label={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
+            className="cd-hoverable"
+            style={{
+              width: 'var(--height-toolbar)',
+              height: 'var(--height-toolbar)',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--text-secondary)',
+              background: 'transparent',
+            }}
+          >
+            {themeName === 'dark' ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
+          </button>
+        </div>
       </div>
       {/* Screen reader live region for tool announcements */}
       <div role="status" aria-live="polite" className="sr-only">

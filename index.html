@@ -61,6 +61,9 @@
         scrollbar-color: rgba(255,255,255,0.15) transparent;
       }
 
+      /* Hide toolbar scrollbar */
+      [role="toolbar"] > div:first-child::-webkit-scrollbar { display: none; }
+
       /* ── Transitions ───────────────────────────────── */
       button, [role="button"], [role="menuitem"], input, select, textarea, .interactive {
         transition: background-color 150ms ease,
