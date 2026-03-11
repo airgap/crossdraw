@@ -60,6 +60,8 @@ let pinchStartPanX = 0
 let pinchStartPanY = 0
 let pinchStartMidX = 0
 let pinchStartMidY = 0
+/** Whether we're in a pinch gesture (suppresses single-finger events during transition). */
+let isPinching = false
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -144,6 +146,7 @@ export function detachTouchHandler() {
   activeTouches.clear()
   clearLongPress()
   pinchStartDist = 0
+  isPinching = false
   stylusActive = false
   attached = false
   currentCanvas = null
@@ -202,6 +205,10 @@ function onPointerDown(e: PointerEvent) {
   } else if (count === 2) {
     // Cancel any single-finger operations and start pinch
     clearLongPress()
+    isPinching = true
+
+    // Send a pointer-up to cancel any in-progress single-finger tool operation
+    currentCallbacks.onPointerUp(1, 'touch')
 
     const pts = Array.from(activeTouches.values())
     const a = pts[0]!
@@ -231,7 +238,7 @@ function onPointerMove(e: PointerEvent) {
 
   const count = activeTouches.size
 
-  if (count === 1) {
+  if (count === 1 && !isPinching) {
     // Any movement cancels long press
     clearLongPress()
 
@@ -248,10 +255,17 @@ function onPointerMove(e: PointerEvent) {
     const scale = newDist / pinchStartDist
     const newZoom = Math.max(0.1, Math.min(10, pinchStartZoom * scale))
 
-    // The zoom change requires adjusting pan to keep the midpoint stable
-    const zoomRatio = newZoom / pinchStartZoom
-    const newPanX = mid.x - (pinchStartMidX - pinchStartPanX) * zoomRatio
-    const newPanY = mid.y - (pinchStartMidY - pinchStartPanY) * zoomRatio
+    // Keep the pinch midpoint fixed on the same document point.
+    // The document point under the initial midpoint was:
+    //   docX = (pinchStartMidX - canvasLeft - pinchStartPanX) / pinchStartZoom
+    // We want: mid.x - canvasLeft = docX * newZoom + newPanX
+    // So:      newPanX = (mid.x - canvasLeft) - docX * newZoom
+    // Since canvasLeft cancels out when we substitute docX, we can simplify:
+    const rect = currentCallbacks!.getCanvasRect()
+    const docX = (pinchStartMidX - rect.left - pinchStartPanX) / pinchStartZoom
+    const docY = (pinchStartMidY - rect.top - pinchStartPanY) / pinchStartZoom
+    const newPanX = mid.x - rect.left - docX * newZoom
+    const newPanY = mid.y - rect.top - docY * newZoom
 
     const store = useEditorStore.getState()
     store.setZoom(newZoom)
@@ -282,6 +296,16 @@ function onPointerUp(e: PointerEvent) {
   if (activeTouches.size === 0) {
     pinchStartDist = 0
     currentPressure = 1
-    currentCallbacks.onPointerUp(tp.pressure, tp.pointerType)
+    // Only forward pointer-up if we weren't pinching — pinch already sent
+    // a synthetic pointer-up when it started
+    if (!isPinching) {
+      currentCallbacks.onPointerUp(tp.pressure, tp.pointerType)
+    }
+    isPinching = false
+  } else if (activeTouches.size === 1 && isPinching) {
+    // Transitioning from pinch to single finger — reset pinch state
+    // but stay in isPinching mode so we don't start a new tool operation
+    // with a stale finger position. The user must lift all fingers first.
+    pinchStartDist = 0
   }
 }

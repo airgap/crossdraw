@@ -1146,18 +1146,18 @@ export function Viewport() {
     e.preventDefault()
     const rect = getCanvasRect()
 
-    if (e.shiftKey) {
-      // Shift + scroll = horizontal pan (left/right)
-      setPan(viewport.panX - e.deltaY, viewport.panY)
-    } else if (e.ctrlKey || e.metaKey) {
-      // Ctrl/Cmd + scroll = vertical pan (up/down)
-      setPan(viewport.panX, viewport.panY - e.deltaY)
-    } else {
-      // Default scroll = zoom in/out
-      const delta = -e.deltaY * 0.002
+    if (e.ctrlKey || e.metaKey) {
+      // Ctrl/Cmd + scroll = zoom (trackpad pinch sends ctrlKey + wheel)
+      const delta = -e.deltaY * 0.01
       const newViewport = zoomAtPoint(viewport, { x: e.clientX, y: e.clientY }, rect, delta)
       setZoom(newViewport.zoom)
       setPan(newViewport.panX, newViewport.panY)
+    } else if (e.shiftKey) {
+      // Shift + scroll = horizontal pan
+      setPan(viewport.panX - e.deltaY, viewport.panY)
+    } else {
+      // Default scroll = pan (two-finger trackpad scroll, mouse wheel)
+      setPan(viewport.panX - e.deltaX, viewport.panY - e.deltaY)
     }
   }
 
