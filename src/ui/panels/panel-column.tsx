@@ -1,6 +1,7 @@
 import React, { useCallback, useRef } from 'react'
 import { usePanelLayoutStore, MIN_GROUP_HEIGHT, type PanelColumn as PanelColumnType } from './panel-layout-store'
-import { TabGroup } from './tab-group'
+import { usePanelDragStore } from './panel-drag'
+import { TabGroup, SplitDropZone } from './tab-group'
 
 interface PanelColumnProps {
   column: PanelColumnType
@@ -9,11 +10,11 @@ interface PanelColumnProps {
 
 export function PanelColumn({ column, side }: PanelColumnProps) {
   const resizeColumn = usePanelLayoutStore((s) => s.resizeColumn)
-  const addGroupSplit = usePanelLayoutStore((s) => s.addGroupSplit)
   const setGroupHeight = usePanelLayoutStore((s) => s.setGroupHeight)
   const resetGroupHeight = usePanelLayoutStore((s) => s.resetGroupHeight)
   const groupHeights = usePanelLayoutStore((s) => s.groupHeights)
   const collapsedGroups = usePanelLayoutStore((s) => s.collapsedGroups)
+  const dragTabId = usePanelDragStore((s) => s.tabId)
 
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -45,25 +46,6 @@ export function PanelColumn({ column, side }: PanelColumnProps) {
       document.addEventListener('mouseup', onUp)
     },
     [side, column.width, resizeColumn],
-  )
-
-  // Handle drop onto column area (create a new group at the end)
-  const handleColumnDragOver = useCallback((e: React.DragEvent) => {
-    if (e.dataTransfer.types.includes('text/panel-tab-id')) {
-      e.preventDefault()
-      e.dataTransfer.dropEffect = 'move'
-    }
-  }, [])
-
-  const handleColumnDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      const tabId = e.dataTransfer.getData('text/panel-tab-id')
-      if (!tabId) return
-      // Add as new group at the end
-      addGroupSplit(tabId, side, column.groups.length)
-    },
-    [side, column.groups.length, addGroupSplit],
   )
 
   const groupCount = column.groups.length
@@ -98,35 +80,27 @@ export function PanelColumn({ column, side }: PanelColumnProps) {
           borderRight: side === 'left' ? '1px solid var(--border-subtle)' : undefined,
           order: side === 'left' ? 1 : undefined,
         }}
-        onDragOver={handleColumnDragOver}
-        onDrop={handleColumnDrop}
+        onPointerEnter={() => {
+          if (dragTabId) {
+            usePanelDragStore.getState().setDropTarget({ type: 'column', column: side, groupIndex: 0 })
+          }
+        }}
       >
         {column.groups.map((group, i) => {
           const isCollapsed = !!collapsedGroups[group.id]
           const explicitHeight = groupHeights[group.id]
           const showDivider = i < groupCount - 1
 
-          // Compute style for this group
           const groupStyle: React.CSSProperties = isCollapsed
-            ? {
-                flex: 'none',
-                minHeight: 'auto',
-              }
+            ? { flex: 'none', minHeight: 'auto' }
             : explicitHeight != null
-              ? {
-                  height: explicitHeight,
-                  minHeight: MIN_GROUP_HEIGHT,
-                  flex: 'none',
-                }
-              : {
-                  flex: 1,
-                  minHeight: MIN_GROUP_HEIGHT,
-                }
+              ? { height: explicitHeight, minHeight: MIN_GROUP_HEIGHT, flex: 'none' }
+              : { flex: 1, minHeight: MIN_GROUP_HEIGHT }
 
           return (
             <React.Fragment key={group.id}>
               <TabGroup group={group} column={side} groupIndex={i} style={groupStyle} />
-              {showDivider && (
+              {showDivider && !dragTabId && (
                 <GroupDivider
                   aboveGroupId={group.id}
                   belowGroupId={column.groups[i + 1]!.id}
@@ -137,9 +111,34 @@ export function PanelColumn({ column, side }: PanelColumnProps) {
                   resetGroupHeight={resetGroupHeight}
                 />
               )}
+              {/* Split drop zone between groups (visible during drag) */}
+              {dragTabId && <SplitDropZone column={side} insertAtIndex={i + 1} />}
             </React.Fragment>
           )
         })}
+
+        {/* Drop zone at the bottom for adding new group */}
+        {dragTabId && groupCount > 0 && (
+          <div
+            onPointerEnter={() => {
+              usePanelDragStore.getState().setDropTarget({
+                type: 'column',
+                column: side,
+                groupIndex: column.groups.length,
+              })
+            }}
+            onPointerLeave={() => {
+              const dt = usePanelDragStore.getState().dropTarget
+              if (dt?.type === 'column' && dt.column === side) {
+                usePanelDragStore.getState().setDropTarget(null)
+              }
+            }}
+            style={{
+              flex: 1,
+              minHeight: 20,
+            }}
+          />
+        )}
       </div>
 
       {side === 'right' && (
@@ -177,7 +176,6 @@ function GroupDivider({
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
-      // Don't resize if either group is collapsed
       if (collapsedGroups[aboveGroupId] || collapsedGroups[belowGroupId]) return
 
       e.preventDefault()
@@ -185,7 +183,6 @@ function GroupDivider({
       dragging.current = true
       startY.current = e.clientY
 
-      // Measure actual rendered heights of the groups
       if (containerRef.current) {
         const groups = containerRef.current.querySelectorAll('[data-panel-group-id]')
         groups.forEach((el) => {
@@ -195,7 +192,6 @@ function GroupDivider({
         })
       }
 
-      // Fallback to stored or default heights
       if (startAboveH.current === 0) startAboveH.current = groupHeights[aboveGroupId] ?? 200
       if (startBelowH.current === 0) startBelowH.current = groupHeights[belowGroupId] ?? 200
 
@@ -249,7 +245,6 @@ function GroupDivider({
         ;(e.currentTarget as HTMLElement).style.background = 'var(--border-subtle)'
       }}
     >
-      {/* Wider hit area for easier grabbing */}
       <div
         style={{
           position: 'absolute',
