@@ -32,15 +32,32 @@ function DraggableTab({
   const dragState = useRef<{
     startX: number
     startY: number
+    pointerId: number
     started: boolean
     tornOff: boolean
   } | null>(null)
+
+  const releaseCapture = useCallback(() => {
+    const el = elRef.current
+    const ds = dragState.current
+    if (el && ds) {
+      try {
+        el.releasePointerCapture(ds.pointerId)
+      } catch {}
+    }
+  }, [])
 
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 0) return
     e.preventDefault()
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    dragState.current = { startX: e.clientX, startY: e.clientY, started: false, tornOff: false }
+    dragState.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      pointerId: e.pointerId,
+      started: false,
+      tornOff: false,
+    }
   }, [])
 
   const handlePointerMove = useCallback(
@@ -61,26 +78,23 @@ function DraggableTab({
         // Check for tear-off (dragging vertically away from tab bar)
         if (Math.abs(dy) > TEAROFF_THRESHOLD && !dragState.current.tornOff) {
           dragState.current.tornOff = true
+          // Release capture and clear state BEFORE popOut unmounts us
+          releaseCapture()
           usePanelDragStore.getState().cancelDrag()
           dragState.current = null
-          try {
-            ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-          } catch {}
           popOut(tabId, e.clientX - 100, e.clientY - 14)
           return
         }
       }
     },
-    [tabId, column, groupIndex, popOut],
+    [tabId, column, groupIndex, popOut, releaseCapture],
   )
 
   const handlePointerUp = useCallback(
-    (e: React.PointerEvent) => {
+    (_e: React.PointerEvent) => {
       const ds = dragState.current
       dragState.current = null
-      try {
-        ;(e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId)
-      } catch {}
+      releaseCapture()
 
       if (!ds) return
       if (!ds.started) {
@@ -91,7 +105,7 @@ function DraggableTab({
       // End drag — the drop handling is done by the drop target's pointerUp
       usePanelDragStore.getState().endDrag()
     },
-    [tabId, onActivate],
+    [tabId, onActivate, releaseCapture],
   )
 
   if (!def) return null
