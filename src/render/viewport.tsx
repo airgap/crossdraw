@@ -1077,8 +1077,15 @@ export function Viewport() {
 
     attachTouchHandler(canvas, {
       getCanvasRect: () => canvas.getBoundingClientRect(),
-      onPointerDown(x, y, button, shiftKey, pressure, _pointerType) {
-        // Create a synthetic event-like object and call handleMouseDown logic
+      onPointerDown(x, y, button, shiftKey, pressure, pointerType) {
+        // Finger touch pans the canvas; stylus/pen uses the active tool
+        if (pointerType === 'touch') {
+          isPanning.current = true
+          lastMouse.current = { x, y }
+          if (canvas) canvas.style.cursor = 'grabbing'
+          return
+        }
+        // Stylus/pen — forward to tool
         brushPressure.current = pressure
         const synth = {
           clientX: x,
@@ -1090,7 +1097,15 @@ export function Viewport() {
         } as unknown as React.MouseEvent
         handleMouseDown(synth)
       },
-      onPointerMove(x, y, shiftKey, pressure, _pointerType) {
+      onPointerMove(x, y, shiftKey, pressure, pointerType) {
+        if (pointerType === 'touch' && isPanning.current) {
+          const dx = x - lastMouse.current.x
+          const dy = y - lastMouse.current.y
+          const vp = useEditorStore.getState().viewport
+          useEditorStore.getState().setPan(vp.panX + dx, vp.panY + dy)
+          lastMouse.current = { x, y }
+          return
+        }
         brushPressure.current = pressure
         const synth = {
           clientX: x,
@@ -1101,7 +1116,12 @@ export function Viewport() {
         } as unknown as React.MouseEvent
         handleMouseMove(synth)
       },
-      onPointerUp(_pressure, _pointerType) {
+      onPointerUp(_pressure, pointerType) {
+        if (pointerType === 'touch' && isPanning.current) {
+          isPanning.current = false
+          if (canvas) canvas.style.cursor = ''
+          return
+        }
         handleMouseUp()
       },
       onContextMenu(x, y) {
