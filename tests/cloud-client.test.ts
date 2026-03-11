@@ -24,23 +24,18 @@ afterAll(() => {
 
 const mockStorage: Record<string, string> = {}
 
-if (typeof globalThis.localStorage === 'undefined') {
-  Object.defineProperty(globalThis, 'localStorage', {
-    value: {
-      getItem: (key: string) => mockStorage[key] ?? null,
-      setItem: (key: string, value: string) => {
-        mockStorage[key] = value
-      },
-      removeItem: (key: string) => {
-        delete mockStorage[key]
-      },
-      clear: () => {
-        for (const key of Object.keys(mockStorage)) delete mockStorage[key]
-      },
-    },
-    writable: true,
-    configurable: true,
-  })
+// Always install our mock localStorage so tests use mockStorage, not real storage
+;(globalThis as any).localStorage = {
+  getItem: (key: string) => mockStorage[key] ?? null,
+  setItem: (key: string, value: string) => {
+    mockStorage[key] = value
+  },
+  removeItem: (key: string) => {
+    delete mockStorage[key]
+  },
+  clear: () => {
+    for (const key of Object.keys(mockStorage)) delete mockStorage[key]
+  },
 }
 
 // ── Mock fetch ──

@@ -54,6 +54,9 @@ function makeKeyEvent(key: string): KeyboardEvent {
 describe('Pen Tool', () => {
   beforeEach(() => {
     resetStore()
+    // Ensure viewport is at identity (zoom=1, pan=0,0) so screen coords match doc coords
+    useEditorStore.getState().setZoom(1)
+    useEditorStore.getState().setPan(0, 0)
     resetPen()
   })
 
