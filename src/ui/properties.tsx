@@ -22,7 +22,6 @@ import type {
   ColorBalanceParams,
   Layer,
   TextLayer,
-  DitheringConfig,
   GroupLayer,
   AutoLayoutConfig,
   GridLayoutConfig,
@@ -38,9 +37,6 @@ import { WARP_PRESETS } from '@/render/envelope-distort'
 import { createDefaultExtrude3DConfig } from '@/render/extrude-3d'
 import type { Extrude3DConfig, MaterialConfig, LightingConfig } from '@/render/extrude-3d'
 import { createDefaultAutoLayout, createDefaultGridConfig } from '@/layout/auto-layout'
-import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
-import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
-import { downloadPDF } from '@/io/pdf-export'
 import {
   alignLeft,
   alignCenterH,
@@ -53,14 +49,10 @@ import {
   distributeSpacingH,
   distributeSpacingV,
 } from '@/tools/align'
-import { importImageFromPicker } from '@/tools/import-image'
 import { GradientEditor, createDefaultGradient } from '@/ui/gradient-editor'
 import { PerspectivePanel } from '@/ui/perspective-panel'
-import { applyDithering } from '@/effects/dithering'
-import { performBooleanOp, offsetPath, expandStroke, simplifyPath } from '@/tools/boolean-ops'
 import { applyBackgroundRemovalFilter } from '@/filters/apply-background-removal'
 import type { BackgroundRemovalParams } from '@/filters/background-removal'
-import type { BooleanOp } from '@/tools/boolean-ops'
 import { generateRectangle } from '@/tools/shapes'
 import { WIDTH_PRESETS, WIDTH_PRESET_LABELS, matchWidthPreset } from '@/render/variable-stroke'
 import {
@@ -210,7 +202,6 @@ export function PropertiesPanel() {
   const addEffect = useEditorStore((s) => s.addEffect)
   const removeEffect = useEditorStore((s) => s.removeEffect)
   const updateEffect = useEditorStore((s) => s.updateEffect)
-  const addAdjustmentLayer = useEditorStore((s) => s.addAdjustmentLayer)
   const setLayerMask = useEditorStore((s) => s.setLayerMask)
   const removeLayerMask = useEditorStore((s) => s.removeLayerMask)
   const resizeArtboard = useEditorStore((s) => s.resizeArtboard)
@@ -220,45 +211,6 @@ export function PropertiesPanel() {
 
   const artboard = document.artboards[0]
   const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
-
-  const [ditheringConfig, setDitheringConfig] = useState<DitheringConfig>({
-    enabled: false,
-    algorithm: 'none',
-    strength: 0.5,
-    seed: 0,
-  })
-  const [showDithering, setShowDithering] = useState(false)
-
-  function handleExportSVG() {
-    const svg = exportArtboardToSVG(document)
-    downloadSVG(svg, `${document.metadata.title}.svg`)
-  }
-
-  async function handleExportPNG() {
-    const blob = await exportArtboardToBlob(document, { format: 'png', scale: 2 })
-    if (ditheringConfig.enabled && ditheringConfig.algorithm !== 'none') {
-      const bitmap = await createImageBitmap(blob)
-      const canvas = new OffscreenCanvas(bitmap.width, bitmap.height)
-      const ctx = canvas.getContext('2d')!
-      ctx.drawImage(bitmap, 0, 0)
-      const imageData = ctx.getImageData(0, 0, bitmap.width, bitmap.height)
-      applyDithering(imageData, ditheringConfig)
-      ctx.putImageData(imageData, 0, 0)
-      const ditheredBlob = await canvas.convertToBlob({ type: 'image/png' })
-      downloadBlob(ditheredBlob, `${document.metadata.title}.png`)
-    } else {
-      downloadBlob(blob, `${document.metadata.title}.png`)
-    }
-  }
-
-  async function handleExportJPEG() {
-    const blob = await exportArtboardToBlob(document, { format: 'jpeg', quality: 0.92, scale: 2 })
-    downloadBlob(blob, `${document.metadata.title}.jpg`)
-  }
-
-  async function handleExportPDF() {
-    await downloadPDF(document)
-  }
 
   return (
     <div
@@ -809,112 +761,6 @@ export function PropertiesPanel() {
         ) : (
           <div style={{ fontSize: 11, color: '#666', textAlign: 'center', paddingTop: 20 }}>No artboard</div>
         )}
-
-        {/* Actions */}
-        <div style={{ ...sectionStyle, borderTop: '1px solid var(--border)', paddingTop: 8, marginTop: 8 }}>
-          <div style={labelStyle}>Actions</div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button style={btnStyle} onClick={() => importImageFromPicker()}>
-              Import Image
-            </button>
-            <button style={btnStyle} onClick={handleExportSVG}>
-              Export SVG
-            </button>
-            <button style={btnStyle} onClick={handleExportPNG}>
-              Export PNG
-            </button>
-            <button style={btnStyle} onClick={handleExportJPEG}>
-              Export JPEG
-            </button>
-            <button style={btnStyle} onClick={handleExportPDF}>
-              Export PDF
-            </button>
-          </div>
-          <div style={{ ...labelStyle, marginTop: 8 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span>Export Dithering</span>
-              <button
-                style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
-                onClick={() => setShowDithering(!showDithering)}
-              >
-                {showDithering ? 'Hide' : 'Show'}
-              </button>
-            </div>
-          </div>
-          {showDithering && <DitheringSection config={ditheringConfig} onChange={setDitheringConfig} />}
-          {/* Boolean ops (need 2+ vector layers selected) */}
-          {selection.layerIds.length >= 2 && (
-            <>
-              <div style={{ ...labelStyle, marginTop: 8 }}>Boolean</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                {(['union', 'subtract', 'intersect', 'xor', 'divide'] as BooleanOp[]).map((op) => (
-                  <button key={op} style={btnStyle} onClick={() => performBooleanOp(op)}>
-                    {op[0]!.toUpperCase() + op.slice(1)}
-                  </button>
-                ))}
-              </div>
-            </>
-          )}
-          {/* Path ops (need 1 vector layer selected) */}
-          {selectedLayer?.type === 'vector' && artboard && (
-            <>
-              <div style={{ ...labelStyle, marginTop: 8 }}>Path Ops</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                <button style={btnStyle} onClick={() => offsetPath(artboard.id, selectedLayer.id, 5)}>
-                  Offset +5
-                </button>
-                <button style={btnStyle} onClick={() => offsetPath(artboard.id, selectedLayer.id, -5)}>
-                  Offset -5
-                </button>
-                {selectedLayer.stroke && (
-                  <button style={btnStyle} onClick={() => expandStroke(artboard.id, selectedLayer.id)}>
-                    Expand Stroke
-                  </button>
-                )}
-                <button style={btnStyle} onClick={() => simplifyPath(artboard.id, selectedLayer.id, 2)}>
-                  Simplify
-                </button>
-              </div>
-            </>
-          )}
-          {artboard && (
-            <>
-              <div style={{ ...labelStyle, marginTop: 8 }}>Adjustments</div>
-              <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                <button style={btnStyle} onClick={() => addAdjustmentLayer(artboard.id, 'levels')}>
-                  +Levels
-                </button>
-                <button style={btnStyle} onClick={() => addAdjustmentLayer(artboard.id, 'curves')}>
-                  +Curves
-                </button>
-                <button style={btnStyle} onClick={() => addAdjustmentLayer(artboard.id, 'hue-sat')}>
-                  +Hue/Sat
-                </button>
-                <button style={btnStyle} onClick={() => addAdjustmentLayer(artboard.id, 'color-balance')}>
-                  +Color Bal
-                </button>
-              </div>
-            </>
-          )}
-          {/* Artboard management */}
-          <div style={{ ...labelStyle, marginTop: 8 }}>Artboards</div>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            <button
-              style={btnStyle}
-              onClick={() => {
-                const name = `Artboard ${document.artboards.length + 1}`
-                useEditorStore.getState().addArtboard(name, document.metadata.width, document.metadata.height)
-              }}
-            >
-              +New
-            </button>
-            {artboard && document.artboards.length > 1 && (
-              <button style={btnStyle} onClick={() => useEditorStore.getState().deleteArtboard(artboard.id)}>
-                Delete
-              </button>
-            )}
-          </div>
-        </div>
       </div>
     </div>
   )
@@ -1639,82 +1485,6 @@ function StrokeSection({
               </div>
             </>
           )}
-        </>
-      )}
-    </div>
-  )
-}
-
-// ─── Dithering section ───────────────────────────────────────
-
-const ditheringAlgorithms: DitheringConfig['algorithm'][] = [
-  'none',
-  'bayer',
-  'floyd-steinberg',
-  'atkinson',
-  'jarvis',
-  'stucki',
-]
-
-function DitheringSection({ config, onChange }: { config: DitheringConfig; onChange: (c: DitheringConfig) => void }) {
-  return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={rowStyle}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#ccc' }}>
-          <input
-            type="checkbox"
-            checked={config.enabled}
-            onChange={(e) =>
-              onChange({
-                ...config,
-                enabled: e.target.checked,
-                algorithm: e.target.checked && config.algorithm === 'none' ? 'floyd-steinberg' : config.algorithm,
-              })
-            }
-          />
-          Enable
-        </label>
-      </div>
-      {config.enabled && (
-        <>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Algo</span>
-            <select
-              style={{ ...inputStyle, width: 'auto', flex: 1 }}
-              value={config.algorithm}
-              onChange={(e) => onChange({ ...config, algorithm: e.target.value as DitheringConfig['algorithm'] })}
-            >
-              {ditheringAlgorithms.map((a) => (
-                <option key={a} value={a}>
-                  {a}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Strength</span>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              style={{ flex: 1 }}
-              value={Math.round(config.strength * 100)}
-              onChange={(e) => onChange({ ...config, strength: Number(e.target.value) / 100 })}
-            />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
-              {Math.round(config.strength * 100)}%
-            </span>
-          </div>
-          <div style={rowStyle}>
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Seed</span>
-            <input
-              type="number"
-              min="0"
-              style={smallInputStyle}
-              value={config.seed}
-              onChange={(e) => onChange({ ...config, seed: Number(e.target.value) })}
-            />
-          </div>
         </>
       )}
     </div>
