@@ -13,6 +13,8 @@ const statusBtnStyle: React.CSSProperties = {
   alignItems: 'center',
 }
 
+const ZOOM_PRESETS = [25, 50, 75, 100, 150, 200, 400, 800]
+
 export function StatusBar() {
   const viewport = useEditorStore((s) => s.viewport)
   const selection = useEditorStore((s) => s.selection)
@@ -20,15 +22,19 @@ export function StatusBar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setZoom = useEditorStore((s) => s.setZoom)
   const setPan = useEditorStore((s) => s.setPan)
+  const zoomToFit = useEditorStore((s) => s.zoomToFit)
   const snapEnabled = useEditorStore((s) => s.snapEnabled)
   const toggleSnap = useEditorStore((s) => s.toggleSnap)
+  const isDirty = useEditorStore((s) => s.isDirty)
   const touchMode = useEditorStore((s) => s.touchMode)
   const toggleTouchMode = useEditorStore((s) => s.toggleTouchMode)
   const [cursorPos, setCursorPos] = useState({ x: 0, y: 0 })
   const [editingZoom, setEditingZoom] = useState(false)
   const [zoomInput, setZoomInput] = useState('')
+  const [zoomDropdownOpen, setZoomDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
+  const zoomDropdownRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef(0)
 
   useEffect(() => {
@@ -59,6 +65,25 @@ export function StatusBar() {
     return () => window.removeEventListener('mousedown', handler)
   }, [settingsOpen])
 
+  // Close zoom dropdown when clicking outside or pressing Escape
+  useEffect(() => {
+    if (!zoomDropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (zoomDropdownRef.current && !zoomDropdownRef.current.contains(e.target as Node)) {
+        setZoomDropdownOpen(false)
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoomDropdownOpen(false)
+    }
+    window.addEventListener('mousedown', handleClick)
+    window.addEventListener('keydown', handleKey)
+    return () => {
+      window.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('keydown', handleKey)
+    }
+  }, [zoomDropdownOpen])
+
   const layerCount = document.artboards.reduce((sum, a) => sum + a.layers.length, 0)
   const selCount = selection.layerIds.length
 
@@ -77,85 +102,188 @@ export function StatusBar() {
         flexShrink: 0,
       }}
     >
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          color: isDirty ? 'var(--warning)' : 'var(--success)',
+        }}
+        title={isDirty ? 'Document has unsaved changes' : 'All changes saved'}
+      >
+        <span style={{ fontSize: 8, lineHeight: 1 }}>●</span>
+        {isDirty ? 'Unsaved' : 'Saved'}
+      </span>
       <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '-0.2px' }}>
         X: {cursorPos.x} Y: {cursorPos.y}
       </span>
       <button
         onClick={() => setZoom(viewport.zoom / 1.25)}
+        className="cd-hoverable"
         style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 'var(--font-size-base)' }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'none'
-        }}
       >
         -
       </button>
-      {editingZoom ? (
-        <input
-          autoFocus
-          style={{
-            width: 42,
-            fontSize: 'var(--font-size-xs)',
-            background: 'var(--bg-input)',
-            border: '1px solid var(--border-default)',
-            color: 'var(--text-primary)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0 var(--space-1)',
-            textAlign: 'center',
-            height: 18,
-          }}
-          value={zoomInput}
-          onChange={(e) => setZoomInput(e.target.value)}
-          onBlur={() => {
-            const val = parseInt(zoomInput, 10)
-            if (!isNaN(val) && val > 0) setZoom(val / 100)
-            setEditingZoom(false)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
+      <div ref={zoomDropdownRef} style={{ position: 'relative' }}>
+        {editingZoom ? (
+          <input
+            autoFocus
+            style={{
+              width: 42,
+              fontSize: 'var(--font-size-xs)',
+              background: 'var(--bg-input)',
+              border: '1px solid var(--border-default)',
+              color: 'var(--text-primary)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0 var(--space-1)',
+              textAlign: 'center',
+              height: 18,
+            }}
+            value={zoomInput}
+            onChange={(e) => setZoomInput(e.target.value)}
+            onBlur={() => {
               const val = parseInt(zoomInput, 10)
               if (!isNaN(val) && val > 0) setZoom(val / 100)
               setEditingZoom(false)
-            } else if (e.key === 'Escape') {
-              setEditingZoom(false)
-            }
-          }}
-        />
-      ) : (
-        <span
-          style={{
-            cursor: 'pointer',
-            minWidth: 36,
-            textAlign: 'center',
-            fontFamily: 'var(--font-mono)',
-            borderRadius: 'var(--radius-sm)',
-            padding: '0 2px',
-          }}
-          onClick={() => {
-            setEditingZoom(true)
-            setZoomInput(String(Math.round(viewport.zoom * 100)))
-          }}
-          onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-          }}
-        >
-          {Math.round(viewport.zoom * 100)}%
-        </span>
-      )}
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                const val = parseInt(zoomInput, 10)
+                if (!isNaN(val) && val > 0) setZoom(val / 100)
+                setEditingZoom(false)
+              } else if (e.key === 'Escape') {
+                setEditingZoom(false)
+              }
+            }}
+          />
+        ) : (
+          <span
+            style={{
+              cursor: 'pointer',
+              minWidth: 36,
+              textAlign: 'center',
+              fontFamily: 'var(--font-mono)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '0 2px',
+            }}
+            onClick={() => setZoomDropdownOpen(!zoomDropdownOpen)}
+            onDoubleClick={(e) => {
+              e.stopPropagation()
+              setZoomDropdownOpen(false)
+              setEditingZoom(true)
+              setZoomInput(String(Math.round(viewport.zoom * 100)))
+            }}
+            className="cd-hoverable"
+          >
+            {Math.round(viewport.zoom * 100)}%
+          </span>
+        )}
+        {zoomDropdownOpen && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              marginBottom: 4,
+              background: 'var(--bg-overlay)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '4px 0',
+              minWidth: 140,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              zIndex: 1000,
+            }}
+          >
+            {ZOOM_PRESETS.map((preset) => {
+              const currentZoomPct = Math.round(viewport.zoom * 100)
+              const isActive = currentZoomPct === preset
+              return (
+                <button
+                  key={preset}
+                  onClick={() => {
+                    setZoom(preset / 100)
+                    setZoomDropdownOpen(false)
+                  }}
+                  className="cd-hoverable"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    padding: '5px 12px',
+                    border: 'none',
+                    background: isActive ? 'var(--accent)' : 'transparent',
+                    color: isActive ? '#fff' : 'var(--text-primary)',
+                    cursor: 'pointer',
+                    fontSize: 11,
+                    textAlign: 'left',
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ width: 14, textAlign: 'center', fontSize: 10 }}>{isActive ? '\u2713' : ''}</span>
+                  {preset}%
+                </button>
+              )
+            })}
+            <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
+            <button
+              onClick={() => {
+                const canvas = window.document.querySelector<HTMLElement>('#canvas, [data-viewport]')
+                if (canvas) {
+                  const rect = canvas.getBoundingClientRect()
+                  zoomToFit(rect.width, rect.height)
+                }
+                setZoomDropdownOpen(false)
+              }}
+              className="cd-hoverable"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                padding: '5px 12px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: 11,
+                textAlign: 'left',
+                gap: 8,
+              }}
+            >
+              <span style={{ width: 14 }} />
+              Fit to Window
+            </button>
+            <button
+              onClick={() => {
+                setZoomDropdownOpen(false)
+                setEditingZoom(true)
+                setZoomInput(String(Math.round(viewport.zoom * 100)))
+              }}
+              className="cd-hoverable"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                width: '100%',
+                padding: '5px 12px',
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--text-primary)',
+                cursor: 'pointer',
+                fontSize: 11,
+                textAlign: 'left',
+                gap: 8,
+              }}
+            >
+              <span style={{ width: 14 }} />
+              Custom...
+            </button>
+          </div>
+        )}
+      </div>
       <button
         onClick={() => setZoom(viewport.zoom * 1.25)}
+        className="cd-hoverable"
         style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 'var(--font-size-base)' }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'none'
-        }}
       >
         +
       </button>
@@ -165,29 +293,19 @@ export function StatusBar() {
           setPan(0, 0)
         }}
         title="Reset zoom"
+        className="cd-hoverable"
         style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 9 }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'none'
-        }}
       >
         1:1
       </button>
       <button
         onClick={toggleSnap}
         title={snapEnabled ? 'Snapping enabled (click to disable)' : 'Snapping disabled (click to enable)'}
+        className="cd-hoverable"
         style={{
           ...statusBtnStyle,
           color: snapEnabled ? 'var(--accent)' : 'var(--text-secondary)',
           opacity: snapEnabled ? 1 : 0.5,
-        }}
-        onMouseEnter={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          ;(e.currentTarget as HTMLElement).style.background = 'none'
         }}
       >
         <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -208,15 +326,10 @@ export function StatusBar() {
         <button
           onClick={() => setSettingsOpen(!settingsOpen)}
           title="Settings"
+          className="cd-hoverable"
           style={{
             ...statusBtnStyle,
             color: settingsOpen ? 'var(--accent)' : 'var(--text-secondary)',
-          }}
-          onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'none'
           }}
         >
           <svg
@@ -250,6 +363,7 @@ export function StatusBar() {
             }}
           >
             <label
+              className="cd-hoverable"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -258,12 +372,6 @@ export function StatusBar() {
                 cursor: 'pointer',
                 fontSize: 11,
                 color: 'var(--text-primary)',
-              }}
-              onMouseEnter={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-              }}
-              onMouseLeave={(e) => {
-                ;(e.currentTarget as HTMLElement).style.background = 'transparent'
               }}
             >
               <input

@@ -3068,7 +3068,7 @@ function renderTransformHandles(
       const bbox = getLayerBBox(layer, artboard)
       if (bbox.minX === Infinity) continue
 
-      const handleSize = 6 / zoom
+      const handleSize = Math.min(10, Math.max(4, 6 / zoom))
       const lineWidth = 1 / zoom
 
       // Dashed bbox

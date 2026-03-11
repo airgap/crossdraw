@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useEditorStore } from '@/store/editor.store'
+import { EmptyState } from '@/ui/empty-state'
 import { v4 as uuid } from 'uuid'
 import type { Comment } from '@/types'
 
@@ -96,18 +97,17 @@ export function CommentsPanel() {
       {/* Comment list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-1)' }}>
         {filtered.length === 0 && (
-          <div
-            style={{
-              textAlign: 'center',
-              padding: 'var(--space-4)',
-              color: 'var(--text-tertiary)',
-              fontSize: 12,
-            }}
-          >
-            {comments.length === 0
-              ? 'No comments yet. Use the Comment tool (C) to add one.'
-              : 'No comments match this filter.'}
-          </div>
+          comments.length === 0 ? (
+            <EmptyState
+              message="No comments yet"
+              hint="Use the Comment tool (C) to add annotations to the canvas."
+            />
+          ) : (
+            <EmptyState
+              message="No comments match this filter"
+              hint="Try selecting a different filter above."
+            />
+          )
         )}
         {filtered.map((comment) => {
           const isExpanded = expandedId === comment.id

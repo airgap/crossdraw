@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { FocusTrap } from '@/ui/focus-trap'
 
 interface NewDocumentSettings {
   title: string
@@ -107,10 +108,9 @@ export function NewDocumentModal({
     titleRef.current?.select()
   }, [])
 
-  // Close on Escape
+  // Enter to create (Escape is handled by FocusTrap onEscape)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault()
         handleCreate()
@@ -203,6 +203,7 @@ export function NewDocumentModal({
         if (e.target === e.currentTarget) onClose()
       }}
     >
+      <FocusTrap onEscape={onClose}>
       <div
         style={{
           background: 'var(--bg-surface)',
@@ -449,6 +450,7 @@ export function NewDocumentModal({
           </div>
         </div>
       </div>
+      </FocusTrap>
     </div>
   )
 }

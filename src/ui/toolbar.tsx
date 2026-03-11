@@ -173,11 +173,12 @@ function ShapeToolButton({
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerLeave}
-        title={`${current.id} (${current.key.toUpperCase()}) — hold for more`}
+        title={`${toolLabel(current.id)} (${current.key.toUpperCase()}) — hold for more`}
         role="button"
         tabIndex={0}
-        aria-label={`${current.id} tool (${current.key.toUpperCase()}) — hold for more shapes`}
+        aria-label={`${toolLabel(current.id)} (${current.key.toUpperCase()}) — hold for more shapes`}
         aria-pressed={isActive}
+        className="cd-hoverable"
         style={{
           width: 'var(--height-toolbar)',
           height: 'var(--height-toolbar)',
@@ -190,12 +191,6 @@ function ShapeToolButton({
           color: isActive ? '#fff' : 'var(--text-secondary)',
           background: isActive ? 'var(--accent)' : 'transparent',
           position: 'relative',
-        }}
-        onMouseEnter={(e) => {
-          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-        }}
-        onMouseLeave={(e) => {
-          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
         }}
       >
         <Icon size={16} strokeWidth={1.75} />
@@ -242,9 +237,10 @@ function ShapeToolButton({
                   setActiveTool(shape.id)
                   setShowPicker(false)
                 }}
-                title={`${shape.id} (${shape.key.toUpperCase()})`}
+                title={`${toolLabel(shape.id)} (${shape.key.toUpperCase()})`}
                 role="menuitem"
-                aria-label={`${shape.id} tool (${shape.key.toUpperCase()})`}
+                aria-label={`${toolLabel(shape.id)} (${shape.key.toUpperCase()})`}
+                className="cd-hoverable"
                 style={{
                   width: 'var(--height-toolbar)',
                   height: 'var(--height-toolbar)',
@@ -256,12 +252,6 @@ function ShapeToolButton({
                   justifyContent: 'center',
                   color: isShapeActive ? '#fff' : 'var(--text-secondary)',
                   background: isShapeActive ? 'var(--accent)' : 'transparent',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isShapeActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  if (!isShapeActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
                 }}
               >
                 <ShapeIcon size={16} strokeWidth={1.75} />
@@ -275,8 +265,38 @@ function ShapeToolButton({
 }
 
 /** Human-readable label for each tool id */
+const toolLabels: Record<string, string> = {
+  select: 'Select',
+  node: 'Node',
+  artboard: 'Artboard',
+  pen: 'Pen Tool',
+  pencil: 'Pencil',
+  line: 'Line',
+  rectangle: 'Rectangle',
+  ellipse: 'Ellipse',
+  polygon: 'Polygon',
+  star: 'Star',
+  text: 'Text',
+  brush: 'Brush',
+  eraser: 'Eraser',
+  'clone-stamp': 'Clone Stamp',
+  fill: 'Fill',
+  gradient: 'Gradient',
+  eyedropper: 'Eyedropper',
+  marquee: 'Marquee',
+  lasso: 'Lasso',
+  knife: 'Knife',
+  'shape-builder': 'Shape Builder',
+  slice: 'Slice',
+  hand: 'Hand',
+  zoom: 'Zoom',
+  measure: 'Measure',
+  crop: 'Crop',
+  comment: 'Comment',
+}
+
 function toolLabel(id: string): string {
-  return id.charAt(0).toUpperCase() + id.slice(1)
+  return toolLabels[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 }
 
 export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {}) {
@@ -377,11 +397,12 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                     handleSetActiveTool(tool.id)
                   }
                 }}
-                title={`${tool.id} (${tool.key.toUpperCase()})`}
+                title={`${toolLabel(tool.id)} (${tool.key.toUpperCase()})`}
                 role="button"
                 tabIndex={0}
                 aria-label={`${toolLabel(tool.id)} tool (${tool.key.toUpperCase()})`}
                 aria-pressed={isActive}
+                className="cd-hoverable"
                 style={{
                   width: 'var(--height-toolbar)',
                   height: 'var(--height-toolbar)',
@@ -394,12 +415,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                   color: isActive ? '#fff' : 'var(--text-secondary)',
                   background: isActive ? 'var(--accent)' : 'transparent',
                 }}
-                onMouseEnter={(e) => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'
-                }}
               >
                 <Icon size={16} strokeWidth={1.75} />
               </button>
@@ -410,6 +425,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           onClick={() => setShowShortcuts(true)}
           title="Keyboard shortcuts"
           aria-label="Keyboard shortcuts"
+          className="cd-hoverable"
           style={{
             width: 'var(--height-toolbar)',
             height: 'var(--height-toolbar)',
@@ -421,12 +437,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             justifyContent: 'center',
             color: 'var(--text-secondary)',
             background: 'transparent',
-          }}
-          onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
           }}
         >
           <Keyboard size={16} strokeWidth={1.75} />
@@ -435,6 +445,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           onClick={() => setShowSettings(true)}
           title="UI Settings"
           aria-label="UI Settings"
+          className="cd-hoverable"
           style={{
             width: 'var(--height-toolbar)',
             height: 'var(--height-toolbar)',
@@ -446,12 +457,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             justifyContent: 'center',
             color: 'var(--text-secondary)',
             background: 'transparent',
-          }}
-          onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
           }}
         >
           <Settings size={16} strokeWidth={1.75} />
@@ -460,6 +465,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           onClick={handleToggleTheme}
           title={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
           aria-label={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
+          className="cd-hoverable"
           style={{
             width: 'var(--height-toolbar)',
             height: 'var(--height-toolbar)',
@@ -471,12 +477,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             justifyContent: 'center',
             color: 'var(--text-secondary)',
             background: 'transparent',
-          }}
-          onMouseEnter={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-          }}
-          onMouseLeave={(e) => {
-            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
           }}
         >
           {themeName === 'dark' ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}

@@ -1,4 +1,5 @@
 import { useEditorStore } from '@/store/editor.store'
+import { EmptyState } from '@/ui/empty-state'
 
 export function HistoryPanel() {
   const history = useEditorStore((s) => s.history)
@@ -31,6 +32,13 @@ export function HistoryPanel() {
           }}
         />
 
+        {history.length === 0 && (
+          <EmptyState
+            message="No history"
+            hint="Actions you perform will appear here. Use Ctrl+Z / Ctrl+Shift+Z to undo/redo."
+            style={{ padding: '12px 16px' }}
+          />
+        )}
         {history.map((entry, i) => (
           <HistoryEntry
             key={i}

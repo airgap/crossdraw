@@ -9,6 +9,7 @@ import {
   getPaperDimensions,
   calculateCanvasDimensions,
 } from '@/io/print-export'
+import { FocusTrap } from '@/ui/focus-trap'
 
 const DPI_OPTIONS = [72, 150, 300, 600]
 const PAPER_SIZES: { value: PrintSettings['paperSize']; label: string }[] = [
@@ -59,18 +60,7 @@ export function PrintDialog() {
     return () => window.removeEventListener('crossdraw:show-print-dialog', handler)
   }, [])
 
-  // Close on Escape
-  useEffect(() => {
-    if (!visible) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        setVisible(false)
-      }
-    }
-    window.addEventListener('keydown', handler, true)
-    return () => window.removeEventListener('keydown', handler, true)
-  }, [visible])
+  // Escape is handled by FocusTrap onEscape
 
   // Update settings helper
   const update = useCallback((partial: Partial<PrintSettings>) => {
@@ -153,6 +143,7 @@ export function PrintDialog() {
 
   return (
     <div style={overlayStyle} onClick={close}>
+      <FocusTrap onEscape={close}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={headerStyle}>
@@ -373,6 +364,7 @@ export function PrintDialog() {
           </button>
         </div>
       </div>
+      </FocusTrap>
     </div>
   )
 }

@@ -12,6 +12,7 @@ import {
   formatFileSize,
   estimateExportDimensions,
 } from '@/ui/quick-export'
+import { FocusTrap } from '@/ui/focus-trap'
 
 const FORMAT_TABS: ExportFormatType[] = ['png', 'jpeg', 'svg', 'pdf', 'webp']
 const SCALE_OPTIONS = [0.5, 1, 2, 3, 4]
@@ -117,19 +118,6 @@ export function ExportModal() {
     }
   }, [])
 
-  // Close on Escape
-  useEffect(() => {
-    if (!showExportModal) return
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        closeExportModal()
-      }
-    }
-    window.addEventListener('keydown', handler, true)
-    return () => window.removeEventListener('keydown', handler, true)
-  }, [showExportModal, closeExportModal])
-
   if (!showExportModal) return null
 
   const handleExport = async () => {
@@ -186,6 +174,7 @@ export function ExportModal() {
 
   return (
     <div style={overlayStyle} onClick={closeExportModal}>
+      <FocusTrap onEscape={closeExportModal}>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div style={headerStyle}>
@@ -303,6 +292,7 @@ export function ExportModal() {
           </div>
         </div>
       </div>
+      </FocusTrap>
     </div>
   )
 }

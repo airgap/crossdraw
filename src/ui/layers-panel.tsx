@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
+import { EmptyState } from '@/ui/empty-state'
 import type { Layer, GroupLayer } from '@/types'
 import {
   PenTool,
@@ -225,16 +226,16 @@ export function LayersPanel() {
           />
         ))}
         {artboard.layers.length === 0 && (
-          <div
-            style={{
-              padding: 'var(--space-3)',
-              fontSize: 'var(--font-size-sm)',
-              color: 'var(--text-disabled)',
-              textAlign: 'center',
-            }}
-          >
-            No layers yet
-          </div>
+          <EmptyState
+            message="No layers"
+            hint="Draw on the canvas or import a file to add layers."
+          />
+        )}
+        {artboard.layers.length > 0 && reversedLayers.length === 0 && (
+          <EmptyState
+            message="No matching layers"
+            hint="Try adjusting your search or filter."
+          />
         )}
       </div>
 

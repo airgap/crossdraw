@@ -48,7 +48,7 @@ export function getHandlePositions(bbox: BBox, zoom: number) {
 
 export function hitTestHandles(docPoint: Point, bbox: BBox, zoom: number): HandleType | null {
   const handles = getHandlePositions(bbox, zoom)
-  const radius = 6 / zoom
+  const radius = Math.min(10, Math.max(4, 6 / zoom))
   const r2 = radius * radius
 
   const order: Exclude<HandleType, 'body'>[] = ['rotation', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e']

@@ -15,6 +15,8 @@ import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
 import { useEditorStore } from '@/store/editor.store'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { ShareDialog } from '@/ui/share-dialog'
+import { ToastContainer } from '@/ui/toast'
+import { Onboarding } from '@/ui/onboarding'
 
 // Lazy-loaded heavy components (export/print pull in raster-export, pdf, gif, tiff encoders)
 const ExportModal = lazy(() => import('@/ui/export-modal').then((m) => ({ default: m.ExportModal })))
@@ -85,6 +87,20 @@ export function App() {
     window.addEventListener('crossdraw:share-prototype', onSharePrototype)
     return () => window.removeEventListener('crossdraw:share-prototype', onSharePrototype)
   }, [])
+
+  // Update document title to reflect unsaved state
+  useEffect(() => {
+    if (boot !== 'editor') return
+    // Set initial title
+    const { document: doc, isDirty } = useEditorStore.getState()
+    const name = doc.metadata.title || 'Untitled'
+    window.document.title = isDirty ? `● ${name} — Crossdraw` : `${name} — Crossdraw`
+    // Subscribe to changes
+    return useEditorStore.subscribe((state) => {
+      const n = state.document.metadata.title || 'Untitled'
+      window.document.title = state.isDirty ? `● ${n} — Crossdraw` : `${n} — Crossdraw`
+    })
+  }, [boot])
 
   useEffect(() => {
     if (boot === 'editor' && hash !== '#/download') setupKeyboardShortcuts()
@@ -183,6 +199,8 @@ export function App() {
           />
         </Suspense>
       )}
+      <Onboarding />
+      <ToastContainer />
     </div>
   )
 }

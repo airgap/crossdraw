@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { getWorkspacePresets, saveWorkspacePreset, loadWorkspacePreset, resetWorkspace } from '@/ui/workspace-presets'
 import { isElectron, electronOpen } from '@/io/electron-bridge'
-import { openFile } from '@/io/open-file'
+import { openFile, openFileAsDocument } from '@/io/open-file'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { copyStyle, pasteStyle } from '@/tools/style-clipboard'
 import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
@@ -11,6 +11,10 @@ import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import type { RenameLayerInfo } from '@/ai/prompt-templates'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
+import { addToast } from '@/ui/toast'
+import { getRecentFiles, clearRecentFiles } from '@/io/recent-files'
+import { decodeDocument } from '@/io/file-format'
+import { resetOnboarding } from '@/ui/onboarding'
 
 // ── Lazy imports — loaded on-demand when menu items are clicked ──
 
@@ -89,6 +93,71 @@ function collectLayerInfos(layers: import('@/types').Layer[]): RenameLayerInfo[]
   return result
 }
 
+// ── Open a recent file by path (shared between splash & menu) ──
+
+async function openRecentFilePath(path: string) {
+  const api = window.electronAPI
+  if (api) {
+    try {
+      const data = await api.fileRead(path)
+      const ext = path.split('.').pop()?.toLowerCase()
+
+      if (ext === 'xd') {
+        const doc = decodeDocument(data)
+        useEditorStore.setState({
+          document: doc,
+          history: [],
+          historyIndex: -1,
+          selection: { layerIds: [] },
+          isDirty: false,
+          filePath: path,
+        })
+      } else {
+        const name = path.split(/[/\\]/).pop() || 'file'
+        const mimeMap: Record<string, string> = {
+          png: 'image/png',
+          jpg: 'image/jpeg',
+          jpeg: 'image/jpeg',
+          gif: 'image/gif',
+          webp: 'image/webp',
+          svg: 'image/svg+xml',
+          psd: 'application/octet-stream',
+        }
+        const file = new File([data], name, { type: mimeMap[ext || ''] || '' })
+        await openFileAsDocument(file)
+      }
+    } catch (err) {
+      console.error('Failed to open recent file:', err)
+      addToast(`Failed to open file: ${err instanceof Error ? err.message : 'Unknown error'}`, 'error')
+    }
+  } else {
+    await openFile()
+  }
+}
+
+// ── Build "Open Recent" submenu items ──
+
+function buildRecentFilesSubmenu(): MenuItem[] {
+  const recent = getRecentFiles().slice(0, 10)
+
+  if (recent.length === 0) {
+    return [{ label: 'No Recent Files', disabled: true }]
+  }
+
+  const items: MenuItem[] = recent.map((entry) => ({
+    label: entry.name || entry.path.split(/[/\\]/).pop() || 'Untitled',
+    action: () => openRecentFilePath(entry.path),
+  }))
+
+  items.push({ label: '', divider: true })
+  items.push({
+    label: 'Clear Recent Files',
+    action: () => clearRecentFiles(),
+  })
+
+  return items
+}
+
 // ── Build menu definitions ──
 
 function buildMenus(): MenuDef[] {
@@ -106,6 +175,10 @@ function buildMenus(): MenuDef[] {
         label: 'Open\u2026',
         shortcut: 'Ctrl+O',
         action: () => (isElectron() ? electronOpen() : openFile()),
+      },
+      {
+        label: 'Open Recent',
+        submenu: buildRecentFilesSubmenu(),
       },
       { label: '', divider: true },
       {
@@ -154,7 +227,7 @@ function buildMenus(): MenuDef[] {
               })
             } catch (err) {
               console.error('PSD import failed:', err)
-              alert(`PSD import failed: ${err instanceof Error ? err.message : err}`)
+              addToast(`PSD import failed: ${err instanceof Error ? err.message : err}`, 'error')
             }
           }
           input.click()
@@ -187,7 +260,7 @@ function buildMenus(): MenuDef[] {
               })
             } catch (err) {
               console.error('Sketch import failed:', err)
-              alert(`Sketch import failed: ${err instanceof Error ? err.message : err}`)
+              addToast(`Sketch import failed: ${err instanceof Error ? err.message : err}`, 'error')
             }
           }
           input.click()
@@ -202,7 +275,7 @@ function buildMenus(): MenuDef[] {
             const { tryImportFigmaClipboard } = await lazyImport.figmaImport()
             const doc = tryImportFigmaClipboard(text)
             if (!doc) {
-              alert('No valid Figma data found in clipboard. Copy layers in Figma first, then try again.')
+              addToast('No valid Figma data found in clipboard. Copy layers in Figma first, then try again.', 'warning')
               return
             }
             doc.metadata.title = 'Figma Import'
@@ -216,7 +289,7 @@ function buildMenus(): MenuDef[] {
             })
           } catch (err) {
             console.error('Figma paste failed:', err)
-            alert(`Figma paste failed: ${err instanceof Error ? err.message : err}`)
+            addToast(`Figma paste failed: ${err instanceof Error ? err.message : err}`, 'error')
           }
         },
       },
@@ -1219,7 +1292,7 @@ function buildMenus(): MenuDef[] {
           if (!modeStr) return
           const mode = modeStr.trim().toLowerCase()
           if (mode !== 'linear' && mode !== 'radial' && mode !== 'grid') {
-            alert('Invalid mode. Use "linear", "radial", or "grid".')
+            addToast('Invalid mode. Use "linear", "radial", or "grid".', 'warning')
             return
           }
 
@@ -1359,9 +1432,17 @@ function buildMenus(): MenuDef[] {
       },
       { label: '', divider: true },
       {
+        label: 'Getting Started',
+        action: () => {
+          resetOnboarding()
+          window.dispatchEvent(new CustomEvent('crossdraw:show-onboarding'))
+        },
+      },
+      { label: '', divider: true },
+      {
         label: 'About Crossdraw',
         action: () => {
-          alert('Crossdraw — A professional vector & raster design editor.')
+          addToast('Crossdraw — A professional vector & raster design editor.', 'info')
         },
       },
     ],
