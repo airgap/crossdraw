@@ -204,252 +204,257 @@ export function NewDocumentModal({
       }}
     >
       <FocusTrap onEscape={onClose}>
-      <div
-        style={{
-          background: 'var(--bg-surface)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: 'var(--radius-lg, 12px)',
-          width: 560,
-          maxHeight: '90vh',
-          overflow: 'auto',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
-        }}
-      >
-        {/* Header */}
-        <div style={{ padding: '20px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>New Document</h2>
-          <button onClick={onClose} style={closeBtnStyle}>
-            &times;
-          </button>
-        </div>
-
-        <div style={{ padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
-          {/* Title */}
-          <Field label="Name">
-            <input
-              ref={titleRef}
-              type="text"
-              value={settings.title}
-              onChange={(e) => update({ title: e.target.value })}
-              style={inputStyle}
-            />
-          </Field>
-
-          {/* Presets */}
-          <Field label="Preset">
-            <select
-              onChange={(e) => {
-                const idx = parseInt(e.target.value)
-                if (!isNaN(idx)) applyPreset(PRESETS[idx]!)
-              }}
-              style={inputStyle}
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Choose a preset...
-              </option>
-              {[...groups.entries()].map(([group, presets]) => (
-                <optgroup key={group} label={group}>
-                  {presets.map((p) => {
-                    const idx = PRESETS.indexOf(p)
-                    return (
-                      <option key={idx} value={idx}>
-                        {p.label}
-                      </option>
-                    )
-                  })}
-                </optgroup>
-              ))}
-            </select>
-          </Field>
-
-          {/* Dimensions */}
-          <div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Width</label>
-                <input
-                  type="number"
-                  value={widthDisplay}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value)
-                    if (!isNaN(val)) setWidth(unitToPx(val, settings.unit, settings.dpi))
-                  }}
-                  onBlur={() => {
-                    aspectRatio.current = settings.width / settings.height
-                  }}
-                  min={1}
-                  style={inputStyle}
-                />
-              </div>
-
-              {/* Link / Swap buttons */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 4 }}>
-                <button
-                  onClick={() => {
-                    setLinked(!linked)
-                    aspectRatio.current = settings.width / settings.height
-                  }}
-                  title={linked ? 'Unlink dimensions' : 'Link dimensions'}
-                  style={{
-                    ...iconBtnStyle,
-                    color: linked ? 'var(--accent)' : 'var(--text-tertiary)',
-                  }}
-                >
-                  {linked ? '🔗' : '⛓️‍💥'}
-                </button>
-                <button onClick={swapDimensions} title="Swap width and height" style={iconBtnStyle}>
-                  ⇅
-                </button>
-              </div>
-
-              <div style={{ flex: 1 }}>
-                <label style={labelStyle}>Height</label>
-                <input
-                  type="number"
-                  value={heightDisplay}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value)
-                    if (!isNaN(val)) setHeight(unitToPx(val, settings.unit, settings.dpi))
-                  }}
-                  onBlur={() => {
-                    aspectRatio.current = settings.width / settings.height
-                  }}
-                  min={1}
-                  style={inputStyle}
-                />
-              </div>
-
-              <div style={{ width: 100 }}>
-                <label style={labelStyle}>Units</label>
-                <select
-                  value={settings.unit}
-                  onChange={(e) => update({ unit: e.target.value as NewDocumentSettings['unit'] })}
-                  style={inputStyle}
-                >
-                  {UNITS.map((u) => (
-                    <option key={u.value} value={u.value}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
-              {settings.width} × {settings.height} px
-            </div>
+        <div
+          style={{
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-lg, 12px)',
+            width: 560,
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 16px 48px rgba(0,0,0,0.4)',
+          }}
+        >
+          {/* Header */}
+          <div
+            style={{ padding: '20px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          >
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: 'var(--text-primary)' }}>New Document</h2>
+            <button onClick={onClose} style={closeBtnStyle}>
+              &times;
+            </button>
           </div>
 
-          {/* DPI */}
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div style={{ flex: 1 }}>
-              <Field label="Resolution (DPI)">
-                <select
-                  value={settings.dpi}
-                  onChange={(e) => update({ dpi: parseInt(e.target.value) })}
-                  style={inputStyle}
-                >
-                  {DPI_OPTIONS.map((d) => (
-                    <option key={d} value={d}>
-                      {d} DPI
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-            <div style={{ flex: 1 }}>
-              <Field label="Color Space">
-                <select
-                  value={settings.colorspace}
-                  onChange={(e) => update({ colorspace: e.target.value as NewDocumentSettings['colorspace'] })}
-                  style={inputStyle}
-                >
-                  {COLORSPACES.map((c) => (
-                    <option key={c.value} value={c.value}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-            </div>
-          </div>
+          <div style={{ padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Title */}
+            <Field label="Name">
+              <input
+                ref={titleRef}
+                type="text"
+                value={settings.title}
+                onChange={(e) => update({ title: e.target.value })}
+                style={inputStyle}
+              />
+            </Field>
 
-          {/* Background */}
-          <div>
-            <label style={labelStyle}>Background</label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  fontSize: 13,
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
+            {/* Presets */}
+            <Field label="Preset">
+              <select
+                onChange={(e) => {
+                  const idx = parseInt(e.target.value)
+                  if (!isNaN(idx)) applyPreset(PRESETS[idx]!)
                 }}
+                style={inputStyle}
+                defaultValue=""
               >
-                <input
-                  type="checkbox"
-                  checked={settings.transparentBackground}
-                  onChange={(e) => update({ transparentBackground: e.target.checked })}
-                />
-                Transparent
-              </label>
-              {!settings.transparentBackground && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                <option value="" disabled>
+                  Choose a preset...
+                </option>
+                {[...groups.entries()].map(([group, presets]) => (
+                  <optgroup key={group} label={group}>
+                    {presets.map((p) => {
+                      const idx = PRESETS.indexOf(p)
+                      return (
+                        <option key={idx} value={idx}>
+                          {p.label}
+                        </option>
+                      )
+                    })}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+
+            {/* Dimensions */}
+            <div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Width</label>
                   <input
-                    type="color"
-                    value={settings.backgroundColor}
-                    onChange={(e) => update({ backgroundColor: e.target.value })}
-                    style={{
-                      width: 28,
-                      height: 28,
-                      border: '1px solid var(--border-subtle)',
-                      borderRadius: 4,
-                      padding: 0,
-                      cursor: 'pointer',
+                    type="number"
+                    value={widthDisplay}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val)) setWidth(unitToPx(val, settings.unit, settings.dpi))
                     }}
-                  />
-                  <input
-                    type="text"
-                    value={settings.backgroundColor}
-                    onChange={(e) => update({ backgroundColor: e.target.value })}
-                    style={{ ...inputStyle, width: 90, fontFamily: 'monospace' }}
+                    onBlur={() => {
+                      aspectRatio.current = settings.width / settings.height
+                    }}
+                    min={1}
+                    style={inputStyle}
                   />
                 </div>
-              )}
+
+                {/* Link / Swap buttons */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, paddingBottom: 4 }}>
+                  <button
+                    onClick={() => {
+                      setLinked(!linked)
+                      aspectRatio.current = settings.width / settings.height
+                    }}
+                    title={linked ? 'Unlink dimensions' : 'Link dimensions'}
+                    style={{
+                      ...iconBtnStyle,
+                      color: linked ? 'var(--accent)' : 'var(--text-tertiary)',
+                    }}
+                  >
+                    {linked ? '🔗' : '⛓️‍💥'}
+                  </button>
+                  <button onClick={swapDimensions} title="Swap width and height" style={iconBtnStyle}>
+                    ⇅
+                  </button>
+                </div>
+
+                <div style={{ flex: 1 }}>
+                  <label style={labelStyle}>Height</label>
+                  <input
+                    type="number"
+                    value={heightDisplay}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value)
+                      if (!isNaN(val)) setHeight(unitToPx(val, settings.unit, settings.dpi))
+                    }}
+                    onBlur={() => {
+                      aspectRatio.current = settings.width / settings.height
+                    }}
+                    min={1}
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div style={{ width: 100 }}>
+                  <label style={labelStyle}>Units</label>
+                  <select
+                    value={settings.unit}
+                    onChange={(e) => update({ unit: e.target.value as NewDocumentSettings['unit'] })}
+                    style={inputStyle}
+                  >
+                    {UNITS.map((u) => (
+                      <option key={u.value} value={u.value}>
+                        {u.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 4 }}>
+                {settings.width} × {settings.height} px
+              </div>
+            </div>
+
+            {/* DPI */}
+            <div style={{ display: 'flex', gap: 16 }}>
+              <div style={{ flex: 1 }}>
+                <Field label="Resolution (DPI)">
+                  <select
+                    value={settings.dpi}
+                    onChange={(e) => update({ dpi: parseInt(e.target.value) })}
+                    style={inputStyle}
+                  >
+                    {DPI_OPTIONS.map((d) => (
+                      <option key={d} value={d}>
+                        {d} DPI
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+              <div style={{ flex: 1 }}>
+                <Field label="Color Space">
+                  <select
+                    value={settings.colorspace}
+                    onChange={(e) => update({ colorspace: e.target.value as NewDocumentSettings['colorspace'] })}
+                    style={inputStyle}
+                  >
+                    {COLORSPACES.map((c) => (
+                      <option key={c.value} value={c.value}>
+                        {c.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            </div>
+
+            {/* Background */}
+            <div>
+              <label style={labelStyle}>Background</label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <label
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    fontSize: 13,
+                    color: 'var(--text-secondary)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={settings.transparentBackground}
+                    onChange={(e) => update({ transparentBackground: e.target.checked })}
+                  />
+                  Transparent
+                </label>
+                {!settings.transparentBackground && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 8 }}>
+                    <input
+                      type="color"
+                      value={settings.backgroundColor}
+                      onChange={(e) => update({ backgroundColor: e.target.value })}
+                      style={{
+                        width: 28,
+                        height: 28,
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 4,
+                        padding: 0,
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={settings.backgroundColor}
+                      onChange={(e) => update({ backgroundColor: e.target.value })}
+                      style={{ ...inputStyle, width: 90, fontFamily: 'monospace' }}
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Preview */}
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <div
+                style={{
+                  width: Math.min(
+                    200,
+                    settings.width > settings.height ? 200 : 200 * (settings.width / settings.height),
+                  ),
+                  height: Math.min(
+                    200,
+                    settings.height > settings.width ? 200 : 200 * (settings.height / settings.width),
+                  ),
+                  background: settings.transparentBackground
+                    ? 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 0 0 / 16px 16px'
+                    : settings.backgroundColor,
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 4,
+                }}
+              />
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 4 }}>
+              <button onClick={onClose} style={secondaryBtnStyle}>
+                Cancel
+              </button>
+              <button onClick={handleCreate} style={primaryBtnStyle}>
+                Create
+              </button>
             </div>
           </div>
-
-          {/* Preview */}
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <div
-              style={{
-                width: Math.min(200, settings.width > settings.height ? 200 : 200 * (settings.width / settings.height)),
-                height: Math.min(
-                  200,
-                  settings.height > settings.width ? 200 : 200 * (settings.height / settings.width),
-                ),
-                background: settings.transparentBackground
-                  ? 'repeating-conic-gradient(#808080 0% 25%, #c0c0c0 0% 50%) 0 0 / 16px 16px'
-                  : settings.backgroundColor,
-                border: '1px solid var(--border-subtle)',
-                borderRadius: 4,
-              }}
-            />
-          </div>
-
-          {/* Actions */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, paddingTop: 4 }}>
-            <button onClick={onClose} style={secondaryBtnStyle}>
-              Cancel
-            </button>
-            <button onClick={handleCreate} style={primaryBtnStyle}>
-              Create
-            </button>
-          </div>
         </div>
-      </div>
       </FocusTrap>
     </div>
   )

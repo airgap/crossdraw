@@ -226,16 +226,10 @@ export function LayersPanel() {
           />
         ))}
         {artboard.layers.length === 0 && (
-          <EmptyState
-            message="No layers"
-            hint="Draw on the canvas or import a file to add layers."
-          />
+          <EmptyState message="No layers" hint="Draw on the canvas or import a file to add layers." />
         )}
         {artboard.layers.length > 0 && reversedLayers.length === 0 && (
-          <EmptyState
-            message="No matching layers"
-            hint="Try adjusting your search or filter."
-          />
+          <EmptyState message="No matching layers" hint="Try adjusting your search or filter." />
         )}
       </div>
 

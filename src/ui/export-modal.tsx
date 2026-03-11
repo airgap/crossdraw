@@ -175,123 +175,129 @@ export function ExportModal() {
   return (
     <div style={overlayStyle} onClick={closeExportModal}>
       <FocusTrap onEscape={closeExportModal}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div style={headerStyle}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>Export</span>
-          <button style={closeButtonStyle} onClick={closeExportModal}>
-            &#x2715;
-          </button>
-        </div>
-
-        <div style={bodyStyle}>
-          {/* Left panel: options */}
-          <div style={leftPanelStyle}>
-            {/* Format tabs */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Format</label>
-              <div style={tabRowStyle}>
-                {FORMAT_TABS.map((fmt) => (
-                  <button
-                    key={fmt}
-                    style={{
-                      ...tabButtonStyle,
-                      ...(settings.format === fmt ? tabButtonActiveStyle : {}),
-                    }}
-                    onClick={() => update({ format: fmt })}
-                  >
-                    {fmt.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Format-specific options */}
-            {settings.format === 'png' && (
-              <PNGOptions settings={settings} update={update} dims={dims} artboardW={artboardW} artboardH={artboardH} />
-            )}
-            {settings.format === 'jpeg' && <JPEGOptions settings={settings} update={update} />}
-            {settings.format === 'svg' && <SVGOptions settings={settings} update={update} />}
-            {settings.format === 'pdf' && <PDFOptions settings={settings} update={update} />}
-            {settings.format === 'webp' && <WebPOptions settings={settings} update={update} />}
-
-            {/* Export region */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Export Region</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {(
-                  [
-                    ['artboard', 'Full Artboard'],
-                    ['selection', 'Selection'],
-                    ['all-artboards', 'All Artboards'],
-                  ] as [ExportRegion, string][]
-                ).map(([value, label]) => (
-                  <label key={value} style={radioLabelStyle}>
-                    <input
-                      type="radio"
-                      name="export-region"
-                      checked={settings.region === value}
-                      onChange={() => update({ region: value })}
-                      disabled={value === 'selection' && selection.layerIds.length === 0}
-                      style={{ accentColor: 'var(--accent)' }}
-                    />
-                    <span>{label}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Right panel: preview */}
-          <div style={rightPanelStyle}>
-            <div style={previewContainerStyle}>
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Export preview"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    imageRendering: 'auto',
-                  }}
-                />
-              ) : (
-                <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Generating preview...</div>
-              )}
-            </div>
-
-            {/* File size estimate */}
-            <div style={fileSizeStyle}>
-              {previewSize > 0 && (
-                <>
-                  <span>Estimated size: {formatFileSize(previewSize)}</span>
-                  <span style={{ marginLeft: 12, color: 'var(--text-secondary)' }}>
-                    {dims.width} x {dims.height}px
-                  </span>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Footer actions */}
-        <div style={footerStyle}>
-          <button style={cancelButtonStyle} onClick={closeExportModal}>
-            Cancel
-          </button>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {canCopyToClipboard && (
-              <button style={secondaryButtonStyle} onClick={handleCopyToClipboard} disabled={exporting}>
-                Copy to Clipboard
-              </button>
-            )}
-            <button style={primaryButtonStyle} onClick={handleExport} disabled={exporting}>
-              {exporting ? 'Exporting...' : 'Export'}
+        <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+          {/* Header */}
+          <div style={headerStyle}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>Export</span>
+            <button style={closeButtonStyle} onClick={closeExportModal}>
+              &#x2715;
             </button>
           </div>
+
+          <div style={bodyStyle}>
+            {/* Left panel: options */}
+            <div style={leftPanelStyle}>
+              {/* Format tabs */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Format</label>
+                <div style={tabRowStyle}>
+                  {FORMAT_TABS.map((fmt) => (
+                    <button
+                      key={fmt}
+                      style={{
+                        ...tabButtonStyle,
+                        ...(settings.format === fmt ? tabButtonActiveStyle : {}),
+                      }}
+                      onClick={() => update({ format: fmt })}
+                    >
+                      {fmt.toUpperCase()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Format-specific options */}
+              {settings.format === 'png' && (
+                <PNGOptions
+                  settings={settings}
+                  update={update}
+                  dims={dims}
+                  artboardW={artboardW}
+                  artboardH={artboardH}
+                />
+              )}
+              {settings.format === 'jpeg' && <JPEGOptions settings={settings} update={update} />}
+              {settings.format === 'svg' && <SVGOptions settings={settings} update={update} />}
+              {settings.format === 'pdf' && <PDFOptions settings={settings} update={update} />}
+              {settings.format === 'webp' && <WebPOptions settings={settings} update={update} />}
+
+              {/* Export region */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Export Region</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {(
+                    [
+                      ['artboard', 'Full Artboard'],
+                      ['selection', 'Selection'],
+                      ['all-artboards', 'All Artboards'],
+                    ] as [ExportRegion, string][]
+                  ).map(([value, label]) => (
+                    <label key={value} style={radioLabelStyle}>
+                      <input
+                        type="radio"
+                        name="export-region"
+                        checked={settings.region === value}
+                        onChange={() => update({ region: value })}
+                        disabled={value === 'selection' && selection.layerIds.length === 0}
+                        style={{ accentColor: 'var(--accent)' }}
+                      />
+                      <span>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Right panel: preview */}
+            <div style={rightPanelStyle}>
+              <div style={previewContainerStyle}>
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt="Export preview"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      imageRendering: 'auto',
+                    }}
+                  />
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Generating preview...</div>
+                )}
+              </div>
+
+              {/* File size estimate */}
+              <div style={fileSizeStyle}>
+                {previewSize > 0 && (
+                  <>
+                    <span>Estimated size: {formatFileSize(previewSize)}</span>
+                    <span style={{ marginLeft: 12, color: 'var(--text-secondary)' }}>
+                      {dims.width} x {dims.height}px
+                    </span>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Footer actions */}
+          <div style={footerStyle}>
+            <button style={cancelButtonStyle} onClick={closeExportModal}>
+              Cancel
+            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {canCopyToClipboard && (
+                <button style={secondaryButtonStyle} onClick={handleCopyToClipboard} disabled={exporting}>
+                  Copy to Clipboard
+                </button>
+              )}
+              <button style={primaryButtonStyle} onClick={handleExport} disabled={exporting}>
+                {exporting ? 'Exporting...' : 'Export'}
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
       </FocusTrap>
     </div>
   )

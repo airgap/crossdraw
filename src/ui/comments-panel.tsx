@@ -96,19 +96,12 @@ export function CommentsPanel() {
 
       {/* Comment list */}
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-1)' }}>
-        {filtered.length === 0 && (
-          comments.length === 0 ? (
-            <EmptyState
-              message="No comments yet"
-              hint="Use the Comment tool (C) to add annotations to the canvas."
-            />
+        {filtered.length === 0 &&
+          (comments.length === 0 ? (
+            <EmptyState message="No comments yet" hint="Use the Comment tool (C) to add annotations to the canvas." />
           ) : (
-            <EmptyState
-              message="No comments match this filter"
-              hint="Try selecting a different filter above."
-            />
-          )
-        )}
+            <EmptyState message="No comments match this filter" hint="Try selecting a different filter above." />
+          ))}
         {filtered.map((comment) => {
           const isExpanded = expandedId === comment.id
           const isSelected = selectedCommentId === comment.id

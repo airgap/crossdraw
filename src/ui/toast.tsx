@@ -57,9 +57,12 @@ export function addToast(message: string, severity?: ToastSeverity, duration?: n
 // ── Icons (inline SVG paths, 16x16) ──
 
 const icons: Record<ToastSeverity, string> = {
-  success: 'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm3.36 5.36-4 4a.5.5 0 0 1-.72 0l-2-2a.5.5 0 1 1 .72-.72L7 9.29l3.64-3.65a.5.5 0 1 1 .72.72Z',
-  error: 'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm2.85 9.15a.5.5 0 0 1-.7.7L8 8.71l-2.15 2.14a.5.5 0 0 1-.7-.7L7.29 8 5.15 5.85a.5.5 0 1 1 .7-.7L8 7.29l2.15-2.14a.5.5 0 1 1 .7.7L8.71 8l2.14 2.15Z',
-  warning: 'M8.94 2.45l5.53 9.6A1.09 1.09 0 0 1 13.53 14H2.47a1.09 1.09 0 0 1-.94-1.95l5.53-9.6a1.09 1.09 0 0 1 1.88 0ZM8 6a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 1 0v-3A.5.5 0 0 0 8 6Zm0 5.5a.62.62 0 1 0 0 1.24.62.62 0 0 0 0-1.24Z',
+  success:
+    'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm3.36 5.36-4 4a.5.5 0 0 1-.72 0l-2-2a.5.5 0 1 1 .72-.72L7 9.29l3.64-3.65a.5.5 0 1 1 .72.72Z',
+  error:
+    'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm2.85 9.15a.5.5 0 0 1-.7.7L8 8.71l-2.15 2.14a.5.5 0 0 1-.7-.7L7.29 8 5.15 5.85a.5.5 0 1 1 .7-.7L8 7.29l2.15-2.14a.5.5 0 1 1 .7.7L8.71 8l2.14 2.15Z',
+  warning:
+    'M8.94 2.45l5.53 9.6A1.09 1.09 0 0 1 13.53 14H2.47a1.09 1.09 0 0 1-.94-1.95l5.53-9.6a1.09 1.09 0 0 1 1.88 0ZM8 6a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 1 0v-3A.5.5 0 0 0 8 6Zm0 5.5a.62.62 0 1 0 0 1.24.62.62 0 0 0 0-1.24Z',
   info: 'M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm.5 10.5a.5.5 0 0 1-1 0v-4a.5.5 0 0 1 1 0v4ZM8 5.75a.75.75 0 1 1 0-1.5.75.75 0 0 1 0 1.5Z',
 }
 
@@ -111,18 +114,10 @@ function ToastItem({ toast }: { toast: Toast }) {
         maxWidth: 360,
         minWidth: 240,
         pointerEvents: 'auto',
-        animation: toast.exiting
-          ? `toast-out ${EXIT_MS}ms ease-in forwards`
-          : `toast-in ${EXIT_MS}ms ease-out`,
+        animation: toast.exiting ? `toast-out ${EXIT_MS}ms ease-in forwards` : `toast-in ${EXIT_MS}ms ease-out`,
       }}
     >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 16 16"
-        fill={color}
-        style={{ flexShrink: 0, marginTop: 1 }}
-      >
+      <svg width="16" height="16" viewBox="0 0 16 16" fill={color} style={{ flexShrink: 0, marginTop: 1 }}>
         <path d={icons[toast.severity]} />
       </svg>
       <span style={{ flex: 1, lineHeight: 1.4, wordBreak: 'break-word' }}>{toast.message}</span>

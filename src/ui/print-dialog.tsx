@@ -144,226 +144,234 @@ export function PrintDialog() {
   return (
     <div style={overlayStyle} onClick={close}>
       <FocusTrap onEscape={close}>
-      <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        {/* Header */}
-        <div style={headerStyle}>
-          <span style={{ fontSize: 16, fontWeight: 600 }}>Print / Print-Ready Export</span>
-          <button style={closeButtonStyle} onClick={close}>
-            &#x2715;
-          </button>
-        </div>
+        <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+          {/* Header */}
+          <div style={headerStyle}>
+            <span style={{ fontSize: 16, fontWeight: 600 }}>Print / Print-Ready Export</span>
+            <button style={closeButtonStyle} onClick={close}>
+              &#x2715;
+            </button>
+          </div>
 
-        <div style={bodyStyle}>
-          {/* Left panel: settings */}
-          <div style={leftPanelStyle}>
-            {/* DPI */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Resolution (DPI)</label>
-              <select
-                value={settings.dpi}
-                onChange={(e) => update({ dpi: Number(e.target.value) })}
-                style={selectStyle}
-              >
-                {DPI_OPTIONS.map((d) => (
-                  <option key={d} value={d}>
-                    {d} DPI
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Paper Size */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Paper Size</label>
-              <select
-                value={settings.paperSize}
-                onChange={(e) => update({ paperSize: e.target.value as PrintSettings['paperSize'] })}
-                style={selectStyle}
-              >
-                {PAPER_SIZES.map((ps) => (
-                  <option key={ps.value} value={ps.value}>
-                    {ps.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Custom dimensions */}
-            {settings.paperSize === 'custom' && (
+          <div style={bodyStyle}>
+            {/* Left panel: settings */}
+            <div style={leftPanelStyle}>
+              {/* DPI */}
               <div style={sectionStyle}>
-                <label style={labelStyle}>Custom Size (mm)</label>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input
-                    type="number"
-                    value={settings.customWidth ?? 210}
-                    onChange={(e) => update({ customWidth: Number(e.target.value) || 210 })}
-                    style={{ ...inputStyle, width: 80 }}
-                    min={10}
-                    placeholder="Width"
-                  />
-                  <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>x</span>
-                  <input
-                    type="number"
-                    value={settings.customHeight ?? 297}
-                    onChange={(e) => update({ customHeight: Number(e.target.value) || 297 })}
-                    style={{ ...inputStyle, width: 80 }}
-                    min={10}
-                    placeholder="Height"
-                  />
-                </div>
+                <label style={labelStyle}>Resolution (DPI)</label>
+                <select
+                  value={settings.dpi}
+                  onChange={(e) => update({ dpi: Number(e.target.value) })}
+                  style={selectStyle}
+                >
+                  {DPI_OPTIONS.map((d) => (
+                    <option key={d} value={d}>
+                      {d} DPI
+                    </option>
+                  ))}
+                </select>
               </div>
-            )}
 
-            {/* Color Mode */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Color Mode</label>
-              <select
-                value={settings.colorMode}
-                onChange={(e) => update({ colorMode: e.target.value as 'rgb' | 'cmyk' })}
-                style={selectStyle}
-              >
-                <option value="rgb">RGB</option>
-                <option value="cmyk">CMYK (simulated)</option>
-              </select>
-            </div>
-
-            {/* Bleed */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Bleed (mm)</label>
-              <input
-                type="number"
-                value={settings.bleed}
-                onChange={(e) => update({ bleed: Math.max(0, Number(e.target.value)) })}
-                style={{ ...inputStyle, width: 80 }}
-                min={0}
-                max={25}
-                step={0.5}
-              />
-            </div>
-
-            {/* Print Marks */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Print Marks</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <ToggleRow label="Crop Marks" checked={settings.cropMarks} onChange={(v) => update({ cropMarks: v })} />
-                <ToggleRow
-                  label="Registration Marks"
-                  checked={settings.registrationMarks}
-                  onChange={(v) => update({ registrationMarks: v })}
-                />
-                <ToggleRow label="Color Bars" checked={settings.colorBars} onChange={(v) => update({ colorBars: v })} />
+              {/* Paper Size */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Paper Size</label>
+                <select
+                  value={settings.paperSize}
+                  onChange={(e) => update({ paperSize: e.target.value as PrintSettings['paperSize'] })}
+                  style={selectStyle}
+                >
+                  {PAPER_SIZES.map((ps) => (
+                    <option key={ps.value} value={ps.value}>
+                      {ps.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-            </div>
 
-            {/* Margins */}
-            <div style={sectionStyle}>
-              <label style={labelStyle}>Margins (mm)</label>
-              <div style={marginsGridStyle}>
-                <div style={marginFieldStyle}>
-                  <span style={marginLabelStyle}>Top</span>
-                  <input
-                    type="number"
-                    value={settings.margins.top}
-                    onChange={(e) => updateMargin('top', Math.max(0, Number(e.target.value)))}
-                    style={{ ...inputStyle, width: 60 }}
-                    min={0}
-                    step={1}
-                  />
+              {/* Custom dimensions */}
+              {settings.paperSize === 'custom' && (
+                <div style={sectionStyle}>
+                  <label style={labelStyle}>Custom Size (mm)</label>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="number"
+                      value={settings.customWidth ?? 210}
+                      onChange={(e) => update({ customWidth: Number(e.target.value) || 210 })}
+                      style={{ ...inputStyle, width: 80 }}
+                      min={10}
+                      placeholder="Width"
+                    />
+                    <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>x</span>
+                    <input
+                      type="number"
+                      value={settings.customHeight ?? 297}
+                      onChange={(e) => update({ customHeight: Number(e.target.value) || 297 })}
+                      style={{ ...inputStyle, width: 80 }}
+                      min={10}
+                      placeholder="Height"
+                    />
+                  </div>
                 </div>
-                <div style={marginFieldStyle}>
-                  <span style={marginLabelStyle}>Right</span>
-                  <input
-                    type="number"
-                    value={settings.margins.right}
-                    onChange={(e) => updateMargin('right', Math.max(0, Number(e.target.value)))}
-                    style={{ ...inputStyle, width: 60 }}
-                    min={0}
-                    step={1}
-                  />
-                </div>
-                <div style={marginFieldStyle}>
-                  <span style={marginLabelStyle}>Bottom</span>
-                  <input
-                    type="number"
-                    value={settings.margins.bottom}
-                    onChange={(e) => updateMargin('bottom', Math.max(0, Number(e.target.value)))}
-                    style={{ ...inputStyle, width: 60 }}
-                    min={0}
-                    step={1}
-                  />
-                </div>
-                <div style={marginFieldStyle}>
-                  <span style={marginLabelStyle}>Left</span>
-                  <input
-                    type="number"
-                    value={settings.margins.left}
-                    onChange={(e) => updateMargin('left', Math.max(0, Number(e.target.value)))}
-                    style={{ ...inputStyle, width: 60 }}
-                    min={0}
-                    step={1}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right panel: preview + info */}
-          <div style={rightPanelStyle}>
-            <div style={previewContainerStyle}>
-              {previewUrl ? (
-                <img
-                  src={previewUrl}
-                  alt="Print preview"
-                  style={{
-                    maxWidth: '100%',
-                    maxHeight: '100%',
-                    objectFit: 'contain',
-                    imageRendering: 'auto',
-                  }}
-                />
-              ) : (
-                <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Generating preview...</div>
               )}
+
+              {/* Color Mode */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Color Mode</label>
+                <select
+                  value={settings.colorMode}
+                  onChange={(e) => update({ colorMode: e.target.value as 'rgb' | 'cmyk' })}
+                  style={selectStyle}
+                >
+                  <option value="rgb">RGB</option>
+                  <option value="cmyk">CMYK (simulated)</option>
+                </select>
+              </div>
+
+              {/* Bleed */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Bleed (mm)</label>
+                <input
+                  type="number"
+                  value={settings.bleed}
+                  onChange={(e) => update({ bleed: Math.max(0, Number(e.target.value)) })}
+                  style={{ ...inputStyle, width: 80 }}
+                  min={0}
+                  max={25}
+                  step={0.5}
+                />
+              </div>
+
+              {/* Print Marks */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Print Marks</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <ToggleRow
+                    label="Crop Marks"
+                    checked={settings.cropMarks}
+                    onChange={(v) => update({ cropMarks: v })}
+                  />
+                  <ToggleRow
+                    label="Registration Marks"
+                    checked={settings.registrationMarks}
+                    onChange={(v) => update({ registrationMarks: v })}
+                  />
+                  <ToggleRow
+                    label="Color Bars"
+                    checked={settings.colorBars}
+                    onChange={(v) => update({ colorBars: v })}
+                  />
+                </div>
+              </div>
+
+              {/* Margins */}
+              <div style={sectionStyle}>
+                <label style={labelStyle}>Margins (mm)</label>
+                <div style={marginsGridStyle}>
+                  <div style={marginFieldStyle}>
+                    <span style={marginLabelStyle}>Top</span>
+                    <input
+                      type="number"
+                      value={settings.margins.top}
+                      onChange={(e) => updateMargin('top', Math.max(0, Number(e.target.value)))}
+                      style={{ ...inputStyle, width: 60 }}
+                      min={0}
+                      step={1}
+                    />
+                  </div>
+                  <div style={marginFieldStyle}>
+                    <span style={marginLabelStyle}>Right</span>
+                    <input
+                      type="number"
+                      value={settings.margins.right}
+                      onChange={(e) => updateMargin('right', Math.max(0, Number(e.target.value)))}
+                      style={{ ...inputStyle, width: 60 }}
+                      min={0}
+                      step={1}
+                    />
+                  </div>
+                  <div style={marginFieldStyle}>
+                    <span style={marginLabelStyle}>Bottom</span>
+                    <input
+                      type="number"
+                      value={settings.margins.bottom}
+                      onChange={(e) => updateMargin('bottom', Math.max(0, Number(e.target.value)))}
+                      style={{ ...inputStyle, width: 60 }}
+                      min={0}
+                      step={1}
+                    />
+                  </div>
+                  <div style={marginFieldStyle}>
+                    <span style={marginLabelStyle}>Left</span>
+                    <input
+                      type="number"
+                      value={settings.margins.left}
+                      onChange={(e) => updateMargin('left', Math.max(0, Number(e.target.value)))}
+                      style={{ ...inputStyle, width: 60 }}
+                      min={0}
+                      step={1}
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Info */}
-            <div style={infoStyle}>
-              <div style={infoRowStyle}>
-                <span>Paper:</span>
-                <span>
-                  {paperDims.width} x {paperDims.height} mm
-                </span>
+            {/* Right panel: preview + info */}
+            <div style={rightPanelStyle}>
+              <div style={previewContainerStyle}>
+                {previewUrl ? (
+                  <img
+                    src={previewUrl}
+                    alt="Print preview"
+                    style={{
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      objectFit: 'contain',
+                      imageRendering: 'auto',
+                    }}
+                  />
+                ) : (
+                  <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Generating preview...</div>
+                )}
               </div>
-              <div style={infoRowStyle}>
-                <span>Output:</span>
-                <span>
-                  {canvasDims.trimWidth} x {canvasDims.trimHeight} px
-                </span>
-              </div>
-              <div style={infoRowStyle}>
-                <span>With bleed:</span>
-                <span>
-                  {canvasDims.totalWidth} x {canvasDims.totalHeight} px
-                </span>
-              </div>
-              <div style={infoRowStyle}>
-                <span>Color:</span>
-                <span>{settings.colorMode.toUpperCase()}</span>
+
+              {/* Info */}
+              <div style={infoStyle}>
+                <div style={infoRowStyle}>
+                  <span>Paper:</span>
+                  <span>
+                    {paperDims.width} x {paperDims.height} mm
+                  </span>
+                </div>
+                <div style={infoRowStyle}>
+                  <span>Output:</span>
+                  <span>
+                    {canvasDims.trimWidth} x {canvasDims.trimHeight} px
+                  </span>
+                </div>
+                <div style={infoRowStyle}>
+                  <span>With bleed:</span>
+                  <span>
+                    {canvasDims.totalWidth} x {canvasDims.totalHeight} px
+                  </span>
+                </div>
+                <div style={infoRowStyle}>
+                  <span>Color:</span>
+                  <span>{settings.colorMode.toUpperCase()}</span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div style={footerStyle}>
-          <button style={cancelButtonStyle} onClick={close}>
-            Cancel
-          </button>
-          <button style={primaryButtonStyle} onClick={handleExport} disabled={exporting}>
-            {exporting ? 'Exporting...' : 'Export Print-Ready'}
-          </button>
+          {/* Footer */}
+          <div style={footerStyle}>
+            <button style={cancelButtonStyle} onClick={close}>
+              Cancel
+            </button>
+            <button style={primaryButtonStyle} onClick={handleExport} disabled={exporting}>
+              {exporting ? 'Exporting...' : 'Export Print-Ready'}
+            </button>
+          </div>
         </div>
-      </div>
       </FocusTrap>
     </div>
   )

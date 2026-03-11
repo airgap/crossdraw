@@ -231,11 +231,7 @@ export function SplashScreen({ onReady }: { onReady: () => void }) {
             ) : (
               <div style={{ maxHeight: 320, overflowY: 'auto' }}>
                 {recentFiles.map((entry) => (
-                  <RecentFileItem
-                    key={entry.path}
-                    entry={entry}
-                    onClick={() => handleOpenRecent(entry)}
-                  />
+                  <RecentFileItem key={entry.path} entry={entry} onClick={() => handleOpenRecent(entry)} />
                 ))}
               </div>
             )}
