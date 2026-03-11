@@ -101,22 +101,21 @@ pipeline {
                 }
 
                 // ── Electron: Windows ─────────────────────────
-                // Disabled: windows-strix cannot reach git@t.muzz.in (SSH timeout)
-                // Uncomment when Windows node has network access to Gitea
-                // stage('Electron Windows') {
-                //     agent { label 'windows' }
-                //     steps {
-                //         bat 'bun install --frozen-lockfile'
-                //         unstash 'web-dist'
-                //         bat 'bunx tsc -p electron/tsconfig.json'
-                //         bat 'bunx electron-builder --config electron-builder.yml --win --x64 --arm64'
-                //     }
-                //     post {
-                //         success {
-                //             archiveArtifacts artifacts: 'release/*.exe,release/*.msi', fingerprint: true
-                //         }
-                //     }
-                // }
+                stage('Electron Windows') {
+                    agent { label 'windows' }
+                    steps {
+                        bat 'bun install --frozen-lockfile'
+                        unstash 'web-dist'
+                        bat 'bunx tsc -p electron/tsconfig.json'
+                        bat 'bunx electron-builder --config electron-builder.yml --win --x64 --arm64'
+                    }
+                    post {
+                        success {
+                            stash includes: 'release/*.exe,release/*.msi', name: 'electron-windows', allowEmpty: true
+                            archiveArtifacts artifacts: 'release/*.exe,release/*.msi', fingerprint: true
+                        }
+                    }
+                }
 
                 // ── Mobile: Android (debug APK, unsigned) ───────
                 stage('Android') {
@@ -198,6 +197,7 @@ pipeline {
                 script {
                     try { unstash 'electron-linux' } catch (e) { echo 'No Electron Linux artifacts' }
                     try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
+                    try { unstash 'electron-windows' } catch (e) { echo 'No Electron Windows artifacts' }
                     try { unstash 'android-apk' } catch (e) { echo 'No Android APK' }
                 }
                 // Deploy Worker + static assets to Cloudflare
