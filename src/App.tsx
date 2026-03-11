@@ -41,6 +41,12 @@ export function App() {
   const [showNewDoc, setShowNewDoc] = useState(false)
   const [showShareDialog, setShowShareDialog] = useState(false)
 
+  // All hooks must be called unconditionally (before any early returns)
+  const showPrototypePlayer = useEditorStore((s) => s.showPrototypePlayer)
+  const prototypeStartArtboardId = useEditorStore((s) => s.prototypeStartArtboardId)
+  const closePrototypePlayer = useEditorStore((s) => s.closePrototypePlayer)
+  const editorDocument = useEditorStore((s) => s.document)
+
   // On mount: try to restore last document, then show splash or editor
   useEffect(() => {
     if (hash === '#/download') return
@@ -137,11 +143,6 @@ export function App() {
       />
     )
   }
-
-  const showPrototypePlayer = useEditorStore((s) => s.showPrototypePlayer)
-  const prototypeStartArtboardId = useEditorStore((s) => s.prototypeStartArtboardId)
-  const closePrototypePlayer = useEditorStore((s) => s.closePrototypePlayer)
-  const editorDocument = useEditorStore((s) => s.document)
 
   if (boot === 'splash') {
     return <SplashScreen onReady={() => setBoot('editor')} />
