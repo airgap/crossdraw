@@ -330,11 +330,11 @@ describe('file-format-coverage: header constants', () => {
     expect(magic).toBe('DESIGN')
   })
 
-  test('version is 2', () => {
+  test('version is 3', () => {
     const doc = createMinimalDoc()
     const encoded = encodeDocument(doc)
     const view = new DataView(encoded)
-    expect(view.getUint32(6, true)).toBe(2)
+    expect(view.getUint32(6, true)).toBe(3)
   })
 
   test('flags byte is 0', () => {

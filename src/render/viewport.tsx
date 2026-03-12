@@ -2258,10 +2258,14 @@ export function Viewport() {
       onMouseUp={touchMode ? undefined : handleMouseUp}
       onMouseLeave={touchMode ? undefined : handleMouseLeave}
       onDoubleClick={touchMode ? undefined : handleDoubleClick}
-      onContextMenu={touchMode ? undefined : (e) => {
-        e.preventDefault()
-        openCanvasContextMenu(e.clientX, e.clientY)
-      }}
+      onContextMenu={
+        touchMode
+          ? undefined
+          : (e) => {
+              e.preventDefault()
+              openCanvasContextMenu(e.clientX, e.clientY)
+            }
+      }
     />
   )
 }
@@ -2870,9 +2874,7 @@ function renderRasterLayer(ctx: CanvasRenderingContext2D, layer: RasterLayer) {
 
 function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
   // Check if the group contains any filter or adjustment layers
-  const hasGroupFilters = group.children.some(
-    (c) => (c.type === 'adjustment' || c.type === 'filter') && c.visible,
-  )
+  const hasGroupFilters = group.children.some((c) => (c.type === 'adjustment' || c.type === 'filter') && c.visible)
 
   if (hasGroupFilters) {
     // Render group to an offscreen canvas so filter/adjustment layers can modify the composite
@@ -3308,9 +3310,13 @@ function applyFilterLayerToCanvas(
       case 'hue-sat': {
         const p = params as HueSatParams
         for (let i = 0; i < d.length; i += 4) {
-          const r = d[i]! / 255, g = d[i + 1]! / 255, b = d[i + 2]! / 255
-          const max = Math.max(r, g, b), min = Math.min(r, g, b)
-          let h = 0, s = 0
+          const r = d[i]! / 255,
+            g = d[i + 1]! / 255,
+            b = d[i + 2]! / 255
+          const max = Math.max(r, g, b),
+            min = Math.min(r, g, b)
+          let h = 0,
+            s = 0
           const l = (max + min) / 2
           if (max !== min) {
             const dd = max - min
@@ -3324,12 +3330,15 @@ function applyFilterLayerToCanvas(
           const nl = Math.max(0, Math.min(1, l + p.lightness / 100))
           if (ns === 0) {
             const v = Math.round(nl * 255)
-            d[i] = v; d[i + 1] = v; d[i + 2] = v
+            d[i] = v
+            d[i + 1] = v
+            d[i + 2] = v
           } else {
             const q = nl < 0.5 ? nl * (1 + ns) : nl + ns - nl * ns
             const pp = 2 * nl - q
             const hue2rgb = (t: number) => {
-              if (t < 0) t += 1; if (t > 1) t -= 1
+              if (t < 0) t += 1
+              if (t > 1) t -= 1
               if (t < 1 / 6) return pp + (q - pp) * 6 * t
               if (t < 1 / 2) return q
               if (t < 2 / 3) return pp + (q - pp) * (2 / 3 - t) * 6

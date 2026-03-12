@@ -1826,19 +1826,30 @@ function FilterLayerSection({
 
   return (
     <div style={sectionStyle}>
-      <div style={labelStyle}>{FILTER_KIND_LABELS[fp.kind] ?? fp.kind} Filter</div>
+      <div style={labelStyle}>{(fp.kind && FILTER_KIND_LABELS[fp.kind]) ?? fp.kind} Filter</div>
 
       {/* Blur */}
       {fp.kind === 'blur' && (
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Radius</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.radius ?? 4} onChange={(e) => updateFP({ radius: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.radius ?? 4}
+              onChange={(e) => updateFP({ radius: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.radius ?? 4}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Quality</span>
-            <select style={inputStyle} value={fp.quality ?? 'medium'} onChange={(e) => updateFP({ quality: e.target.value as 'low' | 'medium' | 'high' })}>
+            <select
+              style={inputStyle}
+              value={fp.quality ?? 'medium'}
+              onChange={(e) => updateFP({ quality: e.target.value as 'low' | 'medium' | 'high' })}
+            >
               <option value="low">Low</option>
               <option value="medium">Medium</option>
               <option value="high">High</option>
@@ -1852,18 +1863,42 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>X</span>
-            <input type="number" style={smallInputStyle} value={fp.offsetX ?? 4} onChange={(e) => updateFP({ offsetX: Number(e.target.value) })} />
+            <input
+              type="number"
+              style={smallInputStyle}
+              value={fp.offsetX ?? 4}
+              onChange={(e) => updateFP({ offsetX: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Y</span>
-            <input type="number" style={smallInputStyle} value={fp.offsetY ?? 4} onChange={(e) => updateFP({ offsetY: Number(e.target.value) })} />
+            <input
+              type="number"
+              style={smallInputStyle}
+              value={fp.offsetY ?? 4}
+              onChange={(e) => updateFP({ offsetY: Number(e.target.value) })}
+            />
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Blur</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.blurRadius ?? 8} onChange={(e) => updateFP({ blurRadius: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.blurRadius ?? 8}
+              onChange={(e) => updateFP({ blurRadius: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.blurRadius ?? 8}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Spread</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.spread ?? 0} onChange={(e) => updateFP({ spread: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.spread ?? 0}
+              onChange={(e) => updateFP({ spread: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.spread ?? 0}</span>
           </div>
           <div style={rowStyle}>
@@ -1872,8 +1907,17 @@ function FilterLayerSection({
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Opacity</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={Math.round((fp.opacity ?? 0.5) * 100)} onChange={(e) => updateFP({ opacity: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{Math.round((fp.opacity ?? 0.5) * 100)}%</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.opacity ?? 0.5) * 100)}
+              onChange={(e) => updateFP({ opacity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {Math.round((fp.opacity ?? 0.5) * 100)}%
+            </span>
           </div>
         </>
       )}
@@ -1883,13 +1927,30 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>X</span>
-            <input type="number" style={smallInputStyle} value={fp.offsetX ?? 2} onChange={(e) => updateFP({ offsetX: Number(e.target.value) })} />
+            <input
+              type="number"
+              style={smallInputStyle}
+              value={fp.offsetX ?? 2}
+              onChange={(e) => updateFP({ offsetX: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Y</span>
-            <input type="number" style={smallInputStyle} value={fp.offsetY ?? 2} onChange={(e) => updateFP({ offsetY: Number(e.target.value) })} />
+            <input
+              type="number"
+              style={smallInputStyle}
+              value={fp.offsetY ?? 2}
+              onChange={(e) => updateFP({ offsetY: Number(e.target.value) })}
+            />
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Blur</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.blurRadius ?? 4} onChange={(e) => updateFP({ blurRadius: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.blurRadius ?? 4}
+              onChange={(e) => updateFP({ blurRadius: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.blurRadius ?? 4}</span>
           </div>
           <div style={rowStyle}>
@@ -1898,8 +1959,17 @@ function FilterLayerSection({
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Opacity</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={Math.round((fp.opacity ?? 0.5) * 100)} onChange={(e) => updateFP({ opacity: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{Math.round((fp.opacity ?? 0.5) * 100)}%</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.opacity ?? 0.5) * 100)}
+              onChange={(e) => updateFP({ opacity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {Math.round((fp.opacity ?? 0.5) * 100)}%
+            </span>
           </div>
         </>
       )}
@@ -1909,22 +1979,45 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Radius</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.glowRadius ?? 8} onChange={(e) => updateFP({ glowRadius: Number(e.target.value) })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.glowRadius ?? 8}</span>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.radius ?? 8}
+              onChange={(e) => updateFP({ radius: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.radius ?? 8}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Spread</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.glowSpread ?? 0} onChange={(e) => updateFP({ glowSpread: Number(e.target.value) })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.glowSpread ?? 0}</span>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.spread ?? 0}
+              onChange={(e) => updateFP({ spread: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.spread ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Color</span>
-            <ColorSwatch color={fp.glowColor ?? '#ffffff'} onChange={(c) => updateFP({ glowColor: c })} />
+            <ColorSwatch color={fp.color ?? '#ffffff'} onChange={(c) => updateFP({ color: c })} />
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Opacity</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={Math.round((fp.glowOpacity ?? 0.75) * 100)} onChange={(e) => updateFP({ glowOpacity: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{Math.round((fp.glowOpacity ?? 0.75) * 100)}%</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.opacity ?? 0.75) * 100)}
+              onChange={(e) => updateFP({ opacity: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {Math.round((fp.opacity ?? 0.75) * 100)}%
+            </span>
           </div>
         </>
       )}
@@ -1933,8 +2026,15 @@ function FilterLayerSection({
       {fp.kind === 'background-blur' && (
         <div style={rowStyle}>
           <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Radius</span>
-          <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.bgBlurRadius ?? 10} onChange={(e) => updateFP({ bgBlurRadius: Number(e.target.value) })} />
-          <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.bgBlurRadius ?? 10}</span>
+          <input
+            type="range"
+            min="0"
+            max="50"
+            style={{ flex: 1 }}
+            value={fp.radius ?? 10}
+            onChange={(e) => updateFP({ radius: Number(e.target.value) })}
+          />
+          <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.radius ?? 10}</span>
         </div>
       )}
 
@@ -1943,24 +2043,49 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Dir</span>
-            <select style={inputStyle} value={fp.direction ?? 'linear'} onChange={(e) => updateFP({ direction: e.target.value as 'linear' | 'radial' })}>
+            <select
+              style={inputStyle}
+              value={fp.direction ?? 'linear'}
+              onChange={(e) => updateFP({ direction: e.target.value as 'linear' | 'radial' })}
+            >
               <option value="linear">Linear</option>
               <option value="radial">Radial</option>
             </select>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Angle</span>
-            <input type="range" min="0" max="360" style={{ flex: 1 }} value={fp.angle ?? 0} onChange={(e) => updateFP({ angle: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="360"
+              style={{ flex: 1 }}
+              value={fp.angle ?? 0}
+              onChange={(e) => updateFP({ angle: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.angle ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Start R</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.startRadius ?? 0} onChange={(e) => updateFP({ startRadius: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.startRadius ?? 0}
+              onChange={(e) => updateFP({ startRadius: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.startRadius ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>End R</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.endRadius ?? 20} onChange={(e) => updateFP({ endRadius: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.endRadius ?? 20}
+              onChange={(e) => updateFP({ endRadius: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.endRadius ?? 20}</span>
           </div>
         </>
@@ -1971,7 +2096,11 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Type</span>
-            <select style={inputStyle} value={fp.noiseType ?? 'gaussian'} onChange={(e) => updateFP({ noiseType: e.target.value as 'gaussian' | 'uniform' | 'film-grain' })}>
+            <select
+              style={inputStyle}
+              value={fp.noiseType ?? 'gaussian'}
+              onChange={(e) => updateFP({ noiseType: e.target.value as 'gaussian' | 'uniform' | 'film-grain' })}
+            >
               <option value="gaussian">Gaussian</option>
               <option value="uniform">Uniform</option>
               <option value="film-grain">Film Grain</option>
@@ -1979,12 +2108,23 @@ function FilterLayerSection({
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={fp.amount ?? 25} onChange={(e) => updateFP({ amount: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.amount ?? 25}
+              onChange={(e) => updateFP({ amount: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.amount ?? 25}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Mono</span>
-            <input type="checkbox" checked={fp.monochrome ?? false} onChange={(e) => updateFP({ monochrome: e.target.checked })} />
+            <input
+              type="checkbox"
+              checked={fp.monochrome ?? false}
+              onChange={(e) => updateFP({ monochrome: e.target.checked })}
+            />
           </div>
         </>
       )}
@@ -1994,17 +2134,41 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
-            <input type="range" min="0" max="500" step="10" style={{ flex: 1 }} value={Math.round((fp.sharpenAmount ?? 1.5) * 100)} onChange={(e) => updateFP({ sharpenAmount: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.sharpenAmount ?? 1.5).toFixed(1)}</span>
+            <input
+              type="range"
+              min="0"
+              max="500"
+              step="10"
+              style={{ flex: 1 }}
+              value={Math.round((fp.amount ?? 1.5) * 100)}
+              onChange={(e) => updateFP({ amount: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.amount ?? 1.5).toFixed(1)}
+            </span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Radius</span>
-            <input type="range" min="0" max="10" style={{ flex: 1 }} value={fp.sharpenRadius ?? 1} onChange={(e) => updateFP({ sharpenRadius: Number(e.target.value) })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.sharpenRadius ?? 1}</span>
+            <input
+              type="range"
+              min="0"
+              max="10"
+              style={{ flex: 1 }}
+              value={fp.radius ?? 1}
+              onChange={(e) => updateFP({ radius: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.radius ?? 1}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Thresh</span>
-            <input type="range" min="0" max="255" style={{ flex: 1 }} value={fp.threshold ?? 0} onChange={(e) => updateFP({ threshold: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="255"
+              style={{ flex: 1 }}
+              value={fp.threshold ?? 0}
+              onChange={(e) => updateFP({ threshold: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.threshold ?? 0}</span>
           </div>
         </>
@@ -2015,12 +2179,26 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Angle</span>
-            <input type="range" min="0" max="360" style={{ flex: 1 }} value={fp.motionAngle ?? 0} onChange={(e) => updateFP({ motionAngle: Number(e.target.value) })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.motionAngle ?? 0}</span>
+            <input
+              type="range"
+              min="0"
+              max="360"
+              style={{ flex: 1 }}
+              value={fp.angle ?? 0}
+              onChange={(e) => updateFP({ angle: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.angle ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Dist</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.distance ?? 10} onChange={(e) => updateFP({ distance: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.distance ?? 10}
+              onChange={(e) => updateFP({ distance: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.distance ?? 10}</span>
           </div>
         </>
@@ -2031,18 +2209,43 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>CX</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={Math.round((fp.centerX ?? 0.5) * 100)} onChange={(e) => updateFP({ centerX: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.centerX ?? 0.5).toFixed(2)}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.centerX ?? 0.5) * 100)}
+              onChange={(e) => updateFP({ centerX: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.centerX ?? 0.5).toFixed(2)}
+            </span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>CY</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={Math.round((fp.centerY ?? 0.5) * 100)} onChange={(e) => updateFP({ centerY: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.centerY ?? 0.5).toFixed(2)}</span>
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.centerY ?? 0.5) * 100)}
+              onChange={(e) => updateFP({ centerY: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.centerY ?? 0.5).toFixed(2)}
+            </span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
-            <input type="range" min="0" max="50" style={{ flex: 1 }} value={fp.radialAmount ?? 10} onChange={(e) => updateFP({ radialAmount: Number(e.target.value) })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.radialAmount ?? 10}</span>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              style={{ flex: 1 }}
+              value={fp.amount ?? 10}
+              onChange={(e) => updateFP({ amount: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.amount ?? 10}</span>
           </div>
         </>
       )}
@@ -2052,7 +2255,11 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Type</span>
-            <select style={inputStyle} value={fp.adjustType ?? 'posterize'} onChange={(e) => updateFP({ adjustType: e.target.value as any })}>
+            <select
+              style={inputStyle}
+              value={fp.adjustType ?? 'posterize'}
+              onChange={(e) => updateFP({ adjustType: e.target.value as any })}
+            >
               <option value="posterize">Posterize</option>
               <option value="threshold">Threshold</option>
               <option value="invert">Invert</option>
@@ -2064,22 +2271,47 @@ function FilterLayerSection({
           {fp.adjustType === 'posterize' && (
             <div style={rowStyle}>
               <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Levels</span>
-              <input type="range" min="2" max="32" style={{ flex: 1 }} value={fp.levels ?? 4} onChange={(e) => updateFP({ levels: Number(e.target.value) })} />
+              <input
+                type="range"
+                min="2"
+                max="32"
+                style={{ flex: 1 }}
+                value={fp.levels ?? 4}
+                onChange={(e) => updateFP({ levels: Number(e.target.value) })}
+              />
               <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.levels ?? 4}</span>
             </div>
           )}
           {fp.adjustType === 'threshold' && (
             <div style={rowStyle}>
               <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Value</span>
-              <input type="range" min="0" max="255" style={{ flex: 1 }} value={fp.thresholdValue ?? 128} onChange={(e) => updateFP({ thresholdValue: Number(e.target.value) })} />
-              <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.thresholdValue ?? 128}</span>
+              <input
+                type="range"
+                min="0"
+                max="255"
+                style={{ flex: 1 }}
+                value={fp.thresholdValue ?? 128}
+                onChange={(e) => updateFP({ thresholdValue: Number(e.target.value) })}
+              />
+              <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                {fp.thresholdValue ?? 128}
+              </span>
             </div>
           )}
           {fp.adjustType === 'vibrance' && (
             <div style={rowStyle}>
               <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
-              <input type="range" min="0" max="100" style={{ flex: 1 }} value={fp.vibranceAmount ?? 50} onChange={(e) => updateFP({ vibranceAmount: Number(e.target.value) })} />
-              <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.vibranceAmount ?? 50}</span>
+              <input
+                type="range"
+                min="0"
+                max="100"
+                style={{ flex: 1 }}
+                value={fp.vibranceAmount ?? 50}
+                onChange={(e) => updateFP({ vibranceAmount: Number(e.target.value) })}
+              />
+              <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>
+                {fp.vibranceAmount ?? 50}
+              </span>
             </div>
           )}
         </>
@@ -2090,23 +2322,55 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amp X</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={fp.amplitudeX ?? 10} onChange={(e) => updateFP({ amplitudeX: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.amplitudeX ?? 10}
+              onChange={(e) => updateFP({ amplitudeX: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.amplitudeX ?? 10}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amp Y</span>
-            <input type="range" min="0" max="100" style={{ flex: 1 }} value={fp.amplitudeY ?? 10} onChange={(e) => updateFP({ amplitudeY: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.amplitudeY ?? 10}
+              onChange={(e) => updateFP({ amplitudeY: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.amplitudeY ?? 10}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Freq X</span>
-            <input type="range" min="1" max="100" style={{ flex: 1 }} value={Math.round((fp.frequencyX ?? 0.05) * 1000)} onChange={(e) => updateFP({ frequencyX: Number(e.target.value) / 1000 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.frequencyX ?? 0.05).toFixed(3)}</span>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.frequencyX ?? 0.05) * 1000)}
+              onChange={(e) => updateFP({ frequencyX: Number(e.target.value) / 1000 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.frequencyX ?? 0.05).toFixed(3)}
+            </span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Freq Y</span>
-            <input type="range" min="1" max="100" style={{ flex: 1 }} value={Math.round((fp.frequencyY ?? 0.05) * 1000)} onChange={(e) => updateFP({ frequencyY: Number(e.target.value) / 1000 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.frequencyY ?? 0.05).toFixed(3)}</span>
+            <input
+              type="range"
+              min="1"
+              max="100"
+              style={{ flex: 1 }}
+              value={Math.round((fp.frequencyY ?? 0.05) * 1000)}
+              onChange={(e) => updateFP({ frequencyY: Number(e.target.value) / 1000 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.frequencyY ?? 0.05).toFixed(3)}
+            </span>
           </div>
         </>
       )}
@@ -2116,13 +2380,29 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Angle</span>
-            <input type="range" min="0" max="628" style={{ flex: 1 }} value={Math.round((fp.twirlAngle ?? Math.PI / 2) * 100)} onChange={(e) => updateFP({ twirlAngle: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.twirlAngle ?? Math.PI / 2).toFixed(2)}</span>
+            <input
+              type="range"
+              min="0"
+              max="628"
+              style={{ flex: 1 }}
+              value={Math.round((fp.angle ?? Math.PI / 2) * 100)}
+              onChange={(e) => updateFP({ angle: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.angle ?? Math.PI / 2).toFixed(2)}
+            </span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Radius</span>
-            <input type="range" min="0" max="500" style={{ flex: 1 }} value={fp.twirlRadius ?? 0} onChange={(e) => updateFP({ twirlRadius: Number(e.target.value) })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.twirlRadius ?? 0}</span>
+            <input
+              type="range"
+              min="0"
+              max="500"
+              style={{ flex: 1 }}
+              value={fp.radius ?? 0}
+              onChange={(e) => updateFP({ radius: Number(e.target.value) })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.radius ?? 0}</span>
           </div>
         </>
       )}
@@ -2131,8 +2411,17 @@ function FilterLayerSection({
       {fp.kind === 'pinch' && (
         <div style={rowStyle}>
           <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
-          <input type="range" min="-100" max="100" style={{ flex: 1 }} value={Math.round((fp.pinchAmount ?? 0.5) * 100)} onChange={(e) => updateFP({ pinchAmount: Number(e.target.value) / 100 })} />
-          <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.pinchAmount ?? 0.5).toFixed(2)}</span>
+          <input
+            type="range"
+            min="-100"
+            max="100"
+            style={{ flex: 1 }}
+            value={Math.round((fp.amount ?? 0.5) * 100)}
+            onChange={(e) => updateFP({ amount: Number(e.target.value) / 100 })}
+          />
+          <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+            {(fp.amount ?? 0.5).toFixed(2)}
+          </span>
         </div>
       )}
 
@@ -2140,8 +2429,17 @@ function FilterLayerSection({
       {fp.kind === 'spherize' && (
         <div style={rowStyle}>
           <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Amount</span>
-          <input type="range" min="0" max="200" style={{ flex: 1 }} value={Math.round((fp.spherizeAmount ?? 1) * 100)} onChange={(e) => updateFP({ spherizeAmount: Number(e.target.value) / 100 })} />
-          <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.spherizeAmount ?? 1).toFixed(2)}</span>
+          <input
+            type="range"
+            min="0"
+            max="200"
+            style={{ flex: 1 }}
+            value={Math.round((fp.amount ?? 1) * 100)}
+            onChange={(e) => updateFP({ amount: Number(e.target.value) / 100 })}
+          />
+          <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+            {(fp.amount ?? 1).toFixed(2)}
+          </span>
         </div>
       )}
 
@@ -2150,18 +2448,41 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Black</span>
-            <input type="range" min="0" max="254" style={{ flex: 1 }} value={fp.blackPoint ?? 0} onChange={(e) => updateFP({ blackPoint: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="0"
+              max="254"
+              style={{ flex: 1 }}
+              value={fp.blackPoint ?? 0}
+              onChange={(e) => updateFP({ blackPoint: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.blackPoint ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>White</span>
-            <input type="range" min="1" max="255" style={{ flex: 1 }} value={fp.whitePoint ?? 255} onChange={(e) => updateFP({ whitePoint: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="1"
+              max="255"
+              style={{ flex: 1 }}
+              value={fp.whitePoint ?? 255}
+              onChange={(e) => updateFP({ whitePoint: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 24, textAlign: 'right' }}>{fp.whitePoint ?? 255}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Gamma</span>
-            <input type="range" min="10" max="300" style={{ flex: 1 }} value={Math.round((fp.gamma ?? 1.0) * 100)} onChange={(e) => updateFP({ gamma: Number(e.target.value) / 100 })} />
-            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{(fp.gamma ?? 1.0).toFixed(2)}</span>
+            <input
+              type="range"
+              min="10"
+              max="300"
+              style={{ flex: 1 }}
+              value={Math.round((fp.gamma ?? 1.0) * 100)}
+              onChange={(e) => updateFP({ gamma: Number(e.target.value) / 100 })}
+            />
+            <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
+              {(fp.gamma ?? 1.0).toFixed(2)}
+            </span>
           </div>
         </>
       )}
@@ -2169,20 +2490,55 @@ function FilterLayerSection({
       {/* Adjustment: Curves */}
       {fp.kind === 'curves' && (
         <>
-          {(fp.curvePoints ?? [[0, 0], [128, 128], [255, 255]]).map(([input, output], i) => (
+          {(
+            fp.points ??
+            ([
+              [0, 0],
+              [128, 128],
+              [255, 255],
+            ] as [number, number][])
+          ).map(([input, output]: [number, number], i: number) => (
             <div key={i} style={rowStyle}>
               <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>In</span>
-              <input type="number" min="0" max="255" style={smallInputStyle} value={input} onChange={(e) => {
-                const pts = (fp.curvePoints ?? [[0, 0], [128, 128], [255, 255]]).map((p) => [...p] as [number, number])
-                pts[i] = [Number(e.target.value), pts[i]![1]]
-                updateFP({ curvePoints: pts })
-              }} />
+              <input
+                type="number"
+                min="0"
+                max="255"
+                style={smallInputStyle}
+                value={input}
+                onChange={(e) => {
+                  const pts = (
+                    fp.points ??
+                    ([
+                      [0, 0],
+                      [128, 128],
+                      [255, 255],
+                    ] as [number, number][])
+                  ).map((p: [number, number]) => [...p] as [number, number])
+                  pts[i] = [Number(e.target.value), pts[i]![1]]
+                  updateFP({ points: pts })
+                }}
+              />
               <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 20 }}>Out</span>
-              <input type="number" min="0" max="255" style={smallInputStyle} value={output} onChange={(e) => {
-                const pts = (fp.curvePoints ?? [[0, 0], [128, 128], [255, 255]]).map((p) => [...p] as [number, number])
-                pts[i] = [pts[i]![0], Number(e.target.value)]
-                updateFP({ curvePoints: pts })
-              }} />
+              <input
+                type="number"
+                min="0"
+                max="255"
+                style={smallInputStyle}
+                value={output}
+                onChange={(e) => {
+                  const pts = (
+                    fp.points ??
+                    ([
+                      [0, 0],
+                      [128, 128],
+                      [255, 255],
+                    ] as [number, number][])
+                  ).map((p: [number, number]) => [...p] as [number, number])
+                  pts[i] = [pts[i]![0], Number(e.target.value)]
+                  updateFP({ points: pts })
+                }}
+              />
             </div>
           ))}
         </>
@@ -2193,17 +2549,38 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Hue</span>
-            <input type="range" min="-180" max="180" style={{ flex: 1 }} value={fp.hue ?? 0} onChange={(e) => updateFP({ hue: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="-180"
+              max="180"
+              style={{ flex: 1 }}
+              value={fp.hue ?? 0}
+              onChange={(e) => updateFP({ hue: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.hue ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Sat</span>
-            <input type="range" min="-100" max="100" style={{ flex: 1 }} value={fp.saturation ?? 0} onChange={(e) => updateFP({ saturation: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.saturation ?? 0}
+              onChange={(e) => updateFP({ saturation: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.saturation ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Light</span>
-            <input type="range" min="-100" max="100" style={{ flex: 1 }} value={fp.lightness ?? 0} onChange={(e) => updateFP({ lightness: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.lightness ?? 0}
+              onChange={(e) => updateFP({ lightness: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.lightness ?? 0}</span>
           </div>
         </>
@@ -2214,17 +2591,38 @@ function FilterLayerSection({
         <>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Shadows</span>
-            <input type="range" min="-100" max="100" style={{ flex: 1 }} value={fp.shadows ?? 0} onChange={(e) => updateFP({ shadows: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.shadows ?? 0}
+              onChange={(e) => updateFP({ shadows: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.shadows ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Mids</span>
-            <input type="range" min="-100" max="100" style={{ flex: 1 }} value={fp.midtones ?? 0} onChange={(e) => updateFP({ midtones: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.midtones ?? 0}
+              onChange={(e) => updateFP({ midtones: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.midtones ?? 0}</span>
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 48 }}>Highs</span>
-            <input type="range" min="-100" max="100" style={{ flex: 1 }} value={fp.highlights ?? 0} onChange={(e) => updateFP({ highlights: Number(e.target.value) })} />
+            <input
+              type="range"
+              min="-100"
+              max="100"
+              style={{ flex: 1 }}
+              value={fp.highlights ?? 0}
+              onChange={(e) => updateFP({ highlights: Number(e.target.value) })}
+            />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>{fp.highlights ?? 0}</span>
           </div>
         </>
@@ -2443,7 +2841,7 @@ function EffectsSection({
   updateEffect,
 }: {
   artboardId: string
-  layer: { id: string; effects: Effect[] }
+  layer: { id: string; effects?: Effect[] }
   addEffect: (a: string, l: string, e: Effect) => void
   removeEffect: (a: string, l: string, eId: string) => void
   updateEffect: (a: string, l: string, eId: string, u: Partial<Effect>) => void
@@ -2571,7 +2969,7 @@ function EffectsSection({
           </button>
         </div>
       </div>
-      {layer.effects.map((effect) => (
+      {(layer.effects ?? []).map((effect) => (
         <div key={effect.id} style={{ marginTop: 4, padding: 4, background: '#222', borderRadius: 3, fontSize: 11 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
             <label style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#ccc' }}>

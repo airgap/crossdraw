@@ -146,7 +146,14 @@ export interface Artboard {
   perspectiveGrid?: PerspectiveConfig
 }
 
-export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | FilterLayer | TextLayer | SymbolInstanceLayer
+export type Layer =
+  | VectorLayer
+  | RasterLayer
+  | GroupLayer
+  | AdjustmentLayer
+  | FilterLayer
+  | TextLayer
+  | SymbolInstanceLayer
 
 export interface BaseLayer {
   id: string

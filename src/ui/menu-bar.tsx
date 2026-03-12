@@ -1069,17 +1069,17 @@ function buildMenus(): MenuDef[] {
         label: 'Outer Glow\u2026',
         action: () =>
           addFilterLayerToArtboard('glow', {
-            glowRadius: 8,
-            glowSpread: 0,
-            glowColor: '#ffffff',
-            glowOpacity: 0.75,
+            radius: 8,
+            spread: 0,
+            color: '#ffffff',
+            opacity: 0.75,
           }),
         disabled: false,
       },
       { label: '', divider: true },
       {
         label: 'Background Blur\u2026',
-        action: () => addFilterLayerToArtboard('background-blur', { bgBlurRadius: 10 }),
+        action: () => addFilterLayerToArtboard('background-blur', { radius: 10 }),
         disabled: false,
       },
       {
@@ -1172,15 +1172,15 @@ function buildMenus(): MenuDef[] {
           },
           {
             label: 'Twirl',
-            action: () => addFilterLayerToArtboard('twirl', { twirlAngle: Math.PI / 2, twirlRadius: 0 }),
+            action: () => addFilterLayerToArtboard('twirl', { angle: Math.PI / 2, radius: 0 }),
           },
           {
             label: 'Pinch/Bulge',
-            action: () => addFilterLayerToArtboard('pinch', { pinchAmount: 0.5 }),
+            action: () => addFilterLayerToArtboard('pinch', { amount: 0.5 }),
           },
           {
             label: 'Spherize',
-            action: () => addFilterLayerToArtboard('spherize', { spherizeAmount: 1 }),
+            action: () => addFilterLayerToArtboard('spherize', { amount: 1 }),
           },
         ],
       },
@@ -1189,13 +1189,11 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Sharpen',
-            action: () =>
-              addFilterLayerToArtboard('sharpen', { sharpenAmount: 1.5, sharpenRadius: 1, threshold: 0 }),
+            action: () => addFilterLayerToArtboard('sharpen', { amount: 1.5, radius: 1, threshold: 0 }),
           },
           {
             label: 'Unsharp Mask',
-            action: () =>
-              addFilterLayerToArtboard('sharpen', { sharpenAmount: 0.8, sharpenRadius: 2, threshold: 4 }),
+            action: () => addFilterLayerToArtboard('sharpen', { amount: 0.8, radius: 2, threshold: 4 }),
           },
         ],
       },
@@ -1204,11 +1202,11 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Motion Blur',
-            action: () => addFilterLayerToArtboard('motion-blur', { motionAngle: 0, distance: 10 }),
+            action: () => addFilterLayerToArtboard('motion-blur', { angle: 0, distance: 10 }),
           },
           {
             label: 'Radial Blur',
-            action: () => addFilterLayerToArtboard('radial-blur', { centerX: 0.5, centerY: 0.5, radialAmount: 10 }),
+            action: () => addFilterLayerToArtboard('radial-blur', { centerX: 0.5, centerY: 0.5, amount: 10 }),
           },
         ],
       },
@@ -1223,7 +1221,7 @@ function buildMenus(): MenuDef[] {
             label: 'Curves',
             action: () =>
               addFilterLayerToArtboard('curves', {
-                curvePoints: [
+                points: [
                   [0, 0],
                   [128, 128],
                   [255, 255],

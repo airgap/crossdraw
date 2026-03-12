@@ -1123,7 +1123,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         blur: { kind: 'blur', radius: 4, quality: 'medium' },
         shadow: { kind: 'shadow', offsetX: 4, offsetY: 4, blurRadius: 8, spread: 0, color: '#00000088', opacity: 0.5 },
         glow: { kind: 'glow', radius: 8, spread: 0, color: '#ffcc0088', opacity: 0.8 },
-        'inner-shadow': { kind: 'inner-shadow', offsetX: 2, offsetY: 2, blurRadius: 6, color: '#00000088', opacity: 0.5 },
+        'inner-shadow': {
+          kind: 'inner-shadow',
+          offsetX: 2,
+          offsetY: 2,
+          blurRadius: 6,
+          color: '#00000088',
+          opacity: 0.5,
+        },
         'background-blur': { kind: 'background-blur', radius: 10 },
         'progressive-blur': {
           kind: 'progressive-blur',
@@ -1149,7 +1156,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const defaults = filterDefaults[filterKind]
       if (!defaults) return
 
-      const filterParams: FilterParams = customParams ? { ...defaults, ...customParams } as FilterParams : defaults
+      const filterParams: FilterParams = customParams ? ({ ...defaults, ...customParams } as FilterParams) : defaults
       const layer: FilterLayer = {
         id: uuid(),
         name: `${filterKind} filter`,
