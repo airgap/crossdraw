@@ -157,6 +157,8 @@ export interface BaseLayer {
   transform: Transform
   effects: Effect[]
   mask?: Layer
+  /** Mask type: 'vector' uses path clipping (default), 'alpha' uses luminance as alpha. */
+  maskType?: 'vector' | 'alpha'
   constraints?: {
     horizontal: 'left' | 'right' | 'left-right' | 'center' | 'scale'
     vertical: 'top' | 'bottom' | 'top-bottom' | 'center' | 'scale'
@@ -383,6 +385,14 @@ export interface TextLayer extends BaseLayer {
   textHeight?: number
   /** OpenType feature settings. Keys are 4-character OT tags (e.g. 'liga', 'smcp', 'onum'). */
   openTypeFeatures?: Record<string, boolean>
+  /** Text orientation: 'horizontal' (default) or 'vertical' (top-to-bottom). */
+  textOrientation?: 'horizontal' | 'vertical'
+  /** Number of text columns (default 1). Only applies to area text. */
+  columns?: number
+  /** Gap between text columns in pixels (default 16). */
+  columnGap?: number
+  /** Optical margin alignment: hangs punctuation outside the text box margins. */
+  opticalMarginAlignment?: boolean
 }
 
 export interface CharacterStyleRange {

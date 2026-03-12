@@ -38,7 +38,11 @@ const lazyImport = {
   applyBgRemoval: () => import('@/filters/apply-background-removal'),
   lottieExport: () => import('@/io/lottie-export'),
   repeater: () => import('@/tools/repeater'),
+  pathOps: () => import('@/tools/path-ops'),
   aiService: () => import('@/ai/ai-service'),
+  selectionFilters: () => import('@/tools/selection-filters'),
+  compoundPaths: () => import('@/tools/compound-paths'),
+  clippingMask: () => import('@/tools/clipping-mask'),
 }
 
 // ── Menu data types ──
@@ -565,6 +569,60 @@ function buildMenus(): MenuDef[] {
       },
       { label: '', divider: true },
       {
+        label: 'Select Same',
+        submenu: [
+          {
+            label: 'Same Fill Color',
+            action: async () => {
+              const m = await lazyImport.selectionFilters()
+              m.selectSame('fill')
+            },
+            disabled: () => store().selection.layerIds.length === 0,
+          },
+          {
+            label: 'Same Stroke Color',
+            action: async () => {
+              const m = await lazyImport.selectionFilters()
+              m.selectSame('stroke')
+            },
+            disabled: () => store().selection.layerIds.length === 0,
+          },
+          {
+            label: 'Same Stroke Width',
+            action: async () => {
+              const m = await lazyImport.selectionFilters()
+              m.selectSame('strokeWidth')
+            },
+            disabled: () => store().selection.layerIds.length === 0,
+          },
+          {
+            label: 'Same Font',
+            action: async () => {
+              const m = await lazyImport.selectionFilters()
+              m.selectSame('font')
+            },
+            disabled: () => store().selection.layerIds.length === 0,
+          },
+          {
+            label: 'Same Effect Type',
+            action: async () => {
+              const m = await lazyImport.selectionFilters()
+              m.selectSame('effectType')
+            },
+            disabled: () => store().selection.layerIds.length === 0,
+          },
+        ],
+      },
+      {
+        label: 'Select Inverse',
+        shortcut: 'Ctrl+Shift+I',
+        action: async () => {
+          const m = await lazyImport.selectionFilters()
+          m.selectInverse()
+        },
+      },
+      { label: '', divider: true },
+      {
         label: 'Copy Style',
         shortcut: 'Ctrl+Alt+C',
         action: () => copyStyle(),
@@ -918,6 +976,29 @@ function buildMenus(): MenuDef[] {
       {
         label: 'Align Right',
         action: () => updateSelectedText({ textAlign: 'right' }),
+        disabled: () => !hasSelectedText(),
+      },
+      { label: '', divider: true },
+      {
+        label: 'Vertical Text',
+        action: () => {
+          const tl = getSelectedTextLayer()
+          if (!tl) return
+          updateSelectedText({
+            textOrientation: tl.textOrientation === 'vertical' ? 'horizontal' : 'vertical',
+          })
+        },
+        disabled: () => !hasSelectedText(),
+      },
+      {
+        label: 'Optical Margins',
+        action: () => {
+          const tl = getSelectedTextLayer()
+          if (!tl) return
+          updateSelectedText({
+            opticalMarginAlignment: !tl.opticalMarginAlignment,
+          })
+        },
         disabled: () => !hasSelectedText(),
       },
     ],
@@ -1390,9 +1471,146 @@ function buildMenus(): MenuDef[] {
       },
       { label: '', divider: true },
       {
+        label: 'Offset Path\u2026',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const deltaStr = prompt('Offset amount in pixels (positive = expand, negative = contract):', '10')
+          if (!deltaStr) return
+          const delta = parseFloat(deltaStr)
+          if (isNaN(delta)) return
+          const m = await lazyImport.booleanOps()
+          m.offsetPath(artboard.id, layerId, delta)
+        },
+        disabled: () => !hasSelectedVector(),
+      },
+      {
+        label: 'Expand Stroke',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const m = await lazyImport.booleanOps()
+          m.expandStroke(artboard.id, layerId)
+        },
+        disabled: () => !hasSelectedVector(),
+      },
+      {
+        label: 'Simplify Path',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const m = await lazyImport.booleanOps()
+          m.simplifyPath(artboard.id, layerId)
+        },
+        disabled: () => !hasSelectedVector(),
+      },
+      {
+        label: 'Flatten Curves',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const m = await lazyImport.pathOps()
+          m.flattenCurves(artboard.id, layerId)
+        },
+        disabled: () => !hasSelectedVector(),
+      },
+      {
+        label: 'Join Paths',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length < 2) return
+          const m = await lazyImport.pathOps()
+          m.joinPaths(artboard.id, s.selection.layerIds)
+        },
+        disabled: () => {
+          const s = store()
+          if (s.selection.layerIds.length < 2) return true
+          const artboard = s.document.artboards[0]
+          if (!artboard) return true
+          const vectorCount = s.selection.layerIds.filter((id) => {
+            const l = artboard.layers.find((la) => la.id === id)
+            return l?.type === 'vector'
+          }).length
+          return vectorCount < 2
+        },
+      },
+      {
+        label: 'Break at Intersections',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length < 2) return
+          const m = await lazyImport.pathOps()
+          m.breakAtIntersections(artboard.id, s.selection.layerIds)
+        },
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      { label: '', divider: true },
+      {
         label: 'Shape Builder Tool',
         shortcut: 'Shift+M',
         action: () => store().setActiveTool('shape-builder'),
+      },
+      { label: '', divider: true },
+      {
+        label: 'Make Compound Path',
+        shortcut: 'Ctrl+8',
+        action: async () => {
+          const m = await lazyImport.compoundPaths()
+          m.makeCompoundPath()
+        },
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Release Compound Path',
+        shortcut: 'Ctrl+Shift+8',
+        action: async () => {
+          const m = await lazyImport.compoundPaths()
+          m.releaseCompoundPath()
+        },
+        disabled: () => {
+          const s = store()
+          if (s.selection.layerIds.length !== 1) return true
+          const artboard = s.document.artboards[0]
+          if (!artboard) return true
+          const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
+          return !layer || layer.type !== 'vector' || (layer as import('@/types').VectorLayer).paths.length < 2
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Make Clipping Mask',
+        shortcut: 'Ctrl+7',
+        action: async () => {
+          const m = await lazyImport.clippingMask()
+          m.makeClippingMask()
+        },
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Release Clipping Mask',
+        shortcut: 'Ctrl+Shift+7',
+        action: async () => {
+          const m = await lazyImport.clippingMask()
+          m.releaseClippingMask()
+        },
+        disabled: () => {
+          const s = store()
+          if (s.selection.layerIds.length !== 1) return true
+          const artboard = s.document.artboards[0]
+          if (!artboard) return true
+          const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
+          return !layer || !layer.mask
+        },
       },
       { label: '', divider: true },
       {

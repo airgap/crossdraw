@@ -95,6 +95,9 @@ export interface EditorState {
     | 'clone-stamp'
     | 'comment'
     | 'shape-builder'
+    | 'curvature-pen'
+    | 'spiral'
+    | 'width'
   selectedCommentId: string | null
   showRulers: boolean
   showGrid: boolean

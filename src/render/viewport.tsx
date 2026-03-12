@@ -103,6 +103,9 @@ import {
   getCloneSource,
   getCloneStampSettings,
 } from '@/tools/clone-stamp'
+import { curvaturePenMouseDown, curvaturePenMouseMove, curvaturePenKeyDown } from '@/tools/curvature-pen'
+import { spiralMouseDown, spiralMouseDrag, spiralMouseUp, isSpiralDragging } from '@/tools/spiral'
+import { widthToolMouseDown, widthToolMouseDrag, widthToolMouseUp, isWidthToolDragging } from '@/tools/width-tool'
 import type {
   VectorLayer,
   RasterLayer,
@@ -959,6 +962,9 @@ export function Viewport() {
       if (activeTool === 'pen') {
         penKeyDown(e)
       }
+      if (activeTool === 'curvature-pen') {
+        curvaturePenKeyDown(e.key)
+      }
       if (activeTool === 'node' && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault()
         deleteSelectedNodes()
@@ -1487,6 +1493,48 @@ export function Viewport() {
       return
     }
 
+    // Curvature Pen tool
+    if (activeTool === 'curvature-pen') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        curvaturePenMouseDown(docPoint.x, docPoint.y, artboard.id, artboard.x, artboard.y, e.shiftKey, false)
+        render()
+      }
+      return
+    }
+
+    // Spiral tool
+    if (activeTool === 'spiral') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        spiralMouseDown(docPoint.x, docPoint.y, artboard.id, artboard.x, artboard.y)
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Width tool
+    if (activeTool === 'width') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        widthToolMouseDown(docPoint.x, docPoint.y, viewport.zoom, artboard.id, artboard.x, artboard.y)
+        isDragging.current = true
+      }
+      return
+    }
+
     // Artboard tool
     if (activeTool === 'artboard') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1786,6 +1834,22 @@ export function Viewport() {
       return
     }
 
+    // Spiral tool drag
+    if (activeTool === 'spiral' && isDragging.current && isSpiralDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      spiralMouseDrag(docPoint.x, docPoint.y)
+      render()
+      return
+    }
+
+    // Width tool drag
+    if (activeTool === 'width' && isDragging.current && isWidthToolDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      widthToolMouseDrag(docPoint.x, docPoint.y)
+      render()
+      return
+    }
+
     // Artboard tool drag
     if (activeTool === 'artboard' && isDragging.current && isArtboardDragging()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1826,6 +1890,13 @@ export function Viewport() {
         penMouseMove(e.nativeEvent, rect)
         render() // live preview line/curve during hover
       }
+    }
+
+    // Curvature Pen tool hover preview
+    if (activeTool === 'curvature-pen') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      curvaturePenMouseMove(docPoint.x, docPoint.y)
+      render()
     }
 
     // Eyedropper hover tracking for loupe
@@ -2021,6 +2092,22 @@ export function Viewport() {
       return
     }
 
+    // Spiral tool
+    if (isSpiralDragging()) {
+      spiralMouseUp()
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Width tool
+    if (isWidthToolDragging()) {
+      widthToolMouseUp()
+      isDragging.current = false
+      render()
+      return
+    }
+
     // Artboard tool
     if (isArtboardDragging()) {
       endArtboardDrag(mouseDocPos.current.x, mouseDocPos.current.y)
@@ -2081,6 +2168,19 @@ export function Viewport() {
       }
     }
 
+    // Curvature Pen double-click → place corner point
+    if (activeTool === 'curvature-pen') {
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        curvaturePenMouseDown(docPoint.x, docPoint.y, artboard.id, artboard.x, artboard.y, e.shiftKey, true)
+        render()
+      }
+      return
+    }
+
     // Node tool double-click
     if (activeTool !== 'node') return
 
@@ -2111,9 +2211,9 @@ export function Viewport() {
       ? 'grab'
       : activeTool === 'brush' || activeTool === 'clone-stamp'
         ? 'none'
-        : activeTool === 'pen' || activeTool === 'node' || activeTool === 'measure'
+        : activeTool === 'pen' || activeTool === 'curvature-pen' || activeTool === 'node' || activeTool === 'measure'
           ? 'crosshair'
-          : activeTool === 'eyedropper'
+          : activeTool === 'eyedropper' || activeTool === 'width'
             ? 'crosshair'
             : activeTool === 'select'
               ? undefined
@@ -2291,6 +2391,46 @@ function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: nu
   return wrapped
 }
 
+/** Check if a character is CJK (should remain upright in vertical text). */
+function isCJKChar(ch: string): boolean {
+  const code = ch.codePointAt(0) ?? 0
+  return (
+    (code >= 0x4e00 && code <= 0x9fff) || // CJK Unified Ideographs
+    (code >= 0x3000 && code <= 0x303f) || // CJK Symbols and Punctuation
+    (code >= 0x3040 && code <= 0x309f) || // Hiragana
+    (code >= 0x30a0 && code <= 0x30ff) || // Katakana
+    (code >= 0xff00 && code <= 0xffef) || // Fullwidth Forms
+    (code >= 0xac00 && code <= 0xd7af) // Hangul Syllables
+  )
+}
+
+/** Characters that hang outside the text box for optical margin alignment. */
+const OPTICAL_MARGIN_CHARS: Record<string, number> = {
+  '"': 1.0,
+  "'": 1.0,
+  '\u201C': 1.0, // left double quote
+  '\u201D': 1.0, // right double quote
+  '\u2018': 1.0, // left single quote
+  '\u2019': 1.0, // right single quote
+  '.': 0.5,
+  ',': 0.5,
+  '-': 0.5,
+  '\u2013': 0.7, // en-dash
+  '\u2014': 0.7, // em-dash
+  '(': 0.6,
+  ')': 0.6,
+}
+
+/**
+ * Get the optical margin offset for a character at the start or end of a line.
+ * Returns the pixel amount to shift the line outside the margin.
+ */
+function getOpticalMarginOffset(ctx: CanvasRenderingContext2D, ch: string, _position: 'start' | 'end'): number {
+  const factor = OPTICAL_MARGIN_CHARS[ch]
+  if (factor == null) return 0
+  return ctx.measureText(ch).width * factor
+}
+
 function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   ctx.save()
   applyTransform(ctx, layer.transform)
@@ -2310,13 +2450,28 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
 
   const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
   const letterSp = layer.letterSpacing ?? 0
+  const isVertical = layer.textOrientation === 'vertical'
 
   // Area text: word-wrap and clip to bounding box
   const isAreaText = layer.textMode === 'area' && layer.textWidth != null && layer.textWidth > 0
 
+  // ── Vertical Text ──
+  if (isVertical) {
+    renderVerticalText(ctx, layer, lineH, letterSp, isAreaText)
+    ctx.restore()
+    return
+  }
+
+  // ── Horizontal Text (columns support) ──
+  const numColumns = isAreaText && layer.columns != null && layer.columns > 1 ? layer.columns : 1
+  const columnGap = layer.columnGap ?? 16
+  const totalWidth = isAreaText ? layer.textWidth! : 0
+  const colWidth = numColumns > 1 ? (totalWidth - (numColumns - 1) * columnGap) / numColumns : totalWidth
+  const opticalMargins = layer.opticalMarginAlignment === true
+
   let lines: string[]
   if (isAreaText) {
-    lines = wrapTextLines(ctx, layer.text, layer.textWidth!, letterSp)
+    lines = wrapTextLines(ctx, layer.text, colWidth, letterSp)
     // Clip to text box bounds
     ctx.save()
     ctx.beginPath()
@@ -2326,18 +2481,37 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
     lines = layer.text.split('\n')
   }
 
-  for (let i = 0; i < lines.length; i++) {
-    const y = i * lineH
-    // Skip lines below the clipping area for area text
-    if (isAreaText && layer.textHeight != null && y >= layer.textHeight) break
-    if (letterSp === 0) {
-      ctx.fillText(lines[i]!, 0, y)
-    } else {
-      // Manual letter spacing
-      let x = 0
-      for (const ch of lines[i]!) {
-        ctx.fillText(ch, x, y)
-        x += ctx.measureText(ch).width + letterSp
+  if (numColumns > 1 && isAreaText) {
+    // Multi-column layout: distribute lines across columns
+    const maxLinesPerCol = layer.textHeight != null ? Math.floor(layer.textHeight / lineH) : lines.length
+    let lineIdx = 0
+    for (let col = 0; col < numColumns && lineIdx < lines.length; col++) {
+      const colX = col * (colWidth + columnGap)
+      const linesInCol = Math.min(maxLinesPerCol, lines.length - lineIdx)
+      for (let i = 0; i < linesInCol; i++) {
+        const y = i * lineH
+        const line = lines[lineIdx]!
+        renderHorizontalLine(ctx, line, colX, y, letterSp, opticalMargins, colWidth, layer.textAlign ?? 'left')
+        lineIdx++
+      }
+    }
+  } else {
+    // Single column rendering
+    for (let i = 0; i < lines.length; i++) {
+      const y = i * lineH
+      // Skip lines below the clipping area for area text
+      if (isAreaText && layer.textHeight != null && y >= layer.textHeight) break
+      if (opticalMargins && isAreaText) {
+        renderHorizontalLine(ctx, lines[i]!, 0, y, letterSp, true, colWidth, layer.textAlign ?? 'left')
+      } else if (letterSp === 0) {
+        ctx.fillText(lines[i]!, 0, y)
+      } else {
+        // Manual letter spacing
+        let x = 0
+        for (const ch of lines[i]!) {
+          ctx.fillText(ch, x, y)
+          x += ctx.measureText(ch).width + letterSp
+        }
       }
     }
   }
@@ -2347,6 +2521,108 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   }
 
   ctx.restore()
+}
+
+/**
+ * Render a single horizontal text line with optional optical margin alignment.
+ */
+function renderHorizontalLine(
+  ctx: CanvasRenderingContext2D,
+  line: string,
+  baseX: number,
+  y: number,
+  letterSp: number,
+  opticalMargins: boolean,
+  _columnWidth: number,
+  _textAlign: 'left' | 'center' | 'right',
+) {
+  let xOffset = baseX
+  if (opticalMargins && line.length > 0) {
+    const firstChar = line[0]!
+    const startHang = getOpticalMarginOffset(ctx, firstChar, 'start')
+    xOffset -= startHang
+  }
+  if (letterSp === 0) {
+    ctx.fillText(line, xOffset, y)
+  } else {
+    let x = xOffset
+    for (const ch of line) {
+      ctx.fillText(ch, x, y)
+      x += ctx.measureText(ch).width + letterSp
+    }
+  }
+}
+
+/**
+ * Render vertical text: characters flow top-to-bottom.
+ * Latin characters are rotated 90 degrees CW; CJK characters remain upright.
+ */
+function renderVerticalText(
+  ctx: CanvasRenderingContext2D,
+  layer: TextLayer,
+  lineH: number,
+  letterSp: number,
+  isAreaText: boolean,
+) {
+  const text = layer.text
+  const charSpacing = lineH // vertical "line height" becomes character spacing
+  const columnWidth = layer.fontSize * 1.5 // width of each vertical column
+  const align = layer.textAlign ?? 'left' // becomes vertical alignment: left=top, center=center, right=bottom
+
+  if (isAreaText) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, layer.textWidth!, layer.textHeight ?? 1000)
+    ctx.clip()
+  }
+
+  // Split text into paragraphs (which become vertical columns, right-to-left)
+  const paragraphs = text.split('\n')
+  let colIdx = 0
+
+  for (const paragraph of paragraphs) {
+    const chars = [...paragraph] // handle multi-byte chars
+    const totalHeight = chars.length * charSpacing + (chars.length - 1) * letterSp
+    const areaHeight = isAreaText && layer.textHeight ? layer.textHeight : totalHeight
+
+    let startY = 0
+    if (align === 'center') {
+      startY = (areaHeight - totalHeight) / 2
+    } else if (align === 'right') {
+      startY = areaHeight - totalHeight
+    }
+
+    // Vertical text columns go right-to-left traditionally
+    const colX = colIdx * columnWidth
+
+    for (let ci = 0; ci < chars.length; ci++) {
+      const ch = chars[ci]!
+      const cy = startY + ci * (charSpacing + letterSp)
+
+      if (isCJKChar(ch)) {
+        // CJK: render upright, centered in column
+        const charW = ctx.measureText(ch).width
+        ctx.fillText(ch, colX + (columnWidth - charW) / 2, cy)
+      } else {
+        // Latin: rotate 90 degrees clockwise
+        ctx.save()
+        ctx.translate(colX + columnWidth / 2, cy + charSpacing / 2)
+        ctx.rotate(Math.PI / 2)
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(ch, 0, 0)
+        ctx.restore()
+        // Restore text settings for next character
+        ctx.textAlign = layer.textAlign ?? 'left'
+        ctx.textBaseline = 'top'
+      }
+    }
+    colIdx++
+  }
+
+  if (isAreaText) {
+    ctx.restore()
+  }
 }
 
 function renderVectorLayer(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
@@ -2730,6 +3006,37 @@ function renderLayerWithEffects(
     const dx = (result.width - artboardWidth) / 2
     const dy = (result.height - artboardHeight) / 2
     ctx.drawImage(result, -dx, -dy)
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.restore()
+  } else if (layer.mask && layer.maskType === 'alpha') {
+    // Alpha / luminance mask: use the brightness of the mask layer as alpha
+    const maskCanvas = new OffscreenCanvas(artboardWidth, artboardHeight)
+    const maskCtx = maskCanvas.getContext('2d')!
+    renderLayerContent(maskCtx, layer.mask)
+
+    // Render the actual layer content
+    const contentCanvas = new OffscreenCanvas(artboardWidth, artboardHeight)
+    const contentCtx = contentCanvas.getContext('2d')!
+    renderLayerContent(contentCtx, layer)
+
+    // Apply luminance of mask as alpha to content
+    const maskData = maskCtx.getImageData(0, 0, artboardWidth, artboardHeight)
+    const contentData = contentCtx.getImageData(0, 0, artboardWidth, artboardHeight)
+    const mPix = maskData.data
+    const cPix = contentData.data
+    for (let i = 0; i < mPix.length; i += 4) {
+      // Luminance: 0.299*R + 0.587*G + 0.114*B
+      const luminance = (0.299 * mPix[i]! + 0.587 * mPix[i + 1]! + 0.114 * mPix[i + 2]!) / 255
+      // Multiply the mask alpha by the luminance for full control
+      const maskAlpha = (mPix[i + 3]! / 255) * luminance
+      cPix[i + 3] = Math.round(cPix[i + 3]! * maskAlpha)
+    }
+    contentCtx.putImageData(contentData, 0, 0)
+
+    ctx.save()
+    ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
+    ctx.globalAlpha = layer.opacity
+    ctx.drawImage(contentCanvas, 0, 0)
     ctx.globalCompositeOperation = 'source-over'
     ctx.restore()
   } else if (layer.mask && layer.mask.type === 'vector') {

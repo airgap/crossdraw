@@ -620,7 +620,76 @@ export function PropertiesPanel() {
                         }
                       />
                     </div>
+                    <div style={rowStyle}>
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Cols</span>
+                      <input
+                        type="number"
+                        min="1"
+                        max="12"
+                        step="1"
+                        style={{ ...smallInputStyle, width: 40 }}
+                        value={selectedLayer.columns ?? 1}
+                        onChange={(e) =>
+                          updateLayer(artboard.id, selectedLayer.id, { columns: Number(e.target.value) } as any)
+                        }
+                      />
+                      <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Gap</span>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="1"
+                        style={{ ...smallInputStyle, width: 40 }}
+                        value={selectedLayer.columnGap ?? 16}
+                        onChange={(e) =>
+                          updateLayer(artboard.id, selectedLayer.id, { columnGap: Number(e.target.value) } as any)
+                        }
+                      />
+                    </div>
                   </>
+                )}
+                <div style={rowStyle}>
+                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Dir</span>
+                  {(['horizontal', 'vertical'] as const).map((o) => (
+                    <button
+                      key={o}
+                      style={{
+                        ...btnStyle,
+                        fontWeight: (selectedLayer.textOrientation ?? 'horizontal') === o ? 700 : 400,
+                        background: (selectedLayer.textOrientation ?? 'horizontal') === o ? 'var(--accent)' : undefined,
+                        color: (selectedLayer.textOrientation ?? 'horizontal') === o ? '#fff' : undefined,
+                        fontSize: 9,
+                      }}
+                      onClick={() => updateLayer(artboard.id, selectedLayer.id, { textOrientation: o } as any)}
+                    >
+                      {o === 'horizontal' ? 'H' : 'V'}
+                    </button>
+                  ))}
+                </div>
+                {selectedLayer.textMode === 'area' && (
+                  <div style={rowStyle}>
+                    <label
+                      style={{
+                        fontSize: 10,
+                        color: 'var(--text-secondary)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedLayer.opticalMarginAlignment ?? false}
+                        onChange={(e) =>
+                          updateLayer(artboard.id, selectedLayer.id, {
+                            opticalMarginAlignment: e.target.checked,
+                          } as any)
+                        }
+                      />
+                      Optical Margins
+                    </label>
+                  </div>
                 )}
               </div>
             )}
@@ -735,6 +804,7 @@ export function PropertiesPanel() {
                 layer={selectedLayer}
                 setLayerMask={setLayerMask}
                 removeLayerMask={removeLayerMask}
+                updateLayer={updateLayer}
               />
             )}
           </>
@@ -1714,11 +1784,13 @@ function MaskSection({
   layer,
   setLayerMask,
   removeLayerMask,
+  updateLayer,
 }: {
   artboardId: string
   layer: Layer
   setLayerMask: (a: string, l: string, m: Layer) => void
   removeLayerMask: (a: string, l: string) => void
+  updateLayer: (a: string, l: string, u: Partial<Layer>) => void
 }) {
   const hasMask = !!layer.mask
 
@@ -1752,6 +1824,8 @@ function MaskSection({
     setLayerMask(artboardId, layer.id, mask)
   }
 
+  const maskType = layer.maskType ?? 'vector'
+
   return (
     <div style={sectionStyle}>
       <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1770,9 +1844,34 @@ function MaskSection({
         )}
       </div>
       {hasMask && (
-        <div style={{ fontSize: 10, color: '#aaa' }}>
-          {layer.mask!.type === 'vector' ? 'Vector mask' : 'Raster mask'} applied
-        </div>
+        <>
+          <div style={{ fontSize: 10, color: '#aaa' }}>
+            {maskType === 'alpha'
+              ? 'Alpha (luminance) mask'
+              : layer.mask!.type === 'vector'
+                ? 'Vector mask'
+                : 'Raster mask'}{' '}
+            applied
+          </div>
+          <div style={{ ...rowStyle, marginTop: 4 }}>
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Type</span>
+            {(['vector', 'alpha'] as const).map((mt) => (
+              <button
+                key={mt}
+                style={{
+                  ...btnStyle,
+                  fontSize: 9,
+                  fontWeight: maskType === mt ? 700 : 400,
+                  background: maskType === mt ? 'var(--accent)' : undefined,
+                  color: maskType === mt ? '#fff' : undefined,
+                }}
+                onClick={() => updateLayer(artboardId, layer.id, { maskType: mt } as any)}
+              >
+                {mt === 'vector' ? 'Vector' : 'Alpha'}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )

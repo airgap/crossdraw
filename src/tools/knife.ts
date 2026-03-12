@@ -67,6 +67,7 @@ export function endKnifeCut() {
     // Create new layers for the split result
     store.updateLayerSilent(artboard.id, selectedId, {
       paths: [newPaths[0]!],
+      shapeParams: undefined,
     } as Partial<VectorLayer>)
 
     // Add remaining paths as new layers
@@ -86,9 +87,138 @@ export function endKnifeCut() {
   state.points = []
 }
 
+// ── Vector types ─────────────────────────────────────────────
+
+interface Point {
+  x: number
+  y: number
+}
+
+// ── De Casteljau subdivision for cubic bezier ────────────────
+
+/**
+ * Split a cubic bezier at parameter t using de Casteljau's algorithm.
+ * Returns [left, right] where each is [p0, cp1, cp2, p3].
+ */
+function splitCubicAt(p0: Point, cp1: Point, cp2: Point, p3: Point, t: number): [Point[], Point[]] {
+  const lerp = (a: Point, b: Point, u: number): Point => ({
+    x: a.x + (b.x - a.x) * u,
+    y: a.y + (b.y - a.y) * u,
+  })
+
+  const a = lerp(p0, cp1, t)
+  const b = lerp(cp1, cp2, t)
+  const c = lerp(cp2, p3, t)
+  const d = lerp(a, b, t)
+  const e = lerp(b, c, t)
+  const f = lerp(d, e, t) // the point on the curve at t
+
+  return [
+    [p0, a, d, f],
+    [f, e, c, p3],
+  ]
+}
+
+// ── Line-line intersection ───────────────────────────────────
+
+/**
+ * Find the intersection parameter t of line segment (p1->p2) with (p3->p4).
+ * Returns t (0-1) for the first segment, or null if no intersection.
+ */
+function lineLineIntersectionT(
+  p1x: number,
+  p1y: number,
+  p2x: number,
+  p2y: number,
+  p3x: number,
+  p3y: number,
+  p4x: number,
+  p4y: number,
+): number | null {
+  const denom = (p4y - p3y) * (p2x - p1x) - (p4x - p3x) * (p2y - p1y)
+  if (Math.abs(denom) < 1e-10) return null
+
+  const ua = ((p4x - p3x) * (p1y - p3y) - (p4y - p3y) * (p1x - p3x)) / denom
+  const ub = ((p2x - p1x) * (p1y - p3y) - (p2y - p1y) * (p1x - p3x)) / denom
+
+  if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+    return ua
+  }
+  return null
+}
+
+// ── Line-cubic intersection via recursive subdivision ────────
+
+/**
+ * Find intersection parameters of a cubic bezier with a line segment.
+ * Uses recursive subdivision (binary approach) for robustness.
+ */
+function lineCubicIntersections(
+  p0: Point,
+  cp1: Point,
+  cp2: Point,
+  p3: Point,
+  lineA: Point,
+  lineB: Point,
+  depth: number = 0,
+  tStart: number = 0,
+  tEnd: number = 1,
+): number[] {
+  // Bounding box check
+  const minX = Math.min(p0.x, cp1.x, cp2.x, p3.x)
+  const maxX = Math.max(p0.x, cp1.x, cp2.x, p3.x)
+  const minY = Math.min(p0.y, cp1.y, cp2.y, p3.y)
+  const maxY = Math.max(p0.y, cp1.y, cp2.y, p3.y)
+
+  const lMinX = Math.min(lineA.x, lineB.x)
+  const lMaxX = Math.max(lineA.x, lineB.x)
+  const lMinY = Math.min(lineA.y, lineB.y)
+  const lMaxY = Math.max(lineA.y, lineB.y)
+
+  // Quick reject if bounding boxes don't overlap
+  if (maxX < lMinX || minX > lMaxX || maxY < lMinY || minY > lMaxY) {
+    return []
+  }
+
+  // If the curve is flat enough (or max depth reached), test as a line
+  if (depth > 8 || (maxX - minX < 0.5 && maxY - minY < 0.5)) {
+    const t = lineLineIntersectionT(p0.x, p0.y, p3.x, p3.y, lineA.x, lineA.y, lineB.x, lineB.y)
+    if (t != null) {
+      return [tStart + t * (tEnd - tStart)]
+    }
+    return []
+  }
+
+  // Subdivide at midpoint
+  const tMid = (tStart + tEnd) / 2
+  const [left, right] = splitCubicAt(p0, cp1, cp2, p3, 0.5)
+
+  const leftHits = lineCubicIntersections(left[0]!, left[1]!, left[2]!, left[3]!, lineA, lineB, depth + 1, tStart, tMid)
+  const rightHits = lineCubicIntersections(
+    right[0]!,
+    right[1]!,
+    right[2]!,
+    right[3]!,
+    lineA,
+    lineB,
+    depth + 1,
+    tMid,
+    tEnd,
+  )
+
+  return [...leftHits, ...rightHits]
+}
+
+// ── Intersection info ────────────────────────────────────────
+
+interface SplitInfo {
+  segIndex: number
+  t: number // parameter along the segment (0-1)
+}
+
 /**
  * Split a path where the knife line crosses it.
- * Simplified: finds approximate split points and divides segments.
+ * Handles line segments and cubic bezier curves using de Casteljau subdivision.
  */
 function splitPathWithKnife(
   path: Path,
@@ -98,66 +228,214 @@ function splitPathWithKnife(
   const segs = path.segments
   if (segs.length < 2) return [path]
 
-  // Find intersections between knife line segments and path segments
-  const splitIndices: number[] = []
+  // Collect all intersection points (segment index + t parameter)
+  const splits: SplitInfo[] = []
 
   for (let si = 1; si < segs.length; si++) {
     const seg = segs[si]!
     const prev = segs[si - 1]!
     if (seg.type === 'close' || prev.type === 'close') continue
 
-    const ax = getSegX(prev) + transform.x
-    const ay = getSegY(prev) + transform.y
-    const bx = getSegX(seg) + transform.x
-    const by = getSegY(seg) + transform.y
+    const prevX = getSegX(prev) + transform.x
+    const prevY = getSegY(prev) + transform.y
 
     for (let ki = 0; ki < knifeLine.length - 1; ki++) {
-      const cx = knifeLine[ki]!.x
-      const cy = knifeLine[ki]!.y
-      const dx = knifeLine[ki + 1]!.x
-      const dy = knifeLine[ki + 1]!.y
+      const kA = knifeLine[ki]!
+      const kB = knifeLine[ki + 1]!
 
-      if (segmentsIntersect(ax, ay, bx, by, cx, cy, dx, dy)) {
-        splitIndices.push(si)
-        break
-      }
-    }
-  }
+      if (seg.type === 'cubic') {
+        // Cubic bezier: use de Casteljau subdivision to find intersections
+        const p0: Point = { x: prevX, y: prevY }
+        const cp1: Point = { x: seg.cp1x + transform.x, y: seg.cp1y + transform.y }
+        const cp2: Point = { x: seg.cp2x + transform.x, y: seg.cp2y + transform.y }
+        const p3: Point = { x: seg.x + transform.x, y: seg.y + transform.y }
 
-  if (splitIndices.length === 0) return [path]
-
-  // Split the path at the found indices
-  const paths: Path[] = []
-  let startIdx = 0
-
-  for (const splitIdx of splitIndices) {
-    const subSegs: Segment[] = []
-    for (let i = startIdx; i <= splitIdx; i++) {
-      const seg = segs[i]!
-      if (i === startIdx && seg.type !== 'move') {
-        subSegs.push({ type: 'move', x: getSegX(seg), y: getSegY(seg) })
+        const hits = lineCubicIntersections(p0, cp1, cp2, p3, kA, kB)
+        for (const t of hits) {
+          splits.push({ segIndex: si, t })
+        }
+      } else if (seg.type === 'quadratic') {
+        // Convert quadratic to approximate line and test
+        const segX = seg.x + transform.x
+        const segY = seg.y + transform.y
+        const t = lineLineIntersectionT(prevX, prevY, segX, segY, kA.x, kA.y, kB.x, kB.y)
+        if (t != null) {
+          splits.push({ segIndex: si, t })
+        }
       } else {
-        subSegs.push({ ...seg } as Segment)
+        // Line or move: simple line-line intersection
+        const segX = getSegX(seg) + transform.x
+        const segY = getSegY(seg) + transform.y
+        const t = lineLineIntersectionT(prevX, prevY, segX, segY, kA.x, kA.y, kB.x, kB.y)
+        if (t != null) {
+          splits.push({ segIndex: si, t })
+        }
       }
     }
-    if (subSegs.length > 1) {
-      paths.push({ id: uuid(), segments: subSegs, closed: false })
-    }
-    startIdx = splitIdx
   }
 
-  // Remaining segments
-  const remaining: Segment[] = []
-  for (let i = startIdx; i < segs.length; i++) {
-    const seg = segs[i]!
-    if (i === startIdx && seg.type !== 'move') {
-      remaining.push({ type: 'move', x: getSegX(seg), y: getSegY(seg) })
+  if (splits.length === 0) return [path]
+
+  // Sort by segment index, then by t within segment
+  splits.sort((a, b) => a.segIndex - b.segIndex || a.t - b.t)
+
+  // Deduplicate splits that are very close together
+  const dedupedSplits: SplitInfo[] = []
+  for (const s of splits) {
+    const last = dedupedSplits[dedupedSplits.length - 1]
+    if (last && last.segIndex === s.segIndex && Math.abs(last.t - s.t) < 0.01) continue
+    dedupedSplits.push(s)
+  }
+
+  if (dedupedSplits.length === 0) return [path]
+
+  // Build the split paths
+  return buildSplitPaths(path, dedupedSplits, transform)
+}
+
+/**
+ * Build split paths from a source path and a list of split points.
+ */
+function buildSplitPaths(path: Path, splits: SplitInfo[], _transform: { x: number; y: number }): Path[] {
+  const segs = path.segments
+  const paths: Path[] = []
+  let currentSegs: Segment[] = []
+
+  let splitIdx = 0
+
+  for (let si = 0; si < segs.length; si++) {
+    const seg = segs[si]!
+
+    // Check if there are splits at this segment index
+    if (splitIdx < splits.length && splits[splitIdx]!.segIndex === si) {
+      const prev = si > 0 ? segs[si - 1]! : null
+
+      if (seg.type === 'cubic' && prev && prev.type !== 'close') {
+        // Split cubic at t using de Casteljau
+        const p0: Point = { x: getSegX(prev), y: getSegY(prev) }
+        const cp1: Point = { x: seg.cp1x, y: seg.cp1y }
+        const cp2: Point = { x: seg.cp2x, y: seg.cp2y }
+        const p3: Point = { x: seg.x, y: seg.y }
+
+        // Collect all splits for this segment
+        const segSplits: number[] = []
+        while (splitIdx < splits.length && splits[splitIdx]!.segIndex === si) {
+          segSplits.push(splits[splitIdx]!.t)
+          splitIdx++
+        }
+
+        // Split the cubic at each t (adjusting t values as we go)
+        let remainP0 = p0
+        let remainCp1 = cp1
+        let remainCp2 = cp2
+        let remainP3 = p3
+        let consumed = 0
+
+        for (const t of segSplits) {
+          // Adjust t for the remaining portion
+          const adjustedT = (t - consumed) / (1 - consumed)
+          const [left, right] = splitCubicAt(
+            remainP0,
+            remainCp1,
+            remainCp2,
+            remainP3,
+            Math.max(0.001, Math.min(0.999, adjustedT)),
+          )
+
+          // Add the left half to current path
+          currentSegs.push({
+            type: 'cubic',
+            cp1x: left[1]!.x,
+            cp1y: left[1]!.y,
+            cp2x: left[2]!.x,
+            cp2y: left[2]!.y,
+            x: left[3]!.x,
+            y: left[3]!.y,
+          })
+
+          // Finish current sub-path
+          if (currentSegs.length > 0) {
+            // Ensure it starts with a move
+            if (currentSegs[0]!.type !== 'move') {
+              currentSegs.unshift({ type: 'move', x: getSegX(currentSegs[0]!), y: getSegY(currentSegs[0]!) })
+            }
+            paths.push({ id: uuid(), segments: currentSegs, closed: false })
+          }
+
+          // Start new sub-path from split point
+          currentSegs = [{ type: 'move', x: left[3]!.x, y: left[3]!.y }]
+
+          // Update remaining curve
+          remainP0 = right[0]!
+          remainCp1 = right[1]!
+          remainCp2 = right[2]!
+          remainP3 = right[3]!
+          consumed = t
+        }
+
+        // Add remaining portion of the cubic
+        currentSegs.push({
+          type: 'cubic',
+          cp1x: remainCp1.x,
+          cp1y: remainCp1.y,
+          cp2x: remainCp2.x,
+          cp2y: remainCp2.y,
+          x: remainP3.x,
+          y: remainP3.y,
+        })
+      } else {
+        // Line segment split: compute the intersection point
+        const prevX = prev ? getSegX(prev) : 0
+        const prevY = prev ? getSegY(prev) : 0
+        const segX = getSegX(seg)
+        const segY = getSegY(seg)
+
+        // Collect all splits for this segment
+        const segSplits: number[] = []
+        while (splitIdx < splits.length && splits[splitIdx]!.segIndex === si) {
+          segSplits.push(splits[splitIdx]!.t)
+          splitIdx++
+        }
+
+        let fromX = prevX
+        let fromY = prevY
+
+        for (const t of segSplits) {
+          const midX = fromX + (segX - fromX) * t
+          const midY = fromY + (segY - fromY) * t
+
+          // Add line to split point
+          currentSegs.push({ type: 'line', x: midX, y: midY })
+
+          // Finish current sub-path
+          if (currentSegs.length > 0) {
+            if (currentSegs[0]!.type !== 'move') {
+              currentSegs.unshift({ type: 'move', x: getSegX(currentSegs[0]!), y: getSegY(currentSegs[0]!) })
+            }
+            paths.push({ id: uuid(), segments: currentSegs, closed: false })
+          }
+
+          // Start new sub-path
+          currentSegs = [{ type: 'move', x: midX, y: midY }]
+          fromX = midX
+          fromY = midY
+        }
+
+        // Add remaining line to the endpoint
+        currentSegs.push({ ...seg } as Segment)
+      }
     } else {
-      remaining.push({ ...seg } as Segment)
+      // No split at this segment, just copy it
+      currentSegs.push({ ...seg } as Segment)
     }
   }
-  if (remaining.length > 1) {
-    paths.push({ id: uuid(), segments: remaining, closed: false })
+
+  // Add the final sub-path
+  if (currentSegs.length > 1) {
+    if (currentSegs[0]!.type !== 'move') {
+      currentSegs.unshift({ type: 'move', x: getSegX(currentSegs[0]!), y: getSegY(currentSegs[0]!) })
+    }
+    paths.push({ id: uuid(), segments: currentSegs, closed: false })
   }
 
   return paths.length > 0 ? paths : [path]
@@ -171,7 +449,7 @@ function getSegY(seg: Segment): number {
   return 'y' in seg ? seg.y : 0
 }
 
-/** Line segment intersection test */
+/** Line segment intersection test (boolean) */
 function segmentsIntersect(
   ax: number,
   ay: number,
@@ -204,3 +482,6 @@ export function getKnifePoints(): Array<{ x: number; y: number }> {
 export function isKnifeCutting(): boolean {
   return state.active
 }
+
+// Re-export for tests
+export { segmentsIntersect, splitCubicAt, lineCubicIntersections, lineLineIntersectionT }
