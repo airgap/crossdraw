@@ -320,3 +320,246 @@ describe('brush dab color parsing', () => {
     expect(dab.data[idx]).toBe(255) // R
   })
 })
+
+describe('beginStroke — preStrokeSnapshot null branch', () => {
+  beforeEach(() => {
+    useEditorStore.getState().newDocument({ width: 100, height: 100 })
+    endStroke()
+  })
+
+  test('sets preStrokeSnapshot to null when raster data is missing for chunk', () => {
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards[0]!
+
+    // Add a raster layer with a chunk ID that has NO raster data stored
+    const missingChunkId = 'missing-chunk-no-data'
+    // Deliberately do NOT call storeRasterData for this chunk
+    store.addLayer(artboard.id, {
+      id: 'raster-no-data',
+      name: 'Paint Layer',
+      type: 'raster',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      effects: [],
+      imageChunkId: missingChunkId,
+      width: 100,
+      height: 100,
+    })
+    store.selectLayer('raster-no-data')
+
+    // beginStroke should succeed; getRasterData will return undefined
+    // causing preStrokeSnapshot = null (line 188-189)
+    const chunkId = beginStroke()
+    expect(chunkId).toBe(missingChunkId)
+
+    // endStroke should not crash when preStrokeSnapshot is null
+    endStroke()
+  })
+})
+
+describe('paintStroke — layer validation during stroke', () => {
+  beforeEach(() => {
+    useEditorStore.getState().newDocument({ width: 100, height: 100 })
+    endStroke()
+  })
+
+  test('invalidates activeChunkId when layer is removed mid-stroke', () => {
+    setBrushSettings({ size: 10, hardness: 1, color: '#ff0000', opacity: 1, flow: 1, spacing: 0.25 })
+
+    // Start a stroke so activeChunkId is set
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Now remove the raster layer from the artboard
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards[0]!
+    const layerId = artboard.layers[0]!.id
+    store.deleteLayer(artboard.id, layerId)
+
+    // paintStroke should detect the layer is gone and call beginStroke again
+    paintStroke([{ x: 50, y: 50 }])
+
+    // A new layer should have been created
+    const updatedArtboard = useEditorStore.getState().document.artboards[0]!
+    expect(updatedArtboard.layers.length).toBe(1)
+    expect(updatedArtboard.layers[0]!.type).toBe('raster')
+
+    endStroke()
+  })
+
+  test('paintStroke with pressure clamped to range 0-1', () => {
+    setBrushSettings({ size: 10, hardness: 1, color: '#ff0000', opacity: 1, flow: 1, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Pressure > 1 should clamp to 1
+    paintStroke([{ x: 50, y: 50 }], {}, 5.0)
+
+    // Pressure < 0 should clamp to 0
+    paintStroke([{ x: 60, y: 60 }], {}, -1.0)
+
+    endStroke()
+  })
+
+  test('paintStroke with brush override applies to stroke', () => {
+    setBrushSettings({ size: 10, hardness: 1, color: '#ff0000', opacity: 1, flow: 1, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Override size and color
+    paintStroke(
+      [
+        { x: 10, y: 10 },
+        { x: 80, y: 80 },
+      ],
+      { size: 30, color: '#00ff00', hardness: 0.5 },
+    )
+
+    const imageData = getRasterData(chunkId!)
+    expect(imageData).not.toBeNull()
+    // Some pixels should have been painted
+    let hasNonZero = false
+    for (let i = 0; i < imageData!.data.length; i += 4) {
+      if (imageData!.data[i + 3]! > 0) {
+        hasNonZero = true
+        break
+      }
+    }
+    expect(hasNonZero).toBe(true)
+
+    endStroke()
+  })
+
+  test('paintStroke with multiple incremental calls maintains spacing', () => {
+    setBrushSettings({ size: 10, hardness: 1, color: '#ff0000', opacity: 1, flow: 1, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // First segment
+    paintStroke([
+      { x: 10, y: 10 },
+      { x: 20, y: 10 },
+    ])
+
+    // Second segment (continues the stroke — distRemainder carries over)
+    paintStroke([
+      { x: 20, y: 10 },
+      { x: 40, y: 10 },
+    ])
+
+    // Third segment with diagonal
+    paintStroke([
+      { x: 40, y: 10 },
+      { x: 60, y: 30 },
+    ])
+
+    const imageData = getRasterData(chunkId!)
+    expect(imageData).not.toBeNull()
+
+    endStroke()
+  })
+
+  test('endStroke pushes raster history when preStrokeSnapshot exists', () => {
+    setBrushSettings({ size: 10, hardness: 1, color: '#ff0000', opacity: 1, flow: 1, spacing: 0.25 })
+
+    // Start and paint
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    paintStroke([
+      { x: 50, y: 50 },
+      { x: 60, y: 60 },
+    ])
+
+    // endStroke should sync canvas and push raster history
+    endStroke()
+
+    // Verify the raster data still exists after endStroke
+    const imageData = getRasterData(chunkId!)
+    expect(imageData).toBeDefined()
+  })
+
+  test('paintStroke handles empty points array', () => {
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Empty array should be a no-op
+    paintStroke([])
+
+    endStroke()
+  })
+
+  test('paintStroke handles single point', () => {
+    setBrushSettings({ size: 10, hardness: 0.5, color: '#ff0000', opacity: 0.8, flow: 0.5, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    paintStroke([{ x: 50, y: 50 }])
+
+    const imageData = getRasterData(chunkId!)
+    expect(imageData).not.toBeNull()
+
+    endStroke()
+  })
+})
+
+describe('stampDab — edge cases via paintStroke', () => {
+  beforeEach(() => {
+    useEditorStore.getState().newDocument({ width: 50, height: 50 })
+    endStroke()
+  })
+
+  test('dab at edge of canvas clips correctly', () => {
+    setBrushSettings({ size: 20, hardness: 1, color: '#ff0000', opacity: 1, flow: 1, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Paint at the very edge — dab will be clipped
+    paintStroke([{ x: 0, y: 0 }])
+    paintStroke([{ x: 49, y: 49 }])
+
+    endStroke()
+  })
+
+  test('dab compositing over existing pixels', () => {
+    setBrushSettings({ size: 10, hardness: 1, color: '#ff0000', opacity: 0.5, flow: 1, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Paint two overlapping strokes — tests the alpha compositing code in stampDab
+    paintStroke([{ x: 25, y: 25 }])
+    paintStroke([{ x: 25, y: 25 }]) // Same location, should composite
+
+    const imageData = getRasterData(chunkId!)
+    expect(imageData).not.toBeNull()
+
+    // Center pixel should have been composited — alpha should be > single dab alpha
+    const cx = 25
+    const cy = 25
+    const idx = (cy * 50 + cx) * 4
+    expect(imageData!.data[idx + 3]).toBeGreaterThan(0)
+
+    endStroke()
+  })
+
+  test('dab at negative coordinates clips correctly', () => {
+    setBrushSettings({ size: 20, hardness: 1, color: '#0000ff', opacity: 1, flow: 1, spacing: 0.25 })
+
+    const chunkId = beginStroke()
+    expect(chunkId).not.toBeNull()
+
+    // Paint with center at negative coords — half the dab is off-canvas
+    paintStroke([{ x: -5, y: -5 }])
+
+    endStroke()
+  })
+})

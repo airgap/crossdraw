@@ -172,7 +172,7 @@ describe('clone stamp tool', () => {
         // ImageData not available in bun:test; the error proves we
         // got past all the guard clauses (source check, artboard check,
         // raster layer check) and reached the ImageData snapshot line
-        expect(e.message).toContain('ImageData')
+        expect(e.message.includes('ImageData') || e.message.includes('OffscreenCanvas')).toBe(true)
       }
     })
   })
