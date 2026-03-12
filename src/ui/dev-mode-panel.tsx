@@ -100,7 +100,7 @@ function layerCSS(layer: Layer, artboard: Artboard): Record<string, string> {
   }
 
   // Effects
-  const shadows = layer.effects
+  const shadows = (layer.effects ?? [])
     .filter((e) => e.enabled && (e.type === 'shadow' || e.type === 'drop-shadow'))
     .map((e) => {
       const p = e.params as { kind: 'shadow'; offsetX: number; offsetY: number; blurRadius: number; color: string }

@@ -109,7 +109,7 @@ function generateVectorSwiftUI(layer: VectorLayer, indent: string): string {
   }
 
   // Effects
-  lines.push(...effectModifiers(layer.effects, `${indent}    `))
+  lines.push(...effectModifiers(layer.effects ?? [], `${indent}    `))
 
   return lines.join('\n')
 }
@@ -171,7 +171,7 @@ function generateTextSwiftUI(layer: TextLayer, indent: string): string {
     lines.push(`${indent}    .opacity(${layer.opacity})`)
   }
 
-  lines.push(...effectModifiers(layer.effects, `${indent}    `))
+  lines.push(...effectModifiers(layer.effects ?? [], `${indent}    `))
 
   return lines.join('\n')
 }
@@ -215,7 +215,7 @@ function generateGroupSwiftUI(layer: GroupLayer, indent: string): string {
     lines.push(`${indent}.opacity(${layer.opacity})`)
   }
 
-  lines.push(...effectModifiers(layer.effects, `${indent}`))
+  lines.push(...effectModifiers(layer.effects ?? [], `${indent}`))
 
   return lines.join('\n')
 }

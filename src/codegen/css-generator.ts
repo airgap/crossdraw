@@ -350,8 +350,8 @@ export function generateCSS(layer: Layer, options?: CSSOptions): string {
   }
 
   // Effects
-  if (layer.effects.length > 0) {
-    const effectProps = effectsToCSS(layer.effects, opts)
+  if ((layer.effects ?? []).length > 0) {
+    const effectProps = effectsToCSS(layer.effects ?? [], opts)
     props = { ...props, ...effectProps }
   }
 

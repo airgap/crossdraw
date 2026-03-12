@@ -4,7 +4,7 @@ import { collectRasterChunks, restoreRasterChunks } from '@/store/raster-data'
 import { migrateData, canMigrate } from '@/io/migrations'
 
 const MAGIC = 'DESIGN'
-const FORMAT_VERSION = 2
+const FORMAT_VERSION = 3
 
 /**
  * Encode a DesignDocument to a .xd binary buffer.

@@ -447,11 +447,11 @@ function EffectStylesSection() {
     const artboard = document.artboards[0]
     if (!artboard) return
     const layer = findLayerDeep(artboard.layers, layerId)
-    if (!layer || layer.effects.length === 0) return
+    if (!layer || (layer.effects ?? []).length === 0) return
     const style: EffectStyle = {
       id: uuid(),
       name: layer.name || 'Effect Style',
-      effects: JSON.parse(JSON.stringify(layer.effects)),
+      effects: JSON.parse(JSON.stringify(layer.effects ?? [])),
     }
     addEffectStyle(style)
   }, [selection, document, addEffectStyle])

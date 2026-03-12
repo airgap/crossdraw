@@ -19,6 +19,7 @@ export interface ColorStyle {
   opacity: number
 }
 
+/** @deprecated Effect styles removed — filters are now layers */
 export interface EffectStyle {
   id: string
   name: string
@@ -145,7 +146,7 @@ export interface Artboard {
   perspectiveGrid?: PerspectiveConfig
 }
 
-export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | TextLayer | SymbolInstanceLayer
+export type Layer = VectorLayer | RasterLayer | GroupLayer | AdjustmentLayer | FilterLayer | TextLayer | SymbolInstanceLayer
 
 export interface BaseLayer {
   id: string
@@ -155,7 +156,8 @@ export interface BaseLayer {
   opacity: number
   blendMode: BlendMode
   transform: Transform
-  effects: Effect[]
+  /** @deprecated Use FilterLayer in the layer stack instead */
+  effects?: Effect[]
   mask?: Layer
   /** Mask type: 'vector' uses path clipping (default), 'alpha' uses luminance as alpha. */
   maskType?: 'vector' | 'alpha'
@@ -324,32 +326,66 @@ export interface AutoLayoutConfig {
   gridConfig?: GridLayoutConfig
 }
 
-// Adjustment layer params — discriminated union, no `any`
+// --- Filter layer params (unified discriminated union) ---
+
 export interface LevelsParams {
+  kind?: 'levels'
   blackPoint: number
   whitePoint: number
   gamma: number
 }
 export interface CurvesParams {
+  kind?: 'curves'
   points: [number, number][]
 }
 export interface HueSatParams {
+  kind?: 'hue-sat'
   hue: number
   saturation: number
   lightness: number
 }
 export interface ColorBalanceParams {
+  kind?: 'color-balance'
   shadows: number
   midtones: number
   highlights: number
 }
 
+export type FilterParams =
+  | LevelsParams
+  | CurvesParams
+  | HueSatParams
+  | ColorBalanceParams
+  | BlurParams
+  | ShadowParams
+  | GlowParams
+  | InnerShadowParams
+  | BackgroundBlurParams
+  | ProgressiveBlurParams
+  | NoiseEffectParams
+  | SharpenEffectParams
+  | MotionBlurEffectParams
+  | RadialBlurEffectParams
+  | ColorAdjustEffectParams
+  | WaveEffectParams
+  | TwirlEffectParams
+  | PinchEffectParams
+  | SpherizeEffectParams
+  | DistortParams
+
+export interface FilterLayer extends BaseLayer {
+  type: 'filter'
+  filterParams: FilterParams
+}
+
+// --- Legacy adjustment layer (kept for migration) ---
+/** @deprecated Use FilterLayer instead */
 export type AdjustmentParams =
   | { adjustmentType: 'levels'; params: LevelsParams }
   | { adjustmentType: 'curves'; params: CurvesParams }
   | { adjustmentType: 'hue-sat'; params: HueSatParams }
   | { adjustmentType: 'color-balance'; params: ColorBalanceParams }
-
+/** @deprecated Use FilterLayer instead */
 export type AdjustmentLayer = BaseLayer & { type: 'adjustment' } & AdjustmentParams
 
 export interface TextLayer extends BaseLayer {

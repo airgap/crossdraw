@@ -10,7 +10,7 @@ import { getLayerBBox, mergeBBox } from '@/math/bbox'
 import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import type { RenameLayerInfo } from '@/ai/prompt-templates'
-import { v4 as uuid } from 'uuid'
+
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { isAIEnabled } from '@/ui/panels/panel-registry'
 import type { TextLayer } from '@/types'
@@ -1023,15 +1023,13 @@ function buildMenus(): MenuDef[] {
     return !!layer && layer.type === 'vector'
   }
 
-  const hasSelected = (): boolean => store().selection.layerIds.length > 0
-
-  const addEffectToSelected = (effect: import('@/types').Effect) => {
+  const addFilterLayerToArtboard = (filterKind: string, customParams?: Partial<import('@/types').FilterParams>) => {
     const s = store()
     const artboard = s.document.artboards[0]
     if (!artboard) return
-    const layerId = s.selection.layerIds[0]
-    if (!layerId) return
-    s.addEffect(artboard.id, layerId, effect)
+    if ('addFilterLayer' in s) {
+      ;(s as any).addFilterLayer(artboard.id, filterKind, customParams)
+    }
   }
 
   const filterMenu: MenuDef = {
@@ -1039,92 +1037,63 @@ function buildMenus(): MenuDef[] {
     items: [
       {
         label: 'Gaussian Blur\u2026',
-        action: () =>
-          addEffectToSelected({
-            id: uuid(),
-            type: 'blur',
-            enabled: true,
-            opacity: 1,
-            params: { kind: 'blur', radius: 4, quality: 'medium' },
-          }),
-        disabled: () => !hasSelected(),
+        action: () => addFilterLayerToArtboard('blur', { radius: 4, quality: 'medium' }),
+        disabled: false,
       },
       {
         label: 'Drop Shadow\u2026',
         action: () =>
-          addEffectToSelected({
-            id: uuid(),
-            type: 'drop-shadow',
-            enabled: true,
-            opacity: 1,
-            params: {
-              kind: 'shadow',
-              offsetX: 4,
-              offsetY: 4,
-              blurRadius: 8,
-              spread: 0,
-              color: '#000000',
-              opacity: 0.5,
-            },
+          addFilterLayerToArtboard('shadow', {
+            offsetX: 4,
+            offsetY: 4,
+            blurRadius: 8,
+            spread: 0,
+            color: '#000000',
+            opacity: 0.5,
           }),
-        disabled: () => !hasSelected(),
+        disabled: false,
       },
       {
         label: 'Inner Shadow\u2026',
         action: () =>
-          addEffectToSelected({
-            id: uuid(),
-            type: 'inner-shadow',
-            enabled: true,
-            opacity: 1,
-            params: { kind: 'inner-shadow', offsetX: 2, offsetY: 2, blurRadius: 4, color: '#000000', opacity: 0.5 },
+          addFilterLayerToArtboard('inner-shadow', {
+            offsetX: 2,
+            offsetY: 2,
+            blurRadius: 4,
+            color: '#000000',
+            opacity: 0.5,
           }),
-        disabled: () => !hasSelected(),
+        disabled: false,
       },
       {
         label: 'Outer Glow\u2026',
         action: () =>
-          addEffectToSelected({
-            id: uuid(),
-            type: 'outer-glow',
-            enabled: true,
-            opacity: 1,
-            params: { kind: 'glow', radius: 8, spread: 0, color: '#ffffff', opacity: 0.75 },
+          addFilterLayerToArtboard('glow', {
+            glowRadius: 8,
+            glowSpread: 0,
+            glowColor: '#ffffff',
+            glowOpacity: 0.75,
           }),
-        disabled: () => !hasSelected(),
+        disabled: false,
       },
       { label: '', divider: true },
       {
         label: 'Background Blur\u2026',
-        action: () =>
-          addEffectToSelected({
-            id: uuid(),
-            type: 'background-blur',
-            enabled: true,
-            opacity: 1,
-            params: { kind: 'background-blur', radius: 10 },
-          }),
-        disabled: () => !hasSelected(),
+        action: () => addFilterLayerToArtboard('background-blur', { bgBlurRadius: 10 }),
+        disabled: false,
       },
       {
         label: 'Progressive Blur\u2026',
         action: () =>
-          addEffectToSelected({
-            id: uuid(),
-            type: 'progressive-blur',
-            enabled: true,
-            opacity: 1,
-            params: {
-              kind: 'progressive-blur',
-              direction: 'linear',
-              angle: 0,
-              startRadius: 0,
-              endRadius: 20,
-              startPosition: 0,
-              endPosition: 1,
-            },
+          addFilterLayerToArtboard('progressive-blur', {
+            direction: 'linear',
+            angle: 0,
+            startRadius: 0,
+            endRadius: 20,
+            startPosition: 0,
+            endPosition: 1,
           }),
-        disabled: () => !hasSelected(),
+        disabled: false,
       },
       { label: '', divider: true },
       {
@@ -1133,45 +1102,33 @@ function buildMenus(): MenuDef[] {
           {
             label: 'Gaussian Noise',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'noise',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'noise', noiseType: 'gaussian', amount: 25, monochrome: false, seed: Date.now() },
+              addFilterLayerToArtboard('noise', {
+                noiseType: 'gaussian',
+                amount: 25,
+                monochrome: false,
+                seed: Date.now(),
               }),
-            disabled: () => !hasSelected(),
           },
           {
             label: 'Uniform Noise',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'noise',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'noise', noiseType: 'uniform', amount: 25, monochrome: false, seed: Date.now() },
+              addFilterLayerToArtboard('noise', {
+                noiseType: 'uniform',
+                amount: 25,
+                monochrome: false,
+                seed: Date.now(),
               }),
-            disabled: () => !hasSelected(),
           },
           {
             label: 'Film Grain',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'noise',
-                enabled: true,
-                opacity: 1,
-                params: {
-                  kind: 'noise',
-                  noiseType: 'film-grain',
-                  amount: 25,
-                  monochrome: false,
-                  seed: Date.now(),
-                  size: 3,
-                },
+              addFilterLayerToArtboard('noise', {
+                noiseType: 'film-grain',
+                amount: 25,
+                monochrome: false,
+                seed: Date.now(),
+                size: 3,
               }),
-            disabled: () => !hasSelected(),
           },
           { label: '', divider: true },
           {
@@ -1206,50 +1163,24 @@ function buildMenus(): MenuDef[] {
           {
             label: 'Wave',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'wave',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'wave', amplitudeX: 10, amplitudeY: 10, frequencyX: 0.05, frequencyY: 0.05 },
+              addFilterLayerToArtboard('wave', {
+                amplitudeX: 10,
+                amplitudeY: 10,
+                frequencyX: 0.05,
+                frequencyY: 0.05,
               }),
-            disabled: () => !hasSelected(),
           },
           {
             label: 'Twirl',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'twirl',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'twirl', angle: Math.PI / 2, radius: 0 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('twirl', { twirlAngle: Math.PI / 2, twirlRadius: 0 }),
           },
           {
             label: 'Pinch/Bulge',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'pinch',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'pinch', amount: 0.5 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('pinch', { pinchAmount: 0.5 }),
           },
           {
             label: 'Spherize',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'spherize',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'spherize', amount: 1 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('spherize', { spherizeAmount: 1 }),
           },
         ],
       },
@@ -1259,26 +1190,12 @@ function buildMenus(): MenuDef[] {
           {
             label: 'Sharpen',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'sharpen',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'sharpen', amount: 1.5, radius: 1, threshold: 0 },
-              }),
-            disabled: () => !hasSelected(),
+              addFilterLayerToArtboard('sharpen', { sharpenAmount: 1.5, sharpenRadius: 1, threshold: 0 }),
           },
           {
             label: 'Unsharp Mask',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'sharpen',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'sharpen', amount: 0.8, radius: 2, threshold: 4 },
-              }),
-            disabled: () => !hasSelected(),
+              addFilterLayerToArtboard('sharpen', { sharpenAmount: 0.8, sharpenRadius: 2, threshold: 4 }),
           },
         ],
       },
@@ -1287,27 +1204,11 @@ function buildMenus(): MenuDef[] {
         submenu: [
           {
             label: 'Motion Blur',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'motion-blur',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'motion-blur', angle: 0, distance: 10 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('motion-blur', { motionAngle: 0, distance: 10 }),
           },
           {
             label: 'Radial Blur',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'radial-blur',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'radial-blur', centerX: 0.5, centerY: 0.5, amount: 10 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('radial-blur', { centerX: 0.5, centerY: 0.5, radialAmount: 10 }),
           },
         ],
       },
@@ -1315,80 +1216,56 @@ function buildMenus(): MenuDef[] {
         label: 'Adjustments',
         submenu: [
           {
-            label: 'Posterize',
+            label: 'Levels',
+            action: () => addFilterLayerToArtboard('levels', { blackPoint: 0, whitePoint: 255, gamma: 1.0 }),
+          },
+          {
+            label: 'Curves',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'color-adjust',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'color-adjust', adjustType: 'posterize', levels: 4 },
+              addFilterLayerToArtboard('curves', {
+                curvePoints: [
+                  [0, 0],
+                  [128, 128],
+                  [255, 255],
+                ],
               }),
-            disabled: () => !hasSelected(),
+          },
+          {
+            label: 'Hue/Saturation',
+            action: () => addFilterLayerToArtboard('hue-sat', { hue: 0, saturation: 0, lightness: 0 }),
+          },
+          {
+            label: 'Color Balance',
+            action: () => addFilterLayerToArtboard('color-balance', { shadows: 0, midtones: 0, highlights: 0 }),
+          },
+          { label: '', divider: true },
+          {
+            label: 'Posterize',
+            action: () => addFilterLayerToArtboard('color-adjust', { adjustType: 'posterize', levels: 4 }),
           },
           {
             label: 'Threshold',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'color-adjust',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'color-adjust', adjustType: 'threshold', thresholdValue: 128 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('color-adjust', { adjustType: 'threshold', thresholdValue: 128 }),
           },
           {
             label: 'Invert',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'color-adjust',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'color-adjust', adjustType: 'invert' },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('color-adjust', { adjustType: 'invert' }),
           },
           {
             label: 'Desaturate',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'color-adjust',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'color-adjust', adjustType: 'desaturate' },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('color-adjust', { adjustType: 'desaturate' }),
           },
           {
             label: 'Vibrance',
-            action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'color-adjust',
-                enabled: true,
-                opacity: 1,
-                params: { kind: 'color-adjust', adjustType: 'vibrance', vibranceAmount: 50 },
-              }),
-            disabled: () => !hasSelected(),
+            action: () => addFilterLayerToArtboard('color-adjust', { adjustType: 'vibrance', vibranceAmount: 50 }),
           },
           {
             label: 'Channel Mixer',
             action: () =>
-              addEffectToSelected({
-                id: uuid(),
-                type: 'color-adjust',
-                enabled: true,
-                opacity: 1,
-                params: {
-                  kind: 'color-adjust',
-                  adjustType: 'channel-mixer',
-                  channelMatrix: { rr: 1, rg: 0, rb: 0, gr: 0, gg: 1, gb: 0, br: 0, bg: 0, bb: 1 },
-                },
+              addFilterLayerToArtboard('color-adjust', {
+                adjustType: 'channel-mixer',
+                channelMatrix: { rr: 1, rg: 0, rb: 0, gr: 0, gg: 1, gb: 0, br: 0, bg: 0, bb: 1 },
               }),
-            disabled: () => !hasSelected(),
           },
         ],
       },

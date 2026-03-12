@@ -408,7 +408,7 @@ describe('Editor Store - Effects', () => {
     getState().addEffect(artboardId, layerId, effect)
     const layer = getState().document.artboards[0]!.layers[0]!
     expect(layer.effects).toHaveLength(1)
-    expect(layer.effects[0]!.id).toBe('effect-1')
+    expect(layer.effects![0]!.id).toBe('effect-1')
   })
 
   test('removeEffect removes an effect', () => {
@@ -436,7 +436,7 @@ describe('Editor Store - Effects', () => {
     }
     getState().addEffect(artboardId, layerId, effect)
     getState().updateEffect(artboardId, layerId, 'effect-1', { opacity: 0.9 } as Partial<Effect>)
-    const updated = getState().document.artboards[0]!.layers[0]!.effects[0]!
+    const updated = getState().document.artboards[0]!.layers[0]!.effects![0]!
     expect(updated.opacity).toBe(0.9)
   })
 })

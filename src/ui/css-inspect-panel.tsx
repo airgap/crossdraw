@@ -189,13 +189,13 @@ function buildCSSProperties(layer: Layer, _artboard: Artboard): CSSProperty[] {
   }
 
   // Effects -> box-shadow
-  const shadows = layer.effects.map(effectToBoxShadow).filter((s): s is string => s !== null)
+  const shadows = (layer.effects ?? []).map(effectToBoxShadow).filter((s): s is string => s !== null)
   if (shadows.length > 0) {
     props.push({ name: 'box-shadow', value: shadows.join(', ') })
   }
 
   // Blur effect -> filter
-  for (const eff of layer.effects) {
+  for (const eff of layer.effects ?? []) {
     if (eff.enabled && eff.params.kind === 'blur') {
       props.push({ name: 'filter', value: `blur(${eff.params.radius}px)` })
     }

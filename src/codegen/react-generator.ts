@@ -151,7 +151,7 @@ function buildInlineStyle(layer: Layer): Record<string, string | number> {
   }
 
   // Effects
-  for (const effect of layer.effects) {
+  for (const effect of layer.effects ?? []) {
     if (!effect.enabled) continue
     if (effect.type === 'drop-shadow' || effect.type === 'shadow') {
       const p = effect.params as ShadowParams

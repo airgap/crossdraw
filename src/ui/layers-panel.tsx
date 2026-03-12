@@ -9,6 +9,7 @@ import {
   SlidersHorizontal,
   Type,
   Component,
+  Filter,
   Eye,
   EyeOff,
   ChevronDown,
@@ -24,6 +25,7 @@ const TYPE_ICONS: Record<string, LucideIcon> = {
   adjustment: SlidersHorizontal,
   text: Type,
   'symbol-instance': Component,
+  filter: Filter,
 }
 
 interface DragState {
@@ -200,6 +202,7 @@ export function LayersPanel() {
           <option value="raster">Img</option>
           <option value="text">Txt</option>
           <option value="group">Grp</option>
+          <option value="filter">Flt</option>
         </select>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 'var(--space-1)' }}>

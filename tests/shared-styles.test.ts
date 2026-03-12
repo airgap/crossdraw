@@ -306,7 +306,7 @@ describe('Shared Styles', () => {
       const layer = doc.artboards[0]!.layers.find((l) => l.id === 'vec-es') as VectorLayer
       expect(layer.effectStyleId).toBe('es-1')
       expect(layer.effects).toHaveLength(2)
-      expect(layer.effects[0]!.type).toBe('blur')
+      expect(layer.effects![0]!.type).toBe('blur')
     })
 
     it('should propagate effect style updates to linked layers', () => {
@@ -338,7 +338,7 @@ describe('Shared Styles', () => {
       const doc = getDoc()
       const layer = doc.artboards[0]!.layers.find((l) => l.id === 'vec-es-prop') as VectorLayer
       expect(layer.effects).toHaveLength(2)
-      expect(layer.effects[1]!.type).toBe('shadow')
+      expect(layer.effects![1]!.type).toBe('shadow')
     })
 
     it('should detach effect style preserving effects', () => {

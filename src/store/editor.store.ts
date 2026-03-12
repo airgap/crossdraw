@@ -33,6 +33,8 @@ import type {
   EffectStyle,
   TextLayer,
   PNGTuberTag,
+  FilterLayer,
+  FilterParams,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
@@ -187,6 +189,9 @@ export interface EditorActions {
 
   // Adjustment layers
   addAdjustmentLayer: (artboardId: string, adjustmentType: AdjustmentParams['adjustmentType']) => void
+
+  // Filter layers
+  addFilterLayer: (artboardId: string, filterKind: string, customParams?: Partial<FilterParams>) => void
 
   // Masks
   setLayerMask: (artboardId: string, layerId: string, mask: Layer) => void
@@ -988,7 +993,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         const artboard = findArtboard(draft, artboardId)
         if (!artboard) return
         const layer = artboard.layers.find((l) => l.id === layerId)
-        if (layer) layer.effects.push(effect)
+        if (layer) (layer.effects ??= []).push(effect)
       })
     },
 
@@ -998,7 +1003,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (!artboard) return
         const layer = artboard.layers.find((l) => l.id === layerId)
         if (layer) {
-          layer.effects = layer.effects.filter((e) => e.id !== effectId)
+          layer.effects = (layer.effects ?? []).filter((e) => e.id !== effectId)
         }
       })
     },
@@ -1009,7 +1014,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (!artboard) return
         const layer = artboard.layers.find((l) => l.id === layerId)
         if (!layer) return
-        const effect = layer.effects.find((e) => e.id === effectId)
+        const effect = (layer.effects ?? []).find((e) => e.id === effectId)
         if (effect) Object.assign(effect, updates)
       })
     },
@@ -1094,6 +1099,70 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         ...adj,
       }
       mutateDocument(`Add ${adjustmentType} adjustment`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) artboard.layers.push(layer)
+      })
+    },
+
+    // Filter layers
+    addFilterLayer(artboardId, filterKind, customParams) {
+      const filterDefaults: Record<string, FilterParams> = {
+        // Adjustment types
+        levels: { kind: 'levels', blackPoint: 0, whitePoint: 255, gamma: 1 },
+        curves: {
+          kind: 'curves',
+          points: [
+            [0, 0],
+            [128, 128],
+            [255, 255],
+          ],
+        },
+        'hue-sat': { kind: 'hue-sat', hue: 0, saturation: 0, lightness: 0 },
+        'color-balance': { kind: 'color-balance', shadows: 0, midtones: 0, highlights: 0 },
+        // Effect types
+        blur: { kind: 'blur', radius: 4, quality: 'medium' },
+        shadow: { kind: 'shadow', offsetX: 4, offsetY: 4, blurRadius: 8, spread: 0, color: '#00000088', opacity: 0.5 },
+        glow: { kind: 'glow', radius: 8, spread: 0, color: '#ffcc0088', opacity: 0.8 },
+        'inner-shadow': { kind: 'inner-shadow', offsetX: 2, offsetY: 2, blurRadius: 6, color: '#00000088', opacity: 0.5 },
+        'background-blur': { kind: 'background-blur', radius: 10 },
+        'progressive-blur': {
+          kind: 'progressive-blur',
+          direction: 'linear',
+          angle: 90,
+          startRadius: 0,
+          endRadius: 20,
+          startPosition: 0,
+          endPosition: 1,
+        },
+        noise: { kind: 'noise', noiseType: 'gaussian', amount: 25, monochrome: false, seed: 0 },
+        sharpen: { kind: 'sharpen', amount: 50, radius: 1, threshold: 0 },
+        'motion-blur': { kind: 'motion-blur', angle: 0, distance: 10 },
+        'radial-blur': { kind: 'radial-blur', centerX: 0.5, centerY: 0.5, amount: 10 },
+        'color-adjust': { kind: 'color-adjust', adjustType: 'posterize', levels: 4 },
+        wave: { kind: 'wave', amplitudeX: 10, amplitudeY: 10, frequencyX: 0.05, frequencyY: 0.05 },
+        twirl: { kind: 'twirl', angle: 45, radius: 100 },
+        pinch: { kind: 'pinch', amount: 0.5 },
+        spherize: { kind: 'spherize', amount: 0.5 },
+        distort: { kind: 'distort', distortType: 'warp', intensity: 0.5, scale: 1 },
+      }
+
+      const defaults = filterDefaults[filterKind]
+      if (!defaults) return
+
+      const filterParams: FilterParams = customParams ? { ...defaults, ...customParams } as FilterParams : defaults
+      const layer: FilterLayer = {
+        id: uuid(),
+        name: `${filterKind} filter`,
+        type: 'filter',
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal',
+        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+        effects: [],
+        filterParams,
+      }
+      mutateDocument(`Add ${filterKind} filter`, (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (artboard) artboard.layers.push(layer)
       })

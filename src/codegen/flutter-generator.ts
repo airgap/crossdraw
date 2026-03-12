@@ -106,7 +106,7 @@ function generateVectorFlutter(layer: VectorLayer, indent: string): string {
   }
 
   // Shadows
-  const shadowStr = shadowsToFlutter(layer.effects, innerIndent)
+  const shadowStr = shadowsToFlutter(layer.effects ?? [], innerIndent)
   if (shadowStr) decorationParts.push(shadowStr)
 
   // Build Container
@@ -138,7 +138,7 @@ function generateVectorFlutter(layer: VectorLayer, indent: string): string {
   }
 
   // Blur
-  for (const effect of layer.effects) {
+  for (const effect of layer.effects ?? []) {
     if (!effect.enabled) continue
     if (effect.type === 'blur') {
       const p = effect.params as BlurParams
