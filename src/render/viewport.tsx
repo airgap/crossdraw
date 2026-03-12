@@ -1176,6 +1176,9 @@ export function Viewport() {
     if (!canvas) return
     const handler = (e: WheelEvent) => {
       e.preventDefault()
+      // In touch mode, the touch handler manages pinch-to-zoom and pan directly.
+      // Ignore browser-synthesized wheel events from touch gestures.
+      if (useEditorStore.getState().touchMode) return
       const rect = canvas.getBoundingClientRect()
 
       if (e.ctrlKey || e.metaKey) {
@@ -1197,11 +1200,6 @@ export function Viewport() {
   }, []) // reads from store directly, no deps needed
 
   function handleMouseDown(e: React.MouseEvent) {
-    // In touch mode, the touch-handler routes pointer events here via synthetic
-    // objects (nativeEvent is a plain object, not a MouseEvent). Skip the real
-    // browser mouse events that fire after touch/pointer events to avoid double dispatch.
-    if (touchMode && e.nativeEvent instanceof MouseEvent) return
-
     if (e.button === 1) {
       isPanning.current = true
       lastMouse.current = { x: e.clientX, y: e.clientY }
@@ -1627,8 +1625,6 @@ export function Viewport() {
   }
 
   function handleMouseMove(e: React.MouseEvent) {
-    if (touchMode && e.nativeEvent instanceof MouseEvent) return
-
     if (isPanning.current) {
       const dx = e.clientX - lastMouse.current.x
       const dy = e.clientY - lastMouse.current.y
@@ -1924,8 +1920,6 @@ export function Viewport() {
   }
 
   function handleMouseUp(_e?: React.MouseEvent) {
-    if (touchMode && _e?.nativeEvent instanceof MouseEvent) return
-
     if (isPanning.current) {
       isPanning.current = false
       if (canvasRef.current) {
@@ -2259,12 +2253,12 @@ export function Viewport() {
         cursor: cursor ?? undefined,
         touchAction: touchMode ? 'none' : undefined,
       }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
-      onDoubleClick={handleDoubleClick}
-      onContextMenu={(e) => {
+      onMouseDown={touchMode ? undefined : handleMouseDown}
+      onMouseMove={touchMode ? undefined : handleMouseMove}
+      onMouseUp={touchMode ? undefined : handleMouseUp}
+      onMouseLeave={touchMode ? undefined : handleMouseLeave}
+      onDoubleClick={touchMode ? undefined : handleDoubleClick}
+      onContextMenu={touchMode ? undefined : (e) => {
         e.preventDefault()
         openCanvasContextMenu(e.clientX, e.clientY)
       }}
