@@ -36,6 +36,8 @@ pipeline {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun test'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bunx vite build'
                 stash includes: 'dist/**', name: 'web-dist'
+                // Stash source for Windows (can't git-fetch from t.muzz.in)
+                stash includes: 'package.json,bun.lockb,electron/**,electron-builder.yml,src/**,tsconfig*.json,index.html,vite.config.ts,public/**', name: 'source'
             }
         }
 
@@ -103,9 +105,13 @@ pipeline {
                 // ── Electron: Windows ─────────────────────────
                 stage('Electron Windows') {
                     agent { label 'windows' }
+                    options {
+                        skipDefaultCheckout()
+                    }
                     steps {
-                        bat 'bun install --frozen-lockfile'
+                        unstash 'source'
                         unstash 'web-dist'
+                        bat 'bun install --frozen-lockfile'
                         bat 'bunx tsc -p electron/tsconfig.json'
                         bat 'bunx electron-builder --config electron-builder.yml --win --x64 --arm64'
                     }
