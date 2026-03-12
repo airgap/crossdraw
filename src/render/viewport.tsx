@@ -247,6 +247,11 @@ export function Viewport() {
   const eraserRafId = useRef(0)
   const gradientEnd = useRef<{ x: number; y: number } | null>(null)
   const cloneStampRafId = useRef(0)
+
+  // Stable refs for touch handler — avoids stale closures in the touch useEffect
+  const handleMouseDownRef = useRef<(e: React.MouseEvent) => void>(() => {})
+  const handleMouseMoveRef = useRef<(e: React.MouseEvent) => void>(() => {})
+  const handleMouseUpRef = useRef<(_e?: React.MouseEvent) => void>(() => {})
   const textDragStart = useRef<{ x: number; y: number; artboardId: string } | null>(null)
   const textDragEnd = useRef<{ x: number; y: number } | null>(null)
   const vpDragState = useRef<{ artboardId: string; vpIndex: number } | null>(null)
@@ -1090,7 +1095,6 @@ export function Viewport() {
     attachTouchHandler(canvas, {
       getCanvasRect: () => canvas.getBoundingClientRect(),
       onPointerDown(x, y, button, shiftKey, pressure, _pointerType) {
-        // Single finger → forward to active tool (two-finger pan handled by touch-handler pinch)
         brushPressure.current = pressure
         const synth = {
           clientX: x,
@@ -1100,7 +1104,7 @@ export function Viewport() {
           nativeEvent: { clientX: x, clientY: y, button, shiftKey, altKey: false },
           preventDefault() {},
         } as unknown as React.MouseEvent
-        handleMouseDown(synth)
+        handleMouseDownRef.current(synth)
       },
       onPointerMove(x, y, shiftKey, pressure, _pointerType) {
         brushPressure.current = pressure
@@ -1111,10 +1115,10 @@ export function Viewport() {
           altKey: false,
           nativeEvent: { clientX: x, clientY: y, shiftKey, altKey: false },
         } as unknown as React.MouseEvent
-        handleMouseMove(synth)
+        handleMouseMoveRef.current(synth)
       },
       onPointerUp(_pressure, _pointerType) {
-        handleMouseUp()
+        handleMouseUpRef.current()
       },
       onContextMenu(x, y) {
         openCanvasContextMenu(x, y)
@@ -2219,6 +2223,11 @@ export function Viewport() {
       }
     }
   }
+
+  // Keep touch handler refs in sync with latest closures
+  handleMouseDownRef.current = handleMouseDown
+  handleMouseMoveRef.current = handleMouseMove
+  handleMouseUpRef.current = handleMouseUp
 
   const cursor = isPanning.current
     ? 'grabbing'
