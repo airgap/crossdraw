@@ -132,7 +132,7 @@ describe('Spiral Tool', () => {
     test('sets center from document coordinates minus artboard offset', () => {
       spiralMouseDown(150, 200, artboardId(), 50, 100)
       // Center should be local: (150-50, 200-100) = (100, 100)
-      const preview = getSpiralPreview()
+      getSpiralPreview()
       // radius is still 0, so preview is null, but we can check via drag
       spiralMouseDrag(250, 200) // docX=250 => localX=250-50=200, drag to compute radius
       const p = getSpiralPreview()

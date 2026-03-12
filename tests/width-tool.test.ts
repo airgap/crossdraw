@@ -608,7 +608,7 @@ describe('Width Tool', () => {
     })
 
     test('undo entry is created on mouseUp', () => {
-      const layerId = addVectorLayerWithStroke()
+      addVectorLayerWithStroke()
       const abId = artboardId()
 
       const historyBefore = useEditorStore.getState().history.length

@@ -319,7 +319,7 @@ describe('makeCompoundPath', () => {
     it('preserves non-selected layers', () => {
       const v1 = addVectorLayer({ name: 'A' })
       const v2 = addVectorLayer({ name: 'B' })
-      const v3 = addVectorLayer({ name: 'Bystander' })
+      addVectorLayer({ name: 'Bystander' })
 
       useEditorStore.getState().selectLayer(v1.id)
       useEditorStore.getState().selectLayer(v2.id, true)

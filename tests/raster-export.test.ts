@@ -43,11 +43,7 @@ globalThis.Path2D = class MockPath2D {
 }
 
 // Mock OffscreenCanvas and related browser APIs needed by raster-export
-const mockImageData = {
-  data: new Uint8ClampedArray(16),
-  width: 2,
-  height: 2,
-}
+// OffscreenCanvas and ImageData mocks are set up via globalThis below
 
 // Mock CanvasGradient
 class MockCanvasGradient {

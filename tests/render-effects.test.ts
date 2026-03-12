@@ -35,7 +35,7 @@ if (typeof globalThis.ImageData !== 'function') {
 
 // ── Polyfill OffscreenCanvas for Bun ────────────────────────────────────────
 
-function createMockContext(w: number, h: number) {
+function createMockContext(_w: number, _h: number) {
   return {
     filter: 'none',
     globalAlpha: 1,

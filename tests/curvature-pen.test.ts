@@ -511,7 +511,7 @@ describe('Curvature Pen Tool', () => {
       const abId = artboardId()
       curvaturePenMouseDown(10, 10, abId, 0, 0, false, false)
       // Reset underlying layer manually via store
-      const s = getCurvaturePenState()
+      getCurvaturePenState()
       // Just call escape — it should handle gracefully
       curvaturePenKeyDown('Escape')
       expect(getCurvaturePenState().isDrawing).toBe(false)

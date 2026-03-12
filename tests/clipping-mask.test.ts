@@ -428,7 +428,7 @@ describe('releaseClippingMask', () => {
   }
 
   it('restores the mask as a standalone layer', () => {
-    const { maskedId } = setupMaskedLayer()
+    const { maskedId: _maskedId } = setupMaskedLayer()
 
     // After makeClippingMask, maskedId is selected
     releaseClippingMask()
@@ -497,7 +497,7 @@ describe('releaseClippingMask', () => {
 
   it('preserves bystander layers', () => {
     const bystander = addVectorLayer({ name: 'Bystander' })
-    const { maskedId } = setupMaskedLayer()
+    const { maskedId: _maskedId } = setupMaskedLayer()
 
     releaseClippingMask()
 

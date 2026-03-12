@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
 import { useEditorStore } from '@/store/editor.store'
 import { selectSame, selectInverse } from '@/tools/selection-filters'
-import type { VectorLayer, TextLayer, GroupLayer, Layer, Fill, Stroke, Effect } from '@/types'
+import type { VectorLayer, TextLayer, GroupLayer, Layer, Stroke, Effect } from '@/types'
 
 // ── Helpers ──
 
@@ -16,6 +16,8 @@ function artboardId(): string {
 function layers(): Layer[] {
   return useEditorStore.getState().document.artboards[0]!.layers
 }
+// Suppress unused — helper available for debugging
+void layers
 
 function selection(): string[] {
   return useEditorStore.getState().selection.layerIds
@@ -112,8 +114,8 @@ describe('selectSame', () => {
 
     it('returns no change when only one layer matches', () => {
       const red = addVectorLayer({ fill: { type: 'solid', color: '#ff0000', opacity: 1 } })
-      const blue = addVectorLayer({ fill: { type: 'solid', color: '#0000ff', opacity: 1 } })
-      const green = addVectorLayer({ fill: { type: 'solid', color: '#00ff00', opacity: 1 } })
+      addVectorLayer({ fill: { type: 'solid', color: '#0000ff', opacity: 1 } })
+      addVectorLayer({ fill: { type: 'solid', color: '#00ff00', opacity: 1 } })
 
       useEditorStore.getState().selectLayer(red.id)
       selectSame('fill')
@@ -137,7 +139,7 @@ describe('selectSame', () => {
 
     it('does nothing with null fill on reference layer', () => {
       const noFill = addVectorLayer({ fill: null })
-      const red = addVectorLayer({ fill: { type: 'solid', color: '#ff0000', opacity: 1 } })
+      addVectorLayer({ fill: { type: 'solid', color: '#ff0000', opacity: 1 } })
 
       useEditorStore.getState().selectLayer(noFill.id)
       selectSame('fill')
@@ -315,7 +317,7 @@ describe('selectSame', () => {
 
     it('does nothing when reference layer is a vector (no font)', () => {
       const v1 = addVectorLayer()
-      const t1 = addTextLayer({ fontFamily: 'Helvetica' })
+      addTextLayer({ fontFamily: 'Helvetica' })
 
       useEditorStore.getState().selectLayer(v1.id)
       selectSame('font')

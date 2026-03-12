@@ -11,7 +11,7 @@ import {
   lineLineIntersectionT,
 } from '@/tools/knife'
 import { useEditorStore } from '@/store/editor.store'
-import type { VectorLayer, Segment, Path } from '@/types'
+import type { VectorLayer, Path } from '@/types'
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -875,7 +875,7 @@ describe('knife tool — edge cases', () => {
     updateKnifeCut(110, 30)
     endKnifeCut()
 
-    const countAfterFirstCut = countArtboardLayers()
+    countArtboardLayers()
 
     // Re-select the original layer and cut again
     const store = useEditorStore.getState()
