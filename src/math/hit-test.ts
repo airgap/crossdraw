@@ -87,11 +87,17 @@ function preciseHitTest(layer: Layer, artboard: Artboard, docX: number, docY: nu
     return true
   }
 
+  if (layer.type === 'text' || layer.type === 'group' || layer.type === 'fill' || layer.type === 'clone' || layer.type === 'smart-object') {
+    // AABB is sufficient for these layer types
+    return true
+  }
+
   if (layer.type !== 'vector') return false
 
-  // Convert doc coords to layer-local coords
-  const localX = docX - artboard.x - layer.transform.x
-  const localY = docY - artboard.y - layer.transform.y
+  // Convert doc coords to layer-local coords (accounting for scale)
+  const t = layer.transform
+  const localX = (docX - artboard.x - t.x) / (t.scaleX || 1)
+  const localY = (docY - artboard.y - t.y) / (t.scaleY || 1)
 
   // Use CanvasRenderingContext2D for hit testing
   const canvas = new OffscreenCanvas(1, 1)

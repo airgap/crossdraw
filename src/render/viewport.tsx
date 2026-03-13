@@ -392,7 +392,7 @@ export function Viewport() {
 
     // Transform handles (in document space, outside artboard clip)
     if (activeTool === 'select' && selection.layerIds.length > 0) {
-      renderTransformHandles(ctx, document, selection.layerIds, viewport.zoom)
+      renderTransformHandles(ctx, document, selection.layerIds, viewport.zoom, touchMode)
     }
 
     // Snap lines
@@ -1920,7 +1920,7 @@ export function Viewport() {
       if (selection.layerIds.length > 0) {
         const bbox = getSelectedLayerBBox()
         if (bbox) {
-          const handle = hitTestHandles(docPoint, bbox, viewport.zoom)
+          const handle = hitTestHandles(docPoint, bbox, viewport.zoom, useEditorStore.getState().touchMode)
           if (handle) {
             const info = getSelectedLayerInfo()
             if (info) {
@@ -2286,7 +2286,7 @@ export function Viewport() {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       const bbox = getSelectedLayerBBox()
       if (bbox) {
-        const handle = hitTestHandles(docPoint, bbox, viewport.zoom)
+        const handle = hitTestHandles(docPoint, bbox, viewport.zoom, useEditorStore.getState().touchMode)
         canvasRef.current.style.cursor = getHandleCursor(handle)
       } else {
         canvasRef.current.style.cursor = 'default'
@@ -4288,6 +4288,7 @@ function renderTransformHandles(
   doc: { artboards: Artboard[] },
   selectedLayerIds: string[],
   zoom: number,
+  touchMode = false,
 ) {
   for (const artboard of doc.artboards) {
     for (const layer of artboard.layers) {
@@ -4296,7 +4297,7 @@ function renderTransformHandles(
       const bbox = getLayerBBox(layer, artboard)
       if (bbox.minX === Infinity) continue
 
-      const handleSize = Math.min(10, Math.max(4, 6 / zoom))
+      const handleSize = touchMode ? Math.min(22, Math.max(10, 14 / zoom)) : Math.min(10, Math.max(4, 6 / zoom))
       const lineWidth = 1 / zoom
 
       // Dashed bbox

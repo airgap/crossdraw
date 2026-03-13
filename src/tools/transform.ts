@@ -1,7 +1,7 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { Point } from '@/math/viewport'
 import { pathBBox, mergeBBox, getLayerBBox, type BBox } from '@/math/bbox'
-import type { Transform, VectorLayer } from '@/types'
+import type { Transform, Layer } from '@/types'
 import { snapBBox } from '@/tools/snap'
 
 export type HandleType = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se' | 'rotation' | 'body'
@@ -21,12 +21,44 @@ export function isTransformDragging(): boolean {
   return drag !== null
 }
 
-function computeLocalBBox(layer: VectorLayer): BBox {
-  let bbox: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
-  for (const path of layer.paths) {
-    bbox = mergeBBox(bbox, pathBBox(path.segments))
+function computeLocalBBox(layer: Layer, artboard: { x: number; y: number }): BBox {
+  switch (layer.type) {
+    case 'vector': {
+      let bbox: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
+      for (const path of layer.paths) {
+        bbox = mergeBBox(bbox, pathBBox(path.segments))
+      }
+      return bbox
+    }
+    case 'raster':
+      return { minX: 0, minY: 0, maxX: layer.width, maxY: layer.height }
+    case 'text': {
+      const lines = layer.text.split('\n')
+      let maxLineWidth = 0
+      for (const line of lines) {
+        maxLineWidth = Math.max(maxLineWidth, layer.fontSize * line.length * 0.6)
+      }
+      const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
+      const estimatedHeight = lines.length * lineH
+      return { minX: 0, minY: 0, maxX: maxLineWidth, maxY: estimatedHeight }
+    }
+    case 'group': {
+      // Fall back to world bbox minus artboard offset and layer transform
+      const worldBBox = getLayerBBox(layer, artboard as any)
+      if (worldBBox.minX === Infinity) return { minX: 0, minY: 0, maxX: 0, maxY: 0 }
+      const t = layer.transform
+      const sx = t.scaleX || 1
+      const sy = t.scaleY || 1
+      return {
+        minX: (worldBBox.minX - artboard.x - t.x) / sx,
+        minY: (worldBBox.minY - artboard.y - t.y) / sy,
+        maxX: (worldBBox.maxX - artboard.x - t.x) / sx,
+        maxY: (worldBBox.maxY - artboard.y - t.y) / sy,
+      }
+    }
+    default:
+      return { minX: 0, minY: 0, maxX: 0, maxY: 0 }
   }
-  return bbox
 }
 
 export function getHandlePositions(bbox: BBox, zoom: number) {
@@ -46,9 +78,9 @@ export function getHandlePositions(bbox: BBox, zoom: number) {
   }
 }
 
-export function hitTestHandles(docPoint: Point, bbox: BBox, zoom: number): HandleType | null {
+export function hitTestHandles(docPoint: Point, bbox: BBox, zoom: number, touchMode = false): HandleType | null {
   const handles = getHandlePositions(bbox, zoom)
-  const radius = Math.min(10, Math.max(4, 6 / zoom))
+  const radius = touchMode ? Math.min(22, Math.max(10, 14 / zoom)) : Math.min(10, Math.max(4, 6 / zoom))
   const r2 = radius * radius
 
   const order: Exclude<HandleType, 'body'>[] = ['rotation', 'nw', 'ne', 'sw', 'se', 'n', 's', 'w', 'e']
@@ -72,7 +104,9 @@ export function beginTransform(handle: HandleType, docPoint: Point, layerId: str
   const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
   const layer = artboard.layers.find((l) => l.id === layerId)
-  if (!layer || layer.type !== 'vector') return
+  if (!layer) return
+  // Skip layer types that shouldn't be individually transformed
+  if (layer.type === 'adjustment' || layer.type === 'filter' || layer.type === 'fill') return
 
   drag = {
     handle,
@@ -80,7 +114,7 @@ export function beginTransform(handle: HandleType, docPoint: Point, layerId: str
     artboardId,
     startDocPoint: { ...docPoint },
     originalTransform: { ...layer.transform },
-    localBBox: computeLocalBBox(layer),
+    localBBox: computeLocalBBox(layer, artboard),
   }
 }
 

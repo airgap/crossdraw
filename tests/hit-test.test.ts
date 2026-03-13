@@ -434,10 +434,10 @@ describe('SpatialIndex', () => {
       const index = new SpatialIndex()
       index.rebuild(doc)
 
-      // Text layer bbox should exist but preciseHitTest returns false for non-vector/non-raster
+      // Text layer bbox should exist and AABB hit test is sufficient for text layers
       const hits = index.hitTest(15, 15, doc)
-      // Text layers return false from preciseHitTest (type !== 'vector' and type !== 'raster')
-      expect(hits.length).toBe(0)
+      expect(hits.length).toBe(1)
+      expect(hits[0]!.layer.id).toBe('t1')
     })
   })
 })

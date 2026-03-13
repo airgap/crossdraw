@@ -194,11 +194,13 @@ export function getLayerBBox(layer: Layer, artboard: Artboard): BBox {
       return getVectorLayerBBox(layer, artboard)
     case 'raster': {
       const t = layer.transform
+      const w = layer.width * t.scaleX
+      const h = layer.height * t.scaleY
       return {
-        minX: artboard.x + t.x,
-        minY: artboard.y + t.y,
-        maxX: artboard.x + t.x + layer.width,
-        maxY: artboard.y + t.y + layer.height,
+        minX: artboard.x + t.x + Math.min(0, w),
+        minY: artboard.y + t.y + Math.min(0, h),
+        maxX: artboard.x + t.x + Math.max(0, w),
+        maxY: artboard.y + t.y + Math.max(0, h),
       }
     }
     case 'group':
@@ -236,8 +238,22 @@ function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
 
   if (bbox.minX === Infinity) return { ...EMPTY_BBOX }
 
-  // Apply group's own transform offset
+  // Apply group's own transform (scale relative to group origin, then translate)
   const t = group.transform
+  if (t.scaleX !== 1 || t.scaleY !== 1) {
+    const originX = artboard.x + t.x
+    const originY = artboard.y + t.y
+    const x1 = (bbox.minX - originX) * t.scaleX + originX
+    const x2 = (bbox.maxX - originX) * t.scaleX + originX
+    const y1 = (bbox.minY - originY) * t.scaleY + originY
+    const y2 = (bbox.maxY - originY) * t.scaleY + originY
+    bbox = {
+      minX: Math.min(x1, x2),
+      minY: Math.min(y1, y2),
+      maxX: Math.max(x1, x2),
+      maxY: Math.max(y1, y2),
+    }
+  }
   if (t.x !== 0 || t.y !== 0) {
     bbox = {
       minX: bbox.minX + t.x,
@@ -277,13 +293,17 @@ function getVectorLayerBBox(layer: VectorLayer, artboard: Artboard): BBox {
     bbox = mergeBBox(bbox, getPathBBox(path))
   }
 
-  // Apply layer transform offset
+  // Apply layer transform (scale then translate)
   const t = layer.transform
+  const x1 = bbox.minX * t.scaleX
+  const x2 = bbox.maxX * t.scaleX
+  const y1 = bbox.minY * t.scaleY
+  const y2 = bbox.maxY * t.scaleY
   bbox = {
-    minX: bbox.minX + t.x + artboard.x,
-    minY: bbox.minY + t.y + artboard.y,
-    maxX: bbox.maxX + t.x + artboard.x,
-    maxY: bbox.maxY + t.y + artboard.y,
+    minX: Math.min(x1, x2) + t.x + artboard.x,
+    minY: Math.min(y1, y2) + t.y + artboard.y,
+    maxX: Math.max(x1, x2) + t.x + artboard.x,
+    maxY: Math.max(y1, y2) + t.y + artboard.y,
   }
 
   // Expand for stroke
