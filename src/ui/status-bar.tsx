@@ -34,9 +34,18 @@ export function StatusBar() {
   const [zoomInput, setZoomInput] = useState('')
   const [zoomDropdownOpen, setZoomDropdownOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [portrait, setPortrait] = useState(() => window.innerHeight > window.innerWidth)
   const settingsRef = useRef<HTMLDivElement>(null)
   const zoomDropdownRef = useRef<HTMLDivElement>(null)
   const rafRef = useRef(0)
+
+  // Track portrait orientation
+  useEffect(() => {
+    const mql = window.matchMedia('(orientation: portrait)')
+    const handler = (e: MediaQueryListEvent) => setPortrait(e.matches)
+    mql.addEventListener('change', handler)
+    return () => mql.removeEventListener('change', handler)
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -103,21 +112,25 @@ export function StatusBar() {
         flexShrink: 0,
       }}
     >
-      <span
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 4,
-          color: isDirty ? 'var(--warning)' : 'var(--success)',
-        }}
-        title={isDirty ? 'Document has unsaved changes' : 'All changes saved'}
-      >
-        <span style={{ fontSize: 8, lineHeight: 1 }}>●</span>
-        {isDirty ? 'Unsaved' : 'Saved'}
-      </span>
-      <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '-0.2px' }}>
-        X: {cursorPos.x} Y: {cursorPos.y}
-      </span>
+      {!portrait && (
+        <span
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            color: isDirty ? 'var(--warning)' : 'var(--success)',
+          }}
+          title={isDirty ? 'Document has unsaved changes' : 'All changes saved'}
+        >
+          <span style={{ fontSize: 8, lineHeight: 1 }}>●</span>
+          {isDirty ? 'Unsaved' : 'Saved'}
+        </span>
+      )}
+      {!portrait && (
+        <span style={{ fontFamily: 'var(--font-mono)', letterSpacing: '-0.2px' }}>
+          X: {cursorPos.x} Y: {cursorPos.y}
+        </span>
+      )}
       <button
         onClick={() => setZoom(viewport.zoom / 1.25)}
         className="cd-hoverable"
@@ -288,39 +301,47 @@ export function StatusBar() {
       >
         +
       </button>
-      <button
-        onClick={() => {
-          setZoom(1)
-          setPan(0, 0)
-        }}
-        title="Reset zoom"
-        className="cd-hoverable"
-        style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 9 }}
-      >
-        1:1
-      </button>
-      <button
-        onClick={toggleSnap}
-        title={snapEnabled ? 'Snapping enabled (click to disable)' : 'Snapping disabled (click to enable)'}
-        className="cd-hoverable"
-        style={{
-          ...statusBtnStyle,
-          color: snapEnabled ? 'var(--accent)' : 'var(--text-secondary)',
-          opacity: snapEnabled ? 1 : 0.5,
-        }}
-      >
-        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1C8.55 1 9 1.45 9 2V5.17C9.93 5.5 10.69 6.13 11.12 6.96L13.5 5.59C13.98 5.31 14.59 5.48 14.87 5.96C15.15 6.44 14.98 7.05 14.5 7.33L12.15 8.68C12.22 9.1 12.22 9.53 12.15 9.95L14.5 11.3C14.98 11.58 15.15 12.19 14.87 12.67C14.59 13.15 13.98 13.32 13.5 13.04L11.12 11.67C10.69 12.5 9.93 13.13 9 13.46V15.63C9 16.18 8.55 16.63 8 16.63C7.45 16.63 7 16.18 7 15.63V13.46C6.07 13.13 5.31 12.5 4.88 11.67L2.5 13.04C2.02 13.32 1.41 13.15 1.13 12.67C0.85 12.19 1.02 11.58 1.5 11.3L3.85 9.95C3.78 9.53 3.78 9.1 3.85 8.68L1.5 7.33C1.02 7.05 0.85 6.44 1.13 5.96C1.41 5.48 2.02 5.31 2.5 5.59L4.88 6.96C5.31 6.13 6.07 5.5 7 5.17V2C7 1.45 7.45 1 8 1ZM8 7.5C6.9 7.5 6 8.4 6 9.5C6 10.6 6.9 11.5 8 11.5C9.1 11.5 10 10.6 10 9.5C10 8.4 9.1 7.5 8 7.5Z" />
-        </svg>
-      </button>
-      <span style={{ fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-        {activeTool}
-      </span>
+      {!portrait && (
+        <button
+          onClick={() => {
+            setZoom(1)
+            setPan(0, 0)
+          }}
+          title="Reset zoom"
+          className="cd-hoverable"
+          style={{ ...statusBtnStyle, color: 'var(--text-secondary)', fontSize: 9 }}
+        >
+          1:1
+        </button>
+      )}
+      {!portrait && (
+        <button
+          onClick={toggleSnap}
+          title={snapEnabled ? 'Snapping enabled (click to disable)' : 'Snapping disabled (click to enable)'}
+          className="cd-hoverable"
+          style={{
+            ...statusBtnStyle,
+            color: snapEnabled ? 'var(--accent)' : 'var(--text-secondary)',
+            opacity: snapEnabled ? 1 : 0.5,
+          }}
+        >
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1C8.55 1 9 1.45 9 2V5.17C9.93 5.5 10.69 6.13 11.12 6.96L13.5 5.59C13.98 5.31 14.59 5.48 14.87 5.96C15.15 6.44 14.98 7.05 14.5 7.33L12.15 8.68C12.22 9.1 12.22 9.53 12.15 9.95L14.5 11.3C14.98 11.58 15.15 12.19 14.87 12.67C14.59 13.15 13.98 13.32 13.5 13.04L11.12 11.67C10.69 12.5 9.93 13.13 9 13.46V15.63C9 16.18 8.55 16.63 8 16.63C7.45 16.63 7 16.18 7 15.63V13.46C6.07 13.13 5.31 12.5 4.88 11.67L2.5 13.04C2.02 13.32 1.41 13.15 1.13 12.67C0.85 12.19 1.02 11.58 1.5 11.3L3.85 9.95C3.78 9.53 3.78 9.1 3.85 8.68L1.5 7.33C1.02 7.05 0.85 6.44 1.13 5.96C1.41 5.48 2.02 5.31 2.5 5.59L4.88 6.96C5.31 6.13 6.07 5.5 7 5.17V2C7 1.45 7.45 1 8 1ZM8 7.5C6.9 7.5 6 8.4 6 9.5C6 10.6 6.9 11.5 8 11.5C9.1 11.5 10 10.6 10 9.5C10 8.4 9.1 7.5 8 7.5Z" />
+          </svg>
+        </button>
+      )}
+      {!portrait && (
+        <span style={{ fontWeight: 'var(--font-weight-medium)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          {activeTool}
+        </span>
+      )}
       <span style={{ flex: 1 }} />
-      <span>{selCount > 0 ? `${selCount} selected` : `${layerCount} layers`}</span>
-      <span>
-        {document.artboards.length} artboard{document.artboards.length !== 1 ? 's' : ''}
-      </span>
+      {!portrait && <span>{selCount > 0 ? `${selCount} selected` : `${layerCount} layers`}</span>}
+      {!portrait && (
+        <span>
+          {document.artboards.length} artboard{document.artboards.length !== 1 ? 's' : ''}
+        </span>
+      )}
 
       <UserProfile />
 
