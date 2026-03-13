@@ -214,9 +214,9 @@ import {
   type ExportSettings,
 } from '@/ui/quick-export'
 
-// editor-core exports — import from built dist which has proper .d.ts
-import { TOKEN_TO_CSS_VAR, applyThemeTokens } from '../packages/editor-core/dist/theme-contract.js'
-import { getModeConfig as getModeConfigFromModule } from '../packages/editor-core/dist/mode-config.js'
+// editor-core exports — import from source
+import { TOKEN_TO_CSS_VAR, applyThemeTokens } from '../packages/editor-core/src/theme-contract'
+import { getModeConfig as getModeConfigFromModule } from '../packages/editor-core/src/mode-config'
 
 // ── Helpers ─────────────────────────────────────────────────────
 
