@@ -14,7 +14,7 @@
  *  - src/io/code-gen.ts (83.93%)
  */
 
-import { describe, test, expect, beforeEach } from 'bun:test'
+import { describe, test, expect, beforeEach, afterEach } from 'bun:test'
 import { v4 as uuid } from 'uuid'
 
 // ── Polyfill ImageData for bun:test ──
@@ -222,29 +222,41 @@ describe('video-export: exportAnimation', () => {
 
 describe('video-export: exportWebM fallback', () => {
   test('exportWebM throws in non-browser env', async () => {
-    const frames = [makeImageData(4, 4, 255, 0, 0)]
-    const settings: VideoExportSettings = {
-      ...defaultVideoExportSettings,
-      format: 'webm',
-      width: 4,
-      height: 4,
+    const savedOC = globalThis.OffscreenCanvas
+    delete (globalThis as any).OffscreenCanvas
+    try {
+      const frames = [makeImageData(4, 4, 255, 0, 0)]
+      const settings: VideoExportSettings = {
+        ...defaultVideoExportSettings,
+        format: 'webm',
+        width: 4,
+        height: 4,
+      }
+      // No OffscreenCanvas in bun
+      await expect(exportWebM(frames, settings)).rejects.toThrow('OffscreenCanvas')
+    } finally {
+      globalThis.OffscreenCanvas = savedOC
     }
-    // No OffscreenCanvas in bun
-    await expect(exportWebM(frames, settings)).rejects.toThrow('OffscreenCanvas')
   })
 })
 
 describe('video-export: exportMP4 fallback', () => {
   test('exportMP4 falls back to WebM (and throws in non-browser)', async () => {
-    const frames = [makeImageData(4, 4, 255, 0, 0)]
-    const settings: VideoExportSettings = {
-      ...defaultVideoExportSettings,
-      format: 'mp4',
-      width: 4,
-      height: 4,
+    const savedOC = globalThis.OffscreenCanvas
+    delete (globalThis as any).OffscreenCanvas
+    try {
+      const frames = [makeImageData(4, 4, 255, 0, 0)]
+      const settings: VideoExportSettings = {
+        ...defaultVideoExportSettings,
+        format: 'mp4',
+        width: 4,
+        height: 4,
+      }
+      // No VideoEncoder + no OffscreenCanvas → throws
+      await expect(exportMP4(frames, settings)).rejects.toThrow()
+    } finally {
+      globalThis.OffscreenCanvas = savedOC
     }
-    // No VideoEncoder + no OffscreenCanvas → throws
-    await expect(exportMP4(frames, settings)).rejects.toThrow()
   })
 })
 
@@ -365,8 +377,16 @@ import {
 } from '@/io/avif-heif'
 
 describe('avif-heif: export throws without OffscreenCanvas', () => {
+  let savedOC: typeof globalThis.OffscreenCanvas
+
   beforeEach(() => {
     resetSupportCache()
+    savedOC = globalThis.OffscreenCanvas
+    delete (globalThis as any).OffscreenCanvas
+  })
+
+  afterEach(() => {
+    globalThis.OffscreenCanvas = savedOC
   })
 
   test('exportAVIF throws in bun env (no OffscreenCanvas)', async () => {

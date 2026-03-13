@@ -112,8 +112,10 @@ class MockOffscreenCanvas {
   }
 }
 
-// @ts-ignore
-globalThis.OffscreenCanvas = MockOffscreenCanvas
+if (typeof globalThis.OffscreenCanvas === 'undefined') {
+  // @ts-ignore
+  globalThis.OffscreenCanvas = MockOffscreenCanvas
+}
 
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { storeRasterData } from '@/store/raster-data'

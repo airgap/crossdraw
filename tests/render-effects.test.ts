@@ -83,21 +83,23 @@ function createMockContext(_w: number, _h: number) {
 
 const OriginalOffscreenCanvas = globalThis.OffscreenCanvas
 
-globalThis.OffscreenCanvas = class MockOffscreenCanvas {
-  width: number
-  height: number
-  private ctx: ReturnType<typeof createMockContext>
+if (typeof globalThis.OffscreenCanvas === 'undefined') {
+  globalThis.OffscreenCanvas = class MockOffscreenCanvas {
+    width: number
+    height: number
+    private ctx: ReturnType<typeof createMockContext>
 
-  constructor(w: number, h: number) {
-    this.width = w
-    this.height = h
-    this.ctx = createMockContext(w, h)
-  }
+    constructor(w: number, h: number) {
+      this.width = w
+      this.height = h
+      this.ctx = createMockContext(w, h)
+    }
 
-  getContext(_type: string) {
-    return this.ctx
-  }
-} as unknown as typeof OffscreenCanvas
+    getContext(_type: string) {
+      return this.ctx
+    }
+  } as unknown as typeof OffscreenCanvas
+}
 
 import { describe, test, expect, afterAll } from 'bun:test'
 import { applyEffects, hasActiveEffects } from '@/effects/render-effects'

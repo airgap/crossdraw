@@ -58,6 +58,7 @@ const mockBitmap = {
 // @ts-ignore
 globalThis.createImageBitmap = async () => mockBitmap
 
+if (typeof globalThis.OffscreenCanvas === 'undefined') {
 // @ts-ignore
 globalThis.OffscreenCanvas = class MockOffscreenCanvas {
   width: number
@@ -107,6 +108,7 @@ globalThis.OffscreenCanvas = class MockOffscreenCanvas {
   convertToBlob(opts?: { type?: string; quality?: number }) {
     return Promise.resolve(new Blob(['mock-image'], { type: opts?.type ?? 'image/png' }))
   }
+}
 }
 
 import { exportArtboardToPDF, downloadPDF } from '@/io/pdf-export'

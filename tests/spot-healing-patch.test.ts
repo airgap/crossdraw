@@ -244,7 +244,9 @@ describe('Spot Healing — stroke lifecycle', () => {
     const chunkId = setupRasterLayer()
     setSpotHealingSettings({ size: 10, hardness: 1, type: 'proximity-match' })
 
-    const before = getRasterData(chunkId)!
+    // Copy data before healing — getRasterData returns a reference that gets modified in-place
+    const beforeRef = getRasterData(chunkId)!
+    const before = { data: new Uint8ClampedArray(beforeRef.data), width: beforeRef.width, height: beforeRef.height }
 
     beginSpotHealing(50, 50, 'artboard-1')
     paintSpotHealing(52, 50)

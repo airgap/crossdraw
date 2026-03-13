@@ -34,8 +34,8 @@ if (typeof globalThis.ImageData === 'undefined') {
   }
 }
 
-// Always install our OffscreenCanvas polyfill to ensure createImageData is available
-// (other test files may install a polyfill that lacks it)
+// Install our OffscreenCanvas polyfill only if not already provided (e.g. by preload)
+if (typeof globalThis.OffscreenCanvas === 'undefined') {
 ;(globalThis as any).OffscreenCanvas = class OffscreenCanvas {
   width: number
   height: number
@@ -70,6 +70,7 @@ if (typeof globalThis.ImageData === 'undefined') {
       set fillStyle(_v: string) {},
     }
   }
+}
 }
 
 // ---------------------------------------------------------------------------
