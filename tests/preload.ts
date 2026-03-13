@@ -13,11 +13,7 @@ if (typeof globalThis.ImageData === 'undefined') {
     readonly height: number
     readonly data: Uint8ClampedArray
     readonly colorSpace: string
-    constructor(
-      widthOrData: number | Uint8ClampedArray,
-      heightOrWidth: number,
-      height?: number,
-    ) {
+    constructor(widthOrData: number | Uint8ClampedArray, heightOrWidth: number, height?: number) {
       if (typeof widthOrData === 'number') {
         this.width = widthOrData
         this.height = heightOrWidth

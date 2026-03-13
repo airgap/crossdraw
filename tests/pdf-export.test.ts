@@ -59,56 +59,56 @@ const mockBitmap = {
 globalThis.createImageBitmap = async () => mockBitmap
 
 if (typeof globalThis.OffscreenCanvas === 'undefined') {
-// @ts-ignore
-globalThis.OffscreenCanvas = class MockOffscreenCanvas {
-  width: number
-  height: number
-  constructor(w: number, h: number) {
-    this.width = w
-    this.height = h
-  }
-  getContext() {
-    return {
-      drawImage: () => {},
-      getImageData: () => mockImageData,
-      putImageData: () => {},
-      beginPath: () => {},
-      moveTo: () => {},
-      lineTo: () => {},
-      bezierCurveTo: () => {},
-      closePath: () => {},
-      fillRect: () => {},
-      clearRect: () => {},
-      scale: () => {},
-      save: () => {},
-      restore: () => {},
-      setTransform: () => {},
-      translate: () => {},
-      rotate: () => {},
-      clip: () => {},
-      arc: () => {},
-      rect: () => {},
-      canvas: this,
-      globalAlpha: 1,
-      globalCompositeOperation: 'source-over',
-      fillStyle: '',
-      strokeStyle: '',
-      lineWidth: 1,
-      lineCap: 'butt',
-      lineJoin: 'miter',
-      font: '',
-      textBaseline: 'top',
-      textAlign: 'left',
-      setLineDash: () => {},
-      stroke: () => {},
-      fill: () => {},
-      fillText: () => {},
+  // @ts-ignore
+  globalThis.OffscreenCanvas = class MockOffscreenCanvas {
+    width: number
+    height: number
+    constructor(w: number, h: number) {
+      this.width = w
+      this.height = h
+    }
+    getContext() {
+      return {
+        drawImage: () => {},
+        getImageData: () => mockImageData,
+        putImageData: () => {},
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        bezierCurveTo: () => {},
+        closePath: () => {},
+        fillRect: () => {},
+        clearRect: () => {},
+        scale: () => {},
+        save: () => {},
+        restore: () => {},
+        setTransform: () => {},
+        translate: () => {},
+        rotate: () => {},
+        clip: () => {},
+        arc: () => {},
+        rect: () => {},
+        canvas: this,
+        globalAlpha: 1,
+        globalCompositeOperation: 'source-over',
+        fillStyle: '',
+        strokeStyle: '',
+        lineWidth: 1,
+        lineCap: 'butt',
+        lineJoin: 'miter',
+        font: '',
+        textBaseline: 'top',
+        textAlign: 'left',
+        setLineDash: () => {},
+        stroke: () => {},
+        fill: () => {},
+        fillText: () => {},
+      }
+    }
+    convertToBlob(opts?: { type?: string; quality?: number }) {
+      return Promise.resolve(new Blob(['mock-image'], { type: opts?.type ?? 'image/png' }))
     }
   }
-  convertToBlob(opts?: { type?: string; quality?: number }) {
-    return Promise.resolve(new Blob(['mock-image'], { type: opts?.type ?? 'image/png' }))
-  }
-}
 }
 
 import { exportArtboardToPDF, downloadPDF } from '@/io/pdf-export'
