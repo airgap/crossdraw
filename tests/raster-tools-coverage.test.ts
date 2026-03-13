@@ -36,41 +36,41 @@ if (typeof globalThis.ImageData === 'undefined') {
 
 // Install our OffscreenCanvas polyfill only if not already provided (e.g. by preload)
 if (typeof globalThis.OffscreenCanvas === 'undefined') {
-;(globalThis as any).OffscreenCanvas = class OffscreenCanvas {
-  width: number
-  height: number
-  private _imageData: ImageData
-  constructor(w: number, h: number) {
-    this.width = w
-    this.height = h
-    this._imageData = new ImageData(w, h)
-  }
-  getContext(_type: string) {
-    const self = this
-    return {
-      putImageData(data: ImageData, _x: number, _y: number) {
-        self._imageData = data
-      },
-      getImageData(_x: number, _y: number, w: number, h: number) {
-        return new ImageData(new Uint8ClampedArray(self._imageData.data), w, h)
-      },
-      createImageData(w: number, h: number) {
-        return new ImageData(w, h)
-      },
-      drawImage() {},
-      fillRect() {},
-      beginPath() {},
-      arc() {},
-      fill() {},
-      createRadialGradient() {
-        return {
-          addColorStop() {},
-        }
-      },
-      set fillStyle(_v: string) {},
+  ;(globalThis as any).OffscreenCanvas = class OffscreenCanvas {
+    width: number
+    height: number
+    private _imageData: ImageData
+    constructor(w: number, h: number) {
+      this.width = w
+      this.height = h
+      this._imageData = new ImageData(w, h)
+    }
+    getContext(_type: string) {
+      const self = this
+      return {
+        putImageData(data: ImageData, _x: number, _y: number) {
+          self._imageData = data
+        },
+        getImageData(_x: number, _y: number, w: number, h: number) {
+          return new ImageData(new Uint8ClampedArray(self._imageData.data), w, h)
+        },
+        createImageData(w: number, h: number) {
+          return new ImageData(w, h)
+        },
+        drawImage() {},
+        fillRect() {},
+        beginPath() {},
+        arc() {},
+        fill() {},
+        createRadialGradient() {
+          return {
+            addColorStop() {},
+          }
+        },
+        set fillStyle(_v: string) {},
+      }
     }
   }
-}
 }
 
 // ---------------------------------------------------------------------------
