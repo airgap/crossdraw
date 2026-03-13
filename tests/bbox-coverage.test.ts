@@ -353,7 +353,7 @@ describe('getLayerBBox', () => {
   })
 
   describe('text layers', () => {
-    test('estimates bbox from text dimensions', () => {
+    test('uses measureText for point text bbox', () => {
       const layer = makeTextLayer({
         text: 'Hello',
         fontSize: 20,
@@ -362,12 +362,12 @@ describe('getLayerBBox', () => {
       })
       const artboard = makeArtboard({ x: 0, y: 0 })
       const bbox = getLayerBBox(layer, artboard)
-      // Width: 20 * 5 * 0.6 = 60 (fontSize * chars * 0.6)
+      // OffscreenCanvas polyfill measureText returns { width: 10 } for any text
       // Height: 1 line * 20 * 1.4 = 28
       expect(bbox.minX).toBe(10)
       expect(bbox.minY).toBe(20)
-      expect(bbox.maxX).toBe(70) // 10 + 60 * scaleX(1)
-      expect(bbox.maxY).toBe(48) // 20 + 28 * scaleY(1)
+      expect(bbox.maxX).toBe(20) // 10 + measured width (10)
+      expect(bbox.maxY).toBe(48) // 20 + 28
     })
 
     test('handles multi-line text', () => {
@@ -379,12 +379,26 @@ describe('getLayerBBox', () => {
       })
       const artboard = makeArtboard({ x: 0, y: 0 })
       const bbox = getLayerBBox(layer, artboard)
-      // Line 1: "Hi" => 10 * 2 * 0.6 = 12
-      // Line 2: "World!" => 10 * 6 * 0.6 = 36
-      // Max width = 36
+      // Polyfill measureText returns 10 for each line
       // Height: 2 lines * 10 * 1.5 = 30
-      expect(bbox.maxX).toBe(36)
+      expect(bbox.maxX).toBe(10)
       expect(bbox.maxY).toBe(30)
+    })
+
+    test('uses textWidth/textHeight for area text bbox', () => {
+      const layer = makeTextLayer({
+        text: 'AB',
+        fontSize: 10,
+        lineHeight: 1.4,
+        textMode: 'area' as const,
+        textWidth: 200,
+        textHeight: 100,
+        transform: makeTransform({ x: 0, y: 0, scaleX: 1, scaleY: 1 }),
+      })
+      const artboard = makeArtboard({ x: 0, y: 0 })
+      const bbox = getLayerBBox(layer, artboard)
+      expect(bbox.maxX).toBe(200)
+      expect(bbox.maxY).toBe(100)
     })
 
     test('applies transform scale to text bbox', () => {
@@ -396,9 +410,9 @@ describe('getLayerBBox', () => {
       })
       const artboard = makeArtboard({ x: 0, y: 0 })
       const bbox = getLayerBBox(layer, artboard)
-      // Width: 10 * 2 * 0.6 = 12, * scaleX(2) = 24
+      // Polyfill measureText returns 10, * scaleX(2) = 20
       // Height: 1 * 10 * 1.4 = 14, * scaleY(3) = 42
-      expect(bbox.maxX).toBe(24)
+      expect(bbox.maxX).toBe(20)
       expect(bbox.maxY).toBe(42)
     })
 

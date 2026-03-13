@@ -13,6 +13,11 @@ interface DragState {
   startDocPoint: Point
   originalTransform: Transform
   localBBox: BBox
+  /** Text layer: reflow instead of scaling */
+  isTextLayer: boolean
+  originalTextWidth?: number
+  originalTextHeight?: number
+  originalTextMode?: 'point' | 'area'
 }
 
 let drag: DragState | null = null
@@ -33,14 +38,33 @@ function computeLocalBBox(layer: Layer, artboard: { x: number; y: number }): BBo
     case 'raster':
       return { minX: 0, minY: 0, maxX: layer.width, maxY: layer.height }
     case 'text': {
-      const lines = layer.text.split('\n')
-      let maxLineWidth = 0
-      for (const line of lines) {
-        maxLineWidth = Math.max(maxLineWidth, layer.fontSize * line.length * 0.6)
+      // Area text: use textWidth/textHeight for the local bbox
+      if (layer.textMode === 'area' && layer.textWidth != null && layer.textWidth > 0) {
+        const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
+        const lines = layer.text.split('\n')
+        const h = layer.textHeight ?? lines.length * lineH
+        return { minX: 0, minY: 0, maxX: layer.textWidth, maxY: h }
       }
+      // Point text: measure with a temp canvas for accuracy
+      const lines = layer.text.split('\n')
       const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
-      const estimatedHeight = lines.length * lineH
-      return { minX: 0, minY: 0, maxX: maxLineWidth, maxY: estimatedHeight }
+      let maxLineWidth = 0
+      try {
+        const canvas = new OffscreenCanvas(1, 1)
+        const mctx = canvas.getContext('2d')!
+        const style = layer.fontStyle === 'italic' ? 'italic ' : ''
+        const weight = layer.fontWeight === 'bold' ? 'bold ' : ''
+        mctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
+        for (const line of lines) {
+          maxLineWidth = Math.max(maxLineWidth, mctx.measureText(line).width)
+        }
+      } catch {
+        // Fallback: rough estimation
+        for (const line of lines) {
+          maxLineWidth = Math.max(maxLineWidth, layer.fontSize * line.length * 0.6)
+        }
+      }
+      return { minX: 0, minY: 0, maxX: maxLineWidth, maxY: lines.length * lineH }
     }
     case 'group': {
       // Fall back to world bbox minus artboard offset and layer transform
@@ -108,6 +132,7 @@ export function beginTransform(handle: HandleType, docPoint: Point, layerId: str
   // Skip layer types that shouldn't be individually transformed
   if (layer.type === 'adjustment' || layer.type === 'filter' || layer.type === 'fill') return
 
+  const isText = layer.type === 'text'
   drag = {
     handle,
     layerId,
@@ -115,6 +140,10 @@ export function beginTransform(handle: HandleType, docPoint: Point, layerId: str
     startDocPoint: { ...docPoint },
     originalTransform: { ...layer.transform },
     localBBox: computeLocalBBox(layer, artboard),
+    isTextLayer: isText,
+    originalTextWidth: isText ? layer.textWidth : undefined,
+    originalTextHeight: isText ? layer.textHeight : undefined,
+    originalTextMode: isText ? layer.textMode : undefined,
   }
 }
 
@@ -184,6 +213,38 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
       rotation = Math.round(rotation / 15) * 15
     }
     t.rotation = rotation
+  } else if (d.isTextLayer) {
+    // Text layers: resize changes textWidth/textHeight for reflow, not scaleX/scaleY
+    const cfg = scaleConfigs[d.handle]
+    if (!cfg) return
+
+    // Compute what scaleX/scaleY would be (same math as non-text)
+    let newScaleX = orig.scaleX
+    let newScaleY = orig.scaleY
+    if (localW > 0.001 && cfg.sx !== 0) {
+      newScaleX = orig.scaleX + (cfg.sx * deltaX) / localW
+      if (Math.abs(newScaleX) < 0.01) newScaleX = 0.01 * Math.sign(newScaleX || 1)
+      t.x = orig.x + cfg.anchorX(lb) * (orig.scaleX - newScaleX)
+    }
+    if (localH > 0.001 && cfg.sy !== 0) {
+      newScaleY = orig.scaleY + (cfg.sy * deltaY) / localH
+      if (Math.abs(newScaleY) < 0.01) newScaleY = 0.01 * Math.sign(newScaleY || 1)
+      t.y = orig.y + cfg.anchorY(lb) * (orig.scaleY - newScaleY)
+    }
+
+    // Convert scale into textWidth/textHeight — keep scaleX/scaleY at 1
+    const newTextWidth = Math.max(20, localW * Math.abs(newScaleX))
+    const newTextHeight = Math.max(10, localH * Math.abs(newScaleY))
+    t.scaleX = 1
+    t.scaleY = 1
+
+    useEditorStore.getState().updateLayerSilent(d.artboardId, d.layerId, {
+      transform: t,
+      textMode: 'area',
+      textWidth: newTextWidth,
+      textHeight: newTextHeight,
+    } as Partial<Layer>)
+    return
   } else {
     const cfg = scaleConfigs[d.handle]
     if (!cfg) return
@@ -253,9 +314,28 @@ export function endTransform() {
 
   const finalTransform = { ...layer.transform }
 
-  // Restore original silently, then commit final with undo entry
-  store.updateLayerSilent(d.artboardId, d.layerId, { transform: { ...d.originalTransform } })
-  store.updateLayer(d.artboardId, d.layerId, { transform: finalTransform })
+  if (d.isTextLayer && layer.type === 'text') {
+    // Capture final text reflow state
+    const finalUpdates: Partial<Layer> = {
+      transform: finalTransform,
+      textMode: layer.textMode,
+      textWidth: layer.textWidth,
+      textHeight: layer.textHeight,
+    } as Partial<Layer>
+
+    // Restore original silently, then commit final with undo entry
+    store.updateLayerSilent(d.artboardId, d.layerId, {
+      transform: { ...d.originalTransform },
+      textMode: d.originalTextMode,
+      textWidth: d.originalTextWidth,
+      textHeight: d.originalTextHeight,
+    } as Partial<Layer>)
+    store.updateLayer(d.artboardId, d.layerId, finalUpdates)
+  } else {
+    // Restore original silently, then commit final with undo entry
+    store.updateLayerSilent(d.artboardId, d.layerId, { transform: { ...d.originalTransform } })
+    store.updateLayer(d.artboardId, d.layerId, { transform: finalTransform })
+  }
 
   drag = null
 }
@@ -265,9 +345,18 @@ export function cancelTransform() {
   if (!d) return
   const store = useEditorStore.getState()
   store.setActiveSnapLines(null)
-  store.updateLayerSilent(d.artboardId, d.layerId, {
-    transform: { ...d.originalTransform },
-  })
+  if (d.isTextLayer) {
+    store.updateLayerSilent(d.artboardId, d.layerId, {
+      transform: { ...d.originalTransform },
+      textMode: d.originalTextMode,
+      textWidth: d.originalTextWidth,
+      textHeight: d.originalTextHeight,
+    } as Partial<Layer>)
+  } else {
+    store.updateLayerSilent(d.artboardId, d.layerId, {
+      transform: { ...d.originalTransform },
+    })
+  }
   drag = null
 }
 

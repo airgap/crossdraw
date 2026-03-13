@@ -268,21 +268,43 @@ function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
 
 function getTextLayerBBox(layer: TextLayer, artboard: Artboard): BBox {
   const t = layer.transform
-  const lines = layer.text.split('\n')
-  // Estimate max line width: fontSize * 0.6 per character
-  let maxLineWidth = 0
-  for (const line of lines) {
-    maxLineWidth = Math.max(maxLineWidth, layer.fontSize * line.length * 0.6)
-  }
-  const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
-  const estimatedHeight = lines.length * lineH
+  let localW: number
+  let localH: number
 
-  return {
-    minX: artboard.x + t.x,
-    minY: artboard.y + t.y,
-    maxX: artboard.x + t.x + maxLineWidth * t.scaleX,
-    maxY: artboard.y + t.y + estimatedHeight * t.scaleY,
+  if (layer.textMode === 'area' && layer.textWidth != null && layer.textWidth > 0) {
+    localW = layer.textWidth
+    const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
+    const lines = layer.text.split('\n')
+    localH = layer.textHeight ?? lines.length * lineH
+  } else {
+    const lines = layer.text.split('\n')
+    const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
+    localW = 0
+    try {
+      const canvas = new OffscreenCanvas(1, 1)
+      const mctx = canvas.getContext('2d')!
+      const style = layer.fontStyle === 'italic' ? 'italic ' : ''
+      const weight = layer.fontWeight === 'bold' ? 'bold ' : ''
+      mctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
+      for (const line of lines) {
+        localW = Math.max(localW, mctx.measureText(line).width)
+      }
+    } catch {
+      for (const line of lines) {
+        localW = Math.max(localW, layer.fontSize * line.length * 0.6)
+      }
+    }
+    localH = lines.length * lineH
   }
+
+  const w = localW * t.scaleX
+  const h = localH * t.scaleY
+  const minX = w >= 0 ? artboard.x + t.x : artboard.x + t.x + w
+  const maxX = w >= 0 ? artboard.x + t.x + w : artboard.x + t.x
+  const minY = h >= 0 ? artboard.y + t.y : artboard.y + t.y + h
+  const maxY = h >= 0 ? artboard.y + t.y + h : artboard.y + t.y
+
+  return { minX, minY, maxX, maxY }
 }
 
 function getVectorLayerBBox(layer: VectorLayer, artboard: Artboard): BBox {
