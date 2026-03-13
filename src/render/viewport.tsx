@@ -93,7 +93,21 @@ import {
   getArtboardDragRect,
 } from '@/tools/artboard-tool'
 import { beginSliceDrag, updateSliceDrag, endSliceDrag, getSliceDragRect, isSliceDragging } from '@/tools/slice-tool'
-import { beginCropDrag, updateCropDrag, endCropDrag, getCropDragRect, isCropDragging } from '@/tools/crop'
+import {
+  beginCropDrag,
+  updateCropDrag,
+  endCropDrawing,
+  beginCropAdjust,
+  endCropAdjust,
+  commitCrop,
+  cancelCrop,
+  getCropRect,
+  isCropActive,
+  isCropDragging,
+  isCropAdjusting,
+  hitTestCropHandle,
+  getCropHandleCursor,
+} from '@/tools/crop'
 import {
   initShapeBuilder,
   isShapeBuilderActive,
@@ -771,22 +785,21 @@ export function Viewport() {
       }
     }
 
-    // Crop drag overlay
-    if (activeTool === 'crop' && isCropDragging()) {
-      const cr = getCropDragRect()
+    // Crop overlay (drawing + adjusting phases)
+    if (activeTool === 'crop' && isCropActive()) {
+      const cr = getCropRect()
       if (cr) {
         ctx.save()
         // Dim area outside crop
         ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
-        // Draw four rects around the crop region to dim outside
         const vl = -viewport.panX / viewport.zoom
         const vt = -viewport.panY / viewport.zoom
         const vr = vl + ctx.canvas.width / viewport.zoom
         const vb = vt + ctx.canvas.height / viewport.zoom
-        ctx.fillRect(vl, vt, vr - vl, cr.y - vt) // top
-        ctx.fillRect(vl, cr.y, cr.x - vl, cr.h) // left
-        ctx.fillRect(cr.x + cr.w, cr.y, vr - cr.x - cr.w, cr.h) // right
-        ctx.fillRect(vl, cr.y + cr.h, vr - vl, vb - cr.y - cr.h) // bottom
+        ctx.fillRect(vl, vt, vr - vl, cr.y - vt)
+        ctx.fillRect(vl, cr.y, cr.x - vl, cr.h)
+        ctx.fillRect(cr.x + cr.w, cr.y, vr - cr.x - cr.w, cr.h)
+        ctx.fillRect(vl, cr.y + cr.h, vr - vl, vb - cr.y - cr.h)
         // Crop border
         ctx.strokeStyle = '#ffffff'
         ctx.lineWidth = 1.5 / viewport.zoom
@@ -806,6 +819,35 @@ export function Viewport() {
         ctx.moveTo(cr.x, cr.y + thirdH * 2)
         ctx.lineTo(cr.x + cr.w, cr.y + thirdH * 2)
         ctx.stroke()
+        // Corner and edge handles (adjusting phase only)
+        if (isCropAdjusting()) {
+          const hs = Math.min(10, Math.max(4, 6 / viewport.zoom))
+          ctx.fillStyle = '#ffffff'
+          ctx.strokeStyle = '#000000'
+          ctx.lineWidth = 1 / viewport.zoom
+          const corners = [
+            [cr.x, cr.y],
+            [cr.x + cr.w, cr.y],
+            [cr.x, cr.y + cr.h],
+            [cr.x + cr.w, cr.y + cr.h],
+          ]
+          for (const pt of corners) {
+            ctx.fillRect(pt[0]! - hs / 2, pt[1]! - hs / 2, hs, hs)
+            ctx.strokeRect(pt[0]! - hs / 2, pt[1]! - hs / 2, hs, hs)
+          }
+          // Edge midpoints
+          const edges = [
+            [cr.x + cr.w / 2, cr.y],
+            [cr.x + cr.w / 2, cr.y + cr.h],
+            [cr.x, cr.y + cr.h / 2],
+            [cr.x + cr.w, cr.y + cr.h / 2],
+          ]
+          const ehs = hs * 0.7
+          for (const pt of edges) {
+            ctx.fillRect(pt[0]! - ehs / 2, pt[1]! - ehs / 2, ehs, ehs)
+            ctx.strokeRect(pt[0]! - ehs / 2, pt[1]! - ehs / 2, ehs, ehs)
+          }
+        }
         ctx.restore()
       }
     }
@@ -1216,6 +1258,18 @@ export function Viewport() {
           render()
         }
       }
+      // Crop: Enter to commit, Escape to cancel
+      if (activeTool === 'crop' && isCropAdjusting()) {
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          commitCrop()
+          render()
+        } else if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelCrop()
+          render()
+        }
+      }
       // Shape Builder: Enter to finalize, Escape to cancel
       if (activeTool === 'shape-builder' && isShapeBuilderActive()) {
         if (e.key === 'Enter') {
@@ -1361,6 +1415,10 @@ export function Viewport() {
       },
       onDoubleTap(_x, _y) {
         const tool = useEditorStore.getState().activeTool
+        if (tool === 'crop' && isCropAdjusting()) {
+          commitCrop()
+          return
+        }
         if (tool === 'select' || tool === 'text') {
           const currentSelection = useEditorStore.getState().selection
           const doc = useEditorStore.getState().document
@@ -1941,6 +1999,19 @@ export function Viewport() {
     // Crop tool
     if (activeTool === 'crop') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      if (isCropAdjusting()) {
+        // In adjustment phase: hit-test handles
+        const handle = hitTestCropHandle(docPoint.x, docPoint.y, viewport.zoom)
+        if (handle) {
+          beginCropAdjust(docPoint.x, docPoint.y, handle)
+          isDragging.current = true
+          return
+        }
+        // Click outside crop rect → commit current crop and start fresh
+        commitCrop()
+        render()
+      }
+      // Start drawing a new crop rect
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
@@ -2343,12 +2414,19 @@ export function Viewport() {
       return
     }
 
-    // Slice tool drag
+    // Crop tool drag (drawing or adjusting)
     if (activeTool === 'crop' && isDragging.current && isCropDragging()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       updateCropDrag(docPoint.x, docPoint.y)
       render()
       return
+    }
+
+    // Crop tool hover cursor
+    if (activeTool === 'crop' && !isDragging.current && isCropAdjusting() && canvasRef.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const handle = hitTestCropHandle(docPoint.x, docPoint.y, viewport.zoom)
+      canvasRef.current.style.cursor = getCropHandleCursor(handle)
     }
 
     if (activeTool === 'slice' && isDragging.current && isSliceDragging()) {
@@ -2634,9 +2712,13 @@ export function Viewport() {
       return
     }
 
-    // Crop tool
+    // Crop tool: end drawing → adjusting, or end handle adjustment
     if (isCropDragging()) {
-      endCropDrag()
+      if (isCropAdjusting()) {
+        endCropAdjust()
+      } else {
+        endCropDrawing()
+      }
       isDragging.current = false
       render()
       return
@@ -2680,6 +2762,13 @@ export function Viewport() {
   function handleDoubleClick(e: React.MouseEvent) {
     const rect = getCanvasRect()
     const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+
+    // Crop: double-click to commit
+    if (activeTool === 'crop' && isCropAdjusting()) {
+      commitCrop()
+      render()
+      return
+    }
 
     // Polygonal lasso: double-click to close polygon
     if (activeTool === 'polygonal-lasso' && isPolygonalLassoActive()) {
