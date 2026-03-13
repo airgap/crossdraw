@@ -38,6 +38,7 @@ export interface TouchHandlerCallbacks {
   onPointerMove: (x: number, y: number, shiftKey: boolean, pressure: number, pointerType: string) => void
   onPointerUp: (pressure: number, pointerType: string) => void
   onContextMenu: (x: number, y: number) => void
+  onDoubleTap: (x: number, y: number) => void
   getCanvasRect: () => DOMRect
 }
 
@@ -52,6 +53,13 @@ const LONG_PRESS_MS = 500
 
 /** When a stylus is in contact we flag it so we can reject palm touches. */
 let stylusActive = false
+
+/** Double-tap detection. */
+let lastTapTime = 0
+let lastTapX = 0
+let lastTapY = 0
+const DOUBLE_TAP_MS = 350
+const DOUBLE_TAP_RADIUS = 30
 
 /** Initial pinch distance (or 0 when no pinch is happening). */
 let pinchStartDist = 0
@@ -300,6 +308,19 @@ function onPointerUp(e: PointerEvent) {
     // a synthetic pointer-up when it started
     if (!isPinching) {
       currentCallbacks.onPointerUp(tp.pressure, tp.pointerType)
+
+      // Double-tap detection
+      const now = Date.now()
+      const dx = tp.x - lastTapX
+      const dy = tp.y - lastTapY
+      if (now - lastTapTime < DOUBLE_TAP_MS && dx * dx + dy * dy < DOUBLE_TAP_RADIUS * DOUBLE_TAP_RADIUS) {
+        currentCallbacks.onDoubleTap(tp.x, tp.y)
+        lastTapTime = 0 // Reset so triple-tap doesn't fire again
+      } else {
+        lastTapTime = now
+        lastTapX = tp.x
+        lastTapY = tp.y
+      }
     }
     isPinching = false
   } else if (activeTouches.size === 1 && isPinching) {

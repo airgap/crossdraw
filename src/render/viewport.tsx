@@ -1319,6 +1319,22 @@ export function Viewport() {
       onContextMenu(x, y) {
         openCanvasContextMenu(x, y)
       },
+      onDoubleTap(_x, _y) {
+        const tool = useEditorStore.getState().activeTool
+        if (tool === 'select' || tool === 'text') {
+          const currentSelection = useEditorStore.getState().selection
+          const doc = useEditorStore.getState().document
+          for (const artboard of doc.artboards) {
+            for (const layer of artboard.layers) {
+              if (!currentSelection.layerIds.includes(layer.id)) continue
+              if (layer.type === 'text') {
+                beginTextEdit(layer.id, artboard.id)
+                return
+              }
+            }
+          }
+        }
+      },
     })
 
     // Apply touch-action CSS

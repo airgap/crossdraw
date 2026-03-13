@@ -117,6 +117,7 @@ function createMockCallbacks(): TouchHandlerCallbacks & {
     onContextMenu: (x, y) => {
       contextMenuCalls.push({ x, y })
     },
+    onDoubleTap: (_x, _y) => {},
     getCanvasRect: () =>
       ({
         left: 0,
