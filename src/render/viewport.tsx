@@ -93,6 +93,7 @@ import {
   getArtboardDragRect,
 } from '@/tools/artboard-tool'
 import { beginSliceDrag, updateSliceDrag, endSliceDrag, getSliceDragRect, isSliceDragging } from '@/tools/slice-tool'
+import { beginCropDrag, updateCropDrag, endCropDrag, getCropDragRect, isCropDragging } from '@/tools/crop'
 import {
   initShapeBuilder,
   isShapeBuilderActive,
@@ -766,6 +767,45 @@ export function Viewport() {
         ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
         ctx.strokeRect(sr.x, sr.y, sr.w, sr.h)
         ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
+    // Crop drag overlay
+    if (activeTool === 'crop' && isCropDragging()) {
+      const cr = getCropDragRect()
+      if (cr) {
+        ctx.save()
+        // Dim area outside crop
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+        // Draw four rects around the crop region to dim outside
+        const vl = -viewport.panX / viewport.zoom
+        const vt = -viewport.panY / viewport.zoom
+        const vr = vl + ctx.canvas.width / viewport.zoom
+        const vb = vt + ctx.canvas.height / viewport.zoom
+        ctx.fillRect(vl, vt, vr - vl, cr.y - vt) // top
+        ctx.fillRect(vl, cr.y, cr.x - vl, cr.h) // left
+        ctx.fillRect(cr.x + cr.w, cr.y, vr - cr.x - cr.w, cr.h) // right
+        ctx.fillRect(vl, cr.y + cr.h, vr - vl, vb - cr.y - cr.h) // bottom
+        // Crop border
+        ctx.strokeStyle = '#ffffff'
+        ctx.lineWidth = 1.5 / viewport.zoom
+        ctx.strokeRect(cr.x, cr.y, cr.w, cr.h)
+        // Rule of thirds
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)'
+        ctx.lineWidth = 0.5 / viewport.zoom
+        const thirdW = cr.w / 3
+        const thirdH = cr.h / 3
+        ctx.beginPath()
+        ctx.moveTo(cr.x + thirdW, cr.y)
+        ctx.lineTo(cr.x + thirdW, cr.y + cr.h)
+        ctx.moveTo(cr.x + thirdW * 2, cr.y)
+        ctx.lineTo(cr.x + thirdW * 2, cr.y + cr.h)
+        ctx.moveTo(cr.x, cr.y + thirdH)
+        ctx.lineTo(cr.x + cr.w, cr.y + thirdH)
+        ctx.moveTo(cr.x, cr.y + thirdH * 2)
+        ctx.lineTo(cr.x + cr.w, cr.y + thirdH * 2)
+        ctx.stroke()
         ctx.restore()
       }
     }
@@ -1898,6 +1938,20 @@ export function Viewport() {
       return
     }
 
+    // Crop tool
+    if (activeTool === 'crop') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        beginCropDrag(docPoint.x, docPoint.y, artboard.id)
+        isDragging.current = true
+      }
+      return
+    }
+
     // Slice tool
     if (activeTool === 'slice') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -2290,6 +2344,13 @@ export function Viewport() {
     }
 
     // Slice tool drag
+    if (activeTool === 'crop' && isDragging.current && isCropDragging()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      updateCropDrag(docPoint.x, docPoint.y)
+      render()
+      return
+    }
+
     if (activeTool === 'slice' && isDragging.current && isSliceDragging()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       updateSliceDrag(docPoint.x, docPoint.y)
@@ -2568,6 +2629,14 @@ export function Viewport() {
     // Artboard tool
     if (isArtboardDragging()) {
       endArtboardDrag(mouseDocPos.current.x, mouseDocPos.current.y)
+      isDragging.current = false
+      render()
+      return
+    }
+
+    // Crop tool
+    if (isCropDragging()) {
+      endCropDrag()
       isDragging.current = false
       render()
       return
