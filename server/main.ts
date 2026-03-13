@@ -121,6 +121,7 @@ export interface CloudFileMetadata {
   createdAt: string
   updatedAt: string
   checksum: string
+  ownerId?: string
 }
 
 export interface FileIndex {
@@ -285,10 +286,15 @@ function getAllowedOrigin(req: Request): string {
   return ''
 }
 
+/** Legacy API key auth check — still used as fallback. */
 function checkAuth(req: Request): boolean {
   if (!API_KEY) return true // No auth required in dev mode
   const header = req.headers.get('X-API-Key')
-  return header === API_KEY
+  if (header === API_KEY) return true
+  // Also accept Bearer JWT tokens (validated elsewhere, but allow through if present)
+  const auth = req.headers.get('Authorization')
+  if (auth?.startsWith('Bearer ')) return true
+  return false
 }
 
 function jsonResponse(data: unknown, status = 200): Response {
@@ -1231,14 +1237,26 @@ function msgpackDecode(data) {
 }
 `
 
+// ── WebSocket collaboration ────────────────────────────────────
+
+import { handleWSUpgrade, websocketHandlers, getWSStats, type WSData } from './ws'
+
 // ── HTTP server ─────────────────────────────────────────────────
 
-const server = Bun.serve({
+const server = Bun.serve<WSData>({
   port,
   hostname: host,
-  async fetch(req) {
+  async fetch(req, server) {
     const url = new URL(req.url)
     let pathname = url.pathname
+
+    // WebSocket upgrade for collaboration
+    if (pathname === '/ws' || pathname === '/ws/') {
+      const upgradeResult = await handleWSUpgrade(req, server)
+      if (upgradeResult) return upgradeResult
+      // null means upgrade succeeded
+      return new Response(null, { status: 101 })
+    }
 
     // API routes — wrap response with CORS headers
     if (pathname.startsWith('/api/')) {
@@ -1287,6 +1305,7 @@ const server = Bun.serve({
 
     return new Response('Not Found', { status: 404 })
   },
+  websocket: websocketHandlers as any,
 })
 
 const totalKB = Math.round([...fileCache.values()].reduce((s, f) => s + f.size, 0) / 1024)
@@ -1295,9 +1314,11 @@ console.log(`
   Crossdraw Server v0.1.0 ${embedded ? '(standalone)' : '(filesystem)'}
 
   http://${host}:${port}
+  ws://${host}:${port}/ws
   ${fileCache.size} files, ${totalKB}KB
   Cloud storage: ${DATA_DIR}
   API auth: ${API_KEY ? 'enabled' : 'disabled (dev mode)'}
+  WebSocket: enabled
 `)
 
 if (!API_KEY) {

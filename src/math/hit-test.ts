@@ -87,7 +87,13 @@ function preciseHitTest(layer: Layer, artboard: Artboard, docX: number, docY: nu
     return true
   }
 
-  if (layer.type === 'text' || layer.type === 'group' || layer.type === 'fill' || layer.type === 'clone' || layer.type === 'smart-object') {
+  if (
+    layer.type === 'text' ||
+    layer.type === 'group' ||
+    layer.type === 'fill' ||
+    layer.type === 'clone' ||
+    layer.type === 'smart-object'
+  ) {
     // AABB is sufficient for these layer types
     return true
   }

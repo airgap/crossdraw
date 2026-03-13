@@ -12,6 +12,7 @@ import { DownloadPage } from '@/ui/download-page'
 import { SplashScreen } from '@/ui/splash-screen'
 import { NewDocumentModal } from '@/ui/new-document-modal'
 import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
+import { handleCallback as handleAuthCallback } from '@/auth/auth'
 import { useEditorStore } from '@/store/editor.store'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { ShareDialog } from '@/ui/share-dialog'
@@ -126,6 +127,24 @@ export function App() {
       window.document.title = state.isDirty ? `● ${n} — Crossdraw` : `${n} — Crossdraw`
     })
   }, [boot])
+
+  // Handle OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const code = params.get('code')
+    if (code && window.location.pathname === '/auth/callback') {
+      handleAuthCallback(code)
+        .then(() => {
+          // Clear the URL params and go to editor
+          window.history.replaceState({}, '', '/')
+          setBoot('editor')
+        })
+        .catch((err) => {
+          console.error('OAuth callback failed:', err)
+          window.history.replaceState({}, '', '/')
+        })
+    }
+  }, [])
 
   useEffect(() => {
     if (boot === 'editor' && hash !== '#/download') setupKeyboardShortcuts()

@@ -1,16 +1,17 @@
 import { useState } from 'react'
-import { getThemeName, setTheme } from '@/ui/theme'
+import { getThemePreference, setTheme, getAllThemes, type ThemePreference } from '@/ui/theme'
 
 interface Props {
   onClose: () => void
 }
 
 export function UISettings({ onClose }: Props) {
-  const [themeName, setThemeName] = useState(getThemeName())
+  const [themePref, setThemePref] = useState<ThemePreference>(getThemePreference())
+  const allThemes = getAllThemes()
 
-  const handleThemeChange = (name: 'dark' | 'light') => {
+  const handleThemeChange = (name: string) => {
     setTheme(name)
-    setThemeName(name)
+    setThemePref(name)
   }
 
   return (
@@ -102,19 +103,36 @@ export function UISettings({ onClose }: Props) {
             Theme
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+            <ThemeOption
+              label="System"
+              active={themePref === 'system'}
+              preview={{ bg: '#0e0e0e', surface: '#f5f5f5', text: '#e0e0e0' }}
+              onClick={() => handleThemeChange('system')}
+            />
             <ThemeOption
               label="Dark"
-              active={themeName === 'dark'}
+              active={themePref === 'dark'}
               preview={{ bg: '#0e0e0e', surface: '#161616', text: '#e0e0e0' }}
               onClick={() => handleThemeChange('dark')}
             />
             <ThemeOption
               label="Light"
-              active={themeName === 'light'}
+              active={themePref === 'light'}
               preview={{ bg: '#f5f5f5', surface: '#ffffff', text: '#1a1a1a' }}
               onClick={() => handleThemeChange('light')}
             />
+            {allThemes
+              .filter((t) => t.name !== 'dark' && t.name !== 'light')
+              .map((t) => (
+                <ThemeOption
+                  key={t.name}
+                  label={t.name}
+                  active={themePref === t.name}
+                  preview={{ bg: t.bgBase, surface: t.bgSurface, text: t.textPrimary }}
+                  onClick={() => handleThemeChange(t.name)}
+                />
+              ))}
           </div>
 
           {/* Scroll behavior hint */}

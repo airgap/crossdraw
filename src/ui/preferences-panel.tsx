@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
-import { getThemeName, setTheme } from '@/ui/theme'
+import { getThemePreference, setTheme, getAllThemes, type ThemePreference } from '@/ui/theme'
 import { isAIEnabled, setAIEnabled } from '@/ui/panels/panel-registry'
 
 // ── localStorage helpers ──
@@ -111,7 +111,8 @@ function ToggleSwitch({ checked, onChange }: { checked: boolean; onChange: (v: b
 
 export function PreferencesPanel() {
   // Theme
-  const [themeName, setThemeName] = useState(getThemeName)
+  const [themePref, setThemePref] = useState<ThemePreference>(getThemePreference)
+  const [allThemes, setAllThemes] = useState(getAllThemes)
 
   // General prefs
   const [defaultUnit, setDefaultUnit] = useState(() => loadPref('crossdraw:default-unit', 'px'))
@@ -139,15 +140,19 @@ export function PreferencesPanel() {
 
   // Sync theme state when it changes externally
   useEffect(() => {
-    const handler = () => setThemeName(getThemeName())
+    const handler = () => setThemePref(getThemePreference())
+    const themesHandler = () => setAllThemes(getAllThemes())
     window.addEventListener('crossdraw:theme-changed', handler)
-    return () => window.removeEventListener('crossdraw:theme-changed', handler)
+    window.addEventListener('crossdraw:themes-changed', themesHandler)
+    return () => {
+      window.removeEventListener('crossdraw:theme-changed', handler)
+      window.removeEventListener('crossdraw:themes-changed', themesHandler)
+    }
   }, [])
 
   const handleThemeChange = useCallback((value: string) => {
-    const name = value as 'dark' | 'light'
-    setTheme(name)
-    setThemeName(name)
+    setTheme(value)
+    setThemePref(value)
   }, [])
 
   const handleUnitChange = useCallback((value: string) => {
@@ -197,9 +202,17 @@ export function PreferencesPanel() {
 
       <div style={rowStyle}>
         <span style={labelStyle}>Theme</span>
-        <select value={themeName} onChange={(e) => handleThemeChange(e.target.value)} style={selectStyle}>
+        <select value={themePref} onChange={(e) => handleThemeChange(e.target.value)} style={selectStyle}>
+          <option value="system">System</option>
           <option value="dark">Dark</option>
           <option value="light">Light</option>
+          {allThemes
+            .filter((t) => t.name !== 'dark' && t.name !== 'light')
+            .map((t) => (
+              <option key={t.name} value={t.name}>
+                {t.name}
+              </option>
+            ))}
         </select>
       </div>
 

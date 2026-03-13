@@ -59,6 +59,16 @@ function buildHeaders(apiKey: string, extra: Record<string, string> = {}): Recor
   if (apiKey) {
     headers['X-API-Key'] = apiKey
   }
+  // Also attach Bearer token if available (takes priority on server)
+  try {
+    const auth = require('@/auth/auth') as typeof import('@/auth/auth')
+    const token = auth.getAccessToken()
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
+  } catch {
+    /* auth module not available */
+  }
   return headers
 }
 

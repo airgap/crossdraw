@@ -55,6 +55,7 @@ export class CollabProvider {
   readonly roomId: string
   readonly serverUrl: string
   readonly clientId: string
+  private authToken: string
 
   private ws: WebSocket | null = null
   private _state: ConnectionState = 'disconnected'
@@ -76,13 +77,14 @@ export class CollabProvider {
   /** Remote presences indexed by clientId. */
   private remotePresences: Map<string, UserPresence> = new Map()
 
-  constructor(roomId: string, serverUrl: string, clientId: string) {
+  constructor(roomId: string, serverUrl: string, clientId: string, authToken = '', userName?: string) {
     this.roomId = roomId
     this.serverUrl = serverUrl
     this.clientId = clientId
+    this.authToken = authToken
     this.localPresence = {
       clientId,
-      name: `User-${clientId.slice(0, 6)}`,
+      name: userName ?? `User-${clientId.slice(0, 6)}`,
       color: colorForClient(clientId),
       selectedLayerIds: [],
       lastSeen: Date.now(),
@@ -105,7 +107,10 @@ export class CollabProvider {
     if (this._state === 'connected' || this._state === 'connecting') return
     this.setState(this.reconnectAttempts > 0 ? 'reconnecting' : 'connecting')
 
-    const url = `${this.serverUrl}?room=${encodeURIComponent(this.roomId)}&client=${encodeURIComponent(this.clientId)}`
+    let url = `${this.serverUrl}?room=${encodeURIComponent(this.roomId)}&client=${encodeURIComponent(this.clientId)}`
+    if (this.authToken) {
+      url += `&token=${encodeURIComponent(this.authToken)}`
+    }
 
     try {
       this.ws = new WebSocket(url)

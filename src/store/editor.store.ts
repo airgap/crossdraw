@@ -2304,9 +2304,23 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         existing.disconnect()
       }
 
+      // Use authenticated identity if available
+      let authToken = ''
+      let userName: string | undefined
+      try {
+        const auth = require('@/auth/auth') as typeof import('@/auth/auth')
+        const user = auth.getCurrentUser()
+        if (user) {
+          userName = user.displayName
+          authToken = auth.getAccessToken() ?? ''
+        }
+      } catch {
+        /* auth module not available */
+      }
+
       const clientId = crypto.randomUUID()
       const { CollabProvider } = require('@/collab/collab-provider') as typeof import('@/collab/collab-provider')
-      const provider = new CollabProvider(roomId, serverUrl, clientId)
+      const provider = new CollabProvider(roomId, serverUrl, clientId, authToken, userName)
 
       // Listen for remote operations
       provider.onRemoteOperation((op) => {

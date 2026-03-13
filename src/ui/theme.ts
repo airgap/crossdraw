@@ -1,6 +1,5 @@
-export interface Theme {
-  name: 'dark' | 'light'
-
+/** Color properties that define a theme (excludes the name). */
+export interface ThemeColors {
   // Surface hierarchy
   bgBase: string
   bgSurface: string
@@ -41,6 +40,47 @@ export interface Theme {
   borderLight: string
   textMuted: string
 }
+
+export interface Theme extends ThemeColors {
+  name: string
+}
+
+// ── Color property keys (for iteration) ──
+
+const COLOR_KEYS: (keyof ThemeColors)[] = [
+  'bgBase',
+  'bgSurface',
+  'bgElevated',
+  'bgOverlay',
+  'bgInput',
+  'bgHover',
+  'bgActive',
+  'canvasBg',
+  'borderSubtle',
+  'borderDefault',
+  'borderStrong',
+  'textPrimary',
+  'textSecondary',
+  'textDisabled',
+  'textAccent',
+  'accent',
+  'accentHover',
+  'accentActive',
+  'accentDisabled',
+  'success',
+  'warning',
+  'error',
+  'info',
+  'bg',
+  'bgPanel',
+  'border',
+  'borderLight',
+  'textMuted',
+]
+
+export { COLOR_KEYS }
+
+// ── Built-in themes ──
 
 export const darkTheme: Theme = {
   name: 'dark',
@@ -130,39 +170,292 @@ export const lightTheme: Theme = {
   textMuted: '#999999',
 }
 
-const THEME_STORAGE_KEY = 'crossdraw:theme'
+// ── Storage keys ──
 
-function loadSavedTheme(): Theme {
-  if (typeof localStorage !== 'undefined') {
-    const saved = localStorage.getItem(THEME_STORAGE_KEY)
-    if (saved === 'light') return lightTheme
-  }
-  return darkTheme
+const THEME_STORAGE_KEY = 'crossdraw:theme'
+const CUSTOM_THEMES_KEY = 'crossdraw:custom-themes'
+
+// ── Accent color derivation ──
+
+function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex)
+  if (!m) return null
+  const r = parseInt(m[1]!, 16) / 255
+  const g = parseInt(m[2]!, 16) / 255
+  const b = parseInt(m[3]!, 16) / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const l = (max + min) / 2
+  if (max === min) return { h: 0, s: 0, l }
+  const d = max - min
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h = 0
+  if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) / 6
+  else if (max === g) h = ((b - r) / d + 2) / 6
+  else h = ((r - g) / d + 4) / 6
+  return { h, s, l }
 }
 
-let currentTheme: Theme = loadSavedTheme()
+function hslToHex(h: number, s: number, l: number): string {
+  const hue2rgb = (p: number, q: number, t: number) => {
+    if (t < 0) t += 1
+    if (t > 1) t -= 1
+    if (t < 1 / 6) return p + (q - p) * 6 * t
+    if (t < 1 / 2) return q
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6
+    return p
+  }
+  let r: number, g: number, b: number
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1 / 3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1 / 3)
+  }
+  const toHex = (c: number) =>
+    Math.round(Math.min(1, Math.max(0, c)) * 255)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+/** Derive accent variant colors from a base accent hex color. */
+export function deriveAccentColors(baseHex: string): {
+  accent: string
+  accentHover: string
+  accentActive: string
+  accentDisabled: string
+} {
+  const hsl = hexToHSL(baseHex)
+  if (!hsl) return { accent: baseHex, accentHover: baseHex, accentActive: baseHex, accentDisabled: baseHex }
+  return {
+    accent: baseHex,
+    accentHover: hslToHex(hsl.h, Math.min(1, hsl.s * 1.1), Math.min(0.95, hsl.l + 0.07)),
+    accentActive: hslToHex(hsl.h, hsl.s, Math.max(0.05, hsl.l - 0.07)),
+    accentDisabled: hslToHex(hsl.h, hsl.s * 0.5, hsl.l * 0.7),
+  }
+}
+
+/** Apply a custom accent color to a theme, returning a new theme. */
+export function applyAccentToTheme(theme: Theme, accentHex: string): Theme {
+  const accents = deriveAccentColors(accentHex)
+  return {
+    ...theme,
+    ...accents,
+    bgActive: accents.accent,
+    textAccent: accents.accent,
+  }
+}
+
+// ── Custom theme CRUD ──
+
+function loadCustomThemes(): Theme[] {
+  if (typeof localStorage === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(CUSTOM_THEMES_KEY)
+    if (!raw) return []
+    return JSON.parse(raw) as Theme[]
+  } catch {
+    return []
+  }
+}
+
+function saveCustomThemes(themes: Theme[]) {
+  if (typeof localStorage === 'undefined') return
+  try {
+    localStorage.setItem(CUSTOM_THEMES_KEY, JSON.stringify(themes))
+  } catch {
+    /* ignore */
+  }
+}
+
+let customThemes: Theme[] = loadCustomThemes()
+
+export function getCustomThemes(): Theme[] {
+  return customThemes
+}
+
+export function getAllThemes(): Theme[] {
+  return [darkTheme, lightTheme, ...customThemes]
+}
+
+export function getThemeByName(name: string): Theme | undefined {
+  if (name === 'dark') return darkTheme
+  if (name === 'light') return lightTheme
+  return customThemes.find((t) => t.name === name)
+}
+
+export function saveCustomTheme(theme: Theme): void {
+  const idx = customThemes.findIndex((t) => t.name === theme.name)
+  if (idx >= 0) {
+    customThemes[idx] = theme
+  } else {
+    customThemes.push(theme)
+  }
+  saveCustomThemes(customThemes)
+  window.dispatchEvent(new Event('crossdraw:themes-changed'))
+}
+
+export function deleteCustomTheme(name: string): boolean {
+  if (name === 'dark' || name === 'light') return false
+  const idx = customThemes.findIndex((t) => t.name === name)
+  if (idx < 0) return false
+  customThemes.splice(idx, 1)
+  saveCustomThemes(customThemes)
+  // If we deleted the active theme, fall back to dark
+  if (currentTheme.name === name) {
+    setTheme('dark')
+  }
+  window.dispatchEvent(new Event('crossdraw:themes-changed'))
+  return true
+}
+
+export function duplicateTheme(sourceName: string, newName: string): Theme | null {
+  const source = getThemeByName(sourceName)
+  if (!source) return null
+  const duplicate: Theme = { ...source, name: newName }
+  saveCustomTheme(duplicate)
+  return duplicate
+}
+
+// ── Theme import/export ──
+
+export interface ThemeFile {
+  version: 1
+  theme: Theme
+}
+
+export function exportTheme(theme: Theme): string {
+  const file: ThemeFile = { version: 1, theme }
+  return JSON.stringify(file, null, 2)
+}
+
+export function importTheme(json: string): Theme | null {
+  try {
+    const parsed = JSON.parse(json)
+    if (!parsed || typeof parsed !== 'object') return null
+
+    // Support both { version, theme } wrapper and raw Theme object
+    const themeData: any = parsed.theme ?? parsed
+    if (!themeData.name || typeof themeData.name !== 'string') return null
+
+    // Validate all color keys exist
+    for (const key of COLOR_KEYS) {
+      if (typeof themeData[key] !== 'string') return null
+    }
+
+    const theme: Theme = { name: themeData.name } as Theme
+    for (const key of COLOR_KEYS) {
+      ;(theme as any)[key] = themeData[key]
+    }
+
+    // Prevent overwriting built-in names — suffix with " (imported)"
+    if (theme.name === 'dark' || theme.name === 'light') {
+      theme.name = `${theme.name} (imported)`
+    }
+
+    saveCustomTheme(theme)
+    return theme
+  } catch {
+    return null
+  }
+}
+
+// ── System theme preference (prefers-color-scheme) ──
+
+export type ThemePreference = 'dark' | 'light' | 'system' | string
+
+let systemMediaQuery: MediaQueryList | null = null
+let systemMediaHandler: ((e: MediaQueryListEvent) => void) | null = null
+
+function getSystemTheme(): 'dark' | 'light' {
+  if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: light)').matches) {
+    return 'light'
+  }
+  return 'dark'
+}
+
+function resolvePreference(pref: ThemePreference): Theme {
+  if (pref === 'system') {
+    const sysName = getSystemTheme()
+    return sysName === 'light' ? lightTheme : darkTheme
+  }
+  return getThemeByName(pref) ?? darkTheme
+}
+
+function setupSystemListener() {
+  if (typeof window === 'undefined' || !window.matchMedia) return
+  if (systemMediaQuery) return // already set up
+
+  systemMediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
+  systemMediaHandler = () => {
+    if (currentPreference === 'system') {
+      currentTheme = resolvePreference('system')
+      applyThemeToDOM(currentTheme)
+      window.dispatchEvent(new Event('crossdraw:theme-changed'))
+    }
+  }
+  systemMediaQuery.addEventListener('change', systemMediaHandler)
+}
+
+// ── Active state ──
+
+function loadSavedPreference(): ThemePreference {
+  if (typeof localStorage !== 'undefined') {
+    const saved = localStorage.getItem(THEME_STORAGE_KEY)
+    if (saved) return saved
+  }
+  return 'dark'
+}
+
+let currentPreference: ThemePreference = loadSavedPreference()
+let currentTheme: Theme = resolvePreference(currentPreference)
 
 export function getTheme(): Theme {
   return currentTheme
 }
 
-export function getThemeName(): 'dark' | 'light' {
+export function getThemeName(): string {
   return currentTheme.name
 }
 
-export function setTheme(theme: 'dark' | 'light') {
-  currentTheme = theme === 'dark' ? darkTheme : lightTheme
+export function getThemePreference(): ThemePreference {
+  return currentPreference
+}
+
+export function setTheme(preference: ThemePreference) {
+  currentPreference = preference
+  currentTheme = resolvePreference(preference)
+
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem(THEME_STORAGE_KEY, theme)
+    localStorage.setItem(THEME_STORAGE_KEY, preference)
   }
+
   applyThemeToDOM(currentTheme)
+  window.dispatchEvent(new Event('crossdraw:theme-changed'))
+
+  // Set up system listener if needed
+  if (preference === 'system') {
+    setupSystemListener()
+  }
 }
 
 export function toggleTheme() {
-  setTheme(currentTheme.name === 'dark' ? 'light' : 'dark')
+  if (currentPreference === 'system') {
+    // If system, toggle to explicit opposite of what system resolved to
+    setTheme(currentTheme.name === 'dark' ? 'light' : 'dark')
+  } else {
+    setTheme(currentTheme.name === 'dark' ? 'light' : 'dark')
+  }
 }
 
+// ── DOM application ──
+
 function applyThemeToDOM(theme: Theme) {
+  if (typeof document === 'undefined') return
   const root = document.documentElement
 
   // Surface hierarchy
@@ -239,7 +532,11 @@ function applyThemeToDOM(theme: Theme) {
   document.body.style.color = theme.textPrimary
 }
 
-// Initialize on load
+// ── Initialize ──
+
 if (typeof document !== 'undefined') {
   applyThemeToDOM(currentTheme)
+  if (currentPreference === 'system') {
+    setupSystemListener()
+  }
 }

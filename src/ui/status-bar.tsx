@@ -1,5 +1,6 @@
 import { useEditorStore } from '@/store/editor.store'
 import { useEffect, useRef, useState } from 'react'
+import { UserProfile } from '@/ui/user-profile'
 
 const statusBtnStyle: React.CSSProperties = {
   background: 'none',
@@ -320,6 +321,8 @@ export function StatusBar() {
       <span>
         {document.artboards.length} artboard{document.artboards.length !== 1 ? 's' : ''}
       </span>
+
+      <UserProfile />
 
       {/* Settings gear button with dropdown */}
       <div ref={settingsRef} style={{ position: 'relative' }}>
