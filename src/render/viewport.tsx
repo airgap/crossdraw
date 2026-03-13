@@ -2621,10 +2621,13 @@ export function Viewport() {
     }
 
     // Double-click on a TextLayer → enter editing mode
+    // Read selection fresh from store — the first click of the double-click
+    // may have just selected the layer, so the closure's `selection` is stale
     if (activeTool === 'select' || activeTool === 'text') {
+      const currentSelection = useEditorStore.getState().selection
       for (const artboard of document.artboards) {
         for (const layer of artboard.layers) {
-          if (!selection.layerIds.includes(layer.id)) continue
+          if (!currentSelection.layerIds.includes(layer.id)) continue
           if (layer.type === 'text') {
             beginTextEdit(layer.id, artboard.id)
             return
