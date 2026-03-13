@@ -13,7 +13,7 @@ import {
   isContentAwareMoveActive,
   getContentAwareMoveOffset,
 } from '@/tools/content-aware-move'
-import type { SelectionMask } from '@/tools/raster-selection'
+import { clearSelection, type SelectionMask } from '@/tools/raster-selection'
 
 // Save originals
 const origImageData = globalThis.ImageData
@@ -288,6 +288,7 @@ describe('Content-Aware Fill', () => {
 
 describe('Content-Aware Move', () => {
   beforeEach(() => {
+    clearSelection()
     setContentAwareMoveSettings({ mode: 'move', adaptation: 'medium' })
   })
 

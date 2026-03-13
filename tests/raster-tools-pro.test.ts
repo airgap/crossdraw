@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, beforeEach } from 'bun:test'
 import { applyGaussianBlur } from '@/filters/gaussian-blur'
 import {
   applyBrightnessContrast,
@@ -459,6 +459,18 @@ describe('healing-brush settings', () => {
 // ── Raster Gradient settings ──
 
 describe('raster-gradient settings', () => {
+  beforeEach(async () => {
+    const { setRasterGradientSettings } = await import('@/tools/raster-gradient')
+    setRasterGradientSettings({
+      type: 'linear',
+      mode: 'foreground-background',
+      foreground: '#000000',
+      background: '#ffffff',
+      opacity: 1,
+      dither: true,
+    })
+  })
+
   test('getRasterGradientSettings returns defaults', async () => {
     const { getRasterGradientSettings } = await import('@/tools/raster-gradient')
     const settings = getRasterGradientSettings()

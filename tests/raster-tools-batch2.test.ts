@@ -1,4 +1,4 @@
-import { describe, test, expect } from 'bun:test'
+import { describe, test, expect, beforeEach } from 'bun:test'
 import { getSharpenBlurSettings, setSharpenBlurSettings } from '@/tools/sharpen-blur-brush'
 import { applyRedEyeRemoval, getRedEyeSettings, setRedEyeSettings } from '@/tools/red-eye'
 import {
@@ -29,6 +29,10 @@ function makeSolid(w: number, h: number, r: number, g: number, b: number, a = 25
 // ── Sharpen/Blur Brush ──
 
 describe('Sharpen/Blur Brush', () => {
+  beforeEach(() => {
+    setSharpenBlurSettings({ mode: 'blur', size: 20, strength: 0.5, hardness: 0.5, spacing: 0.25 })
+  })
+
   test('default settings', () => {
     const s = getSharpenBlurSettings()
     expect(s.mode).toBe('blur')
