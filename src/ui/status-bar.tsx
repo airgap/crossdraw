@@ -1,5 +1,5 @@
 import { useEditorStore } from '@/store/editor.store'
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { UserProfile } from '@/ui/user-profile'
 
 const statusBtnStyle: React.CSSProperties = {
@@ -100,7 +100,7 @@ export function StatusBar() {
   return (
     <div
       style={{
-        height: 24,
+        height: touchMode ? 40 : 24,
         background: 'var(--bg-surface)',
         borderTop: '1px solid var(--border-subtle)',
         display: 'flex',
@@ -108,10 +108,11 @@ export function StatusBar() {
         padding: '0 var(--space-2)',
         fontSize: 'var(--font-size-xs)',
         color: 'var(--text-secondary)',
-        gap: 'var(--space-4)',
+        gap: touchMode ? 'var(--space-2)' : 'var(--space-4)',
         flexShrink: 0,
       }}
     >
+      {touchMode && <TouchUndoRedo />}
       {!portrait && (
         <span
           style={{
@@ -430,5 +431,235 @@ export function StatusBar() {
         )}
       </div>
     </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Touch undo/redo buttons with long-press history dropdown
+// ---------------------------------------------------------------------------
+
+const LONG_PRESS_MS = 400
+
+const touchUndoBtnStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 36,
+  height: 32,
+  border: '1px solid var(--border-default)',
+  borderRadius: 'var(--radius-sm)',
+  background: 'var(--bg-input)',
+  cursor: 'pointer',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent',
+}
+
+function TouchUndoRedo() {
+  const undo = useEditorStore((s) => s.undo)
+  const redo = useEditorStore((s) => s.redo)
+  const canUndo = useEditorStore((s) => s.canUndo())
+  const canRedo = useEditorStore((s) => s.canRedo())
+  const history = useEditorStore((s) => s.history)
+  const historyIndex = useEditorStore((s) => s.historyIndex)
+  const [showHistory, setShowHistory] = useState(false)
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPressRef = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  // Close dropdown on outside tap
+  useEffect(() => {
+    if (!showHistory) return
+    const handler = (e: PointerEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setShowHistory(false)
+      }
+    }
+    window.addEventListener('pointerdown', handler)
+    return () => window.removeEventListener('pointerdown', handler)
+  }, [showHistory])
+
+  const clearLongPress = useCallback(() => {
+    if (longPressRef.current !== null) {
+      clearTimeout(longPressRef.current)
+      longPressRef.current = null
+    }
+  }, [])
+
+  const handleUndoDown = useCallback((e: React.PointerEvent) => {
+    e.preventDefault()
+    didLongPressRef.current = false
+    longPressRef.current = setTimeout(() => {
+      longPressRef.current = null
+      didLongPressRef.current = true
+      setShowHistory(true)
+    }, LONG_PRESS_MS)
+  }, [])
+
+  const handleUndoUp = useCallback(() => {
+    clearLongPress()
+    if (!didLongPressRef.current && canUndo) {
+      undo()
+    }
+  }, [clearLongPress, canUndo, undo])
+
+  const handleUndoCancel = useCallback(() => {
+    clearLongPress()
+  }, [clearLongPress])
+
+  const jumpTo = useCallback((targetIndex: number) => {
+    const current = useEditorStore.getState().historyIndex
+    const u = useEditorStore.getState().undo
+    const r = useEditorStore.getState().redo
+    if (targetIndex < current) {
+      for (let i = current; i > targetIndex; i--) u()
+    } else if (targetIndex > current) {
+      for (let i = current; i < targetIndex; i++) r()
+    }
+    setShowHistory(false)
+  }, [])
+
+  return (
+    <div ref={containerRef} style={{ display: 'flex', gap: 2, position: 'relative' }}>
+      {/* Undo button — long press opens history */}
+      <button
+        onPointerDown={handleUndoDown}
+        onPointerUp={handleUndoUp}
+        onPointerCancel={handleUndoCancel}
+        onPointerLeave={handleUndoCancel}
+        disabled={!canUndo && !history.length}
+        style={{
+          ...touchUndoBtnStyle,
+          color: canUndo ? 'var(--text-primary)' : 'var(--text-disabled)',
+          opacity: canUndo ? 1 : 0.4,
+          borderTopRightRadius: 0,
+          borderBottomRightRadius: 0,
+        }}
+        title="Undo (hold for history)"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="1 4 1 10 7 10" />
+          <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10" />
+        </svg>
+      </button>
+
+      {/* Redo button */}
+      <button
+        onPointerUp={() => canRedo && redo()}
+        disabled={!canRedo}
+        style={{
+          ...touchUndoBtnStyle,
+          color: canRedo ? 'var(--text-primary)' : 'var(--text-disabled)',
+          opacity: canRedo ? 1 : 0.4,
+          borderTopLeftRadius: 0,
+          borderBottomLeftRadius: 0,
+          borderLeft: 'none',
+        }}
+        title="Redo"
+      >
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="23 4 23 10 17 10" />
+          <path d="M20.49 15a9 9 0 1 1-2.13-9.36L23 10" />
+        </svg>
+      </button>
+
+      {/* History dropdown */}
+      {showHistory && (
+        <div
+          style={{
+            position: 'absolute',
+            bottom: '100%',
+            left: 0,
+            marginBottom: 4,
+            background: 'var(--bg-overlay)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '4px 0',
+            minWidth: 200,
+            maxWidth: 280,
+            maxHeight: 320,
+            overflowY: 'auto',
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            zIndex: 1000,
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
+          {/* Initial state */}
+          <HistoryDropdownItem
+            label="Initial State"
+            isActive={historyIndex === -1}
+            isFuture={false}
+            onTap={() => jumpTo(-1)}
+          />
+          {history.map((entry, i) => (
+            <HistoryDropdownItem
+              key={i}
+              label={entry.description}
+              isActive={i === historyIndex}
+              isFuture={i > historyIndex}
+              onTap={() => jumpTo(i)}
+            />
+          ))}
+          {history.length === 0 && (
+            <div style={{ padding: '12px 16px', fontSize: 11, color: 'var(--text-secondary)', textAlign: 'center' }}>
+              No history yet
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function HistoryDropdownItem({
+  label,
+  isActive,
+  isFuture,
+  onTap,
+}: {
+  label: string
+  isActive: boolean
+  isFuture: boolean
+  onTap: () => void
+}) {
+  return (
+    <button
+      onPointerUp={onTap}
+      style={{
+        display: 'block',
+        width: '100%',
+        textAlign: 'left',
+        padding: '8px 12px',
+        border: 'none',
+        background: isActive ? 'var(--accent)' : 'transparent',
+        color: isActive ? '#fff' : isFuture ? 'var(--text-disabled)' : 'var(--text-primary)',
+        opacity: isFuture ? 0.5 : 1,
+        fontSize: 12,
+        cursor: 'pointer',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+        touchAction: 'manipulation',
+      }}
+    >
+      {label}
+    </button>
   )
 }
