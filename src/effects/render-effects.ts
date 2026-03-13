@@ -10,11 +10,45 @@ import type {
   MotionBlurEffectParams,
   RadialBlurEffectParams,
   ColorAdjustEffectParams,
+  GaussianBlurEffectParams,
+  BrightnessContrastEffectParams,
+  ShadowHighlightEffectParams,
+  ExposureEffectParams,
+  PhotoFilterEffectParams,
+  BlackWhiteMixerEffectParams,
   WaveEffectParams,
   TwirlEffectParams,
   PinchEffectParams,
   SpherizeEffectParams,
+  DisplaceEffectParams,
+  GlassEffectParams,
+  RippleEffectParams,
+  ZigzagEffectParams,
+  PolarCoordinatesEffectParams,
+  BoxBlurEffectParams,
+  SurfaceBlurEffectParams,
+  EmbossEffectParams,
+  FindEdgesEffectParams,
+  SolarizeEffectParams,
+  WindEffectParams,
   ProgressiveBlurParams,
+  OilPaintEffectParams,
+  HalftoneEffectParams,
+  PixelateEffectParams,
+  SmartSharpenEffectParams,
+  LUTEffectParams,
+  SelectiveColorEffectParams,
+  BevelEmbossEffectParams,
+  ColorOverlayEffectParams,
+  GradientOverlayEffectParams,
+  PatternOverlayEffectParams,
+  SatinEffectParams,
+  CloudsEffectParams,
+  LensFlareEffectParams,
+  LightingEffectParams,
+  ClarityEffectParams,
+  DenoiseEffectParams,
+  LensBlurEffectParams,
 } from '@/types'
 import { applyGaussianNoise, applyUniformNoise, applyFilmGrain } from '@/filters/noise'
 import { applySharpen } from '@/filters/sharpen'
@@ -26,9 +60,48 @@ import {
   applyDesaturate,
   applyVibrance,
   applyChannelMixer,
+  applyBrightnessContrast,
+  applyShadowHighlight,
+  applyExposure,
+  applyPhotoFilter,
+  applyBlackWhiteMixer,
 } from '@/filters/color-adjust'
-import { applyWave, applyTwirl, applyPinch, applySphereize } from '@/filters/distort'
+import {
+  applyWave,
+  applyTwirl,
+  applyPinch,
+  applySphereize,
+  applyRipple,
+  applyZigzag,
+  applyPolarCoordinates,
+  applyDisplace,
+  applyGlass,
+} from '@/filters/distort'
 import { applyProgressiveBlur } from '@/filters/progressive-blur'
+import { applyGaussianBlur } from '@/filters/gaussian-blur'
+import { applyBoxBlur } from '@/filters/box-blur'
+import { applySurfaceBlur } from '@/filters/surface-blur'
+import { applyEmboss } from '@/filters/emboss'
+import { applyFindEdges } from '@/filters/find-edges'
+import { applySolarize } from '@/filters/solarize'
+import { applyWind } from '@/filters/wind'
+import { applyOilPaint } from '@/filters/oil-paint'
+import { applyHalftone } from '@/filters/halftone'
+import { applyPixelate } from '@/filters/pixelate'
+import { applySmartSharpen } from '@/filters/smart-sharpen'
+import { applyLUT } from '@/filters/lut'
+import { applySelectiveColor } from '@/filters/selective-color'
+import {
+  applyBevelEmboss as applyBevelEmbossFilter,
+  applyColorOverlay as applyColorOverlayFilter,
+  applyGradientOverlay as applyGradientOverlayFilter,
+  applyPatternOverlay as applyPatternOverlayFilter,
+  applySatin as applySatinFilter,
+} from '@/effects/layer-effects'
+import { applyClouds, applyLensFlare, applyLighting } from '@/filters/render-filters'
+import { applyClarity } from '@/filters/clarity'
+import { applyDenoise } from '@/filters/denoise'
+import { applyLensBlur } from '@/filters/lens-blur'
 
 /**
  * Apply layer effects by rendering to a temporary OffscreenCanvas
@@ -86,6 +159,108 @@ export function applyEffects(sourceCanvas: OffscreenCanvas, effects: Effect[]): 
         break
       case 'spherize':
         current = applySpherizeEffect(current, effect.params as SpherizeEffectParams)
+        break
+      case 'displace':
+        current = applyDisplaceEffect(current, effect.params as DisplaceEffectParams)
+        break
+      case 'glass':
+        current = applyGlassEffect(current, effect.params as GlassEffectParams)
+        break
+      case 'ripple':
+        current = applyRippleEffect(current, effect.params as RippleEffectParams)
+        break
+      case 'zigzag':
+        current = applyZigzagEffect(current, effect.params as ZigzagEffectParams)
+        break
+      case 'polar-coordinates':
+        current = applyPolarCoordinatesEffect(current, effect.params as PolarCoordinatesEffectParams)
+        break
+      case 'box-blur':
+        current = applyBoxBlurEffect(current, effect.params as BoxBlurEffectParams)
+        break
+      case 'surface-blur':
+        current = applySurfaceBlurEffect(current, effect.params as SurfaceBlurEffectParams)
+        break
+      case 'emboss':
+        current = applyEmbossEffect(current, effect.params as EmbossEffectParams)
+        break
+      case 'find-edges':
+        current = applyFindEdgesEffect(current, effect.params as FindEdgesEffectParams)
+        break
+      case 'solarize':
+        current = applySolarizeEffect(current, effect.params as SolarizeEffectParams)
+        break
+      case 'wind':
+        current = applyWindEffect(current, effect.params as WindEffectParams)
+        break
+      case 'gaussian-blur':
+        current = applyGaussianBlurEffect(current, effect.params as GaussianBlurEffectParams)
+        break
+      case 'brightness-contrast':
+        current = applyBrightnessContrastEffect(current, effect.params as BrightnessContrastEffectParams)
+        break
+      case 'shadow-highlight':
+        current = applyShadowHighlightEffect(current, effect.params as ShadowHighlightEffectParams)
+        break
+      case 'exposure':
+        current = applyExposureEffect(current, effect.params as ExposureEffectParams)
+        break
+      case 'photo-filter':
+        current = applyPhotoFilterEffect(current, effect.params as PhotoFilterEffectParams)
+        break
+      case 'black-white':
+        current = applyBlackWhiteMixerEffect(current, effect.params as BlackWhiteMixerEffectParams)
+        break
+      case 'oil-paint':
+        current = applyOilPaintEffect(current, effect.params as OilPaintEffectParams)
+        break
+      case 'halftone':
+        current = applyHalftoneEffect(current, effect.params as HalftoneEffectParams)
+        break
+      case 'pixelate':
+        current = applyPixelateEffect(current, effect.params as PixelateEffectParams)
+        break
+      case 'smart-sharpen':
+        current = applySmartSharpenEffect(current, effect.params as SmartSharpenEffectParams)
+        break
+      case 'lut':
+        current = applyLUTEffect(current, effect.params as LUTEffectParams)
+        break
+      case 'selective-color':
+        current = applySelectiveColorEffect(current, effect.params as SelectiveColorEffectParams)
+        break
+      case 'clouds':
+        current = applyCloudsEffect(current, effect.params as CloudsEffectParams)
+        break
+      case 'lens-flare':
+        current = applyLensFlareEffect(current, effect.params as LensFlareEffectParams)
+        break
+      case 'lighting':
+        current = applyLightingEffect(current, effect.params as LightingEffectParams)
+        break
+      case 'clarity':
+        current = applyClarityEffect(current, effect.params as ClarityEffectParams)
+        break
+      case 'denoise':
+        current = applyDenoiseEffect(current, effect.params as DenoiseEffectParams)
+        break
+      case 'lens-blur':
+        current = applyLensBlurEffect(current, effect.params as LensBlurEffectParams)
+        break
+      case 'bevel-emboss':
+        current = applyBevelEmbossEffect(current, effect.params as BevelEmbossEffectParams)
+        break
+      case 'color-overlay':
+        current = applyColorOverlayEffect(current, effect.params as ColorOverlayEffectParams)
+        break
+      case 'gradient-overlay':
+        current = applyGradientOverlayEffect(current, effect.params as GradientOverlayEffectParams)
+        break
+      case 'pattern-overlay':
+        current = applyPatternOverlayEffect(current, effect.params as PatternOverlayEffectParams)
+        break
+      case 'satin':
+        current = applySatinEffect(current, effect.params as SatinEffectParams)
         break
     }
   }
@@ -320,6 +495,315 @@ function applySpherizeEffect(source: OffscreenCanvas, params: SpherizeEffectPara
   if (source.width === 0 || source.height === 0) return source
   const imageData = getPixels(source)
   const result = applySphereize(imageData, params.amount)
+  return putPixels(source, result)
+}
+
+function applyRippleEffect(source: OffscreenCanvas, params: RippleEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyRipple(imageData, params.amplitude, params.frequency, params.direction)
+  return putPixels(source, result)
+}
+
+function applyZigzagEffect(source: OffscreenCanvas, params: ZigzagEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyZigzag(imageData, params.amount, params.ridges)
+  return putPixels(source, result)
+}
+
+function applyPolarCoordinatesEffect(source: OffscreenCanvas, params: PolarCoordinatesEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyPolarCoordinates(imageData, params.mode)
+  return putPixels(source, result)
+}
+
+function applyGaussianBlurEffect(source: OffscreenCanvas, params: GaussianBlurEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0 || params.radius <= 0) return source
+  const imageData = getPixels(source)
+  const result = applyGaussianBlur(imageData, { radius: params.radius })
+  return putPixels(source, result)
+}
+
+function applyBrightnessContrastEffect(
+  source: OffscreenCanvas,
+  params: BrightnessContrastEffectParams,
+): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyBrightnessContrast(imageData, { brightness: params.brightness, contrast: params.contrast })
+  return putPixels(source, result)
+}
+
+function applyShadowHighlightEffect(source: OffscreenCanvas, params: ShadowHighlightEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyShadowHighlight(imageData, { shadows: params.shadows, highlights: params.highlights })
+  return putPixels(source, result)
+}
+
+function applyExposureEffect(source: OffscreenCanvas, params: ExposureEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyExposure(imageData, {
+    exposure: params.exposure,
+    offset: params.offset,
+    gamma: params.gamma,
+  })
+  return putPixels(source, result)
+}
+
+function applyPhotoFilterEffect(source: OffscreenCanvas, params: PhotoFilterEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyPhotoFilter(imageData, {
+    color: params.color,
+    density: params.density,
+    preserveLuminosity: params.preserveLuminosity,
+  })
+  return putPixels(source, result)
+}
+
+function applyBlackWhiteMixerEffect(source: OffscreenCanvas, params: BlackWhiteMixerEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyBlackWhiteMixer(imageData, {
+    reds: params.reds,
+    yellows: params.yellows,
+    greens: params.greens,
+    cyans: params.cyans,
+    blues: params.blues,
+    magentas: params.magentas,
+  })
+  return putPixels(source, result)
+}
+
+function applyBoxBlurEffect(source: OffscreenCanvas, params: BoxBlurEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0 || params.radius <= 0) return source
+  const imageData = getPixels(source)
+  const result = applyBoxBlur(imageData, { radius: params.radius })
+  return putPixels(source, result)
+}
+
+function applySurfaceBlurEffect(source: OffscreenCanvas, params: SurfaceBlurEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applySurfaceBlur(imageData, { radius: params.radius, threshold: params.threshold })
+  return putPixels(source, result)
+}
+
+function applyEmbossEffect(source: OffscreenCanvas, params: EmbossEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyEmboss(imageData, { angle: params.angle, height: params.height, amount: params.amount })
+  return putPixels(source, result)
+}
+
+function applyFindEdgesEffect(source: OffscreenCanvas, params: FindEdgesEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyFindEdges(imageData, { threshold: params.threshold })
+  return putPixels(source, result)
+}
+
+function applySolarizeEffect(source: OffscreenCanvas, params: SolarizeEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applySolarize(imageData, { threshold: params.threshold })
+  return putPixels(source, result)
+}
+
+function applyWindEffect(source: OffscreenCanvas, params: WindEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyWind(imageData, {
+    strength: params.strength,
+    direction: params.direction,
+    method: params.method,
+  })
+  return putPixels(source, result)
+}
+
+function applyOilPaintEffect(source: OffscreenCanvas, params: OilPaintEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyOilPaint(imageData, { radius: params.radius, levels: params.levels })
+  return putPixels(source, result)
+}
+
+function applyHalftoneEffect(source: OffscreenCanvas, params: HalftoneEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyHalftone(imageData, { dotSize: params.dotSize, angle: params.angle, shape: params.shape })
+  return putPixels(source, result)
+}
+
+function applyPixelateEffect(source: OffscreenCanvas, params: PixelateEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyPixelate(imageData, { cellSize: params.cellSize, mode: params.mode })
+  return putPixels(source, result)
+}
+
+function applyDisplaceEffect(source: OffscreenCanvas, params: DisplaceEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyDisplace(imageData, {
+    scaleX: params.scaleX,
+    scaleY: params.scaleY,
+    mapData: null,
+    wrap: params.wrap,
+  })
+  return putPixels(source, result)
+}
+
+function applyGlassEffect(source: OffscreenCanvas, params: GlassEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyGlass(imageData, {
+    distortion: params.distortion,
+    smoothness: params.smoothness,
+    texture: params.texture,
+    scale: params.scale,
+  })
+  return putPixels(source, result)
+}
+
+function applySmartSharpenEffect(source: OffscreenCanvas, params: SmartSharpenEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applySmartSharpen(imageData, {
+    amount: params.amount,
+    radius: params.radius,
+    noiseReduction: params.noiseReduction,
+    shadowFade: params.shadowFade,
+    highlightFade: params.highlightFade,
+  })
+  return putPixels(source, result)
+}
+
+function applyLUTEffect(source: OffscreenCanvas, params: LUTEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyLUT(imageData, { lutData: params.lutData, size: params.size })
+  return putPixels(source, result)
+}
+
+function applySelectiveColorEffect(source: OffscreenCanvas, params: SelectiveColorEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applySelectiveColor(imageData, {
+    reds: params.reds,
+    yellows: params.yellows,
+    greens: params.greens,
+    cyans: params.cyans,
+    blues: params.blues,
+    magentas: params.magentas,
+    whites: params.whites,
+    neutrals: params.neutrals,
+    blacks: params.blacks,
+  })
+  return putPixels(source, result)
+}
+
+function applyCloudsEffect(source: OffscreenCanvas, params: CloudsEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyClouds(imageData, {
+    scale: params.scale,
+    seed: params.seed,
+    turbulence: params.turbulence,
+  })
+  return putPixels(source, result)
+}
+
+function applyLensFlareEffect(source: OffscreenCanvas, params: LensFlareEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyLensFlare(imageData, {
+    x: params.x,
+    y: params.y,
+    brightness: params.brightness,
+    lensType: params.lensType,
+  })
+  return putPixels(source, result)
+}
+
+function applyLightingEffect(source: OffscreenCanvas, params: LightingEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyLighting(imageData, {
+    lightX: params.lightX,
+    lightY: params.lightY,
+    intensity: params.intensity,
+    ambientLight: params.ambientLight,
+    surfaceHeight: params.surfaceHeight,
+  })
+  return putPixels(source, result)
+}
+
+function applyClarityEffect(source: OffscreenCanvas, params: ClarityEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyClarity(imageData, { amount: params.amount })
+  return putPixels(source, result)
+}
+
+function applyDenoiseEffect(source: OffscreenCanvas, params: DenoiseEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyDenoise(imageData, { strength: params.strength, detail: params.detail })
+  return putPixels(source, result)
+}
+
+function applyLensBlurEffect(source: OffscreenCanvas, params: LensBlurEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0 || params.radius <= 0) return source
+  const imageData = getPixels(source)
+  const result = applyLensBlur(imageData, {
+    radius: params.radius,
+    bladeCount: params.bladeCount,
+    rotation: params.rotation,
+    brightness: params.brightness,
+    threshold: params.threshold,
+  })
+  return putPixels(source, result)
+}
+
+// ── Layer effects (bevel/emboss, overlays, satin) ──
+
+function applyBevelEmbossEffect(source: OffscreenCanvas, params: BevelEmbossEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyBevelEmbossFilter(imageData, params)
+  return putPixels(source, result)
+}
+
+function applyColorOverlayEffect(source: OffscreenCanvas, params: ColorOverlayEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyColorOverlayFilter(imageData, params)
+  return putPixels(source, result)
+}
+
+function applyGradientOverlayEffect(source: OffscreenCanvas, params: GradientOverlayEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyGradientOverlayFilter(imageData, params)
+  return putPixels(source, result)
+}
+
+function applyPatternOverlayEffect(source: OffscreenCanvas, params: PatternOverlayEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applyPatternOverlayFilter(imageData, params)
+  return putPixels(source, result)
+}
+
+function applySatinEffect(source: OffscreenCanvas, params: SatinEffectParams): OffscreenCanvas {
+  if (source.width === 0 || source.height === 0) return source
+  const imageData = getPixels(source)
+  const result = applySatinFilter(imageData, params)
   return putPixels(source, result)
 }
 

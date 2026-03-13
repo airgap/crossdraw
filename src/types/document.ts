@@ -144,6 +144,8 @@ export interface Artboard {
   readyForDev?: boolean
   /** Perspective grid overlay configuration. */
   perspectiveGrid?: PerspectiveConfig
+  /** Frame-by-frame animation timeline. */
+  animation?: AnimationTimeline
 }
 
 export type Layer =
@@ -154,6 +156,47 @@ export type Layer =
   | FilterLayer
   | TextLayer
   | SymbolInstanceLayer
+  | FillLayer
+  | CloneLayer
+  | SmartObjectLayer
+
+export interface FillLayer extends BaseLayer {
+  type: 'fill'
+  fillType: 'solid' | 'gradient' | 'pattern'
+  color?: string
+  gradient?: Gradient
+  patternScale?: number
+  patternImageId?: string
+}
+
+export interface CloneLayer extends BaseLayer {
+  type: 'clone'
+  sourceLayerId: string
+  offsetX: number
+  offsetY: number
+}
+
+export interface SmartObjectLayer extends BaseLayer {
+  type: 'smart-object'
+  sourceType: 'embedded' | 'linked'
+  /** Embedded: full document data stored inline */
+  embeddedData?: {
+    format: 'design' | 'svg' | 'psd' | 'png' | 'jpg'
+    data: string // base64 encoded
+    originalWidth: number
+    originalHeight: number
+  }
+  /** Linked: reference to external file */
+  linkedPath?: string
+  /** Hash of linked file for change detection */
+  linkedHash?: string
+  /** Cached raster width */
+  cachedWidth: number
+  /** Cached raster height */
+  cachedHeight: number
+  /** Non-destructive smart filters applied on top of the smart object content */
+  smartFilters?: Effect[]
+}
 
 export interface BaseLayer {
   id: string
@@ -239,6 +282,75 @@ export interface KeyframeProperties {
 }
 
 export type WarpPreset = 'arc' | 'arch' | 'bulge' | 'flag' | 'wave' | 'fish' | 'rise' | 'squeeze' | 'twist' | 'none'
+
+// --- Variable Fonts ---
+
+/** A single OpenType font variation axis (e.g., wght, wdth, ital). */
+export interface FontVariationAxis {
+  /** 4-character OpenType axis tag (e.g., 'wght', 'wdth', 'ital', 'slnt', 'opsz'). */
+  tag: string
+  /** Human-readable axis name (e.g., 'Weight', 'Width'). */
+  name: string
+  /** Minimum allowed value for this axis. */
+  min: number
+  /** Maximum allowed value for this axis. */
+  max: number
+  /** Default value for this axis. */
+  default: number
+  /** Current set value for this axis. */
+  value: number
+}
+
+// --- Touch Type (per-character transforms) ---
+
+/** Per-character transform for Touch Type editing mode. */
+export interface CharacterTransform {
+  /** Index of the character in the text string. */
+  charIndex: number
+  /** Horizontal offset in pixels. */
+  x: number
+  /** Vertical offset in pixels. */
+  y: number
+  /** Rotation in degrees. */
+  rotation: number
+  /** Horizontal scale factor. */
+  scaleX: number
+  /** Vertical scale factor. */
+  scaleY: number
+}
+
+// --- Text Warp ---
+
+/** All available text warp preset names. */
+export type TextWarpPreset =
+  | 'none'
+  | 'arc'
+  | 'arc-lower'
+  | 'arc-upper'
+  | 'arch'
+  | 'bulge'
+  | 'shell-lower'
+  | 'shell-upper'
+  | 'flag'
+  | 'wave'
+  | 'fish'
+  | 'rise'
+  | 'fisheye'
+  | 'inflate'
+  | 'squeeze'
+  | 'twist'
+
+/** Configuration for text warp envelope distortion. */
+export interface TextWarpConfig {
+  /** Active warp preset. */
+  preset: TextWarpPreset
+  /** Primary bend amount (-100 to 100). */
+  bend: number
+  /** Horizontal distortion (-100 to 100). */
+  distortH: number
+  /** Vertical distortion (-100 to 100). */
+  distortV: number
+}
 
 export interface EnvelopeConfig {
   preset: WarpPreset
@@ -374,15 +486,76 @@ export type FilterParams =
   | MotionBlurEffectParams
   | RadialBlurEffectParams
   | ColorAdjustEffectParams
+  | GaussianBlurEffectParams
+  | BrightnessContrastEffectParams
+  | ShadowHighlightEffectParams
+  | ExposureEffectParams
+  | PhotoFilterEffectParams
+  | BlackWhiteMixerEffectParams
   | WaveEffectParams
   | TwirlEffectParams
   | PinchEffectParams
   | SpherizeEffectParams
+  | DisplaceEffectParams
+  | GlassEffectParams
+  | RippleEffectParams
+  | ZigzagEffectParams
+  | PolarCoordinatesEffectParams
+  | BoxBlurEffectParams
+  | SurfaceBlurEffectParams
+  | EmbossEffectParams
+  | FindEdgesEffectParams
+  | SolarizeEffectParams
+  | WindEffectParams
   | DistortParams
+  | BevelEmbossEffectParams
+  | ColorOverlayEffectParams
+  | GradientOverlayEffectParams
+  | PatternOverlayEffectParams
+  | SatinEffectParams
+  | OilPaintEffectParams
+  | HalftoneEffectParams
+  | PixelateEffectParams
+  | SmartSharpenEffectParams
+  | LUTEffectParams
+  | SelectiveColorEffectParams
+  | CloudsEffectParams
+  | LensFlareEffectParams
+  | LightingEffectParams
+  | ClarityEffectParams
+  | DenoiseEffectParams
+  | LensBlurEffectParams
+
+/** Luminosity range mask: restrict a filter to specific tonal ranges. */
+export interface LuminosityRangeMaskConfig {
+  type: 'luminosity-range'
+  /** Lower luminance bound (0-255). */
+  min: number
+  /** Upper luminance bound (0-255). */
+  max: number
+  /** Feather width (0-100) — soft transition at boundaries. */
+  feather: number
+}
+
+/** Hue range mask: restrict a filter to specific hue ranges. */
+export interface HueRangeMaskConfig {
+  type: 'hue-range'
+  /** Center of the hue range (0-360 degrees). */
+  centerHue: number
+  /** Half-width of the hue range (0-180 degrees). */
+  range: number
+  /** Soft transition width at range edges (0-60 degrees). */
+  feather: number
+}
+
+/** Range mask configuration for a filter layer. */
+export type RangeMaskConfig = LuminosityRangeMaskConfig | HueRangeMaskConfig
 
 export interface FilterLayer extends BaseLayer {
   type: 'filter'
   filterParams: FilterParams
+  /** Optional range mask to restrict this filter to specific luminosity or hue ranges. */
+  rangeMask?: RangeMaskConfig
 }
 
 // --- Legacy adjustment layer (kept for migration) ---
@@ -436,6 +609,12 @@ export interface TextLayer extends BaseLayer {
   columnGap?: number
   /** Optical margin alignment: hangs punctuation outside the text box margins. */
   opticalMarginAlignment?: boolean
+  /** Variable font axis values. Only meaningful for variable fonts. */
+  fontVariationAxes?: FontVariationAxis[]
+  /** Per-character transforms for Touch Type editing mode. */
+  characterTransforms?: CharacterTransform[]
+  /** Text warp envelope configuration. */
+  textWarp?: TextWarpConfig
 }
 
 export interface CharacterStyleRange {
@@ -601,10 +780,44 @@ export interface Effect {
     | 'motion-blur'
     | 'radial-blur'
     | 'color-adjust'
+    | 'gaussian-blur'
+    | 'brightness-contrast'
+    | 'shadow-highlight'
+    | 'exposure'
+    | 'photo-filter'
+    | 'black-white'
     | 'wave'
     | 'twirl'
     | 'pinch'
     | 'spherize'
+    | 'displace'
+    | 'glass'
+    | 'ripple'
+    | 'zigzag'
+    | 'polar-coordinates'
+    | 'box-blur'
+    | 'surface-blur'
+    | 'emboss'
+    | 'find-edges'
+    | 'solarize'
+    | 'wind'
+    | 'bevel-emboss'
+    | 'color-overlay'
+    | 'gradient-overlay'
+    | 'pattern-overlay'
+    | 'satin'
+    | 'oil-paint'
+    | 'halftone'
+    | 'pixelate'
+    | 'smart-sharpen'
+    | 'lut'
+    | 'selective-color'
+    | 'clouds'
+    | 'lens-flare'
+    | 'lighting'
+    | 'clarity'
+    | 'denoise'
+    | 'lens-blur'
   enabled: boolean
   opacity: number
   params:
@@ -620,10 +833,44 @@ export interface Effect {
     | MotionBlurEffectParams
     | RadialBlurEffectParams
     | ColorAdjustEffectParams
+    | GaussianBlurEffectParams
+    | BrightnessContrastEffectParams
+    | ShadowHighlightEffectParams
+    | ExposureEffectParams
+    | PhotoFilterEffectParams
+    | BlackWhiteMixerEffectParams
     | WaveEffectParams
     | TwirlEffectParams
     | PinchEffectParams
     | SpherizeEffectParams
+    | DisplaceEffectParams
+    | GlassEffectParams
+    | RippleEffectParams
+    | ZigzagEffectParams
+    | PolarCoordinatesEffectParams
+    | BoxBlurEffectParams
+    | SurfaceBlurEffectParams
+    | EmbossEffectParams
+    | FindEdgesEffectParams
+    | SolarizeEffectParams
+    | WindEffectParams
+    | BevelEmbossEffectParams
+    | ColorOverlayEffectParams
+    | GradientOverlayEffectParams
+    | PatternOverlayEffectParams
+    | SatinEffectParams
+    | OilPaintEffectParams
+    | HalftoneEffectParams
+    | PixelateEffectParams
+    | SmartSharpenEffectParams
+    | LUTEffectParams
+    | SelectiveColorEffectParams
+    | CloudsEffectParams
+    | LensFlareEffectParams
+    | LightingEffectParams
+    | ClarityEffectParams
+    | DenoiseEffectParams
+    | LensBlurEffectParams
 }
 
 export interface GlowParams {
@@ -700,6 +947,47 @@ export interface RadialBlurEffectParams {
   amount: number
 }
 
+export interface GaussianBlurEffectParams {
+  kind: 'gaussian-blur'
+  radius: number
+}
+
+export interface BrightnessContrastEffectParams {
+  kind: 'brightness-contrast'
+  brightness: number
+  contrast: number
+}
+
+export interface ShadowHighlightEffectParams {
+  kind: 'shadow-highlight'
+  shadows: number
+  highlights: number
+}
+
+export interface ExposureEffectParams {
+  kind: 'exposure'
+  exposure: number
+  offset: number
+  gamma: number
+}
+
+export interface PhotoFilterEffectParams {
+  kind: 'photo-filter'
+  color: string
+  density: number
+  preserveLuminosity: boolean
+}
+
+export interface BlackWhiteMixerEffectParams {
+  kind: 'black-white'
+  reds: number
+  yellows: number
+  greens: number
+  cyans: number
+  blues: number
+  magentas: number
+}
+
 export interface ColorAdjustEffectParams {
   kind: 'color-adjust'
   adjustType: 'posterize' | 'threshold' | 'invert' | 'desaturate' | 'vibrance' | 'channel-mixer'
@@ -743,6 +1031,228 @@ export interface SpherizeEffectParams {
   amount: number
 }
 
+export interface DisplaceEffectParams {
+  kind: 'displace'
+  scaleX: number
+  scaleY: number
+  wrap: 'tile' | 'clamp' | 'transparent'
+}
+
+export interface GlassEffectParams {
+  kind: 'glass'
+  distortion: number
+  smoothness: number
+  texture: 'frosted' | 'blocks' | 'tiny-lens'
+  scale: number
+}
+
+export interface RippleEffectParams {
+  kind: 'ripple'
+  amplitude: number
+  frequency: number
+  direction: 'horizontal' | 'vertical' | 'both'
+}
+
+export interface ZigzagEffectParams {
+  kind: 'zigzag'
+  amount: number
+  ridges: number
+}
+
+export interface PolarCoordinatesEffectParams {
+  kind: 'polar-coordinates'
+  mode: 'rectangular-to-polar' | 'polar-to-rectangular'
+}
+
+export interface BoxBlurEffectParams {
+  kind: 'box-blur'
+  radius: number
+}
+
+export interface SurfaceBlurEffectParams {
+  kind: 'surface-blur'
+  radius: number
+  threshold: number
+}
+
+export interface EmbossEffectParams {
+  kind: 'emboss'
+  angle: number
+  height: number
+  amount: number
+}
+
+export interface FindEdgesEffectParams {
+  kind: 'find-edges'
+  threshold: number
+}
+
+export interface SolarizeEffectParams {
+  kind: 'solarize'
+  threshold: number
+}
+
+export interface WindEffectParams {
+  kind: 'wind'
+  strength: number
+  direction: 'left' | 'right'
+  method: 'wind' | 'blast' | 'stagger'
+}
+
+export interface BevelEmbossEffectParams {
+  kind: 'bevel-emboss'
+  style: 'outer-bevel' | 'inner-bevel' | 'emboss' | 'pillow-emboss'
+  depth: number // 1-1000, default 100
+  direction: 'up' | 'down'
+  size: number // blur radius 0-250
+  soften: number // 0-16
+  angle: number // light angle 0-360
+  altitude: number // light altitude 0-90
+  highlightMode: string // blend mode
+  highlightOpacity: number
+  highlightColor: string
+  shadowMode: string
+  shadowOpacity: number
+  shadowColor: string
+}
+
+export interface ColorOverlayEffectParams {
+  kind: 'color-overlay'
+  color: string
+  opacity: number
+  blendMode: string
+}
+
+export interface GradientOverlayEffectParams {
+  kind: 'gradient-overlay'
+  stops: { offset: number; color: string }[]
+  angle: number
+  opacity: number
+  blendMode: string
+  style: 'linear' | 'radial' | 'angle'
+}
+
+export interface PatternOverlayEffectParams {
+  kind: 'pattern-overlay'
+  scale: number
+  opacity: number
+  blendMode: string
+}
+
+export interface SatinEffectParams {
+  kind: 'satin'
+  color: string
+  opacity: number
+  angle: number
+  distance: number
+  size: number
+  blendMode: string
+  contour: 'linear' | 'gaussian' | 'rounded'
+}
+
+export interface OilPaintEffectParams {
+  kind: 'oil-paint'
+  radius: number
+  levels: number
+}
+
+export interface HalftoneEffectParams {
+  kind: 'halftone'
+  dotSize: number
+  angle: number
+  shape: 'circle' | 'diamond' | 'line' | 'cross'
+}
+
+export interface PixelateEffectParams {
+  kind: 'pixelate'
+  cellSize: number
+  mode: 'mosaic' | 'crystallize' | 'pointillize'
+}
+
+export interface CloudsEffectParams {
+  kind: 'clouds'
+  scale: number
+  seed: number
+  turbulence: boolean
+}
+
+export interface LensFlareEffectParams {
+  kind: 'lens-flare'
+  x: number
+  y: number
+  brightness: number
+  lensType: 'standard' | 'zoom' | 'movie'
+}
+
+export interface LightingEffectParams {
+  kind: 'lighting'
+  lightX: number
+  lightY: number
+  intensity: number
+  ambientLight: number
+  surfaceHeight: number
+}
+
+export interface ClarityEffectParams {
+  kind: 'clarity'
+  amount: number
+}
+
+export interface DenoiseEffectParams {
+  kind: 'denoise'
+  strength: number
+  detail: number
+}
+
+export interface LensBlurEffectParams {
+  kind: 'lens-blur'
+  /** Blur radius in pixels (0 = no blur). */
+  radius: number
+  /** Number of aperture blades (3-12). */
+  bladeCount: number
+  /** Rotation of the aperture polygon in degrees. */
+  rotation: number
+  /** Brightness boost for specular highlights (0 = none). */
+  brightness: number
+  /** Only boost pixels whose luminance exceeds this threshold (0-255). */
+  threshold: number
+}
+
+export interface SmartSharpenEffectParams {
+  kind: 'smart-sharpen'
+  amount: number
+  radius: number
+  noiseReduction: number
+  shadowFade: number
+  highlightFade: number
+}
+
+export interface LUTEffectParams {
+  kind: 'lut'
+  lutData: number[]
+  size: number
+}
+
+export interface SelectiveColorChannelParams {
+  cyan: number
+  magenta: number
+  yellow: number
+  black: number
+}
+
+export interface SelectiveColorEffectParams {
+  kind: 'selective-color'
+  reds: SelectiveColorChannelParams
+  yellows: SelectiveColorChannelParams
+  greens: SelectiveColorChannelParams
+  cyans: SelectiveColorChannelParams
+  blues: SelectiveColorChannelParams
+  magentas: SelectiveColorChannelParams
+  whites: SelectiveColorChannelParams
+  neutrals: SelectiveColorChannelParams
+  blacks: SelectiveColorChannelParams
+}
+
 export interface Transform {
   x: number
   y: number
@@ -774,6 +1284,18 @@ export type BlendMode =
   | 'saturation'
   | 'color'
   | 'luminosity'
+  | 'vivid-light'
+  | 'linear-light'
+  | 'pin-light'
+  | 'hard-mix'
+  | 'darker-color'
+  | 'lighter-color'
+  | 'subtract'
+  | 'divide'
+  | 'linear-burn'
+  | 'linear-dodge'
+  | 'dissolve'
+  | 'pass-through'
 
 export interface Pattern {
   id: string
@@ -891,6 +1413,23 @@ export interface BrushSettings {
   flow: number // 0-1
   color: string // hex color
   spacing: number // 0.1-2.0 (fraction of brush size between dabs)
+}
+
+// --- Frame-by-frame animation timeline ---
+
+export interface AnimationFrame {
+  id: string
+  name: string
+  duration: number // ms, 0 = use default from fps
+  layerVisibility: Record<string, boolean> // layerId → visible override
+  layerOpacity?: Record<string, number> // optional per-layer opacity override
+}
+
+export interface AnimationTimeline {
+  frames: AnimationFrame[]
+  fps: number // default 12
+  loop: boolean
+  currentFrame: number // index
 }
 
 export interface ViewportState {

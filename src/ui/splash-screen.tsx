@@ -4,6 +4,7 @@ import { NewDocumentModal } from '@/ui/new-document-modal'
 import { useEditorStore } from '@/store/editor.store'
 import { getRecentFiles, clearRecentFiles, type RecentFileEntry } from '@/io/recent-files'
 import { decodeDocument } from '@/io/file-format'
+import { newDocumentFromClipboardBlob } from '@/tools/import-image'
 
 // ── Relative time formatter ──
 
@@ -89,6 +90,27 @@ export function SplashScreen({ onReady }: { onReady: () => void }) {
   useEffect(() => {
     setRecentFiles(getRecentFiles().slice(0, 10))
   }, [])
+
+  // Ctrl+V on splash → create new document from clipboard image
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const blob = item.getAsFile()
+          if (blob) {
+            const created = await newDocumentFromClipboardBlob(blob)
+            if (created) onReady()
+          }
+          return
+        }
+      }
+    }
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
+  }, [onReady])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault()

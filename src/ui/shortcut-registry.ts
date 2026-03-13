@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
+import { newDocumentFromClipboard } from '@/tools/import-image'
 import { quickExport } from '@/ui/quick-export'
 import {
   bringToFront,
@@ -120,7 +121,27 @@ function buildDefaultBindings(): ShortcutBinding[] {
     toolShortcut('tool.artboard', 'Artboard Tool', 'f', 'artboard'),
     toolShortcut('tool.slice', 'Slice Tool', 'w', 'slice'),
 
+    // Quick Mask
+    {
+      id: 'view.quickMask',
+      label: 'Toggle Quick Mask',
+      category: 'view',
+      defaultKey: 'shift+q',
+      key: 'shift+q',
+      action: () => store().toggleQuickMask(),
+    },
+
     // File
+    {
+      id: 'file.newFromClipboard',
+      label: 'New from Clipboard',
+      category: 'edit',
+      defaultKey: 'ctrl+shift+alt+n',
+      key: 'ctrl+shift+alt+n',
+      action: () => {
+        newDocumentFromClipboard()
+      },
+    },
     {
       id: 'file.open',
       label: 'Open',

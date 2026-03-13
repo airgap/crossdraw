@@ -41,6 +41,8 @@ declare module 'clipper-lib' {
   }
 
   export class ClipperOffset {
+    MiterLimit: number
+    ArcTolerance: number
     AddPaths(paths: Paths, joinType: number, endType: number): void
     Execute(solution: Paths, delta: number): void
   }

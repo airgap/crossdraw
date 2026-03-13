@@ -227,6 +227,232 @@ export function getSelectedPixelCount(mask: SelectionMask): number {
 }
 
 /**
+ * Feather (blur) the selection mask to create soft edges.
+ * Applies a separable box blur (3 iterations ≈ Gaussian) to the mask data.
+ */
+export function featherSelection(radius: number): SelectionMask | null {
+  if (!currentMask || radius <= 0) return currentMask
+  const { width: w, height: h, data } = currentMask
+
+  // Convert to float for blur
+  let src = new Float32Array(w * h)
+  for (let i = 0; i < data.length; i++) src[i] = data[i]!
+
+  let dst = new Float32Array(w * h)
+  const diam = radius * 2 + 1
+  const inv = 1 / diam
+
+  // 3 iterations of box blur ≈ Gaussian
+  for (let pass = 0; pass < 3; pass++) {
+    // Horizontal pass
+    for (let y = 0; y < h; y++) {
+      let sum = 0
+      for (let dx = -radius; dx <= radius; dx++) {
+        sum += src[y * w + Math.max(0, Math.min(w - 1, dx))]!
+      }
+      dst[y * w] = sum * inv
+      for (let x = 1; x < w; x++) {
+        sum += src[y * w + Math.min(x + radius, w - 1)]! - src[y * w + Math.max(x - radius - 1, 0)]!
+        dst[y * w + x] = sum * inv
+      }
+    }
+    // Swap
+    ;[src, dst] = [dst, src]
+
+    // Vertical pass
+    for (let x = 0; x < w; x++) {
+      let sum = 0
+      for (let dy = -radius; dy <= radius; dy++) {
+        sum += src[Math.max(0, Math.min(h - 1, dy)) * w + x]!
+      }
+      dst[x] = sum * inv
+      for (let y = 1; y < h; y++) {
+        sum += src[Math.min(y + radius, h - 1) * w + x]! - src[Math.max(y - radius - 1, 0) * w + x]!
+        dst[y * w + x] = sum * inv
+      }
+    }
+    ;[src, dst] = [dst, src]
+  }
+
+  // Write back to Uint8Array
+  for (let i = 0; i < data.length; i++) {
+    data[i] = Math.max(0, Math.min(255, Math.round(src[i]!)))
+  }
+
+  return currentMask
+}
+
+/**
+ * Expand selection by `pixels` amount (dilate).
+ */
+export function expandSelection(pixels: number): SelectionMask | null {
+  if (!currentMask || pixels <= 0) return currentMask
+  const { width: w, height: h, data } = currentMask
+  const out = new Uint8Array(w * h)
+  const r = Math.round(pixels)
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[y * w + x]! > 0) {
+        // Dilate: set all pixels within radius
+        for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy <= r * r) {
+              const nx = x + dx
+              const ny = y + dy
+              if (nx >= 0 && nx < w && ny >= 0 && ny < h) {
+                out[ny * w + nx] = 255
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  currentMask.data.set(out)
+  return currentMask
+}
+
+/**
+ * Contract selection by `pixels` amount (erode).
+ */
+export function contractSelection(pixels: number): SelectionMask | null {
+  if (!currentMask || pixels <= 0) return currentMask
+  const { width: w, height: h, data } = currentMask
+  const out = new Uint8Array(data)
+  const r = Math.round(pixels)
+
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (data[y * w + x]! > 0) {
+        // Check if any pixel within radius is unselected
+        let erode = false
+        outer: for (let dy = -r; dy <= r; dy++) {
+          for (let dx = -r; dx <= r; dx++) {
+            if (dx * dx + dy * dy <= r * r) {
+              const nx = x + dx
+              const ny = y + dy
+              if (nx < 0 || nx >= w || ny < 0 || ny >= h || data[ny * w + nx]! === 0) {
+                erode = true
+                break outer
+              }
+            }
+          }
+        }
+        if (erode) out[y * w + x] = 0
+      }
+    }
+  }
+
+  currentMask.data.set(out)
+  return currentMask
+}
+
+/**
+ * Color range selection: selects ALL pixels across the layer that match the target color
+ * within the specified fuzziness, with soft gradient falloff for semi-matching pixels.
+ * Unlike magic wand, this is non-contiguous — it selects every matching pixel regardless of connectivity.
+ */
+export function colorRangeSelect(
+  imageData: ImageData,
+  targetColor: { r: number; g: number; b: number },
+  fuzziness: number = 40,
+  mode: 'replace' | 'add' | 'subtract' = 'replace',
+): SelectionMask {
+  const w = imageData.width
+  const h = imageData.height
+  const mask =
+    mode === 'replace' || !currentMask
+      ? { width: w, height: h, data: new Uint8Array(w * h) }
+      : { ...currentMask, data: new Uint8Array(currentMask.data) }
+
+  const pixels = imageData.data
+  const { r: tr, g: tg, b: tb } = targetColor
+  const fuzz = Math.max(0, Math.min(200, fuzziness))
+
+  for (let i = 0; i < w * h; i++) {
+    const idx = i * 4
+    const dr = pixels[idx]! - tr
+    const dg = pixels[idx + 1]! - tg
+    const db = pixels[idx + 2]! - tb
+    const distance = Math.sqrt(dr * dr + dg * dg + db * db)
+
+    let value = 0
+    if (distance <= fuzz) {
+      value = 255
+    } else if (fuzz > 0 && distance < fuzz * 2) {
+      // Gradient falloff: linear interpolation from 255 to 0 between fuzz and fuzz*2
+      value = Math.round(255 * (1 - (distance - fuzz) / fuzz))
+    }
+
+    if (value > 0) {
+      if (mode === 'subtract') {
+        mask.data[i] = Math.max(0, mask.data[i]! - value) as number
+      } else {
+        mask.data[i] = Math.max(mask.data[i]!, value) as number
+      }
+    }
+  }
+
+  currentMask = mask
+  return mask
+}
+
+/**
+ * Luminosity range selection: selects pixels whose luminosity falls within [min, max],
+ * with optional feather for soft falloff at the range boundaries.
+ * Luminosity formula: 0.2126*R + 0.7152*G + 0.0722*B (sRGB perceived brightness).
+ */
+export function luminosityRangeSelect(
+  imageData: ImageData,
+  min: number = 0,
+  max: number = 255,
+  feather: number = 0,
+  mode: 'replace' | 'add' | 'subtract' = 'replace',
+): SelectionMask {
+  const w = imageData.width
+  const h = imageData.height
+  const mask =
+    mode === 'replace' || !currentMask
+      ? { width: w, height: h, data: new Uint8Array(w * h) }
+      : { ...currentMask, data: new Uint8Array(currentMask.data) }
+
+  const pixels = imageData.data
+  const lo = Math.max(0, min)
+  const hi = Math.min(255, max)
+  const f = Math.max(0, feather)
+
+  for (let i = 0; i < w * h; i++) {
+    const idx = i * 4
+    const lum = 0.2126 * pixels[idx]! + 0.7152 * pixels[idx + 1]! + 0.0722 * pixels[idx + 2]!
+
+    let value = 0
+    if (lum >= lo && lum <= hi) {
+      value = 255
+    } else if (f > 0) {
+      // Feathered falloff at boundaries
+      if (lum < lo && lum >= lo - f) {
+        value = Math.round(255 * (1 - (lo - lum) / f))
+      } else if (lum > hi && lum <= hi + f) {
+        value = Math.round(255 * (1 - (lum - hi) / f))
+      }
+    }
+
+    if (value > 0) {
+      if (mode === 'subtract') {
+        mask.data[i] = Math.max(0, mask.data[i]! - value) as number
+      } else {
+        mask.data[i] = Math.max(mask.data[i]!, value) as number
+      }
+    }
+  }
+
+  currentMask = mask
+  return mask
+}
+
+/**
  * Get the bounding box of the selection.
  */
 export function getSelectionBounds(

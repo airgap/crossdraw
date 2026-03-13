@@ -6,8 +6,9 @@ import { zoomAtPoint, screenToDocument } from '@/math/viewport'
 import { segmentsToPath2D } from '@/math/path'
 import { spatialIndex } from '@/math/hit-test'
 import { getLayerBBox } from '@/math/bbox'
-import { getRasterCanvas } from '@/store/raster-data'
+import { getRasterCanvas, getRasterData } from '@/store/raster-data'
 import { applyEffects, hasActiveEffects } from '@/effects/render-effects'
+import { computeRangeMask, applyRangeMask } from '@/effects/range-masks'
 import { applyAdjustment } from '@/effects/adjustments'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
 import { renderMeshGradient } from '@/render/mesh-gradient'
@@ -16,6 +17,7 @@ import { renderVariableStroke } from '@/render/variable-stroke'
 import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import { warpPaths } from '@/render/envelope-distort'
 import { render3DLayer } from '@/render/extrude-3d'
+import { isCustomBlendMode, compositeImageData } from '@/render/blend-modes'
 import {
   penMouseDown,
   penMouseDrag,
@@ -63,8 +65,9 @@ import { renderRulers, renderGuides, renderGrid, RULER_SIZE } from '@/render/rul
 import { renderPerspectiveGrid, hitTestVanishingPoint } from '@/render/perspective-grid'
 import { renderSnapLines } from '@/tools/snap'
 import { openCanvasContextMenu } from '@/ui/context-menu'
-import { attachTouchHandler, detachTouchHandler, currentPressure } from '@/tools/touch-handler'
+import { attachTouchHandler, detachTouchHandler } from '@/tools/touch-handler'
 import { paintStroke, beginStroke, endStroke, getBrushSettings } from '@/tools/brush'
+import { notifyPressure } from '@/tools/pressure'
 import { beginLineDrag, updateLineDrag, endLineDrag, isLineDragging } from '@/tools/line'
 import { beginPencilStroke, updatePencilStroke, endPencilStroke, isPencilDrawing } from '@/tools/pencil'
 import { beginEraserStroke, paintEraser, endEraserStroke, getEraserSettings } from '@/tools/eraser'
@@ -72,6 +75,14 @@ import { beginGradientDrag, updateGradientDrag, endGradientDrag, isGradientDragg
 import { applyFillBucket } from '@/tools/fill-bucket'
 import { zoomToolClick, beginZoomDrag, updateZoomDrag, endZoomDrag, isZoomDragging } from '@/tools/zoom-tool'
 import { beginLasso, updateLasso, endLasso, getLassoPoints, isLassoActive } from '@/tools/lasso'
+import {
+  beginPolygonalLasso,
+  addPolygonalLassoPoint,
+  closePolygonalLasso,
+  cancelPolygonalLasso,
+  isPolygonalLassoActive,
+  getPolygonalLassoPoints,
+} from '@/tools/polygonal-lasso'
 import { beginMarquee, updateMarquee, endMarquee, getMarqueeRect, isMarqueeActive } from '@/tools/marquee-tool'
 import { beginKnifeCut, updateKnifeCut, endKnifeCut, getKnifePoints, isKnifeCutting } from '@/tools/knife'
 import {
@@ -94,6 +105,15 @@ import {
   renderShapeBuilderOverlay,
 } from '@/tools/shape-builder'
 import {
+  enterQuickMask,
+  exitQuickMask,
+  getEditMask,
+  getQuickMaskOverlay,
+  beginQuickMaskStroke,
+  paintQuickMaskStroke,
+  endQuickMaskStroke,
+} from '@/tools/quick-mask'
+import {
   setCloneSource,
   beginCloneStamp,
   paintCloneStamp,
@@ -103,9 +123,27 @@ import {
   getCloneSource,
   getCloneStampSettings,
 } from '@/tools/clone-stamp'
+import { beginMixerStroke, paintMixerStroke, endMixerStroke } from '@/tools/mixer-brush'
 import { curvaturePenMouseDown, curvaturePenMouseMove, curvaturePenKeyDown } from '@/tools/curvature-pen'
 import { spiralMouseDown, spiralMouseDrag, spiralMouseUp, isSpiralDragging } from '@/tools/spiral'
 import { widthToolMouseDown, widthToolMouseDrag, widthToolMouseUp, isWidthToolDragging } from '@/tools/width-tool'
+import { beginColorRangeSample, commitColorRange } from '@/tools/color-range-tool'
+import {
+  beginMagneticLasso,
+  updateMagneticLasso,
+  addMagneticLassoAnchor,
+  closeMagneticLasso,
+  cancelMagneticLasso,
+  isMagneticLassoActive,
+  getMagneticLassoPoints,
+  getMagneticLassoAnchors,
+} from '@/tools/magnetic-lasso'
+import {
+  beginQuickSelection,
+  paintQuickSelection,
+  endQuickSelection,
+  isQuickSelectionActive,
+} from '@/tools/quick-selection'
 import type {
   VectorLayer,
   RasterLayer,
@@ -125,6 +163,10 @@ import type {
   HueSatParams,
   ColorBalanceParams,
   Effect,
+  BlendMode,
+  FillLayer,
+  CloneLayer,
+  SmartObjectLayer,
 } from '@/types'
 
 /** Resolve `currentColor` keyword to a concrete color. Default fallback is black. */
@@ -190,9 +232,12 @@ function getEffectiveLayers(artboard: Artboard): Layer[] {
   return artboard.layers.map((layer) => applyBreakpointOverrides(layer, bpId))
 }
 
-/** Map Canvas 2D globalCompositeOperation from our BlendMode type. */
+/** Map Canvas 2D globalCompositeOperation from our BlendMode type.
+ *  Custom blend modes (vivid-light, linear-light, etc.) fall back to 'source-over'
+ *  because they are composited manually via pixel blending. */
 function blendModeToComposite(mode: string): GlobalCompositeOperation {
-  if (mode === 'normal') return 'source-over'
+  if (mode === 'normal' || mode === 'pass-through') return 'source-over'
+  if (isCustomBlendMode(mode as BlendMode)) return 'source-over'
   return mode as GlobalCompositeOperation
 }
 
@@ -214,6 +259,7 @@ export function Viewport() {
   const showInspectOverlay = useEditorStore((s) => s.showInspectOverlay)
   const selectedCommentId = useEditorStore((s) => s.selectedCommentId)
   const prototypeMode = useEditorStore((s) => s.prototypeMode)
+  const quickMaskActive = useEditorStore((s) => s.quickMaskActive)
 
   const lastDocId = useRef<string | null>(null)
 
@@ -247,6 +293,10 @@ export function Viewport() {
   const eraserRafId = useRef(0)
   const gradientEnd = useRef<{ x: number; y: number } | null>(null)
   const cloneStampRafId = useRef(0)
+  const mixerBrushPoints = useRef<Array<{ x: number; y: number }>>([])
+  const mixerBrushRafId = useRef(0)
+  const quickMaskRafId = useRef(0)
+  const quickMaskLastPoint = useRef<{ x: number; y: number } | null>(null)
 
   // Stable refs for touch handler — avoids stale closures in the touch useEffect
   const handleMouseDownRef = useRef<(e: React.MouseEvent) => void>(() => {})
@@ -552,6 +602,92 @@ export function Viewport() {
         ctx.fill()
         ctx.stroke()
         ctx.setLineDash([])
+        ctx.restore()
+      }
+    }
+
+    // Polygonal lasso selection path
+    if (activeTool === 'polygonal-lasso' && isPolygonalLassoActive()) {
+      const pts = getPolygonalLassoPoints()
+      if (pts.length >= 1) {
+        ctx.save()
+        ctx.strokeStyle = '#4a7dff'
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+        ctx.beginPath()
+        ctx.moveTo(pts[0]!.x, pts[0]!.y)
+        for (let i = 1; i < pts.length; i++) {
+          ctx.lineTo(pts[i]!.x, pts[i]!.y)
+        }
+        // Preview line to current mouse position
+        ctx.lineTo(mouseDocPos.current.x, mouseDocPos.current.y)
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(74, 125, 255, 0.1)'
+        ctx.fill()
+        ctx.stroke()
+        // Draw vertex dots
+        ctx.setLineDash([])
+        ctx.fillStyle = '#4a7dff'
+        for (const pt of pts) {
+          ctx.beginPath()
+          ctx.arc(pt.x, pt.y, 3 / viewport.zoom, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        // Highlight first point if mouse is near it (closing indicator)
+        if (pts.length >= 3) {
+          const first = pts[0]!
+          const dx = mouseDocPos.current.x - first.x
+          const dy = mouseDocPos.current.y - first.y
+          if (Math.sqrt(dx * dx + dy * dy) <= 8) {
+            ctx.beginPath()
+            ctx.arc(first.x, first.y, 5 / viewport.zoom, 0, Math.PI * 2)
+            ctx.strokeStyle = '#ffffff'
+            ctx.lineWidth = 2 / viewport.zoom
+            ctx.stroke()
+          }
+        }
+        ctx.restore()
+      }
+    }
+
+    // Magnetic lasso selection path
+    if (activeTool === 'magnetic-lasso' && isMagneticLassoActive()) {
+      const mlPts = getMagneticLassoPoints()
+      const mlAnchors = getMagneticLassoAnchors()
+      if (mlPts.length >= 1) {
+        ctx.save()
+        ctx.strokeStyle = '#4a7dff'
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.setLineDash([4 / viewport.zoom, 3 / viewport.zoom])
+        ctx.beginPath()
+        ctx.moveTo(mlPts[0]!.x, mlPts[0]!.y)
+        for (let i = 1; i < mlPts.length; i++) {
+          ctx.lineTo(mlPts[i]!.x, mlPts[i]!.y)
+        }
+        ctx.lineTo(mouseDocPos.current.x, mouseDocPos.current.y)
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(74, 125, 255, 0.1)'
+        ctx.fill()
+        ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle = '#4a7dff'
+        for (const mlPt of mlAnchors) {
+          ctx.beginPath()
+          ctx.arc(mlPt.x, mlPt.y, 3 / viewport.zoom, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        if (mlAnchors.length >= 3) {
+          const mlFirst = mlAnchors[0]!
+          const mlDx = mouseDocPos.current.x - mlFirst.x
+          const mlDy = mouseDocPos.current.y - mlFirst.y
+          if (Math.sqrt(mlDx * mlDx + mlDy * mlDy) <= 8) {
+            ctx.beginPath()
+            ctx.arc(mlFirst.x, mlFirst.y, 5 / viewport.zoom, 0, Math.PI * 2)
+            ctx.strokeStyle = '#ffffff'
+            ctx.lineWidth = 2 / viewport.zoom
+            ctx.stroke()
+          }
+        }
         ctx.restore()
       }
     }
@@ -883,7 +1019,35 @@ export function Viewport() {
       }
     }
 
+    // ── Quick Mask overlay (document space) ──
+    if (quickMaskActive) {
+      const qmArtboard = document.artboards[0]
+      if (qmArtboard) {
+        const overlay = getQuickMaskOverlay(qmArtboard.width, qmArtboard.height)
+        if (overlay && typeof OffscreenCanvas !== 'undefined') {
+          const tmpCanvas = new OffscreenCanvas(overlay.width, overlay.height)
+          const tmpCtx = tmpCanvas.getContext('2d')!
+          tmpCtx.putImageData(overlay, 0, 0)
+          ctx.save()
+          ctx.translate(qmArtboard.x, qmArtboard.y)
+          ctx.drawImage(tmpCanvas, 0, 0)
+          ctx.restore()
+        }
+      }
+    }
+
     ctx.restore()
+
+    // Quick Mask border indicator (screen space)
+    if (quickMaskActive) {
+      ctx.save()
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'
+      ctx.lineWidth = 3
+      ctx.setLineDash([8, 4])
+      ctx.strokeRect(0, 0, rect.width, rect.height)
+      ctx.setLineDash([])
+      ctx.restore()
+    }
 
     // ── Guides, grid, rulers (screen space) ──
     const artboard0 = document.artboards[0]
@@ -916,7 +1080,7 @@ export function Viewport() {
     ctx.font = '12px monospace'
     ctx.fillText(`${Math.round(viewport.zoom * 100)}%`, showRulers ? RULER_SIZE + 4 : 8, rect.height - 8)
 
-    const toolLabel = activeTool.toUpperCase()
+    const toolLabel = quickMaskActive ? 'QUICK MASK' : activeTool.toUpperCase()
     ctx.fillText(toolLabel, rect.width - ctx.measureText(toolLabel).width - 8, rect.height - 8)
 
     // Eyedropper loupe
@@ -935,6 +1099,7 @@ export function Viewport() {
     showInspectOverlay,
     selectedCommentId,
     prototypeMode,
+    quickMaskActive,
   ])
 
   useEffect(() => {
@@ -954,6 +1119,21 @@ export function Viewport() {
     setTextEditRenderCallback(render)
     return () => setTextEditRenderCallback(() => {})
   }, [render])
+
+  // Quick Mask enter/exit
+  useEffect(() => {
+    if (quickMaskActive) {
+      const artboard = document.artboards[0]
+      if (artboard) {
+        enterQuickMask(artboard.width, artboard.height)
+      }
+    } else {
+      // Only exit if there's an active edit mask
+      if (getEditMask()) {
+        exitQuickMask()
+      }
+    }
+  }, [quickMaskActive])
 
   // Global keyboard listener for pen/node/text tools
   useEffect(() => {
@@ -979,6 +1159,22 @@ export function Viewport() {
       if (activeTool === 'node' && (e.key === 'Delete' || e.key === 'Backspace')) {
         e.preventDefault()
         deleteSelectedNodes()
+      }
+      // Polygonal Lasso: Escape to cancel
+      if (activeTool === 'polygonal-lasso' && isPolygonalLassoActive()) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelPolygonalLasso()
+          render()
+        }
+      }
+      // Magnetic Lasso: Escape to cancel
+      if (activeTool === 'magnetic-lasso' && isMagneticLassoActive()) {
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          cancelMagneticLasso()
+          render()
+        }
       }
       // Shape Builder: Enter to finalize, Escape to cancel
       if (activeTool === 'shape-builder' && isShapeBuilderActive()) {
@@ -1361,13 +1557,41 @@ export function Viewport() {
       return
     }
 
+    // Quick Mask painting (intercepts brush/eraser when quick mask is active)
+    if (quickMaskActive && (activeTool === 'brush' || activeTool === 'eraser')) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        const bs = activeTool === 'brush' ? getBrushSettings() : getEraserSettings()
+        const maskValue = activeTool === 'brush' ? 255 : 0
+        beginQuickMaskStroke(localX, localY, bs.size / 2, maskValue, bs.hardness)
+        quickMaskLastPoint.current = { x: localX, y: localY }
+        isDragging.current = true
+        render()
+      }
+      return
+    }
+
     // Brush tool
     if (activeTool === 'brush') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       const artboard = document.artboards[0]
       if (artboard && beginStroke()) {
         brushPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
-        brushPressure.current = touchMode ? currentPressure : 1
+        // brushPressure is already set by handlePointerDown / touch handler
+        isDragging.current = true
+      }
+      return
+    }
+
+    // Mixer Brush tool
+    if (activeTool === 'mixer-brush') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard && beginMixerStroke()) {
+        mixerBrushPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         isDragging.current = true
       }
       return
@@ -1449,6 +1673,51 @@ export function Viewport() {
       return
     }
 
+    // Color Range tool
+    if (activeTool === 'color-range') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        // Find the first visible raster layer
+        const rasterLayer = artboard.layers.find((l): l is RasterLayer => l.type === 'raster' && l.visible && !l.locked)
+        if (rasterLayer) {
+          const imageData = getRasterData(rasterLayer.imageChunkId)
+          if (imageData) {
+            const color = beginColorRangeSample(localX, localY, imageData)
+            if (color) {
+              const mode = e.shiftKey ? 'add' : e.altKey ? 'subtract' : 'replace'
+              commitColorRange(imageData, mode)
+              render()
+            }
+          }
+        }
+      }
+      return
+    }
+
+    // Quick Selection tool
+    if (activeTool === 'quick-selection') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        const rasterLayer = artboard.layers.find((l): l is RasterLayer => l.type === 'raster' && l.visible && !l.locked)
+        if (rasterLayer) {
+          const imageData = getRasterData(rasterLayer.imageChunkId)
+          if (imageData) {
+            const mode = e.altKey ? 'subtract' : 'add'
+            beginQuickSelection(localX, localY, imageData, mode)
+            isDragging.current = true
+            render()
+          }
+        }
+      }
+      return
+    }
+
     // Fill bucket tool
     if (activeTool === 'fill') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1472,6 +1741,63 @@ export function Viewport() {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       beginLasso(docPoint.x, docPoint.y)
       isDragging.current = true
+      return
+    }
+
+    // Polygonal lasso tool — click to place vertices
+    if (activeTool === 'polygonal-lasso') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      if (!isPolygonalLassoActive()) {
+        beginPolygonalLasso(docPoint.x, docPoint.y)
+      } else {
+        const shouldClose = addPolygonalLassoPoint(docPoint.x, docPoint.y)
+        if (shouldClose) {
+          // Clicked near first point — close the polygon
+          const artboard = document.artboards[0]
+          if (artboard) {
+            closePolygonalLasso('replace', artboard.width, artboard.height)
+          } else {
+            cancelPolygonalLasso()
+          }
+        }
+      }
+      render()
+      return
+    }
+
+    // Magnetic lasso tool — click to place anchors
+    if (activeTool === 'magnetic-lasso') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      if (!isMagneticLassoActive()) {
+        // Find the first visible raster layer to compute edge map
+        const artboard = document.artboards[0]
+        if (artboard) {
+          const rasterLayer = artboard.layers.find(
+            (l): l is RasterLayer => l.type === 'raster' && l.visible && !l.locked,
+          )
+          if (rasterLayer) {
+            const imageData = getRasterData(rasterLayer.imageChunkId)
+            if (imageData) {
+              const localX = docPoint.x - artboard.x
+              const localY = docPoint.y - artboard.y
+              beginMagneticLasso(localX, localY, imageData)
+            }
+          }
+        }
+      } else {
+        const artboard = document.artboards[0]
+        const localX = artboard ? docPoint.x - artboard.x : docPoint.x
+        const localY = artboard ? docPoint.y - artboard.y : docPoint.y
+        const shouldClose = addMagneticLassoAnchor(localX, localY)
+        if (shouldClose) {
+          if (artboard) {
+            closeMagneticLasso('replace', artboard.width, artboard.height)
+          } else {
+            cancelMagneticLasso()
+          }
+        }
+      }
+      render()
       return
     }
 
@@ -1721,6 +2047,25 @@ export function Viewport() {
       return
     }
 
+    // Quick Mask drag — paint on the mask
+    if (quickMaskActive && (activeTool === 'brush' || activeTool === 'eraser') && isDragging.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        if (!quickMaskRafId.current) {
+          quickMaskRafId.current = requestAnimationFrame(() => {
+            quickMaskRafId.current = 0
+            paintQuickMaskStroke(localX, localY)
+            render()
+          })
+        }
+        quickMaskLastPoint.current = { x: localX, y: localY }
+      }
+      return
+    }
+
     // Brush tool drag — accumulate points, paint on rAF
     if (activeTool === 'brush' && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1728,7 +2073,7 @@ export function Viewport() {
       if (artboard) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         brushPoints.current.push(pt)
-        brushPressure.current = touchMode ? currentPressure : 1
+        // brushPressure is already set by handlePointerMove / touch handler
         if (!brushRafId.current) {
           brushRafId.current = requestAnimationFrame(() => {
             brushRafId.current = 0
@@ -1778,6 +2123,27 @@ export function Viewport() {
       return
     }
 
+    // Mixer Brush tool drag
+    if (activeTool === 'mixer-brush' && isDragging.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        mixerBrushPoints.current.push(pt)
+        if (!mixerBrushRafId.current) {
+          mixerBrushRafId.current = requestAnimationFrame(() => {
+            mixerBrushRafId.current = 0
+            const len = mixerBrushPoints.current.length
+            if (len >= 2) {
+              paintMixerStroke(mixerBrushPoints.current.slice(-2))
+              render()
+            }
+          })
+        }
+      }
+      return
+    }
+
     // Clone Stamp tool drag
     if (activeTool === 'clone-stamp' && isDragging.current && isCloneStamping()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -1811,10 +2177,46 @@ export function Viewport() {
       return
     }
 
+    // Quick Selection tool drag
+    if (activeTool === 'quick-selection' && isDragging.current && isQuickSelectionActive()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        const rasterLayer = artboard.layers.find((l): l is RasterLayer => l.type === 'raster' && l.visible && !l.locked)
+        if (rasterLayer) {
+          const imageData = getRasterData(rasterLayer.imageChunkId)
+          if (imageData) {
+            paintQuickSelection(localX, localY, imageData)
+            render()
+          }
+        }
+      }
+      return
+    }
+
     // Lasso tool drag
     if (activeTool === 'lasso' && isDragging.current && isLassoActive()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       updateLasso(docPoint.x, docPoint.y)
+      render()
+      return
+    }
+
+    // Polygonal lasso — re-render to update the preview line to cursor
+    if (activeTool === 'polygonal-lasso' && isPolygonalLassoActive()) {
+      render()
+      return
+    }
+
+    // Magnetic lasso — update edge snapping on mouse move
+    if (activeTool === 'magnetic-lasso' && isMagneticLassoActive()) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      const localX = artboard ? docPoint.x - artboard.x : docPoint.x
+      const localY = artboard ? docPoint.y - artboard.y : docPoint.y
+      updateMagneticLasso(localX, localY)
       render()
       return
     }
@@ -1971,6 +2373,15 @@ export function Viewport() {
       return
     }
 
+    // Finish quick mask stroke
+    if (quickMaskActive && (activeTool === 'brush' || activeTool === 'eraser') && isDragging.current) {
+      endQuickMaskStroke()
+      quickMaskLastPoint.current = null
+      isDragging.current = false
+      render()
+      return
+    }
+
     // Finish brush stroke — sync canvas to ImageData for serialization
     if (activeTool === 'brush' && isDragging.current) {
       endStroke()
@@ -2049,6 +2460,15 @@ export function Viewport() {
       return
     }
 
+    // Mixer Brush tool
+    if (activeTool === 'mixer-brush' && isDragging.current) {
+      endMixerStroke()
+      mixerBrushPoints.current = []
+      isDragging.current = false
+      render()
+      return
+    }
+
     // Clone Stamp tool
     if (activeTool === 'clone-stamp' && isDragging.current) {
       endCloneStamp()
@@ -2070,6 +2490,14 @@ export function Viewport() {
     if (isZoomDragging()) {
       endZoomDrag()
       isDragging.current = false
+      return
+    }
+
+    // Quick Selection tool
+    if (isQuickSelectionActive()) {
+      endQuickSelection()
+      isDragging.current = false
+      render()
       return
     }
 
@@ -2168,6 +2596,30 @@ export function Viewport() {
     const rect = getCanvasRect()
     const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
 
+    // Polygonal lasso: double-click to close polygon
+    if (activeTool === 'polygonal-lasso' && isPolygonalLassoActive()) {
+      const artboard = document.artboards[0]
+      if (artboard) {
+        closePolygonalLasso('replace', artboard.width, artboard.height)
+      } else {
+        cancelPolygonalLasso()
+      }
+      render()
+      return
+    }
+
+    // Magnetic lasso: double-click to close
+    if (activeTool === 'magnetic-lasso' && isMagneticLassoActive()) {
+      const artboard = document.artboards[0]
+      if (artboard) {
+        closeMagneticLasso('replace', artboard.width, artboard.height)
+      } else {
+        cancelMagneticLasso()
+      }
+      render()
+      return
+    }
+
     // Double-click on a TextLayer → enter editing mode
     if (activeTool === 'select' || activeTool === 'text') {
       for (const artboard of document.artboards) {
@@ -2231,13 +2683,37 @@ export function Viewport() {
         ? 'none'
         : activeTool === 'pen' || activeTool === 'curvature-pen' || activeTool === 'node' || activeTool === 'measure'
           ? 'crosshair'
-          : activeTool === 'eyedropper' || activeTool === 'width'
+          : activeTool === 'eyedropper' ||
+              activeTool === 'width' ||
+              activeTool === 'color-range' ||
+              activeTool === 'quick-selection'
             ? 'crosshair'
             : activeTool === 'select'
               ? undefined
               : activeTool === 'comment'
                 ? 'crosshair'
                 : 'default'
+
+  // Pointer event wrappers — extract pressure from PointerEvent and forward
+  // to existing mouse handlers (PointerEvent extends MouseEvent).
+  function handlePointerDown(e: React.PointerEvent) {
+    const pressure = e.pressure ?? 0.5
+    notifyPressure(pressure)
+    brushPressure.current = pressure
+    handleMouseDown(e)
+  }
+  function handlePointerMove(e: React.PointerEvent) {
+    const pressure = e.pressure ?? 0.5
+    notifyPressure(pressure)
+    brushPressure.current = pressure
+    handleMouseMove(e)
+  }
+  function handlePointerUp(e: React.PointerEvent) {
+    handleMouseUp(e)
+  }
+  function handlePointerLeave(_e: React.PointerEvent) {
+    handleMouseLeave()
+  }
 
   return (
     <canvas
@@ -2253,10 +2729,10 @@ export function Viewport() {
         cursor: cursor ?? undefined,
         touchAction: touchMode ? 'none' : undefined,
       }}
-      onMouseDown={touchMode ? undefined : handleMouseDown}
-      onMouseMove={touchMode ? undefined : handleMouseMove}
-      onMouseUp={touchMode ? undefined : handleMouseUp}
-      onMouseLeave={touchMode ? undefined : handleMouseLeave}
+      onPointerDown={touchMode ? undefined : handlePointerDown}
+      onPointerMove={touchMode ? undefined : handlePointerMove}
+      onPointerUp={touchMode ? undefined : handlePointerUp}
+      onPointerLeave={touchMode ? undefined : handlePointerLeave}
       onDoubleClick={touchMode ? undefined : handleDoubleClick}
       onContextMenu={
         touchMode
@@ -2302,30 +2778,84 @@ function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
     }
   }
 
-  ctx.save()
-  ctx.globalCompositeOperation = blendModeToComposite(effectiveLayer.blendMode)
-  ctx.globalAlpha = effectiveLayer.opacity
+  // Custom blend modes require manual pixel compositing
+  if (isCustomBlendMode(effectiveLayer.blendMode as BlendMode)) {
+    const w = ctx.canvas.width
+    const h = ctx.canvas.height
+    const offscreen = new OffscreenCanvas(w, h)
+    const offCtx = offscreen.getContext('2d')!
 
-  switch (effectiveLayer.type) {
-    case 'vector':
-      renderVectorLayer(ctx, effectiveLayer)
-      break
-    case 'raster':
-      renderRasterLayer(ctx, effectiveLayer)
-      break
-    case 'group':
-      renderGroupLayer(ctx, effectiveLayer)
-      break
-    case 'text':
-      renderTextLayer(ctx, effectiveLayer)
-      break
-    case 'symbol-instance':
-      renderSymbolInstanceLayer(ctx, effectiveLayer)
-      break
+    // Render the layer with normal compositing onto the offscreen canvas
+    offCtx.save()
+    offCtx.globalAlpha = 1
+    switch (effectiveLayer.type) {
+      case 'vector':
+        renderVectorLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'raster':
+        renderRasterLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'group':
+        renderGroupLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'text':
+        renderTextLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'symbol-instance':
+        renderSymbolInstanceLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'fill':
+        renderFillLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'clone':
+        renderCloneLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+      case 'smart-object':
+        renderSmartObjectLayer(offCtx as unknown as CanvasRenderingContext2D, effectiveLayer)
+        break
+    }
+    offCtx.restore()
+
+    // Read pixels from both canvases and composite manually
+    const baseData = ctx.getImageData(0, 0, w, h)
+    const blendData = offCtx.getImageData(0, 0, w, h)
+    compositeImageData(baseData, blendData, effectiveLayer.blendMode as BlendMode, effectiveLayer.opacity)
+    ctx.putImageData(baseData, 0, 0)
+  } else {
+    ctx.save()
+    ctx.globalCompositeOperation = blendModeToComposite(effectiveLayer.blendMode)
+    ctx.globalAlpha = effectiveLayer.opacity
+
+    switch (effectiveLayer.type) {
+      case 'vector':
+        renderVectorLayer(ctx, effectiveLayer)
+        break
+      case 'raster':
+        renderRasterLayer(ctx, effectiveLayer)
+        break
+      case 'group':
+        renderGroupLayer(ctx, effectiveLayer)
+        break
+      case 'text':
+        renderTextLayer(ctx, effectiveLayer)
+        break
+      case 'symbol-instance':
+        renderSymbolInstanceLayer(ctx, effectiveLayer)
+        break
+      case 'fill':
+        renderFillLayer(ctx, effectiveLayer)
+        break
+      case 'clone':
+        renderCloneLayer(ctx, effectiveLayer)
+        break
+      case 'smart-object':
+        renderSmartObjectLayer(ctx, effectiveLayer)
+        break
+    }
+
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.restore()
   }
-
-  ctx.globalCompositeOperation = 'source-over'
-  ctx.restore()
 }
 
 function applyTransform(
@@ -2873,6 +3403,22 @@ function renderRasterLayer(ctx: CanvasRenderingContext2D, layer: RasterLayer) {
 }
 
 function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
+  // Pass-through mode: children composite directly onto the parent canvas
+  // instead of being isolated into an offscreen group buffer first.
+  // This means the group's children interact with layers beneath the group
+  // as if the group didn't exist, preserving their individual blend modes.
+  if (group.blendMode === 'pass-through') {
+    ctx.save()
+    applyTransform(ctx, group.transform)
+
+    for (const child of group.children) {
+      renderLayer(ctx, child)
+    }
+
+    ctx.restore()
+    return
+  }
+
   // Check if the group contains any filter or adjustment layers
   const hasGroupFilters = group.children.some((c) => (c.type === 'adjustment' || c.type === 'filter') && c.visible)
 
@@ -3055,14 +3601,23 @@ function renderLayerWithEffects(
     renderLayerContent(tempCtx, layer)
     const result = applyEffects(temp, layer.effects ?? [])
 
-    ctx.save()
-    ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
-    ctx.globalAlpha = layer.opacity
-    const dx = (result.width - artboardWidth) / 2
-    const dy = (result.height - artboardHeight) / 2
-    ctx.drawImage(result, -dx, -dy)
-    ctx.globalCompositeOperation = 'source-over'
-    ctx.restore()
+    if (isCustomBlendMode(layer.blendMode as BlendMode)) {
+      const resCanvas = result instanceof OffscreenCanvas ? result : (result as unknown as OffscreenCanvas)
+      const resCtx = resCanvas.getContext('2d')!
+      const blendData = resCtx.getImageData(0, 0, artboardWidth, artboardHeight)
+      const baseData = ctx.getImageData(0, 0, artboardWidth, artboardHeight)
+      compositeImageData(baseData, blendData, layer.blendMode as BlendMode, layer.opacity)
+      ctx.putImageData(baseData, 0, 0)
+    } else {
+      ctx.save()
+      ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
+      ctx.globalAlpha = layer.opacity
+      const dx = (result.width - artboardWidth) / 2
+      const dy = (result.height - artboardHeight) / 2
+      ctx.drawImage(result, -dx, -dy)
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.restore()
+    }
   } else if (layer.mask && layer.maskType === 'alpha') {
     // Alpha / luminance mask: use the brightness of the mask layer as alpha
     const maskCanvas = new OffscreenCanvas(artboardWidth, artboardHeight)
@@ -3088,12 +3643,19 @@ function renderLayerWithEffects(
     }
     contentCtx.putImageData(contentData, 0, 0)
 
-    ctx.save()
-    ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
-    ctx.globalAlpha = layer.opacity
-    ctx.drawImage(contentCanvas, 0, 0)
-    ctx.globalCompositeOperation = 'source-over'
-    ctx.restore()
+    if (isCustomBlendMode(layer.blendMode as BlendMode)) {
+      const blendData = contentCtx.getImageData(0, 0, artboardWidth, artboardHeight)
+      const baseData = ctx.getImageData(0, 0, artboardWidth, artboardHeight)
+      compositeImageData(baseData, blendData, layer.blendMode as BlendMode, layer.opacity)
+      ctx.putImageData(baseData, 0, 0)
+    } else {
+      ctx.save()
+      ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
+      ctx.globalAlpha = layer.opacity
+      ctx.drawImage(contentCanvas, 0, 0)
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.restore()
+    }
   } else if (layer.mask && layer.mask.type === 'vector') {
     // Render with vector mask (clip path)
     ctx.save()
@@ -3127,15 +3689,116 @@ function renderLayerWithEffects(
     // Render layer content within clip
     renderLayerContent(tempCtx, layer)
     // Draw masked result
-    ctx.save()
-    ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
-    ctx.globalAlpha = layer.opacity
-    ctx.drawImage(temp, 0, 0)
-    ctx.globalCompositeOperation = 'source-over'
-    ctx.restore()
+    if (isCustomBlendMode(layer.blendMode as BlendMode)) {
+      const blendData = tempCtx.getImageData(0, 0, artboardWidth, artboardHeight)
+      const baseData = ctx.getImageData(0, 0, artboardWidth, artboardHeight)
+      compositeImageData(baseData, blendData, layer.blendMode as BlendMode, layer.opacity)
+      ctx.putImageData(baseData, 0, 0)
+    } else {
+      ctx.save()
+      ctx.globalCompositeOperation = blendModeToComposite(layer.blendMode)
+      ctx.globalAlpha = layer.opacity
+      ctx.drawImage(temp, 0, 0)
+      ctx.globalCompositeOperation = 'source-over'
+      ctx.restore()
+    }
   } else {
     renderLayer(ctx, layer)
   }
+}
+
+// ─── Fill layer rendering ──────────────────────────────────────
+
+function renderFillLayer(ctx: CanvasRenderingContext2D, layer: FillLayer) {
+  const w = ctx.canvas.width
+  const h = ctx.canvas.height
+  ctx.save()
+  if (layer.fillType === 'solid' && layer.color) {
+    ctx.fillStyle = resolveColor(layer.color)
+    ctx.fillRect(0, 0, w, h)
+  } else if (layer.fillType === 'gradient' && layer.gradient) {
+    const grad = layer.gradient
+    if (grad.type === 'mesh' && grad.mesh) {
+      renderMeshGradient(ctx, grad.mesh, { x: 0, y: 0, width: w, height: h })
+    } else if (grad.type === 'box') {
+      const boxCanvas = renderBoxGradient(ctx, grad, w, h)
+      ctx.drawImage(boxCanvas, 0, 0)
+    } else {
+      const canvasGrad = createCanvasGradient(ctx, grad, w, h)
+      if (canvasGrad) {
+        ctx.fillStyle = canvasGrad
+        ctx.fillRect(0, 0, w, h)
+      }
+    }
+  } else if (layer.fillType === 'pattern' && layer.patternImageId) {
+    const patternCanvas = getRasterCanvas(layer.patternImageId)
+    if (patternCanvas) {
+      const pat = ctx.createPattern(patternCanvas, 'repeat')
+      if (pat) {
+        if (layer.patternScale && layer.patternScale !== 1) {
+          const scl = layer.patternScale
+          ctx.scale(scl, scl)
+          ctx.fillStyle = pat
+          ctx.fillRect(0, 0, w / scl, h / scl)
+        } else {
+          ctx.fillStyle = pat
+          ctx.fillRect(0, 0, w, h)
+        }
+      }
+    }
+  }
+  ctx.restore()
+}
+
+// ─── Clone layer rendering ──────────────────────────────────────
+
+function renderCloneLayer(ctx: CanvasRenderingContext2D, layer: CloneLayer) {
+  const state = useEditorStore.getState()
+  const artboard = state.document.artboards.find((a) => a.layers.some((l) => l.id === layer.id))
+  if (!artboard) return
+  function findInLayers(layers: Layer[], id: string): Layer | undefined {
+    for (const l of layers) {
+      if (l.id === id) return l
+      if (l.type === 'group') {
+        const found = findInLayers((l as GroupLayer).children, id)
+        if (found) return found
+      }
+    }
+    return undefined
+  }
+  const source = findInLayers(artboard.layers, layer.sourceLayerId)
+  if (!source) return
+  const MAX_CLONE_DEPTH = 8
+  let depth = 0
+  let check: Layer | undefined = source
+  while (check && check.type === 'clone' && depth < MAX_CLONE_DEPTH) {
+    check = findInLayers(artboard.layers, (check as CloneLayer).sourceLayerId)
+    depth++
+  }
+  if (depth >= MAX_CLONE_DEPTH) return
+  ctx.save()
+  ctx.translate(layer.offsetX, layer.offsetY)
+  renderLayer(ctx, source)
+  ctx.restore()
+}
+
+// ─── Smart Object layer rendering ────────────────────────────────
+
+function renderSmartObjectLayer(ctx: CanvasRenderingContext2D, layer: SmartObjectLayer) {
+  if (!layer.embeddedData || !layer.embeddedData.data) return
+  const { base64ToImageData } = require('@/layers/smart-object') as typeof import('@/layers/smart-object')
+  const imageData = base64ToImageData(layer.embeddedData.data, layer.cachedWidth, layer.cachedHeight)
+  if (!imageData) return
+
+  ctx.save()
+  applyTransform(ctx, layer.transform, { width: layer.cachedWidth, height: layer.cachedHeight })
+
+  // Draw the decoded pixels via a temporary canvas
+  const tmpCanvas = new OffscreenCanvas(layer.cachedWidth, layer.cachedHeight)
+  const tmpCtx = tmpCanvas.getContext('2d')!
+  tmpCtx.putImageData(imageData, 0, 0)
+  ctx.drawImage(tmpCanvas, 0, 0)
+  ctx.restore()
 }
 
 /** Render layer content without blend mode / opacity wrapper (for effects pipeline). */
@@ -3160,6 +3823,15 @@ function renderLayerContent(ctx: CanvasRenderingContext2D | OffscreenCanvasRende
       break
     case 'filter':
       // Filter layers don't render visible content — they modify the composite
+      break
+    case 'fill':
+      renderFillLayer(ctx as CanvasRenderingContext2D, layer)
+      break
+    case 'clone':
+      renderCloneLayer(ctx as CanvasRenderingContext2D, layer)
+      break
+    case 'smart-object':
+      renderSmartObjectLayer(ctx as CanvasRenderingContext2D, layer)
       break
   }
 }
@@ -3261,6 +3933,13 @@ function applyFilterLayerToCanvas(
 ) {
   const params = layer.filterParams
   const kind = params.kind
+
+  // If a range mask is configured, snapshot original pixels before applying the filter
+  const hasRangeMask = !!layer.rangeMask
+  let originalImageData: ImageData | undefined
+  if (hasRangeMask) {
+    originalImageData = ctx.getImageData(0, 0, width, height)
+  }
 
   if (kind && isAdjustmentFilter(kind)) {
     // Adjustment-type: apply directly to pixel data
@@ -3366,7 +4045,15 @@ function applyFilterLayerToCanvas(
         break
       }
     }
-    ctx.putImageData(imageData, 0, 0)
+
+    // Apply range mask blending if configured
+    if (hasRangeMask && originalImageData) {
+      const mask = computeRangeMask(originalImageData, layer.rangeMask!)
+      const blended = applyRangeMask(originalImageData, imageData, mask)
+      ctx.putImageData(blended, 0, 0)
+    } else {
+      ctx.putImageData(imageData, 0, 0)
+    }
   } else if (kind) {
     // Effect-type filter: route through applyEffects with a synthetic Effect
     const syntheticEffect: Effect = {
@@ -3385,6 +4072,14 @@ function applyFilterLayerToCanvas(
     const dx = (result.width - width) / 2
     const dy = (result.height - height) / 2
     ctx.drawImage(result, -dx, -dy)
+
+    // Apply range mask blending if configured
+    if (hasRangeMask && originalImageData) {
+      const filteredImageData = ctx.getImageData(0, 0, width, height)
+      const mask = computeRangeMask(originalImageData, layer.rangeMask!)
+      const blended = applyRangeMask(originalImageData, filteredImageData, mask)
+      ctx.putImageData(blended, 0, 0)
+    }
   }
 }
 

@@ -35,6 +35,10 @@ import type {
   PNGTuberTag,
   FilterLayer,
   FilterParams,
+  FillLayer,
+  CloneLayer,
+  SmartObjectLayer,
+  Gradient,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
@@ -51,6 +55,7 @@ import { defaultVariableValue as varDefaultValue, wouldCreateCycle } from '@/var
 import { generateBlend, createBlendGroup } from '@/tools/blend-tool'
 import { generateRepeaterInstances, createRepeaterGroup } from '@/tools/repeater'
 import { createDefaultPerspectiveConfig } from '@/render/perspective-grid'
+import { createTimeline, startPlayback, stopPlayback } from '@/animation/timeline'
 
 enablePatches()
 
@@ -90,16 +95,44 @@ export interface EditorState {
     | 'fill'
     | 'zoom'
     | 'lasso'
+    | 'polygonal-lasso'
     | 'marquee'
     | 'knife'
     | 'artboard'
     | 'slice'
     | 'clone-stamp'
+    | 'dodge'
+    | 'burn'
+    | 'sponge'
+    | 'smudge'
+    | 'healing-brush'
     | 'comment'
     | 'shape-builder'
     | 'curvature-pen'
     | 'spiral'
     | 'width'
+    | 'color-range'
+    | 'sharpen-brush'
+    | 'blur-brush'
+    | 'red-eye'
+    | 'magnetic-lasso'
+    | 'quick-selection'
+    | 'content-aware-fill'
+    | 'content-aware-move'
+    | 'spot-healing'
+    | 'patch'
+    | 'mixer-brush'
+    | 'content-aware-scale'
+    | 'blend'
+    | 'symbol-sprayer'
+    | 'perspective-transform'
+    | 'liquify'
+    | 'touch-type'
+    | 'remove-tool'
+    | 'mesh-warp'
+    | 'puppet-warp'
+    | 'perspective-warp'
+    | 'cage-transform'
   selectedCommentId: string | null
   showRulers: boolean
   showGrid: boolean
@@ -141,6 +174,17 @@ export interface EditorState {
 
   // PNGtuber
   showPNGTuberPanel: boolean
+
+  // Quick Mask
+  quickMaskActive: boolean
+
+  // Refine Edge
+  refineEdgeActive: boolean
+
+  // Frame-by-frame animation
+  animationPlaying: boolean
+  animationCurrentFrame: number
+  animationFps: number
 }
 
 export interface EditorActions {
@@ -192,6 +236,20 @@ export interface EditorActions {
 
   // Filter layers
   addFilterLayer: (artboardId: string, filterKind: string, customParams?: Partial<FilterParams>) => void
+
+  // Fill layers
+  addFillLayer: (
+    artboardId: string,
+    fillType: 'solid' | 'gradient' | 'pattern',
+    opts?: { color?: string; gradient?: Gradient; patternScale?: number; patternImageId?: string },
+  ) => void
+
+  // Clone layers
+  addCloneLayer: (artboardId: string, sourceLayerId: string, offsetX?: number, offsetY?: number) => void
+
+  // Smart objects
+  convertToSmartObject: (artboardId: string, layerId: string) => void
+  rasterizeSmartObject: (artboardId: string, layerId: string) => void
 
   // Masks
   setLayerMask: (artboardId: string, layerId: string, mask: Layer) => void
@@ -387,7 +445,13 @@ export interface EditorActions {
   setDevAnnotation: (layerId: string, artboardId: string, annotation: string) => void
 
   // Blend
-  createBlend: (artboardId: string, layerId1: string, layerId2: string, steps: number) => void
+  createBlend: (
+    artboardId: string,
+    layerId1: string,
+    layerId2: string,
+    steps: number,
+    method?: 'linear' | 'smooth',
+  ) => void
 
   // Repeater
   createRepeater: (artboardId: string, layerId: string, config: import('@/tools/repeater').RepeaterConfig) => void
@@ -413,6 +477,29 @@ export interface EditorActions {
   setLayerExpression: (artboardId: string, layerId: string, expression: string | undefined) => void
   setLayerParallaxDepth: (artboardId: string, layerId: string, depth: number) => void
   togglePNGTuberPanel: () => void
+
+  // Quick Mask
+  toggleQuickMask: () => void
+
+  // Refine Edge
+  toggleRefineEdge: () => void
+
+  // Frame-by-frame animation timeline
+  initTimeline: (artboardId: string, fps?: number) => void
+  addAnimationFrame: (artboardId: string, afterIndex?: number) => void
+  duplicateAnimationFrame: (artboardId: string, index: number) => void
+  deleteAnimationFrame: (artboardId: string, index: number) => void
+  reorderAnimationFrame: (artboardId: string, from: number, to: number) => void
+  setAnimationFrameDuration: (artboardId: string, index: number, duration: number) => void
+  goToFrame: (artboardId: string, index: number) => void
+  setAnimationFps: (artboardId: string, fps: number) => void
+  setAnimationLoop: (artboardId: string, loop: boolean) => void
+  setFrameLayerVisibility: (artboardId: string, frameIndex: number, layerId: string, visible: boolean) => void
+  setFrameLayerOpacity: (artboardId: string, frameIndex: number, layerId: string, opacity: number) => void
+  playAnimation: (artboardId: string) => void
+  stopAnimationPlayback: () => void
+  nextFrame: (artboardId: string) => void
+  prevFrame: (artboardId: string) => void
 }
 
 interface NewDocumentOptions {
@@ -687,6 +774,17 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     // PNGtuber
     showPNGTuberPanel: false,
+
+    // Quick Mask
+    quickMaskActive: false,
+
+    // Refine Edge
+    refineEdgeActive: false,
+
+    // Frame-by-frame animation
+    animationPlaying: false,
+    animationCurrentFrame: 0,
+    animationFps: 12,
 
     // Document
     newDocument(opts) {
@@ -1172,6 +1270,106 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       mutateDocument(`Add ${filterKind} filter`, (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (artboard) artboard.layers.push(layer)
+      })
+    },
+
+    addFillLayer(artboardId, fillType, opts) {
+      const nameMap = { solid: 'Solid Color Fill', gradient: 'Gradient Fill', pattern: 'Pattern Fill' }
+      const layer: FillLayer = {
+        id: uuid(),
+        name: nameMap[fillType] ?? 'Fill',
+        type: 'fill',
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal',
+        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+        effects: [],
+        fillType,
+        color: opts?.color ?? (fillType === 'solid' ? '#ffffff' : undefined),
+        gradient: opts?.gradient,
+        patternScale: opts?.patternScale ?? (fillType === 'pattern' ? 1 : undefined),
+        patternImageId: opts?.patternImageId,
+      }
+      mutateDocument(`Add ${nameMap[fillType]}`, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (artboard) artboard.layers.push(layer)
+      })
+    },
+
+    addCloneLayer(artboardId, sourceLayerId, offsetX, offsetY) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard) return
+      const sourceLayers = artboard.layers
+      const source = findLayerDeep(sourceLayers, sourceLayerId)
+      if (!source) return
+
+      const layer: CloneLayer = {
+        id: uuid(),
+        name: `Clone of ${source.name}`,
+        type: 'clone',
+        visible: true,
+        locked: false,
+        opacity: 1,
+        blendMode: 'normal',
+        transform: {
+          x: source.transform.x + (offsetX ?? 20),
+          y: source.transform.y + (offsetY ?? 20),
+          scaleX: 1,
+          scaleY: 1,
+          rotation: 0,
+        },
+        effects: [],
+        sourceLayerId,
+        offsetX: offsetX ?? 20,
+        offsetY: offsetY ?? 20,
+      }
+      mutateDocument(`Clone layer "${source.name}"`, (draft) => {
+        const ab = findArtboard(draft, artboardId)
+        if (ab) ab.layers.push(layer)
+      })
+    },
+
+    // Smart objects
+    convertToSmartObject(artboardId, layerId) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard) return
+      const source = findLayerDeep(artboard.layers, layerId)
+      if (!source) return
+
+      // Import inline to avoid circular deps at module scope
+      const { createSmartObject } = require('@/layers/smart-object') as typeof import('@/layers/smart-object')
+      const smartObj = createSmartObject(source)
+
+      mutateDocument(`Convert "${source.name}" to Smart Object`, (draft) => {
+        const ab = findArtboard(draft, artboardId)
+        if (!ab) return
+        const idx = ab.layers.findIndex((l) => l.id === layerId)
+        if (idx >= 0) {
+          ab.layers.splice(idx, 1, smartObj as SmartObjectLayer)
+        }
+      })
+    },
+
+    rasterizeSmartObject(artboardId, layerId) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard) return
+      const source = findLayerDeep(artboard.layers, layerId)
+      if (!source || source.type !== 'smart-object') return
+
+      const { rasterizeToRasterLayer } = require('@/layers/smart-object') as typeof import('@/layers/smart-object')
+      const rasterLayer = rasterizeToRasterLayer(source as SmartObjectLayer)
+
+      mutateDocument(`Rasterize Smart Object "${source.name}"`, (draft) => {
+        const ab = findArtboard(draft, artboardId)
+        if (!ab) return
+        const idx = ab.layers.findIndex((l) => l.id === layerId)
+        if (idx >= 0) {
+          ab.layers.splice(idx, 1, rasterLayer)
+        }
       })
     },
 
@@ -2597,7 +2795,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       })
     },
 
-    createBlend(artboardId, layerId1, layerId2, steps) {
+    createBlend(artboardId, layerId1, layerId2, steps, method) {
       const state = get()
       const artboard = state.document.artboards.find((a) => a.id === artboardId)
       if (!artboard) return
@@ -2606,7 +2804,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const layer2 = findLayerDeep(artboard.layers, layerId2) as VectorLayer | undefined
       if (!layer1 || !layer2 || layer1.type !== 'vector' || layer2.type !== 'vector') return
 
-      const config = { steps, spacing: 'even' as const }
+      const config = { steps, spacing: 'even' as const, method: method ?? ('linear' as const) }
       const intermediates = generateBlend(layer1, layer2, config)
       const blendGroup = createBlendGroup(layer1, layer2, intermediates, artboardId)
 
@@ -2820,6 +3018,198 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     togglePNGTuberPanel() {
       set({ showPNGTuberPanel: !get().showPNGTuberPanel })
+    },
+
+    toggleQuickMask() {
+      set({ quickMaskActive: !get().quickMaskActive })
+    },
+
+    toggleRefineEdge() {
+      set({ refineEdgeActive: !get().refineEdgeActive })
+    },
+
+    // ── Frame-by-frame animation timeline ──
+
+    initTimeline(artboardId, fps = 12) {
+      mutateDocument('Initialize animation timeline', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        if (artboard.animation) return // already initialized
+        artboard.animation = createTimeline(fps)
+      })
+      set({ animationFps: fps })
+    },
+
+    addAnimationFrame(artboardId, afterIndex?) {
+      mutateDocument('Add animation frame', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const tl = artboard.animation
+        const sourceFrame = tl.frames[tl.currentFrame]
+        const layerVisibility = sourceFrame ? { ...sourceFrame.layerVisibility } : {}
+        const insertAt = afterIndex !== undefined ? afterIndex + 1 : tl.frames.length
+        const newFrame = {
+          id: uuid(),
+          name: `Frame ${tl.frames.length + 1}`,
+          duration: 0,
+          layerVisibility,
+        }
+        tl.frames.splice(insertAt, 0, newFrame)
+        tl.currentFrame = insertAt
+      })
+    },
+
+    duplicateAnimationFrame(artboardId, index) {
+      mutateDocument('Duplicate animation frame', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const tl = artboard.animation
+        if (index < 0 || index >= tl.frames.length) return
+        const source = tl.frames[index]!
+        const newFrame = {
+          id: uuid(),
+          name: `${source.name} copy`,
+          duration: source.duration,
+          layerVisibility: { ...source.layerVisibility },
+          layerOpacity: source.layerOpacity ? { ...source.layerOpacity } : undefined,
+        }
+        tl.frames.splice(index + 1, 0, newFrame)
+        tl.currentFrame = index + 1
+      })
+    },
+
+    deleteAnimationFrame(artboardId, index) {
+      mutateDocument('Delete animation frame', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const tl = artboard.animation
+        if (tl.frames.length <= 1) return
+        if (index < 0 || index >= tl.frames.length) return
+        tl.frames.splice(index, 1)
+        tl.currentFrame = Math.min(tl.currentFrame, tl.frames.length - 1)
+      })
+    },
+
+    reorderAnimationFrame(artboardId, from, to) {
+      mutateDocument('Reorder animation frame', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const tl = artboard.animation
+        if (from < 0 || from >= tl.frames.length) return
+        if (to < 0 || to >= tl.frames.length) return
+        if (from === to) return
+        const [moved] = tl.frames.splice(from, 1)
+        tl.frames.splice(to, 0, moved!)
+        if (tl.currentFrame === from) {
+          tl.currentFrame = to
+        } else {
+          if (from < tl.currentFrame && to >= tl.currentFrame) tl.currentFrame--
+          else if (from > tl.currentFrame && to <= tl.currentFrame) tl.currentFrame++
+        }
+      })
+    },
+
+    setAnimationFrameDuration(artboardId, index, duration) {
+      mutateDocument('Set frame duration', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const frame = artboard.animation.frames[index]
+        if (frame) frame.duration = duration
+      })
+    },
+
+    goToFrame(artboardId, index) {
+      mutateDocument('Go to frame', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const tl = artboard.animation
+        if (index < 0 || index >= tl.frames.length) return
+        tl.currentFrame = index
+      })
+      set({ animationCurrentFrame: index })
+    },
+
+    setAnimationFps(artboardId, fps) {
+      mutateDocument('Set animation FPS', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        artboard.animation.fps = fps
+      })
+      set({ animationFps: fps })
+    },
+
+    setAnimationLoop(artboardId, loop) {
+      mutateDocument('Set animation loop', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        artboard.animation.loop = loop
+      })
+    },
+
+    setFrameLayerVisibility(artboardId, frameIndex, layerId, visible) {
+      mutateDocument('Set frame layer visibility', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const frame = artboard.animation.frames[frameIndex]
+        if (!frame) return
+        frame.layerVisibility[layerId] = visible
+      })
+    },
+
+    setFrameLayerOpacity(artboardId, frameIndex, layerId, opacity) {
+      mutateDocument('Set frame layer opacity', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard || !artboard.animation) return
+        const frame = artboard.animation.frames[frameIndex]
+        if (!frame) return
+        if (!frame.layerOpacity) frame.layerOpacity = {}
+        frame.layerOpacity[layerId] = opacity
+      })
+    },
+
+    playAnimation(artboardId) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard || !artboard.animation) return
+
+      startPlayback(artboard.animation, (index) => {
+        set({ animationCurrentFrame: index, animationPlaying: true })
+        mutateDocument('Advance frame', (draft) => {
+          const ab = findArtboard(draft, artboardId)
+          if (ab?.animation) ab.animation.currentFrame = index
+        })
+      })
+
+      set({ animationPlaying: true, animationCurrentFrame: artboard.animation.currentFrame })
+    },
+
+    stopAnimationPlayback() {
+      stopPlayback()
+      set({ animationPlaying: false })
+    },
+
+    nextFrame(artboardId) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard || !artboard.animation) return
+      const tl = artboard.animation
+      let next = tl.currentFrame + 1
+      if (next >= tl.frames.length) {
+        next = tl.loop ? 0 : tl.frames.length - 1
+      }
+      get().goToFrame(artboardId, next)
+    },
+
+    prevFrame(artboardId) {
+      const state = get()
+      const artboard = state.document.artboards.find((a) => a.id === artboardId)
+      if (!artboard || !artboard.animation) return
+      const tl = artboard.animation
+      let prev = tl.currentFrame - 1
+      if (prev < 0) {
+        prev = tl.loop ? tl.frames.length - 1 : 0
+      }
+      get().goToFrame(artboardId, prev)
     },
   }
 })

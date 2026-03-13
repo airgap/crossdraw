@@ -3,7 +3,7 @@ import ClipperLib from 'clipper-lib'
 import type { Segment, Path, VectorLayer } from '@/types'
 import { useEditorStore } from '@/store/editor.store'
 
-export type BooleanOp = 'union' | 'subtract' | 'intersect' | 'xor' | 'divide'
+export type BooleanOp = 'union' | 'subtract' | 'intersect' | 'xor' | 'divide' | 'trim' | 'merge'
 
 const SCALE = 1000 // Clipper uses integer math; scale up for precision
 
@@ -37,6 +37,17 @@ export function performBooleanOp(op: BooleanOp, deleteOriginals = true) {
     const intersect = clipperExecute(subjectPaths, clipPaths, ClipperLib.ClipType.ctIntersection)
     const subtract = clipperExecute(subjectPaths, clipPaths, ClipperLib.ClipType.ctDifference)
     resultPaths = [...intersect, ...subtract]
+  } else if (op === 'trim') {
+    // Trim = XOR — remove the overlapping area from both shapes
+    resultPaths = clipperExecute(subjectPaths, clipPaths, ClipperLib.ClipType.ctXor)
+  } else if (op === 'merge') {
+    // Merge = iterative union of all selected paths into a single unified shape
+    let accumulated = subjectPaths
+    for (let i = 1; i < layers.length; i++) {
+      const nextPaths = layerToClipperPaths(layers[i]!)
+      accumulated = clipperExecute(accumulated, nextPaths, ClipperLib.ClipType.ctUnion)
+    }
+    resultPaths = accumulated
   } else {
     const clipType = opToClipType(op)
     resultPaths = clipperExecute(subjectPaths, clipPaths, clipType)
@@ -340,4 +351,127 @@ function perpendicularDist(
   if (lenSq === 0) return Math.hypot(point.x - lineStart.x, point.y - lineStart.y)
   const num = Math.abs(dy * point.x - dx * point.y + lineEnd.x * lineStart.y - lineEnd.y * lineStart.x)
   return num / Math.sqrt(lenSq)
+}
+
+// ─── Contour / Offset Path tool (Task #15) ────────────────────
+
+export type ContourJoinType = 'miter' | 'round' | 'square'
+
+export interface ContourParams {
+  /** Offset distance per step (positive = outward, negative = inward) */
+  offset: number
+  /** Number of contour copies (1-20) */
+  steps: number
+  /** Join type for corners */
+  joinType: ContourJoinType
+  /** Miter limit for miter joins */
+  miterLimit: number
+  /** Whether to interpolate fill color from inner to outer */
+  colorInterpolation: boolean
+}
+
+export const defaultContourParams: ContourParams = {
+  offset: 5,
+  steps: 5,
+  joinType: 'round',
+  miterLimit: 2,
+  colorInterpolation: false,
+}
+
+function joinTypeToClipper(jt: ContourJoinType): number {
+  switch (jt) {
+    case 'miter':
+      return ClipperLib.JoinType.jtMiter
+    case 'round':
+      return ClipperLib.JoinType.jtRound
+    case 'square':
+      return ClipperLib.JoinType.jtSquare
+  }
+}
+
+/**
+ * Interpolate between two hex colours. t in [0, 1].
+ */
+function lerpColor(c1: string, c2: string, t: number): string {
+  const parse = (hex: string) => {
+    const h = hex.replace('#', '')
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)] as [
+      number,
+      number,
+      number,
+    ]
+  }
+  const [r1, g1, b1] = parse(c1)
+  const [r2, g2, b2] = parse(c2)
+  const lerp = (a: number, b: number) => Math.round(a + (b - a) * t)
+  const toHex = (n: number) => n.toString(16).padStart(2, '0')
+  return `#${toHex(lerp(r1, r2))}${toHex(lerp(g1, g2))}${toHex(lerp(b1, b2))}`
+}
+
+/**
+ * Create N contour/offset copies of a path at incrementally increasing distances.
+ * Each copy is a new VectorLayer placed below the original.
+ */
+export function contourPath(artboardId: string, layerId: string, params: ContourParams) {
+  const store = useEditorStore.getState()
+  const artboard = store.document.artboards.find((a) => a.id === artboardId)
+  if (!artboard) return
+
+  const layer = artboard.layers.find((l) => l.id === layerId)
+  if (!layer || layer.type !== 'vector') return
+
+  const clipperJoin = joinTypeToClipper(params.joinType)
+  const steps = Math.max(1, Math.min(20, Math.round(params.steps)))
+
+  const clipperPaths = layerToClipperPaths(layer)
+  const baseFillColor = layer.fill?.color ?? '#000000'
+  // For interpolation, fade toward a lighter/darker version
+  const targetColor = params.offset > 0 ? '#ffffff' : '#000000'
+
+  const createdIds: string[] = []
+
+  for (let i = 1; i <= steps; i++) {
+    const delta = params.offset * i
+
+    const co = new ClipperLib.ClipperOffset()
+    co.MiterLimit = params.miterLimit
+    co.AddPaths(clipperPaths, clipperJoin, ClipperLib.EndType.etClosedPolygon)
+
+    const solution: ClipperLib.Paths = []
+    co.Execute(solution, delta * SCALE)
+
+    if (solution.length === 0) continue
+
+    const paths: Path[] = solution.map((cp) => ({
+      id: uuid(),
+      segments: clipperPathToSegments(cp),
+      closed: true,
+    }))
+
+    const t = i / steps
+    const fillColor = params.colorInterpolation ? lerpColor(baseFillColor, targetColor, t * 0.5) : baseFillColor
+
+    const resultLayer: VectorLayer = {
+      id: uuid(),
+      name: `${layer.name} contour ${i}`,
+      type: 'vector',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      effects: [],
+      paths,
+      fill: { type: 'solid', color: fillColor, opacity: layer.fill?.opacity ?? 1 },
+      stroke: null,
+    }
+
+    store.addLayer(artboardId, resultLayer)
+    createdIds.push(resultLayer.id)
+  }
+
+  // Select all created contour layers
+  if (createdIds.length > 0) {
+    store.selectLayer(createdIds[0]!)
+  }
 }

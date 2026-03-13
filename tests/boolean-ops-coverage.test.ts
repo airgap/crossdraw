@@ -109,6 +109,85 @@ describe('boolean ops - performBooleanOp', () => {
     expect(resultLayers.length).toBeGreaterThanOrEqual(1)
   })
 
+  test('trim removes overlapping area from both shapes', () => {
+    const artboard = setupTwoSquares('bool-t1', 'bool-t2')
+
+    performBooleanOp('trim')
+
+    const updated = useEditorStore.getState().document.artboards.find((a) => a.id === artboard.id)!
+    const resultLayers = updated.layers.filter((l) => l.name === 'trim result')
+    expect(resultLayers.length).toBeGreaterThanOrEqual(1)
+
+    // Trim (XOR) should produce paths — the non-overlapping parts of both shapes
+    const result = resultLayers[0] as VectorLayer
+    expect(result.paths.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('trim of non-overlapping shapes keeps both', () => {
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards[0]
+    if (!artboard) return
+
+    // Two squares that don't overlap
+    const sq1 = makeSquare('bool-tn1', 0, 0, 50)
+    const sq2 = makeSquare('bool-tn2', 200, 200, 50)
+    store.addLayer(artboard.id, sq1 as any)
+    store.addLayer(artboard.id, sq2 as any)
+    store.selectLayer('bool-tn1')
+    store.selectLayer('bool-tn2', true)
+
+    performBooleanOp('trim')
+
+    const updated = useEditorStore.getState().document.artboards.find((a) => a.id === artboard.id)!
+    const resultLayers = updated.layers.filter((l) => l.name === 'trim result')
+    expect(resultLayers.length).toBeGreaterThanOrEqual(1)
+
+    // Non-overlapping XOR should produce 2 separate paths (both shapes intact)
+    const result = resultLayers[0] as VectorLayer
+    expect(result.paths.length).toBeGreaterThanOrEqual(2)
+  })
+
+  test('merge combines two overlapping shapes into one', () => {
+    const artboard = setupTwoSquares('bool-m1', 'bool-m2')
+
+    performBooleanOp('merge')
+
+    const updated = useEditorStore.getState().document.artboards.find((a) => a.id === artboard.id)!
+    const resultLayers = updated.layers.filter((l) => l.name === 'merge result')
+    expect(resultLayers.length).toBeGreaterThanOrEqual(1)
+
+    // Merge (union) of two overlapping squares should produce a single unified path
+    const result = resultLayers[0] as VectorLayer
+    expect(result.paths.length).toBeGreaterThanOrEqual(1)
+  })
+
+  test('merge works with 3+ shapes', () => {
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards[0]
+    if (!artboard) return
+
+    const sq1 = makeSquare('bool-m3a', 0, 0, 100)
+    const sq2 = makeSquare('bool-m3b', 50, 0, 100)
+    const sq3 = makeSquare('bool-m3c', 100, 0, 100)
+
+    store.addLayer(artboard.id, sq1 as any)
+    store.addLayer(artboard.id, sq2 as any)
+    store.addLayer(artboard.id, sq3 as any)
+    store.selectLayer('bool-m3a')
+    store.selectLayer('bool-m3b', true)
+    store.selectLayer('bool-m3c', true)
+
+    performBooleanOp('merge')
+
+    const updated = useEditorStore.getState().document.artboards.find((a) => a.id === artboard.id)!
+    const resultLayers = updated.layers.filter((l) => l.name === 'merge result')
+    expect(resultLayers.length).toBeGreaterThanOrEqual(1)
+
+    // 3 overlapping squares merged should produce a single path
+    const result = resultLayers[0] as VectorLayer
+    expect(result.paths.length).toBe(1)
+  })
+
   test('deleteOriginals=false keeps original layers', () => {
     const artboard = setupTwoSquares('bool-keep1', 'bool-keep2')
 

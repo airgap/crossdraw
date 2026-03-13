@@ -1,11 +1,53 @@
 import { v4 as uuid } from 'uuid'
 import type { VectorLayer, GroupLayer, Path, Segment, Fill, Stroke, Transform } from '@/types'
+import { useEditorStore } from '@/store/editor.store'
 
 // ── Config ──
 
 export interface BlendConfig {
   steps: number
   spacing: 'even' | 'specified'
+  method?: 'linear' | 'smooth'
+}
+
+// ── Blend settings (module-level state) ──
+
+let blendSettings: { steps: number; method: 'linear' | 'smooth' } = {
+  steps: 5,
+  method: 'linear',
+}
+
+export function getBlendSettings(): { steps: number; method: 'linear' | 'smooth' } {
+  return { ...blendSettings }
+}
+
+export function setBlendSettings(settings: Partial<{ steps: number; method: 'linear' | 'smooth' }>): void {
+  if (settings.steps !== undefined) blendSettings.steps = Math.max(1, Math.round(settings.steps))
+  if (settings.method !== undefined) blendSettings.method = settings.method
+}
+
+/**
+ * Perform a blend between the two currently selected vector layers.
+ * Uses the module-level blend settings, or accepts overrides.
+ */
+export function performBlend(steps?: number, method?: 'linear' | 'smooth'): void {
+  const store = useEditorStore.getState()
+  const artboard = store.document.artboards[0]
+  if (!artboard) return
+
+  const selectedIds = store.selection.layerIds
+  if (selectedIds.length !== 2) return
+
+  const resolvedSteps = steps ?? blendSettings.steps
+  const resolvedMethod = method ?? blendSettings.method
+
+  store.createBlend(artboard.id, selectedIds[0]!, selectedIds[1]!, resolvedSteps, resolvedMethod)
+}
+
+/** Smooth (ease-in-out) easing function. */
+export function smoothEase(t: number): number {
+  // Hermite interpolation: 3t^2 - 2t^3
+  return t * t * (3 - 2 * t)
 }
 
 // ── Color interpolation ──
@@ -333,7 +375,10 @@ export function generateBlend(layer1: VectorLayer, layer2: VectorLayer, config: 
   const intermediates: VectorLayer[] = []
 
   for (let i = 1; i <= config.steps; i++) {
-    const t = i / (config.steps + 1)
+    let t = i / (config.steps + 1)
+    if (config.method === 'smooth') {
+      t = smoothEase(t)
+    }
 
     const paths = interpolatePaths(layer1.paths, layer2.paths, t)
     const transform = interpolateTransform(layer1.transform, layer2.transform, t)

@@ -5,6 +5,77 @@ import { importSVG } from '@/io/svg-import'
 import type { RasterLayer } from '@/types'
 
 /**
+ * Read the first image blob from the clipboard (Clipboard API).
+ * Returns null if no image is available or permission is denied.
+ */
+async function readClipboardImageBlob(): Promise<Blob | null> {
+  try {
+    const items = await navigator.clipboard.read()
+    for (const item of items) {
+      const imageType = item.types.find((t) => t.startsWith('image/'))
+      if (imageType) return await item.getType(imageType)
+    }
+  } catch {
+    // Permission denied or no clipboard API
+  }
+  return null
+}
+
+/**
+ * Create a new document from a clipboard image blob.
+ * The document is sized to match the image, and the image is added as a raster layer.
+ * Returns true if a document was created.
+ */
+export async function newDocumentFromClipboardBlob(blob: Blob): Promise<boolean> {
+  const bitmap = await createImageBitmap(blob)
+  const w = bitmap.width
+  const h = bitmap.height
+  const canvas = new OffscreenCanvas(w, h)
+  const ctx = canvas.getContext('2d')!
+  ctx.drawImage(bitmap, 0, 0)
+  const imageData = ctx.getImageData(0, 0, w, h)
+  bitmap.close()
+
+  const chunkId = uuid()
+  storeRasterData(chunkId, imageData)
+
+  const store = useEditorStore.getState()
+  store.newDocument({ title: 'Pasted Image', width: w, height: h })
+
+  const artboard = useEditorStore.getState().document.artboards[0]
+  if (!artboard) return false
+
+  const layer: RasterLayer = {
+    id: uuid(),
+    name: 'Pasted Image',
+    type: 'raster',
+    visible: true,
+    locked: false,
+    opacity: 1,
+    blendMode: 'normal',
+    transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+    effects: [],
+    imageChunkId: chunkId,
+    width: w,
+    height: h,
+  }
+
+  store.addLayer(artboard.id, layer)
+  store.selectLayer(layer.id)
+  return true
+}
+
+/**
+ * Create a new document from the current clipboard contents (uses Clipboard API).
+ * Returns true if a document was created.
+ */
+export async function newDocumentFromClipboard(): Promise<boolean> {
+  const blob = await readClipboardImageBlob()
+  if (!blob) return false
+  return newDocumentFromClipboardBlob(blob)
+}
+
+/**
  * Import an image file (PNG/JPG/GIF/WebP) as a RasterLayer on the first artboard.
  */
 export async function importImageFile(file: File): Promise<void> {

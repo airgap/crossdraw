@@ -1,7 +1,34 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { getBrushSettings, setBrushSettings } from '@/tools/brush'
+import { getScatterSettings, setScatterSettings } from '@/tools/scatter-brush'
+import type { ScatterBrushSettings, TexturePatternType } from '@/tools/scatter-brush'
+import { getAllPresets, applyPreset } from '@/tools/brush-presets'
 import { getEraserSettings, setEraserSettings } from '@/tools/eraser'
+import { getDodgeBurnSettings, setDodgeBurnSettings } from '@/tools/dodge-burn'
+import type { TonalRange, SpongeMode } from '@/tools/dodge-burn'
+import { getSmudgeSettings, setSmudgeSettings } from '@/tools/smudge'
+import { getMixerBrushSettings, setMixerBrushSettings } from '@/tools/mixer-brush'
+import { getHealingBrushSettings, setHealingBrushSettings } from '@/tools/healing-brush'
+import { getRasterGradientSettings, setRasterGradientSettings } from '@/tools/raster-gradient'
+import type { RasterGradientType } from '@/tools/raster-gradient'
+import { getColorRangeSettings, setColorRangeSettings } from '@/tools/color-range-tool'
+import { getSharpenBlurSettings, setSharpenBlurSettings } from '@/tools/sharpen-blur-brush'
+import type { SharpenBlurMode } from '@/tools/sharpen-blur-brush'
+import { getRedEyeSettings, setRedEyeSettings } from '@/tools/red-eye'
+import { getSymmetrySettings, setSymmetrySettings } from '@/tools/symmetry'
+import { getPolygonalLassoSettings, setPolygonalLassoSettings } from '@/tools/polygonal-lasso'
+import { getMagneticLassoSettings, setMagneticLassoSettings } from '@/tools/magnetic-lasso'
+import { getContentAwareFillSettings, setContentAwareFillSettings } from '@/tools/content-aware-fill'
+import { getContentAwareMoveSettings, setContentAwareMoveSettings } from '@/tools/content-aware-move'
+import { getContentAwareScaleSettings, setContentAwareScaleSettings } from '@/tools/content-aware-scale'
+import type { ContentAwareMoveMode, ContentAwareAdaptation } from '@/tools/content-aware-move'
+import { getQuickSelectionSettings, setQuickSelectionSettings } from '@/tools/quick-selection'
+import { getPressureMapping, setPressureMapping } from '@/tools/pressure'
+import { getSpotHealingSettings, setSpotHealingSettings } from '@/tools/spot-healing'
+import type { SpotHealingSettings } from '@/tools/spot-healing'
+import { getPatchSettings, setPatchSettings } from '@/tools/patch-tool'
+import type { PatchSettings } from '@/tools/patch-tool'
 import {
   getShapeDefaults,
   setShapeDefaults,
@@ -18,6 +45,21 @@ import {
   getZoomMode,
   setZoomMode,
 } from '@/ui/tool-options-state'
+import {
+  getRefineEdgeSettings,
+  updateRefineEdge,
+  enterRefineEdge,
+  exitRefineEdge,
+  isRefineEdgeActive,
+} from '@/tools/refine-edge'
+import type { RefineEdgeViewMode } from '@/tools/refine-edge'
+import { getPerspectiveSettings, setPerspectiveSettings } from '@/tools/perspective-transform'
+import { getLiquifySettings, setLiquifySettings } from '@/tools/liquify'
+import type { LiquifyMode } from '@/tools/liquify'
+import { getMeshWarpSettings, setMeshWarpSettings } from '@/tools/mesh-warp'
+import { getPuppetWarpSettings, setPuppetWarpSettings } from '@/tools/puppet-warp'
+import { getPerspectiveWarpSettings, setPerspectiveWarpSettings } from '@/tools/perspective-warp'
+import { getCageTransformSettings, setCageTransformSettings } from '@/tools/cage-transform'
 
 // ── Shared styles ──
 
@@ -187,6 +229,28 @@ function SelectInput({
   )
 }
 
+function CheckboxInput({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  onChange: (v: boolean) => void
+}) {
+  return (
+    <span style={groupStyle}>
+      <span style={labelStyle}>{label}</span>
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(e) => onChange(e.target.checked)}
+        style={{ accentColor: 'var(--accent)' }}
+      />
+    </span>
+  )
+}
+
 // ── Tool-specific option panels ──
 
 function RectangleOptions() {
@@ -298,8 +362,192 @@ function LineOptions() {
   )
 }
 
+function BrushPresetPicker({ onApply }: { onApply: () => void }) {
+  const presets = getAllPresets()
+  return (
+    <SelectInput
+      label="Preset"
+      value=""
+      options={[{ value: '', label: '\u2014 Presets \u2014' }, ...presets.map((p) => ({ value: p.id, label: p.name }))]}
+      onChange={(v) => {
+        if (v) {
+          applyPreset(v)
+          onApply()
+        }
+      }}
+    />
+  )
+}
+
+function ScatterOptions() {
+  const [scatter, setLocal] = useState(getScatterSettings)
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    setLocal(getScatterSettings())
+  }, [])
+  const update = useCallback((patch: Partial<ScatterBrushSettings>) => {
+    setScatterSettings(patch)
+    setLocal((prev) => ({ ...prev, ...patch }))
+  }, [])
+  const texturePatterns: { value: string; label: string }[] = [
+    { value: 'noise', label: 'Noise' },
+    { value: 'canvas', label: 'Canvas' },
+    { value: 'burlap', label: 'Burlap' },
+    { value: 'brick', label: 'Brick' },
+    { value: 'crosshatch', label: 'Crosshatch' },
+  ]
+  return (
+    <>
+      <span style={groupStyle}>
+        <button
+          onClick={() => setOpen(!open)}
+          style={{
+            ...smallInputStyle,
+            padding: '2px 8px',
+            cursor: 'pointer',
+            fontWeight: open ? 700 : 400,
+            background: open ? 'var(--accent)' : 'var(--bg-input)',
+            color: open ? '#fff' : 'var(--text-primary)',
+          }}
+        >
+          Scatter
+        </button>
+      </span>
+      {open && (
+        <>
+          <SliderInput
+            label="Scatter X"
+            value={scatter.scatterX}
+            min={0}
+            max={500}
+            step={5}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ scatterX: v })}
+          />
+          <SliderInput
+            label="Scatter Y"
+            value={scatter.scatterY}
+            min={0}
+            max={500}
+            step={5}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ scatterY: v })}
+          />
+          <NumberInput label="Count" value={scatter.count} min={1} max={16} onChange={(v) => update({ count: v })} />
+          <SliderInput
+            label="Count Jitter"
+            value={scatter.countJitter}
+            min={0}
+            max={100}
+            step={5}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ countJitter: v })}
+          />
+          <SliderInput
+            label="Size Jitter"
+            value={scatter.sizeJitter}
+            min={0}
+            max={100}
+            step={5}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ sizeJitter: v })}
+          />
+          <SliderInput
+            label="Angle Jitter"
+            value={scatter.angleJitter}
+            min={0}
+            max={360}
+            step={5}
+            format={(v) => `${v}\u00b0`}
+            onChange={(v) => update({ angleJitter: v })}
+          />
+          <SliderInput
+            label="Roundness Jitter"
+            value={scatter.roundnessJitter}
+            min={0}
+            max={100}
+            step={5}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ roundnessJitter: v })}
+          />
+          <span style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
+          <CheckboxInput
+            label="Texture"
+            checked={scatter.textureEnabled}
+            onChange={(v) => update({ textureEnabled: v })}
+          />
+          {scatter.textureEnabled && (
+            <>
+              <SelectInput
+                label="Pattern"
+                value={scatter.texturePattern}
+                options={texturePatterns}
+                onChange={(v) => update({ texturePattern: v as TexturePatternType })}
+              />
+              <SliderInput
+                label="Scale"
+                value={scatter.textureScale}
+                min={10}
+                max={1000}
+                step={10}
+                format={(v) => `${v}%`}
+                onChange={(v) => update({ textureScale: v })}
+              />
+              <SliderInput
+                label="Depth"
+                value={scatter.textureDepth}
+                min={0}
+                max={100}
+                step={5}
+                format={(v) => `${v}%`}
+                onChange={(v) => update({ textureDepth: v })}
+              />
+            </>
+          )}
+          <span style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
+          <CheckboxInput
+            label="Dual Brush"
+            checked={scatter.dualBrushEnabled}
+            onChange={(v) => update({ dualBrushEnabled: v })}
+          />
+          {scatter.dualBrushEnabled && (
+            <>
+              <NumberInput
+                label="Dual Size"
+                value={scatter.dualBrushSize}
+                min={1}
+                max={200}
+                onChange={(v) => update({ dualBrushSize: v })}
+              />
+              <SliderInput
+                label="Dual Spacing"
+                value={scatter.dualBrushSpacing}
+                min={0.05}
+                max={2}
+                step={0.05}
+                format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => update({ dualBrushSpacing: v })}
+              />
+              <SliderInput
+                label="Dual Scatter"
+                value={scatter.dualBrushScatter}
+                min={0}
+                max={500}
+                step={5}
+                format={(v) => `${v}%`}
+                onChange={(v) => update({ dualBrushScatter: v })}
+              />
+            </>
+          )}
+        </>
+      )}
+    </>
+  )
+}
+
 function BrushOptions() {
   const [settings, setSettings] = useState(getBrushSettings)
+  const [, forceUpdate] = useState(0)
 
   useEffect(() => {
     setSettings(getBrushSettings())
@@ -310,8 +558,15 @@ function BrushOptions() {
     setSettings((prev) => ({ ...prev, ...patch }))
   }, [])
 
+  const handlePresetApply = useCallback(() => {
+    setSettings(getBrushSettings())
+    forceUpdate((n) => n + 1)
+  }, [])
+
   return (
     <>
+      <BrushPresetPicker onApply={handlePresetApply} />
+      <span style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
       <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
       <SliderInput
         label="Hardness"
@@ -349,6 +604,8 @@ function BrushOptions() {
         format={(v) => `${Math.round(v * 100)}%`}
         onChange={(v) => update({ spacing: v })}
       />
+      <span style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
+      <ScatterOptions />
     </>
   )
 }
@@ -377,6 +634,113 @@ function EraserOptions() {
         format={(v) => `${Math.round(v * 100)}%`}
         onChange={(v) => update({ hardness: v })}
       />
+    </>
+  )
+}
+
+function PressureOptions() {
+  const [mapping, setMapping] = useState(getPressureMapping)
+  const [expanded, setExpanded] = useState(false)
+
+  useEffect(() => {
+    setMapping(getPressureMapping())
+  }, [])
+
+  const update = useCallback((patch: Partial<typeof mapping>) => {
+    setPressureMapping(patch)
+    setMapping((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <span style={groupStyle}>
+        <label
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 11,
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+          }}
+        >
+          <input type="checkbox" checked={mapping.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+          Pressure
+        </label>
+        {mapping.enabled && (
+          <button
+            onClick={() => setExpanded((v) => !v)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              fontSize: 10,
+              padding: '0 2px',
+            }}
+          >
+            {expanded ? '\u25B4' : '\u25BE'}
+          </button>
+        )}
+      </span>
+      {mapping.enabled && expanded && (
+        <>
+          <SliderInput
+            label="Size Min"
+            value={mapping.sizeMin}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ sizeMin: v })}
+          />
+          <SliderInput
+            label="Size Max"
+            value={mapping.sizeMax}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ sizeMax: v })}
+          />
+          <SliderInput
+            label="Opacity Min"
+            value={mapping.opacityMin}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ opacityMin: v })}
+          />
+          <SliderInput
+            label="Opacity Max"
+            value={mapping.opacityMax}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ opacityMax: v })}
+          />
+          <SliderInput
+            label="Flow Min"
+            value={mapping.flowMin}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ flowMin: v })}
+          />
+          <SliderInput
+            label="Flow Max"
+            value={mapping.flowMax}
+            min={0}
+            max={100}
+            step={1}
+            format={(v) => `${v}%`}
+            onChange={(v) => update({ flowMax: v })}
+          />
+        </>
+      )}
     </>
   )
 }
@@ -505,19 +869,979 @@ const toolLabels: Record<string, string> = {
   measure: 'Measure',
   crop: 'Crop',
   lasso: 'Lasso',
+  'polygonal-lasso': 'Polygonal Lasso',
+  'magnetic-lasso': 'Magnetic Lasso',
   marquee: 'Marquee',
   knife: 'Knife',
   node: 'Node',
   artboard: 'Artboard',
   slice: 'Slice',
+  dodge: 'Dodge',
+  burn: 'Burn',
+  sponge: 'Sponge',
+  smudge: 'Smudge',
+  'healing-brush': 'Healing Brush',
+  'color-range': 'Color Range',
+  'sharpen-brush': 'Sharpen Brush',
+  'blur-brush': 'Blur Brush',
+  'red-eye': 'Red Eye Removal',
+  'spot-healing': 'Spot Healing Brush',
+  patch: 'Patch',
+  'content-aware-fill': 'Content-Aware Fill',
+  'content-aware-move': 'Content-Aware Move',
+  'content-aware-scale': 'Content-Aware Scale',
+  'quick-selection': 'Quick Selection',
+  'mixer-brush': 'Mixer Brush',
+  'perspective-transform': 'Perspective Transform',
+  liquify: 'Liquify',
+  'mesh-warp': 'Mesh Warp',
+  'puppet-warp': 'Puppet Warp',
+  'perspective-warp': 'Perspective Warp',
+  'cage-transform': 'Cage Transform',
+}
+
+function SharpenBlurBrushOptions() {
+  const [settings, setSettings] = useState(getSharpenBlurSettings)
+  useEffect(() => {
+    setSettings(getSharpenBlurSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setSharpenBlurSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SelectInput
+        label="Mode"
+        value={settings.mode}
+        options={[
+          { value: 'sharpen', label: 'Sharpen' },
+          { value: 'blur', label: 'Blur' },
+        ]}
+        onChange={(v) => update({ mode: v as SharpenBlurMode })}
+      />
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Strength"
+        value={settings.strength}
+        min={0.01}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ strength: v })}
+      />
+      <SliderInput
+        label="Hardness"
+        value={settings.hardness}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ hardness: v })}
+      />
+    </>
+  )
+}
+
+function RedEyeOptions() {
+  const [settings, setSettings] = useState(getRedEyeSettings)
+  useEffect(() => {
+    setSettings(getRedEyeSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setRedEyeSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput
+        label="Pupil Size"
+        value={settings.pupilSize}
+        min={5}
+        max={100}
+        onChange={(v) => update({ pupilSize: v })}
+      />
+      <SliderInput
+        label="Darken"
+        value={settings.darkenAmount}
+        min={0.1}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ darkenAmount: v })}
+      />
+    </>
+  )
+}
+
+function QuickSelectionOptions() {
+  const [settings, setSettings] = useState(getQuickSelectionSettings)
+  useEffect(() => {
+    setSettings(getQuickSelectionSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setQuickSelectionSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput
+        label="Brush Size"
+        value={settings.brushSize}
+        min={1}
+        max={500}
+        onChange={(v) => update({ brushSize: v })}
+      />
+      <CheckboxInput label="Auto-Enhance" checked={settings.autoEnhance} onChange={(v) => update({ autoEnhance: v })} />
+      <CheckboxInput
+        label="Sample All Layers"
+        checked={settings.sampleAllLayers}
+        onChange={(v) => update({ sampleAllLayers: v })}
+      />
+    </>
+  )
+}
+
+function SymmetryOptions() {
+  const [settings, setSettings] = useState(getSymmetrySettings)
+  useEffect(() => {
+    setSettings(getSymmetrySettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setSymmetrySettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--text-secondary)' }}>
+        <input type="checkbox" checked={settings.enabled} onChange={(e) => update({ enabled: e.target.checked })} />
+        Symmetry
+      </label>
+      <NumberInput label="Axes" value={settings.axes} min={2} max={32} onChange={(v) => update({ axes: v })} />
+      <NumberInput label="Angle" value={settings.angle} min={0} max={360} onChange={(v) => update({ angle: v })} />
+    </>
+  )
+}
+
+function PolygonalLassoOptions() {
+  const [settings, setSettings] = useState(getPolygonalLassoSettings)
+  useEffect(() => {
+    setSettings(getPolygonalLassoSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setPolygonalLassoSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput
+        label="Feather"
+        value={settings.feather}
+        min={0}
+        max={100}
+        onChange={(v) => update({ feather: v })}
+      />
+      <CheckboxInput label="Anti-alias" checked={settings.antiAlias} onChange={(v) => update({ antiAlias: v })} />
+    </>
+  )
+}
+
+function MagneticLassoOptions() {
+  const [settings, setSettings] = useState(getMagneticLassoSettings)
+  useEffect(() => {
+    setSettings(getMagneticLassoSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setMagneticLassoSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Width" value={settings.width} min={1} max={40} onChange={(v) => update({ width: v })} />
+      <SliderInput
+        label="Contrast"
+        value={settings.contrast}
+        min={0}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ contrast: v })}
+      />
+      <NumberInput
+        label="Frequency"
+        value={settings.frequency}
+        min={0}
+        max={200}
+        onChange={(v) => update({ frequency: v })}
+      />
+      <NumberInput
+        label="Feather"
+        value={settings.feather}
+        min={0}
+        max={100}
+        onChange={(v) => update({ feather: v })}
+      />
+    </>
+  )
+}
+
+function DodgeBurnOptions() {
+  const [settings, setSettings] = useState(getDodgeBurnSettings)
+  useEffect(() => {
+    setSettings(getDodgeBurnSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setDodgeBurnSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Exposure"
+        value={settings.exposure}
+        min={0.01}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ exposure: v })}
+      />
+      <SelectInput
+        label="Range"
+        value={settings.range}
+        options={[
+          { value: 'shadows', label: 'Shadows' },
+          { value: 'midtones', label: 'Midtones' },
+          { value: 'highlights', label: 'Highlights' },
+        ]}
+        onChange={(v) => update({ range: v as TonalRange })}
+      />
+    </>
+  )
+}
+
+function SpongeOptions() {
+  const [settings, setSettings] = useState(getDodgeBurnSettings)
+  useEffect(() => {
+    setSettings(getDodgeBurnSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setDodgeBurnSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Flow"
+        value={settings.exposure}
+        min={0.01}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ exposure: v })}
+      />
+      <SelectInput
+        label="Mode"
+        value={settings.spongeMode}
+        options={[
+          { value: 'saturate', label: 'Saturate' },
+          { value: 'desaturate', label: 'Desaturate' },
+        ]}
+        onChange={(v) => update({ spongeMode: v as SpongeMode })}
+      />
+    </>
+  )
+}
+
+function SmudgeOptions() {
+  const [settings, setSettings] = useState(getSmudgeSettings)
+  useEffect(() => {
+    setSettings(getSmudgeSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setSmudgeSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Strength"
+        value={settings.strength}
+        min={0.01}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ strength: v })}
+      />
+    </>
+  )
+}
+
+function HealingBrushOptions() {
+  const [settings, setSettings] = useState(getHealingBrushSettings)
+  useEffect(() => {
+    setSettings(getHealingBrushSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setHealingBrushSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Hardness"
+        value={settings.hardness}
+        min={0}
+        max={1}
+        step={0.05}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ hardness: v })}
+      />
+    </>
+  )
+}
+
+function ColorRangeOptions() {
+  const [settings, setSettings] = useState(getColorRangeSettings)
+  useEffect(() => {
+    setSettings(getColorRangeSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setColorRangeSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SliderInput
+        label="Fuzziness"
+        value={settings.fuzziness}
+        min={0}
+        max={200}
+        step={1}
+        onChange={(v) => update({ fuzziness: v })}
+      />
+      <span style={groupStyle}>
+        <span style={labelStyle}>Preview</span>
+        <input
+          type="checkbox"
+          checked={settings.preview}
+          onChange={(e) => update({ preview: e.target.checked })}
+          style={{ accentColor: 'var(--accent)' }}
+        />
+      </span>
+      {settings.sampleColor && (
+        <span style={groupStyle}>
+          <span style={labelStyle}>Color</span>
+          <span
+            style={{
+              display: 'inline-block',
+              width: 20,
+              height: 16,
+              borderRadius: 3,
+              border: '1px solid var(--border-color)',
+              background: `rgb(${settings.sampleColor.r},${settings.sampleColor.g},${settings.sampleColor.b})`,
+            }}
+          />
+        </span>
+      )}
+      <span style={{ color: 'var(--text-disabled)', fontSize: 10 }}>Click canvas to sample color</span>
+    </>
+  )
+}
+
+function RasterGradientOptions() {
+  const [settings, setSettings] = useState(getRasterGradientSettings)
+  useEffect(() => {
+    setSettings(getRasterGradientSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setRasterGradientSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SelectInput
+        label="Type"
+        value={settings.type}
+        options={[
+          { value: 'linear', label: 'Linear' },
+          { value: 'radial', label: 'Radial' },
+          { value: 'angular', label: 'Angular' },
+        ]}
+        onChange={(v) => update({ type: v as RasterGradientType })}
+      />
+      <ColorSwatch label="FG" value={settings.foreground} onChange={(v) => update({ foreground: v })} />
+      <ColorSwatch label="BG" value={settings.background} onChange={(v) => update({ background: v })} />
+    </>
+  )
+}
+
+function ContentAwareFillOptions() {
+  const [settings, setSettings] = useState(getContentAwareFillSettings)
+  useEffect(() => {
+    setSettings(getContentAwareFillSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setContentAwareFillSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SelectInput
+        label="Sample"
+        value={settings.sampleArea}
+        options={[
+          { value: 'auto', label: 'Auto' },
+          { value: 'custom', label: 'Custom' },
+        ]}
+        onChange={(v) => update({ sampleArea: v as 'auto' | 'custom' })}
+      />
+      <SliderInput
+        label="Blend"
+        value={settings.blendAmount}
+        min={0}
+        max={50}
+        step={1}
+        onChange={(v) => update({ blendAmount: v })}
+      />
+      <SliderInput
+        label="Color Adapt"
+        value={settings.colorAdaptation}
+        min={0}
+        max={1}
+        step={0.05}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ colorAdaptation: v })}
+      />
+    </>
+  )
+}
+
+function ContentAwareMoveOptions() {
+  const [settings, setSettings] = useState(getContentAwareMoveSettings)
+  useEffect(() => {
+    setSettings(getContentAwareMoveSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setContentAwareMoveSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SelectInput
+        label="Mode"
+        value={settings.mode}
+        options={[
+          { value: 'move', label: 'Move' },
+          { value: 'extend', label: 'Extend' },
+        ]}
+        onChange={(v) => update({ mode: v as ContentAwareMoveMode })}
+      />
+      <SelectInput
+        label="Adaptation"
+        value={settings.adaptation}
+        options={[
+          { value: 'very-strict', label: 'Very Strict' },
+          { value: 'strict', label: 'Strict' },
+          { value: 'medium', label: 'Medium' },
+          { value: 'loose', label: 'Loose' },
+          { value: 'very-loose', label: 'Very Loose' },
+        ]}
+        onChange={(v) => update({ adaptation: v as ContentAwareAdaptation })}
+      />
+    </>
+  )
+}
+
+function ContentAwareScaleOptions() {
+  const [settings, setSettings] = useState(getContentAwareScaleSettings)
+  useEffect(() => {
+    setSettings(getContentAwareScaleSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setContentAwareScaleSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <CheckboxInput
+        label="Protect Selection"
+        checked={settings.protectMask}
+        onChange={(v) => update({ protectMask: v })}
+      />
+    </>
+  )
+}
+
+function MixerBrushOptions() {
+  const [settings, setSettings] = useState(getMixerBrushSettings)
+  useEffect(() => {
+    setSettings(getMixerBrushSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setMixerBrushSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Wet"
+        value={settings.wet}
+        min={0}
+        max={100}
+        step={1}
+        format={(v) => `${v}%`}
+        onChange={(v) => update({ wet: v })}
+      />
+      <SliderInput
+        label="Load"
+        value={settings.load}
+        min={0}
+        max={100}
+        step={1}
+        format={(v) => `${v}%`}
+        onChange={(v) => update({ load: v })}
+      />
+      <SliderInput
+        label="Mix"
+        value={settings.mix}
+        min={0}
+        max={100}
+        step={1}
+        format={(v) => `${v}%`}
+        onChange={(v) => update({ mix: v })}
+      />
+      <SliderInput
+        label="Flow"
+        value={settings.flow}
+        min={0}
+        max={100}
+        step={1}
+        format={(v) => `${v}%`}
+        onChange={(v) => update({ flow: v })}
+      />
+    </>
+  )
+}
+
+function SpotHealingOptions() {
+  const [settings, setSettings] = useState(getSpotHealingSettings)
+  useEffect(() => {
+    setSettings(getSpotHealingSettings())
+  }, [])
+  const update = useCallback((patch: Partial<SpotHealingSettings>) => {
+    setSpotHealingSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Size" value={settings.size} min={1} max={200} onChange={(v) => update({ size: v })} />
+      <SliderInput
+        label="Hardness"
+        value={settings.hardness}
+        min={0}
+        max={1}
+        step={0.05}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ hardness: v })}
+      />
+      <SelectInput
+        label="Type"
+        value={settings.type}
+        options={[
+          { value: 'proximity-match', label: 'Proximity Match' },
+          { value: 'create-texture', label: 'Create Texture' },
+        ]}
+        onChange={(v) => update({ type: v as SpotHealingSettings['type'] })}
+      />
+    </>
+  )
+}
+
+function PatchToolOptions() {
+  const [settings, setSettings] = useState(getPatchSettings)
+  useEffect(() => {
+    setSettings(getPatchSettings())
+  }, [])
+  const update = useCallback((patch: Partial<PatchSettings>) => {
+    setPatchSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SelectInput
+        label="Mode"
+        value={settings.mode}
+        options={[
+          { value: 'normal', label: 'Normal' },
+          { value: 'content-aware', label: 'Content-Aware' },
+        ]}
+        onChange={(v) => update({ mode: v as PatchSettings['mode'] })}
+      />
+      <NumberInput
+        label="Diffusion"
+        value={settings.diffusion}
+        min={1}
+        max={10}
+        onChange={(v) => update({ diffusion: v })}
+      />
+    </>
+  )
+}
+
+// ── Refine Edge options ──
+
+function RefineEdgeOptions() {
+  const [settings, setSettings] = useState(getRefineEdgeSettings)
+  const refineEdgeActive = useEditorStore((s) => s.refineEdgeActive)
+  const toggleRefineEdge = useEditorStore((s) => s.toggleRefineEdge)
+
+  // Enter/exit refine edge workspace on toggle
+  useEffect(() => {
+    if (refineEdgeActive && !isRefineEdgeActive()) {
+      enterRefineEdge()
+      setSettings(getRefineEdgeSettings())
+    } else if (!refineEdgeActive && isRefineEdgeActive()) {
+      exitRefineEdge(false)
+    }
+  }, [refineEdgeActive])
+
+  const update = useCallback((patch: Partial<ReturnType<typeof getRefineEdgeSettings>>) => {
+    updateRefineEdge(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  const handleApply = useCallback(() => {
+    exitRefineEdge(true)
+    toggleRefineEdge()
+  }, [toggleRefineEdge])
+
+  const handleCancel = useCallback(() => {
+    exitRefineEdge(false)
+    toggleRefineEdge()
+  }, [toggleRefineEdge])
+
+  if (!refineEdgeActive) return null
+
+  return (
+    <>
+      <SliderInput
+        label="Smooth"
+        value={settings.smooth}
+        min={0}
+        max={100}
+        step={1}
+        onChange={(v) => update({ smooth: v })}
+      />
+      <SliderInput
+        label="Feather"
+        value={settings.feather}
+        min={0}
+        max={250}
+        step={1}
+        format={(v) => `${v}px`}
+        onChange={(v) => update({ feather: v })}
+      />
+      <SliderInput
+        label="Contrast"
+        value={settings.contrast}
+        min={0}
+        max={100}
+        step={1}
+        format={(v) => `${v}%`}
+        onChange={(v) => update({ contrast: v })}
+      />
+      <SliderInput
+        label="Shift"
+        value={settings.shift}
+        min={-100}
+        max={100}
+        step={1}
+        format={(v) => `${v}%`}
+        onChange={(v) => update({ shift: v })}
+      />
+      <CheckboxInput
+        label="Decontaminate"
+        checked={settings.decontaminate}
+        onChange={(v) => update({ decontaminate: v })}
+      />
+      {settings.decontaminate && (
+        <SliderInput
+          label="Amount"
+          value={settings.decontaminateAmount}
+          min={0}
+          max={100}
+          step={1}
+          format={(v) => `${v}%`}
+          onChange={(v) => update({ decontaminateAmount: v })}
+        />
+      )}
+      <SelectInput
+        label="View"
+        value={settings.viewMode}
+        options={[
+          { value: 'marching-ants', label: 'Marching Ants' },
+          { value: 'overlay', label: 'Overlay' },
+          { value: 'on-black', label: 'On Black' },
+          { value: 'on-white', label: 'On White' },
+          { value: 'black-white', label: 'Black & White' },
+          { value: 'on-layers', label: 'On Layers' },
+        ]}
+        onChange={(v) => update({ viewMode: v as RefineEdgeViewMode })}
+      />
+      <button
+        onClick={handleApply}
+        style={{
+          background: 'var(--accent)',
+          color: '#fff',
+          border: 'none',
+          borderRadius: 4,
+          padding: '2px 10px',
+          fontSize: 11,
+          cursor: 'pointer',
+        }}
+      >
+        OK
+      </button>
+      <button
+        onClick={handleCancel}
+        style={{
+          background: 'var(--bg-input)',
+          color: 'var(--text-primary)',
+          border: '1px solid var(--border-color)',
+          borderRadius: 4,
+          padding: '2px 10px',
+          fontSize: 11,
+          cursor: 'pointer',
+        }}
+      >
+        Cancel
+      </button>
+    </>
+  )
+}
+
+// ── Perspective Transform options ──
+
+function PerspectiveTransformOptions() {
+  const [settings, setSettings] = useState(getPerspectiveSettings)
+  useEffect(() => {
+    setSettings(getPerspectiveSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setPerspectiveSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <CheckboxInput label="Show Grid" checked={settings.showGrid} onChange={(v) => update({ showGrid: v })} />
+      <NumberInput
+        label="Grid Divisions"
+        value={settings.gridDivisions}
+        min={1}
+        max={20}
+        onChange={(v) => update({ gridDivisions: v })}
+      />
+      <SelectInput
+        label="Interpolation"
+        value={settings.interpolation}
+        options={[
+          { value: 'bilinear', label: 'Bilinear' },
+          { value: 'nearest', label: 'Nearest' },
+        ]}
+        onChange={(v) => update({ interpolation: v as 'bilinear' | 'nearest' })}
+      />
+    </>
+  )
+}
+
+// ── Liquify options ──
+
+function LiquifyOptions() {
+  const [settings, setSettings] = useState(getLiquifySettings)
+  useEffect(() => {
+    setSettings(getLiquifySettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setLiquifySettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SelectInput
+        label="Mode"
+        value={settings.mode}
+        options={[
+          { value: 'push', label: 'Forward Warp' },
+          { value: 'twirl-cw', label: 'Twirl CW' },
+          { value: 'twirl-ccw', label: 'Twirl CCW' },
+          { value: 'bloat', label: 'Bloat' },
+          { value: 'pinch', label: 'Pucker' },
+          { value: 'smooth', label: 'Smooth' },
+          { value: 'reconstruct', label: 'Reconstruct' },
+        ]}
+        onChange={(v) => update({ mode: v as LiquifyMode })}
+      />
+      <NumberInput
+        label="Size"
+        value={settings.brushSize}
+        min={1}
+        max={500}
+        onChange={(v) => update({ brushSize: v })}
+      />
+      <SliderInput
+        label="Pressure"
+        value={settings.brushPressure}
+        min={0.01}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ brushPressure: v })}
+      />
+      <SliderInput
+        label="Rate"
+        value={settings.brushRate}
+        min={0.01}
+        max={1}
+        step={0.01}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ brushRate: v })}
+      />
+    </>
+  )
+}
+
+// ── Mesh Warp options ──
+
+function MeshWarpOptions() {
+  const [settings, setSettings] = useState(getMeshWarpSettings)
+  useEffect(() => {
+    setSettings(getMeshWarpSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setMeshWarpSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput label="Rows" value={settings.gridRows} min={1} max={20} onChange={(v) => update({ gridRows: v })} />
+      <NumberInput label="Cols" value={settings.gridCols} min={1} max={20} onChange={(v) => update({ gridCols: v })} />
+      <CheckboxInput label="Show Grid" checked={settings.showGrid} onChange={(v) => update({ showGrid: v })} />
+    </>
+  )
+}
+
+// ── Puppet Warp options ──
+
+function PuppetWarpOptions() {
+  const [settings, setSettings] = useState(getPuppetWarpSettings)
+  useEffect(() => {
+    setSettings(getPuppetWarpSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setPuppetWarpSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <SliderInput
+        label="Rigidity"
+        value={settings.rigidity}
+        min={0.1}
+        max={3}
+        step={0.1}
+        format={(v) => v.toFixed(1)}
+        onChange={(v) => update({ rigidity: v })}
+      />
+      <NumberInput
+        label="Mesh Density"
+        value={settings.meshDensity}
+        min={10}
+        max={200}
+        onChange={(v) => update({ meshDensity: v })}
+      />
+    </>
+  )
+}
+
+// ── Perspective Warp options ──
+
+function PerspectiveWarpOptions() {
+  const [settings, setSettings] = useState(getPerspectiveWarpSettings)
+  useEffect(() => {
+    setSettings(getPerspectiveWarpSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setPerspectiveWarpSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <CheckboxInput label="Show Grid" checked={settings.showGrid} onChange={(v) => update({ showGrid: v })} />
+      <NumberInput
+        label="Grid Divisions"
+        value={settings.gridDivisions}
+        min={1}
+        max={20}
+        onChange={(v) => update({ gridDivisions: v })}
+      />
+    </>
+  )
+}
+
+// ── Cage Transform options ──
+
+function CageTransformOptions() {
+  const [settings, setSettings] = useState(getCageTransformSettings)
+  useEffect(() => {
+    setSettings(getCageTransformSettings())
+  }, [])
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setCageTransformSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <CheckboxInput label="Show Cage" checked={settings.showCage} onChange={(v) => update({ showCage: v })} />
+    </>
+  )
 }
 
 // ── Main component ──
 
 export function ToolOptionsBar() {
   const activeTool = useEditorStore((s) => s.activeTool)
+  const refineEdgeActive = useEditorStore((s) => s.refineEdgeActive)
 
-  const toolName = toolLabels[activeTool] ?? activeTool
+  const toolName = refineEdgeActive ? 'Select & Mask' : (toolLabels[activeTool] ?? activeTool)
 
   let options: React.ReactNode = null
 
@@ -539,10 +1863,22 @@ export function ToolOptionsBar() {
       options = <LineOptions />
       break
     case 'brush':
-      options = <BrushOptions />
+      options = (
+        <>
+          <BrushOptions />
+          <PressureOptions />
+          <SymmetryOptions />
+        </>
+      )
       break
     case 'eraser':
-      options = <EraserOptions />
+      options = (
+        <>
+          <EraserOptions />
+          <PressureOptions />
+          <SymmetryOptions />
+        </>
+      )
       break
     case 'text':
       options = <TextOptions />
@@ -554,10 +1890,88 @@ export function ToolOptionsBar() {
       options = <FillOptions />
       break
     case 'gradient':
-      options = <GradientOptions />
+      options = (
+        <>
+          <GradientOptions />
+          <RasterGradientOptions />
+        </>
+      )
+      break
+    case 'dodge':
+    case 'burn':
+      options = <DodgeBurnOptions />
+      break
+    case 'sponge':
+      options = <SpongeOptions />
+      break
+    case 'smudge':
+      options = <SmudgeOptions />
+      break
+    case 'mixer-brush':
+      options = <MixerBrushOptions />
+      break
+    case 'healing-brush':
+      options = <HealingBrushOptions />
+      break
+    case 'color-range':
+      options = <ColorRangeOptions />
+      break
+    case 'polygonal-lasso':
+      options = <PolygonalLassoOptions />
+      break
+    case 'magnetic-lasso':
+      options = <MagneticLassoOptions />
+      break
+    case 'sharpen-brush':
+    case 'blur-brush':
+      options = <SharpenBlurBrushOptions />
+      break
+    case 'red-eye':
+      options = <RedEyeOptions />
+      break
+    case 'content-aware-fill':
+      options = <ContentAwareFillOptions />
+      break
+    case 'content-aware-move':
+      options = <ContentAwareMoveOptions />
+      break
+    case 'content-aware-scale':
+      options = <ContentAwareScaleOptions />
+      break
+    case 'quick-selection':
+      options = <QuickSelectionOptions />
+      break
+    case 'spot-healing':
+      options = <SpotHealingOptions />
+      break
+    case 'patch':
+      options = <PatchToolOptions />
+      break
+    case 'perspective-transform':
+      options = <PerspectiveTransformOptions />
+      break
+    case 'liquify':
+      options = <LiquifyOptions />
+      break
+    case 'mesh-warp':
+      options = <MeshWarpOptions />
+      break
+    case 'puppet-warp':
+      options = <PuppetWarpOptions />
+      break
+    case 'perspective-warp':
+      options = <PerspectiveWarpOptions />
+      break
+    case 'cage-transform':
+      options = <CageTransformOptions />
       break
     default:
       break
+  }
+
+  // Refine Edge workspace overrides normal tool options
+  if (refineEdgeActive) {
+    options = <RefineEdgeOptions />
   }
 
   return (

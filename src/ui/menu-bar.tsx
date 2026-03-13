@@ -43,6 +43,12 @@ const lazyImport = {
   selectionFilters: () => import('@/tools/selection-filters'),
   compoundPaths: () => import('@/tools/compound-paths'),
   clippingMask: () => import('@/tools/clipping-mask'),
+  frequencySeparation: () => import('@/tools/frequency-separation'),
+  symbolSprayer: () => import('@/tools/symbol-sprayer'),
+  blendTool: () => import('@/tools/blend-tool'),
+  vectorBrushes: () => import('@/tools/vector-brushes'),
+  selectSky: () => import('@/tools/select-sky'),
+  focusArea: () => import('@/tools/focus-area'),
 }
 
 // ── Menu data types ──
@@ -623,6 +629,43 @@ function buildMenus(): MenuDef[] {
       },
       { label: '', divider: true },
       {
+        label: 'Sky',
+        action: async () => {
+          const s = store()
+          const layerId = s.selection.layerIds[0]
+          if (!layerId) return
+          const artboard = s.document.artboards[0]
+          if (!artboard) return
+          const layer = artboard.layers.find((l) => l.id === layerId)
+          if (!layer || layer.type !== 'raster') return
+          const { getRasterData: getRD } = await import('@/store/raster-data')
+          const imageData = getRD(layer.imageChunkId)
+          if (!imageData) return
+          const m = await lazyImport.selectSky()
+          m.performSelectSky(imageData)
+        },
+        disabled: () => !hasSelectedRaster(),
+      },
+      {
+        label: 'Focus Area\u2026',
+        action: async () => {
+          const s = store()
+          const layerId = s.selection.layerIds[0]
+          if (!layerId) return
+          const artboard = s.document.artboards[0]
+          if (!artboard) return
+          const layer = artboard.layers.find((l) => l.id === layerId)
+          if (!layer || layer.type !== 'raster') return
+          const { getRasterData: getRD } = await import('@/store/raster-data')
+          const imageData = getRD(layer.imageChunkId)
+          if (!imageData) return
+          const m = await lazyImport.focusArea()
+          m.performFocusAreaSelect(imageData)
+        },
+        disabled: () => !hasSelectedRaster(),
+      },
+      { label: '', divider: true },
+      {
         label: 'Copy Style',
         shortcut: 'Ctrl+Alt+C',
         action: () => copyStyle(),
@@ -904,6 +947,128 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Shift+V',
         action: () => flipVertical(),
         disabled: () => store().selection.layerIds.length === 0,
+      },
+      { label: '', divider: true },
+      {
+        label: 'New Fill Layer',
+        submenu: [
+          {
+            label: 'Solid Color...',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (artboard) s.addFillLayer(artboard.id, 'solid', { color: '#ffffff' })
+            },
+            disabled: () => !store().document.artboards[0],
+          },
+          {
+            label: 'Gradient...',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (artboard)
+                s.addFillLayer(artboard.id, 'gradient', {
+                  gradient: {
+                    id: crypto.randomUUID(),
+                    name: 'Fill Gradient',
+                    type: 'linear',
+                    angle: 0,
+                    x: 0,
+                    y: 0,
+                    stops: [
+                      { offset: 0, color: '#000000', opacity: 1 },
+                      { offset: 1, color: '#ffffff', opacity: 1 },
+                    ],
+                    dithering: { enabled: false, algorithm: 'none', strength: 0, seed: 0 },
+                  },
+                })
+            },
+            disabled: () => !store().document.artboards[0],
+          },
+          {
+            label: 'Pattern...',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (artboard) s.addFillLayer(artboard.id, 'pattern', { patternScale: 1 })
+            },
+            disabled: () => !store().document.artboards[0],
+          },
+        ],
+      },
+      {
+        label: 'New Clone Layer',
+        action: () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard) return
+          const layerId = s.selection.layerIds[0]
+          if (!layerId) return
+          s.addCloneLayer(artboard.id, layerId)
+        },
+        disabled: () => {
+          const s = store()
+          return !s.document.artboards[0] || s.selection.layerIds.length === 0
+        },
+      },
+      { label: '', divider: true },
+      {
+        label: 'Smart Objects',
+        submenu: [
+          {
+            label: 'Convert to Smart Object',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard) return
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              s.convertToSmartObject(artboard.id, layerId)
+            },
+            disabled: () => {
+              const s = store()
+              if (!s.document.artboards[0] || s.selection.layerIds.length === 0) return true
+              const artboard = s.document.artboards[0]!
+              const layerId = s.selection.layerIds[0]!
+              const layer = artboard.layers.find((l) => l.id === layerId)
+              return !layer || layer.type === 'smart-object'
+            },
+          },
+          {
+            label: 'Edit Contents',
+            action: () => {
+              // Editing smart object contents would open a sub-document
+              // This is a UI entry point; actual editing is handled by the smart-object module
+            },
+            disabled: () => {
+              const s = store()
+              if (!s.document.artboards[0] || s.selection.layerIds.length === 0) return true
+              const artboard = s.document.artboards[0]!
+              const layerId = s.selection.layerIds[0]!
+              const layer = artboard.layers.find((l) => l.id === layerId)
+              return !layer || layer.type !== 'smart-object'
+            },
+          },
+          {
+            label: 'Rasterize',
+            action: () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard) return
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              s.rasterizeSmartObject(artboard.id, layerId)
+            },
+            disabled: () => {
+              const s = store()
+              if (!s.document.artboards[0] || s.selection.layerIds.length === 0) return true
+              const artboard = s.document.artboards[0]!
+              const layerId = s.selection.layerIds[0]!
+              const layer = artboard.layers.find((l) => l.id === layerId)
+              return !layer || layer.type !== 'smart-object'
+            },
+          },
+        ],
       },
     ],
   }
@@ -1269,6 +1434,23 @@ function buildMenus(): MenuDef[] {
       },
       { label: '', divider: true },
       {
+        label: 'Other',
+        submenu: [
+          {
+            label: 'Frequency Separation\u2026',
+            action: async () => {
+              const s = store()
+              const layerId = s.selection.layerIds[0]
+              if (!layerId) return
+              const m = await lazyImport.frequencySeparation()
+              m.performFrequencySeparation(layerId)
+            },
+            disabled: () => !hasSelectedRaster(),
+          },
+        ],
+      },
+      { label: '', divider: true },
+      {
         label: 'Remove Background',
         submenu: [
           {
@@ -1344,6 +1526,22 @@ function buildMenus(): MenuDef[] {
         },
         disabled: () => store().selection.layerIds.length < 2,
       },
+      {
+        label: 'Trim',
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('trim')
+        },
+        disabled: () => store().selection.layerIds.length < 2,
+      },
+      {
+        label: 'Merge',
+        action: async () => {
+          const m = await lazyImport.booleanOps()
+          m.performBooleanOp('merge')
+        },
+        disabled: () => store().selection.layerIds.length < 2,
+      },
       { label: '', divider: true },
       {
         label: 'Offset Path\u2026',
@@ -1358,6 +1556,36 @@ function buildMenus(): MenuDef[] {
           if (isNaN(delta)) return
           const m = await lazyImport.booleanOps()
           m.offsetPath(artboard.id, layerId, delta)
+        },
+        disabled: () => !hasSelectedVector(),
+      },
+      {
+        label: 'Contour Path\u2026',
+        action: async () => {
+          const s = store()
+          const artboard = s.document.artboards[0]
+          if (!artboard || s.selection.layerIds.length !== 1) return
+          const layerId = s.selection.layerIds[0]!
+          const offsetStr = prompt('Offset per step (px, positive=outward, negative=inward):', '5')
+          if (!offsetStr) return
+          const offset = parseFloat(offsetStr)
+          if (isNaN(offset)) return
+          const stepsStr = prompt('Number of contour steps (1-20):', '5')
+          if (!stepsStr) return
+          const steps = parseInt(stepsStr, 10)
+          if (isNaN(steps) || steps < 1) return
+          const joinStr = prompt('Join type (miter / round / square):', 'round')
+          if (!joinStr) return
+          const joinType = joinStr.trim().toLowerCase()
+          if (joinType !== 'miter' && joinType !== 'round' && joinType !== 'square') return
+          const m = await lazyImport.booleanOps()
+          m.contourPath(artboard.id, layerId, {
+            offset,
+            steps: Math.min(20, steps),
+            joinType: joinType as import('@/tools/boolean-ops').ContourJoinType,
+            miterLimit: 2,
+            colorInterpolation: false,
+          })
         },
         disabled: () => !hasSelectedVector(),
       },
@@ -1499,17 +1727,80 @@ function buildMenus(): MenuDef[] {
       { label: '', divider: true },
       {
         label: 'Blend\u2026',
-        action: () => {
-          const s = store()
-          const artboard = s.document.artboards[0]
-          if (!artboard || s.selection.layerIds.length !== 2) return
-          const stepsStr = prompt('Number of blend steps:', '5')
-          if (!stepsStr) return
-          const steps = parseInt(stepsStr, 10)
-          if (isNaN(steps) || steps < 1) return
-          s.createBlend(artboard.id, s.selection.layerIds[0]!, s.selection.layerIds[1]!, steps)
-        },
-        disabled: () => store().selection.layerIds.length !== 2,
+        submenu: [
+          {
+            label: 'Blend (Linear)\u2026',
+            action: async () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard || s.selection.layerIds.length !== 2) return
+              const stepsStr = prompt('Number of blend steps:', '5')
+              if (!stepsStr) return
+              const steps = parseInt(stepsStr, 10)
+              if (isNaN(steps) || steps < 1) return
+              const m = await lazyImport.blendTool()
+              m.performBlend(steps, 'linear')
+            },
+            disabled: () => store().selection.layerIds.length !== 2,
+          },
+          {
+            label: 'Blend (Smooth)\u2026',
+            action: async () => {
+              const s = store()
+              const artboard = s.document.artboards[0]
+              if (!artboard || s.selection.layerIds.length !== 2) return
+              const stepsStr = prompt('Number of blend steps:', '5')
+              if (!stepsStr) return
+              const steps = parseInt(stepsStr, 10)
+              if (isNaN(steps) || steps < 1) return
+              const m = await lazyImport.blendTool()
+              m.performBlend(steps, 'smooth')
+            },
+            disabled: () => store().selection.layerIds.length !== 2,
+          },
+          {
+            label: 'Blend Tool',
+            action: () => store().setActiveTool('blend'),
+          },
+        ],
+      },
+      {
+        label: 'Vector Brushes',
+        submenu: [
+          {
+            label: 'Pattern Brush',
+            action: async () => {
+              const m = await lazyImport.vectorBrushes()
+              m.setVectorBrushSettings({ type: 'pattern' })
+            },
+          },
+          {
+            label: 'Art Brush',
+            action: async () => {
+              const m = await lazyImport.vectorBrushes()
+              m.setVectorBrushSettings({ type: 'art' })
+            },
+          },
+          {
+            label: 'Scatter Brush',
+            action: async () => {
+              const m = await lazyImport.vectorBrushes()
+              m.setVectorBrushSettings({ type: 'scatter' })
+            },
+          },
+          {
+            label: 'Calligraphic Brush',
+            action: async () => {
+              const m = await lazyImport.vectorBrushes()
+              m.setVectorBrushSettings({ type: 'calligraphic' })
+            },
+          },
+        ],
+      },
+      {
+        label: 'Symbol Sprayer',
+        shortcut: 'Shift+S',
+        action: () => store().setActiveTool('symbol-sprayer'),
       },
       { label: '', divider: true },
       {

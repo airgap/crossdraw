@@ -1,4 +1,4 @@
-import { useEffect, useState, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { Viewport } from '@/render/viewport'
 import { Toolbar } from '@/ui/toolbar'
 import { CanvasContextMenu } from '@/ui/context-menu'
@@ -17,6 +17,7 @@ import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { ShareDialog } from '@/ui/share-dialog'
 import { ToastContainer } from '@/ui/toast'
 import { Onboarding } from '@/ui/onboarding'
+import { newDocumentFromClipboard } from '@/tools/import-image'
 
 // Lazy-loaded heavy components (export/print pull in raster-export, pdf, gif, tiff encoders)
 const ExportModal = lazy(() => import('@/ui/export-modal').then((m) => ({ default: m.ExportModal })))
@@ -93,6 +94,24 @@ export function App() {
     window.addEventListener('crossdraw:share-prototype', onSharePrototype)
     return () => window.removeEventListener('crossdraw:share-prototype', onSharePrototype)
   }, [])
+
+  // Global: Ctrl+Shift+Alt+N → new document from clipboard image
+  const newDocFromClipboard = useCallback(async () => {
+    const created = await newDocumentFromClipboard()
+    if (created) setBoot('editor')
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const ctrl = e.ctrlKey || e.metaKey
+      if (ctrl && e.shiftKey && e.altKey && e.key.toLowerCase() === 'n') {
+        e.preventDefault()
+        newDocFromClipboard()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [newDocFromClipboard])
 
   // Update document title to reflect unsaved state
   useEffect(() => {

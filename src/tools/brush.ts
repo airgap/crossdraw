@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid'
 import { useEditorStore } from '@/store/editor.store'
 import { storeRasterData, getRasterData, getRasterCanvasCtx, syncCanvasToImageData } from '@/store/raster-data'
 import type { RasterLayer, BrushSettings } from '@/types'
+import { applyPressure } from '@/tools/pressure'
 
 const hasOffscreenCanvas = typeof OffscreenCanvas !== 'undefined'
 
@@ -213,12 +214,7 @@ export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Par
   }
 
   const raw = { ...currentBrush, ...brush }
-  const p = Math.max(0, Math.min(1, pressure))
-  const b = {
-    ...raw,
-    size: raw.size * (0.3 + 0.7 * p),
-    opacity: raw.opacity * p,
-  }
+  const b = applyPressure(raw, pressure)
 
   const dabSize = Math.max(1, Math.ceil(b.size))
   const halfDab = dabSize / 2
