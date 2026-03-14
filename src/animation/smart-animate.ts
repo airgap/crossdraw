@@ -241,11 +241,11 @@ export function computeTransitionFrame(
       fillColor:
         match.from.fillColor && match.to.fillColor
           ? lerpColor(match.from.fillColor, match.to.fillColor, et)
-          : match.from.fillColor ?? match.to.fillColor,
+          : (match.from.fillColor ?? match.to.fillColor),
       strokeColor:
         match.from.strokeColor && match.to.strokeColor
           ? lerpColor(match.from.strokeColor, match.to.strokeColor, et)
-          : match.from.strokeColor ?? match.to.strokeColor,
+          : (match.from.strokeColor ?? match.to.strokeColor),
     })
   }
 
