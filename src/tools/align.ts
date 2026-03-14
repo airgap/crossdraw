@@ -56,7 +56,7 @@ export function alignLeft(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetX = toArtboard ? (getArtboardBBox()?.minX ?? 0) : Math.min(...items.map((i) => i.bbox.minX))
+  const targetX = toArtboard ? getArtboardBBox()?.minX ?? 0 : Math.min(...items.map((i) => i.bbox.minX))
 
   for (const item of items) {
     const dx = targetX - item.bbox.minX
@@ -90,7 +90,7 @@ export function alignRight(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetX = toArtboard ? (getArtboardBBox()?.maxX ?? 0) : Math.max(...items.map((i) => i.bbox.maxX))
+  const targetX = toArtboard ? getArtboardBBox()?.maxX ?? 0 : Math.max(...items.map((i) => i.bbox.maxX))
 
   for (const item of items) {
     const dx = targetX - item.bbox.maxX
@@ -102,7 +102,7 @@ export function alignTop(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetY = toArtboard ? (getArtboardBBox()?.minY ?? 0) : Math.min(...items.map((i) => i.bbox.minY))
+  const targetY = toArtboard ? getArtboardBBox()?.minY ?? 0 : Math.min(...items.map((i) => i.bbox.minY))
 
   for (const item of items) {
     const dy = targetY - item.bbox.minY
@@ -136,7 +136,7 @@ export function alignBottom(toArtboard = false) {
   const items = getSelectedLayerBBoxes()
   if (items.length === 0) return
 
-  const targetY = toArtboard ? (getArtboardBBox()?.maxY ?? 0) : Math.max(...items.map((i) => i.bbox.maxY))
+  const targetY = toArtboard ? getArtboardBBox()?.maxY ?? 0 : Math.max(...items.map((i) => i.bbox.maxY))
 
   for (const item of items) {
     const dy = targetY - item.bbox.maxY

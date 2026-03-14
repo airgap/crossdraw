@@ -160,7 +160,7 @@ function removeTabFromAll(state: PanelLayoutState, tabId: string): PanelLayoutSt
       .map((g) => {
         if (!g.tabs.includes(tabId)) return g
         const tabs = g.tabs.filter((t) => t !== tabId)
-        const activeTab = g.activeTab === tabId ? (tabs[0] ?? '') : g.activeTab
+        const activeTab = g.activeTab === tabId ? tabs[0] ?? '' : g.activeTab
         return { ...g, tabs, activeTab }
       })
       .filter((g) => g.tabs.length > 0)

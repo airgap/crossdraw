@@ -1841,7 +1841,7 @@ export function ToolOptionsBar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const refineEdgeActive = useEditorStore((s) => s.refineEdgeActive)
 
-  const toolName = refineEdgeActive ? 'Select & Mask' : (toolLabels[activeTool] ?? activeTool)
+  const toolName = refineEdgeActive ? 'Select & Mask' : toolLabels[activeTool] ?? activeTool
 
   let options: React.ReactNode = null
 

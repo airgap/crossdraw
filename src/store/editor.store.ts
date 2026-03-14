@@ -2286,7 +2286,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       if (!artboardId) {
         // Find a flow starting artboard, or use the first one
         const flowStart = doc.artboards.find((a) => a.flowStarting)
-        artboardId = flowStart ? flowStart.id : (doc.artboards[0]?.id ?? null)
+        artboardId = flowStart ? flowStart.id : doc.artboards[0]?.id ?? null
       }
       set({ showPrototypePlayer: true, prototypeStartArtboardId: artboardId })
     },

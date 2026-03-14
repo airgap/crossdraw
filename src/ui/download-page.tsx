@@ -503,7 +503,12 @@ export function DownloadPage() {
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {extensionReleases.map((r) => (
-            <DownloadCard key={r.filename || r.name} release={r} hovered={hovered === (r.filename || r.name)} onHover={setHovered} />
+            <DownloadCard
+              key={r.filename || r.name}
+              release={r}
+              hovered={hovered === (r.filename || r.name)}
+              onHover={setHovered}
+            />
           ))}
         </div>
       </div>
@@ -562,7 +567,9 @@ function DownloadCard({
       <Icon size={28} />
       <div>
         <div style={{ fontWeight: 600, fontSize: 14 }}>{release.name}</div>
-        <div style={{ color: '#666', fontSize: 12 }}>{isBuiltIn ? 'Built-in — no install needed' : release.filename}</div>
+        <div style={{ color: '#666', fontSize: 12 }}>
+          {isBuiltIn ? 'Built-in — no install needed' : release.filename}
+        </div>
       </div>
     </button>
   )
