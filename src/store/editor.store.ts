@@ -302,6 +302,7 @@ export interface EditorActions {
   toggleSnapToLayers: () => void
   toggleSnapToArtboard: () => void
   toggleSnapToPixel: () => void
+  setSnapThreshold: (px: number) => void
 
   // Export modal
   openExportModal: () => void
@@ -1730,6 +1731,9 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     },
     toggleSnapToPixel() {
       set({ snapToPixel: !get().snapToPixel })
+    },
+    setSnapThreshold(px) {
+      set({ snapThreshold: Math.max(1, Math.min(20, Math.round(px))) })
     },
 
     openExportModal() {

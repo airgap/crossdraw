@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEditorStore } from '@/store/editor.store'
 import { getBrushSettings, setBrushSettings } from '@/tools/brush'
 import { getScatterSettings, setScatterSettings } from '@/tools/scatter-brush'
@@ -1984,6 +1984,257 @@ export function ToolOptionsBar() {
         </>
       ) : (
         <span style={{ color: 'var(--text-disabled)', fontSize: 11 }}>No tool options</span>
+      )}
+      <span style={{ flex: 1 }} />
+      <SnapDropdown />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Snap dropdown — master toggle + granular settings
+// ---------------------------------------------------------------------------
+
+const magnetSvg = (
+  <svg
+    width="14"
+    height="14"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M6 2v6a6 6 0 0 0 12 0V2" />
+    <line x1="6" y1="2" x2="6" y2="6" />
+    <line x1="18" y1="2" x2="18" y2="6" />
+    <line x1="2" y1="2" x2="10" y2="2" />
+    <line x1="14" y1="2" x2="22" y2="2" />
+  </svg>
+)
+
+function SnapDropdown() {
+  const snapEnabled = useEditorStore((s) => s.snapEnabled)
+  const toggleSnap = useEditorStore((s) => s.toggleSnap)
+  const snapToGrid = useEditorStore((s) => s.snapToGrid)
+  const snapToGuides = useEditorStore((s) => s.snapToGuides)
+  const snapToLayers = useEditorStore((s) => s.snapToLayers)
+  const snapToArtboard = useEditorStore((s) => s.snapToArtboard)
+  const snapToPixel = useEditorStore((s) => s.snapToPixel)
+  const snapThreshold = useEditorStore((s) => s.snapThreshold)
+  const toggleSnapToGrid = useEditorStore((s) => s.toggleSnapToGrid)
+  const toggleSnapToGuides = useEditorStore((s) => s.toggleSnapToGuides)
+  const toggleSnapToLayers = useEditorStore((s) => s.toggleSnapToLayers)
+  const toggleSnapToArtboard = useEditorStore((s) => s.toggleSnapToArtboard)
+  const toggleSnapToPixel = useEditorStore((s) => s.toggleSnapToPixel)
+  const setSnapThreshold = useEditorStore((s) => s.setSnapThreshold)
+  const gridSize = useEditorStore((s) => s.gridSize)
+  const setGridSize = useEditorStore((s) => s.setGridSize)
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('mousedown', handler)
+    window.addEventListener('keydown', keyHandler)
+    return () => {
+      window.removeEventListener('mousedown', handler)
+      window.removeEventListener('keydown', keyHandler)
+    }
+  }, [open])
+
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    padding: '5px 12px',
+    cursor: 'pointer',
+    fontSize: 11,
+    color: 'var(--text-primary)',
+    border: 'none',
+    background: 'transparent',
+    width: '100%',
+    textAlign: 'left',
+  }
+
+  const checkStyle: React.CSSProperties = {
+    accentColor: 'var(--accent)',
+    width: 13,
+    height: 13,
+    cursor: 'pointer',
+    flexShrink: 0,
+  }
+
+  return (
+    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen(!open)}
+        title="Snapping settings"
+        className="cd-hoverable"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          background: 'none',
+          border: 'none',
+          borderRadius: 4,
+          padding: '2px 6px',
+          cursor: 'pointer',
+          fontSize: 11,
+          color: snapEnabled ? 'var(--accent)' : 'var(--text-disabled)',
+          height: 24,
+        }}
+      >
+        {magnetSvg}
+        <span style={{ fontWeight: 500 }}>Snap</span>
+        <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" style={{ opacity: 0.5 }}>
+          <path d="M1 2.5L4 5.5L7 2.5" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '100%',
+            right: 0,
+            marginTop: 4,
+            background: 'var(--bg-overlay)',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-lg)',
+            padding: '6px 0',
+            minWidth: 220,
+            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+            zIndex: 1000,
+          }}
+        >
+          {/* Master toggle */}
+          <label className="cd-hoverable" style={rowStyle}>
+            <input type="checkbox" checked={snapEnabled} onChange={toggleSnap} style={checkStyle} />
+            <span style={{ fontWeight: 600 }}>Enable Snapping</span>
+          </label>
+          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
+
+          {/* Snap targets */}
+          <div
+            style={{
+              padding: '4px 12px 2px',
+              fontSize: 9,
+              color: 'var(--text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontWeight: 600,
+            }}
+          >
+            Snap To
+          </div>
+          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+            <input
+              type="checkbox"
+              checked={snapToGrid}
+              onChange={toggleSnapToGrid}
+              disabled={!snapEnabled}
+              style={checkStyle}
+            />
+            <span>Grid</span>
+          </label>
+          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+            <input
+              type="checkbox"
+              checked={snapToGuides}
+              onChange={toggleSnapToGuides}
+              disabled={!snapEnabled}
+              style={checkStyle}
+            />
+            <span>Guides</span>
+          </label>
+          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+            <input
+              type="checkbox"
+              checked={snapToLayers}
+              onChange={toggleSnapToLayers}
+              disabled={!snapEnabled}
+              style={checkStyle}
+            />
+            <span>Layer Edges & Centers</span>
+          </label>
+          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+            <input
+              type="checkbox"
+              checked={snapToArtboard}
+              onChange={toggleSnapToArtboard}
+              disabled={!snapEnabled}
+              style={checkStyle}
+            />
+            <span>Artboard Edges</span>
+          </label>
+          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+            <input
+              type="checkbox"
+              checked={snapToPixel}
+              onChange={toggleSnapToPixel}
+              disabled={!snapEnabled}
+              style={checkStyle}
+            />
+            <span>Pixel Grid</span>
+          </label>
+
+          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
+
+          {/* Threshold */}
+          <div
+            style={{
+              padding: '4px 12px 2px',
+              fontSize: 9,
+              color: 'var(--text-secondary)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.5px',
+              fontWeight: 600,
+            }}
+          >
+            Settings
+          </div>
+          <div style={{ ...rowStyle, cursor: 'default' }}>
+            <span style={{ minWidth: 70 }}>Threshold</span>
+            <input
+              type="range"
+              min={1}
+              max={20}
+              value={snapThreshold}
+              onChange={(e) => setSnapThreshold(Number(e.target.value))}
+              disabled={!snapEnabled}
+              style={{ flex: 1, height: 14, cursor: snapEnabled ? 'pointer' : 'default', accentColor: 'var(--accent)' }}
+            />
+            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', minWidth: 22, textAlign: 'right' }}>
+              {snapThreshold}px
+            </span>
+          </div>
+          <div style={{ ...rowStyle, cursor: 'default' }}>
+            <span style={{ minWidth: 70 }}>Grid Size</span>
+            <input
+              type="number"
+              min={1}
+              max={200}
+              value={gridSize}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10)
+                if (!isNaN(v) && v >= 1) setGridSize(v)
+              }}
+              style={{
+                ...smallInputStyle,
+                width: 50,
+                textAlign: 'center',
+              }}
+            />
+            <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>px</span>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -389,6 +389,160 @@ export function toolLabel(id: string): string {
   return toolLabels[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 }
 
+// ---------------------------------------------------------------------------
+// Custom overlay scrollbar for the tool list
+// ---------------------------------------------------------------------------
+
+function ToolScrollArea({ children }: { children: React.ReactNode }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const thumbRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [thumbH, setThumbH] = useState(0)
+  const [thumbTop, setThumbTop] = useState(0)
+  const [visible, setVisible] = useState(false)
+  const [dragging, setDragging] = useState(false)
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const dragStart = useRef({ y: 0, scrollTop: 0 })
+
+  const update = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    const { scrollHeight, clientHeight, scrollTop } = el
+    if (scrollHeight <= clientHeight) {
+      setThumbH(0)
+      return
+    }
+    const ratio = clientHeight / scrollHeight
+    const h = Math.max(16, ratio * clientHeight)
+    const maxTop = clientHeight - h
+    const top = (scrollTop / (scrollHeight - clientHeight)) * maxTop
+    setThumbH(h)
+    setThumbTop(top)
+  }, [])
+
+  const show = useCallback(() => {
+    if (hideTimer.current) clearTimeout(hideTimer.current)
+    setVisible(true)
+    hideTimer.current = setTimeout(() => {
+      if (!dragging) setVisible(false)
+    }, 1200)
+  }, [dragging])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [update])
+
+  const onScroll = useCallback(() => {
+    update()
+    show()
+  }, [update, show])
+
+  const onThumbDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setDragging(true)
+      dragStart.current = { y: e.clientY, scrollTop: scrollRef.current?.scrollTop ?? 0 }
+      const onMove = (ev: MouseEvent) => {
+        const el = scrollRef.current
+        if (!el) return
+        const dy = ev.clientY - dragStart.current.y
+        const { scrollHeight, clientHeight } = el
+        const maxTop = clientHeight - thumbH
+        if (maxTop <= 0) return
+        const scrollRange = scrollHeight - clientHeight
+        el.scrollTop = dragStart.current.scrollTop + (dy / maxTop) * scrollRange
+      }
+      const onUp = () => {
+        setDragging(false)
+        window.removeEventListener('mousemove', onMove)
+        window.removeEventListener('mouseup', onUp)
+      }
+      window.addEventListener('mousemove', onMove)
+      window.addEventListener('mouseup', onUp)
+    },
+    [thumbH],
+  )
+
+  const onTrackClick = useCallback((e: React.MouseEvent) => {
+    const el = scrollRef.current
+    const track = trackRef.current
+    if (!el || !track) return
+    const rect = track.getBoundingClientRect()
+    const clickY = e.clientY - rect.top
+    const { scrollHeight, clientHeight } = el
+    const ratio = clickY / clientHeight
+    el.scrollTop = ratio * (scrollHeight - clientHeight) - clientHeight / 2
+  }, [])
+
+  return (
+    <div
+      style={{ position: 'relative', flex: 1, minHeight: 0, width: '100%' }}
+      onMouseEnter={show}
+      onMouseLeave={() => {
+        if (!dragging) setVisible(false)
+      }}
+    >
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 'var(--space-1)',
+          alignItems: 'center',
+          height: '100%',
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          scrollbarWidth: 'none',
+          width: '100%',
+        }}
+      >
+        {children}
+      </div>
+      {/* Custom scrollbar track + thumb */}
+      {thumbH > 0 && (
+        <div
+          ref={trackRef}
+          onClick={onTrackClick}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: 4,
+            opacity: visible || dragging ? 1 : 0,
+            transition: 'opacity 0.2s',
+            cursor: 'pointer',
+          }}
+        >
+          <div
+            ref={thumbRef}
+            onMouseDown={onThumbDown}
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: thumbTop,
+              width: 4,
+              height: thumbH,
+              borderRadius: 2,
+              background: 'var(--text-secondary)',
+              opacity: dragging ? 0.6 : 0.35,
+              transition: dragging ? 'none' : 'opacity 0.15s',
+              cursor: 'grab',
+            }}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {}) {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setActiveTool = useEditorStore((s) => s.setActiveTool)
@@ -460,24 +614,11 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           borderRight: '1px solid var(--border-subtle)',
           width: 40,
           alignItems: 'center',
-          overflow: 'hidden',
+          minHeight: 0,
         }}
       >
-        {/* Scrollable tool list */}
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-1)',
-            alignItems: 'center',
-            flex: 1,
-            minHeight: 0,
-            overflowY: 'auto',
-            overflowX: 'hidden',
-            scrollbarWidth: 'none',
-            width: '100%',
-          }}
-        >
+        {/* Scrollable tool list with custom scrollbar */}
+        <ToolScrollArea>
           {tools
             .filter((tool) => {
               if (!modeConfig) return true
@@ -540,7 +681,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                 </button>
               )
             })}
-        </div>
+        </ToolScrollArea>
         {/* Pinned bottom buttons */}
         <div
           style={{
