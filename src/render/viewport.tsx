@@ -298,6 +298,7 @@ export function Viewport() {
   }, [document.id])
 
   const isPanning = useRef(false)
+  const isOrbiting3D = useRef(false)
   const isDragging = useRef(false)
   const lastMouse = useRef({ x: 0, y: 0 })
   const eyedropperHover = useRef<{ x: number; y: number } | null>(null)
@@ -1507,6 +1508,23 @@ export function Viewport() {
       if (useEditorStore.getState().touchMode) return
       const rect = canvas.getBoundingClientRect()
 
+      const { view3d } = useEditorStore.getState().viewport
+
+      // In 3D mode: scroll adjusts layer spacing, ctrl+scroll zooms
+      if (view3d.enabled) {
+        if (e.ctrlKey || e.metaKey) {
+          const delta = -e.deltaY * 0.01
+          const vp = useEditorStore.getState().viewport
+          const newViewport = zoomAtPoint(vp, { x: e.clientX, y: e.clientY }, rect, delta)
+          useEditorStore.getState().setZoom(newViewport.zoom)
+          useEditorStore.getState().setPan(newViewport.panX, newViewport.panY)
+        } else {
+          const newSpacing = Math.max(5, Math.min(200, view3d.spacing - e.deltaY * 0.3))
+          useEditorStore.getState().setView3DSpacing(newSpacing)
+        }
+        return
+      }
+
       if (e.ctrlKey || e.metaKey) {
         const delta = -e.deltaY * 0.01
         const vp = useEditorStore.getState().viewport
@@ -1534,6 +1552,14 @@ export function Viewport() {
     }
 
     if (e.button !== 0) return
+
+    // 3D orbit: in 3D mode, left-drag orbits the view
+    if (viewport.view3d.enabled) {
+      isOrbiting3D.current = true
+      lastMouse.current = { x: e.clientX, y: e.clientY }
+      if (canvasRef.current) canvasRef.current.style.cursor = 'grabbing'
+      return
+    }
 
     // Hand tool or space+drag → start panning
     if (activeTool === 'hand' || spaceHeld.current) {
@@ -2108,6 +2134,17 @@ export function Viewport() {
   }
 
   function handleMouseMove(e: React.MouseEvent) {
+    // 3D orbit drag
+    if (isOrbiting3D.current) {
+      const dx = e.clientX - lastMouse.current.x
+      const dy = e.clientY - lastMouse.current.y
+      const v3d = viewport.view3d
+      useEditorStore.getState().setView3DRotation(Math.max(-90, Math.min(90, v3d.rotX - dy * 0.5)), v3d.rotY + dx * 0.5)
+      lastMouse.current = { x: e.clientX, y: e.clientY }
+      render()
+      return
+    }
+
     if (isPanning.current) {
       const dx = e.clientX - lastMouse.current.x
       const dy = e.clientY - lastMouse.current.y
@@ -2497,6 +2534,12 @@ export function Viewport() {
   }
 
   function handleMouseUp(_e?: React.MouseEvent) {
+    if (isOrbiting3D.current) {
+      isOrbiting3D.current = false
+      if (canvasRef.current) canvasRef.current.style.cursor = viewport.view3d.enabled ? 'grab' : ''
+      return
+    }
+
     if (isPanning.current) {
       isPanning.current = false
       if (canvasRef.current) {
@@ -4111,6 +4154,13 @@ function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selec
   }
   ctx.restore()
 
+  // 3D exploded view mode
+  const { view3d } = useEditorStore.getState().viewport
+  if (view3d.enabled) {
+    renderArtboard3D(ctx, artboard, effectiveLayers, effectiveW, effectiveH, selectedLayerIds, view3d)
+    return
+  }
+
   // Check if any adjustment or filter layers present
   const hasAdjustments = effectiveLayers.some((l) => (l.type === 'adjustment' || l.type === 'filter') && l.visible)
 
@@ -4290,6 +4340,156 @@ function applyFilterLayerToCanvas(
       ctx.putImageData(blended, 0, 0)
     }
   }
+}
+
+// ─── 3D exploded view rendering ──────────────────────────────
+
+/** Project a 3D point through rotation + perspective to 2D. */
+function project3D(
+  px: number,
+  py: number,
+  pz: number,
+  cx: number,
+  cy: number,
+  rxRad: number,
+  ryRad: number,
+  focal: number,
+): { x: number; y: number } {
+  // Translate relative to center
+  let x = px - cx
+  let y = py - cy
+  let z = pz
+
+  // Rotate around Y axis
+  const cosY = Math.cos(ryRad)
+  const sinY = Math.sin(ryRad)
+  const x2 = x * cosY + z * sinY
+  const z2 = -x * sinY + z * cosY
+  x = x2
+  z = z2
+
+  // Rotate around X axis
+  const cosX = Math.cos(rxRad)
+  const sinX = Math.sin(rxRad)
+  const y2 = y * cosX - z * sinX
+  const z3 = y * sinX + z * cosX
+  y = y2
+  z = z3
+
+  // Perspective
+  const scale = focal / (focal + z)
+  return { x: cx + x * scale, y: cy + y * scale }
+}
+
+function renderArtboard3D(
+  ctx: CanvasRenderingContext2D,
+  artboard: Artboard,
+  layers: Layer[],
+  width: number,
+  height: number,
+  selectedLayerIds: string[],
+  view3d: { rotX: number; rotY: number; spacing: number },
+) {
+  const rxRad = (view3d.rotX * Math.PI) / 180
+  const ryRad = (view3d.rotY * Math.PI) / 180
+  const focal = Math.max(width, height) * 2
+  const cx = width / 2
+  const cy = height / 2
+
+  // Flatten layers for z-indexing
+  const flatList: { layer: Layer; index: number }[] = []
+  const addLayers = (ls: Layer[]) => {
+    for (const l of ls) {
+      if (!l.visible) continue
+      if (l.type === 'group') {
+        flatList.push({ layer: l, index: flatList.length })
+        addLayers((l as GroupLayer).children)
+      } else {
+        flatList.push({ layer: l, index: flatList.length })
+      }
+    }
+  }
+  addLayers(layers)
+
+  // Compute projected Z for each layer (for painter's algorithm)
+  const total = flatList.length
+  const layersWithZ = flatList.map(({ layer, index }) => {
+    const z = (total - 1 - index) * view3d.spacing
+    // Project center to get depth for sorting
+    // Compute the projected Z for sorting (deeper layers first)
+    const projZ = z * Math.cos(ryRad) * Math.cos(rxRad)
+    return { layer, z, projZ }
+  })
+
+  // Sort back-to-front (largest projZ first = furthest away)
+  layersWithZ.sort((a, b) => b.projZ - a.projZ)
+
+  ctx.save()
+  ctx.translate(artboard.x, artboard.y)
+
+  for (const { layer, z } of layersWithZ) {
+    const isSelected = selectedLayerIds.includes(layer.id)
+    const isGroup = layer.type === 'group'
+
+    // Project 3 corners to derive affine transform
+    const o = project3D(0, 0, z, cx, cy, rxRad, ryRad, focal)
+    const ex = project3D(width, 0, z, cx, cy, rxRad, ryRad, focal)
+    const ey = project3D(0, height, z, cx, cy, rxRad, ryRad, focal)
+
+    // Affine transform coefficients: maps (0..width, 0..height) → projected quad
+    const a = (ex.x - o.x) / width
+    const b = (ex.y - o.y) / width
+    const c = (ey.x - o.x) / height
+    const d = (ey.y - o.y) / height
+
+    ctx.save()
+    ctx.transform(a, b, c, d, o.x, o.y)
+
+    if (isGroup) {
+      // Groups: render as thin outline frame
+      ctx.strokeStyle = 'rgba(255,255,255,0.15)'
+      ctx.lineWidth = 1
+      ctx.setLineDash([4, 4])
+      ctx.strokeRect(0, 0, width, height)
+      ctx.setLineDash([])
+      // Label
+      ctx.fillStyle = 'rgba(255,255,255,0.4)'
+      ctx.font = '10px sans-serif'
+      ctx.fillText(layer.name, 4, 14)
+    } else {
+      // Render layer content to an offscreen canvas
+      const off = new OffscreenCanvas(width, height)
+      const offCtx = off.getContext('2d')!
+      renderLayerContent(offCtx, layer)
+
+      // Draw semi-transparent background plane so layers are visible
+      ctx.globalAlpha = 0.03
+      ctx.fillStyle = '#fff'
+      ctx.fillRect(0, 0, width, height)
+
+      // Draw the actual layer content
+      ctx.globalAlpha = layer.opacity
+      ctx.drawImage(off, 0, 0)
+    }
+
+    // Selection highlight
+    if (isSelected) {
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = 'var(--accent, #4a7dff)'
+      ctx.lineWidth = 2
+      ctx.strokeRect(0, 0, width, height)
+    }
+
+    // Thin edge wireframe
+    ctx.globalAlpha = 0.15
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 0.5
+    ctx.strokeRect(0, 0, width, height)
+
+    ctx.restore()
+  }
+
+  ctx.restore()
 }
 
 function renderArtboardDirect(

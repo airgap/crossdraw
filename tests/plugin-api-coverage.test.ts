@@ -23,7 +23,13 @@ function createMockFullAPI(): PluginAPI {
       deselectAll: () => {},
     },
     viewport: {
-      getViewport: () => ({ zoom: 1, panX: 0, panY: 0, artboardId: null }),
+      getViewport: () => ({
+        zoom: 1,
+        panX: 0,
+        panY: 0,
+        artboardId: null,
+        view3d: { enabled: false, rotX: -25, rotY: 35, spacing: 40 },
+      }),
       setZoom: () => {},
       setPan: () => {},
       zoomToFit: () => {},

@@ -1432,11 +1432,19 @@ export interface AnimationTimeline {
   currentFrame: number // index
 }
 
+export interface View3DState {
+  enabled: boolean
+  rotX: number // degrees
+  rotY: number // degrees
+  spacing: number // px between layers in Z
+}
+
 export interface ViewportState {
   zoom: number // 0.1 to 10.0
   panX: number
   panY: number
   artboardId: string | null
+  view3d: View3DState
 }
 
 export interface SelectionState {

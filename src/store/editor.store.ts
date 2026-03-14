@@ -262,6 +262,9 @@ export interface EditorActions {
   // Viewport
   setZoom: (zoom: number) => void
   setPan: (x: number, y: number) => void
+  toggleView3D: () => void
+  setView3DRotation: (rotX: number, rotY: number) => void
+  setView3DSpacing: (spacing: number) => void
   zoomToFit: (viewportWidth: number, viewportHeight: number) => void
   setActiveTool: (tool: EditorState['activeTool']) => void
   toggleRulers: () => void
@@ -722,7 +725,13 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     document: createDefaultDocument(),
     history: [],
     historyIndex: -1,
-    viewport: { zoom: 1, panX: 0, panY: 0, artboardId: null },
+    viewport: {
+      zoom: 1,
+      panX: 0,
+      panY: 0,
+      artboardId: null,
+      view3d: { enabled: false, rotX: -25, rotY: 35, spacing: 40 },
+    },
     selection: { layerIds: [] },
     activeTool: 'select',
     selectedCommentId: null,
@@ -1426,6 +1435,21 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     setPan(x, y) {
       set({ viewport: { ...get().viewport, panX: x, panY: y } })
+    },
+
+    toggleView3D() {
+      const vp = get().viewport
+      set({ viewport: { ...vp, view3d: { ...vp.view3d, enabled: !vp.view3d.enabled } } })
+    },
+
+    setView3DRotation(rotX: number, rotY: number) {
+      const vp = get().viewport
+      set({ viewport: { ...vp, view3d: { ...vp.view3d, rotX, rotY } } })
+    },
+
+    setView3DSpacing(spacing: number) {
+      const vp = get().viewport
+      set({ viewport: { ...vp, view3d: { ...vp.view3d, spacing } } })
     },
 
     zoomToFit(viewportWidth, viewportHeight) {

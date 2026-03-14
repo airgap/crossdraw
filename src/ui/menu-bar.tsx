@@ -59,6 +59,7 @@ interface MenuItem {
   shortcut?: string
   action?: () => void
   disabled?: boolean | (() => boolean)
+  checked?: boolean | (() => boolean)
   divider?: boolean
   submenu?: MenuItem[]
 }
@@ -807,6 +808,12 @@ function buildMenus(): MenuDef[] {
         label: 'Pixel Preview',
         shortcut: 'Ctrl+Alt+Y',
         action: () => store().togglePixelPreview(),
+      },
+      {
+        label: '3D Layer View',
+        shortcut: 'Ctrl+Alt+3',
+        action: () => store().toggleView3D(),
+        checked: () => store().viewport.view3d.enabled,
       },
       { label: '', divider: true },
       {
@@ -2405,7 +2412,10 @@ function MenuItemRow({ item, disabled, onClick }: { item: MenuItem; disabled: bo
         position: hasSubmenu ? 'relative' : undefined,
       }}
     >
-      <span>{item.label}</span>
+      <span>
+        {item.checked != null && (typeof item.checked === 'function' ? item.checked() : item.checked) ? '\u2713 ' : ''}
+        {item.label}
+      </span>
       {item.shortcut && (
         <span
           style={{

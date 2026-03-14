@@ -10,6 +10,7 @@ function makeViewport(overrides: Partial<ViewportState> = {}): ViewportState {
     panX: 0,
     panY: 0,
     artboardId: null,
+    view3d: { enabled: false, rotX: -25, rotY: 35, spacing: 40 },
     ...overrides,
   }
 }

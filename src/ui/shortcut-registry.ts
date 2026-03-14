@@ -564,6 +564,14 @@ function buildDefaultBindings(): ShortcutBinding[] {
       key: 'ctrl+alt+y',
       action: () => store().togglePixelPreview(),
     },
+    {
+      id: 'view.3dLayerView',
+      label: '3D Layer View',
+      category: 'view',
+      defaultKey: 'ctrl+alt+3',
+      key: 'ctrl+alt+3',
+      action: () => store().toggleView3D(),
+    },
 
     // Find & Replace
     {

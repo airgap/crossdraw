@@ -1,25 +1,180 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useCallback, useEffect } from 'react'
 import { useEditorStore } from '@/store/editor.store'
-import type { Layer, VectorLayer, RasterLayer } from '@/types'
+import type { Layer, VectorLayer, RasterLayer, TextLayer, GroupLayer } from '@/types'
+import { segmentsToPath2D } from '@/math/path'
+import { getRasterCanvas } from '@/store/raster-data'
+
+// ── Layer rendering ─────────────────────────────────────────
+
+const MAX_RENDER_DIM = 400
+
+function applyLayerTransform(
+  ctx: CanvasRenderingContext2D,
+  t: {
+    x: number
+    y: number
+    scaleX: number
+    scaleY: number
+    rotation: number
+    anchorX?: number
+    anchorY?: number
+    skewX?: number
+    skewY?: number
+  },
+  bounds?: { width: number; height: number },
+) {
+  ctx.translate(t.x, t.y)
+  const ax = t.anchorX ?? 0.5
+  const ay = t.anchorY ?? 0.5
+  const hasCustomAnchor = bounds && (Math.abs(ax - 0.5) > 0.001 || Math.abs(ay - 0.5) > 0.001)
+  if (hasCustomAnchor) {
+    const ox = ax * bounds.width
+    const oy = ay * bounds.height
+    ctx.translate(ox, oy)
+    ctx.scale(t.scaleX, t.scaleY)
+    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+    if (t.skewX || t.skewY) {
+      ctx.transform(1, Math.tan(((t.skewY ?? 0) * Math.PI) / 180), Math.tan(((t.skewX ?? 0) * Math.PI) / 180), 1, 0, 0)
+    }
+    ctx.translate(-ox, -oy)
+  } else {
+    ctx.scale(t.scaleX, t.scaleY)
+    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+    if (t.skewX || t.skewY) {
+      ctx.transform(1, Math.tan(((t.skewY ?? 0) * Math.PI) / 180), Math.tan(((t.skewX ?? 0) * Math.PI) / 180), 1, 0, 0)
+    }
+  }
+}
+
+/** Render a single layer's visual content to a canvas context (in artboard space). */
+function renderLayerPreview(ctx: CanvasRenderingContext2D, layer: Layer) {
+  if (!layer.visible) return
+  ctx.save()
+  ctx.globalAlpha = layer.opacity
+
+  switch (layer.type) {
+    case 'vector': {
+      const vl = layer as VectorLayer
+      let localW = 100,
+        localH = 100
+      for (const p of vl.paths) {
+        for (const seg of p.segments) {
+          if ('x' in seg) {
+            if (seg.x > localW) localW = seg.x
+            if (seg.y > localH) localH = seg.y
+          }
+        }
+      }
+      applyLayerTransform(ctx, vl.transform, { width: localW, height: localH })
+      for (const path of vl.paths) {
+        const path2d = segmentsToPath2D(path.segments)
+        if (vl.fill) {
+          ctx.globalAlpha = layer.opacity * (vl.fill.opacity ?? 1)
+          if (vl.fill.type === 'solid' && vl.fill.color) {
+            ctx.fillStyle = vl.fill.color
+            ctx.fill(path2d, path.fillRule ?? 'nonzero')
+          } else if (vl.fill.type === 'gradient' && vl.fill.gradient) {
+            const g = vl.fill.gradient
+            // Approximate bbox for gradient
+            let minX = Infinity,
+              minY = Infinity,
+              maxX = -Infinity,
+              maxY = -Infinity
+            for (const seg of path.segments) {
+              if ('x' in seg) {
+                if (seg.x < minX) minX = seg.x
+                if (seg.x > maxX) maxX = seg.x
+                if (seg.y < minY) minY = seg.y
+                if (seg.y > maxY) maxY = seg.y
+              }
+            }
+            if (!isFinite(minX)) break
+            const bw = maxX - minX || 100
+            const bh = maxY - minY || 100
+            let canvasGrad: CanvasGradient | null = null
+            if (g.type === 'linear') {
+              const angle = ((g.angle ?? 0) * Math.PI) / 180
+              const cx = minX + bw / 2
+              const cy = minY + bh / 2
+              const len = Math.max(bw, bh) / 2
+              canvasGrad = ctx.createLinearGradient(
+                cx - Math.cos(angle) * len,
+                cy - Math.sin(angle) * len,
+                cx + Math.cos(angle) * len,
+                cy + Math.sin(angle) * len,
+              )
+            } else if (g.type === 'radial') {
+              const cx = minX + bw / 2
+              const cy = minY + bh / 2
+              canvasGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(bw, bh) / 2)
+            }
+            if (canvasGrad && g.stops) {
+              for (const stop of g.stops) {
+                canvasGrad.addColorStop(stop.offset, stop.color)
+              }
+              ctx.fillStyle = canvasGrad
+              ctx.fill(path2d, path.fillRule ?? 'nonzero')
+            }
+          }
+        }
+        if (vl.stroke) {
+          ctx.strokeStyle = vl.stroke.color
+          ctx.lineWidth = vl.stroke.width
+          ctx.lineCap = vl.stroke.linecap
+          ctx.lineJoin = vl.stroke.linejoin
+          ctx.globalAlpha = layer.opacity * (vl.stroke.opacity ?? 1)
+          if (vl.stroke.dasharray) ctx.setLineDash(vl.stroke.dasharray)
+          ctx.stroke(path2d)
+          ctx.setLineDash([])
+        }
+      }
+      break
+    }
+    case 'raster': {
+      const rl = layer as RasterLayer
+      const rasterCanvas = getRasterCanvas(rl.imageChunkId)
+      if (rasterCanvas) {
+        applyLayerTransform(ctx, rl.transform, { width: rl.width, height: rl.height })
+        ctx.drawImage(rasterCanvas, 0, 0)
+      }
+      break
+    }
+    case 'text': {
+      const tl = layer as TextLayer
+      applyLayerTransform(ctx, tl.transform)
+      const fontStyle = tl.fontStyle === 'italic' ? 'italic ' : ''
+      const fontWeight = tl.fontWeight === 'bold' ? 'bold ' : ''
+      ctx.font = `${fontStyle}${fontWeight}${tl.fontSize}px ${tl.fontFamily}`
+      ctx.fillStyle = tl.color
+      ctx.textBaseline = 'top'
+      const lines = tl.text.split('\n')
+      const lineH = tl.fontSize * (tl.lineHeight ?? 1.4)
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i]!, 0, i * lineH)
+      }
+      break
+    }
+    case 'group': {
+      const gl = layer as GroupLayer
+      applyLayerTransform(ctx, gl.transform)
+      for (const child of gl.children) {
+        renderLayerPreview(ctx, child)
+      }
+      break
+    }
+  }
+
+  ctx.restore()
+}
 
 // ── Helpers ─────────────────────────────────────────────────────
-
-function getLayerColor(layer: Layer, index: number): string {
-  if (layer.type === 'vector') {
-    const vl = layer as VectorLayer
-    if (vl.fill?.type === 'solid' && vl.fill.color) return vl.fill.color
-  }
-  // Fallback: generate a hue from index
-  const hue = (index * 47 + 200) % 360
-  return `hsl(${hue}, 60%, 55%)`
-}
 
 function flattenLayers(layers: Layer[], depth: number = 0): Array<{ layer: Layer; depth: number }> {
   const result: Array<{ layer: Layer; depth: number }> = []
   for (const layer of layers) {
     result.push({ layer, depth })
-    if (layer.type === 'group' && 'children' in layer) {
-      result.push(...flattenLayers((layer as any).children ?? [], depth + 1))
+    if (layer.type === 'group') {
+      result.push(...flattenLayers((layer as GroupLayer).children ?? [], depth + 1))
     }
   }
   return result
@@ -42,12 +197,11 @@ export function Layer3DPanel() {
   const [spacing, setSpacing] = useState(30)
   const dragging = useRef(false)
   const dragStart = useRef({ x: 0, y: 0, rotX: 0, rotY: 0 })
-  const containerRef = useRef<HTMLDivElement>(null)
+  const canvasRefs = useRef(new Map<string, HTMLCanvasElement>())
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      // Only rotate on background drag, not on layer slabs
-      if ((e.target as HTMLElement).dataset.layerId) return
+      if ((e.target as HTMLElement).closest('[data-layer-id]')) return
       dragging.current = true
       dragStart.current = { x: e.clientX, y: e.clientY, rotX, rotY }
       ;(e.target as HTMLElement).setPointerCapture?.(e.pointerId)
@@ -67,11 +221,41 @@ export function Layer3DPanel() {
     dragging.current = false
   }, [])
 
-  // Artboard dimensions for scaling
+  // Artboard dimensions
   const abW = artboard?.width ?? 400
   const abH = artboard?.height ?? 400
-  const maxDim = Math.max(abW, abH, 1)
-  const scale = 180 / maxDim // fit into ~180px viewport area
+  const renderScale = Math.min(1, MAX_RENDER_DIM / Math.max(abW, abH, 1))
+  const cW = Math.ceil(abW * renderScale)
+  const cH = Math.ceil(abH * renderScale)
+  const displayScale = 180 / Math.max(abW, abH, 1)
+
+  // Render layer content to canvases
+  useEffect(() => {
+    for (const { layer } of flatLayers) {
+      if (!layer.visible || layer.type === 'group') continue
+      const canvas = canvasRefs.current.get(layer.id)
+      if (!canvas) continue
+      if (canvas.width !== cW || canvas.height !== cH) {
+        canvas.width = cW
+        canvas.height = cH
+      }
+      const ctx = canvas.getContext('2d')
+      if (!ctx) continue
+      ctx.clearRect(0, 0, cW, cH)
+      ctx.save()
+      ctx.scale(renderScale, renderScale)
+      renderLayerPreview(ctx, layer)
+      ctx.restore()
+    }
+  })
+
+  const setRef = useCallback(
+    (id: string) => (el: HTMLCanvasElement | null) => {
+      if (el) canvasRefs.current.set(id, el)
+      else canvasRefs.current.delete(id)
+    },
+    [],
+  )
 
   return (
     <div
@@ -109,7 +293,6 @@ export function Layer3DPanel() {
 
       {/* 3D Viewport */}
       <div
-        ref={containerRef}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -131,54 +314,15 @@ export function Layer3DPanel() {
             transformStyle: 'preserve-3d',
             transform: `rotateX(${rotX}deg) rotateY(${rotY}deg)`,
             position: 'relative',
-            width: abW * scale,
-            height: abH * scale,
+            width: abW * displayScale,
+            height: abH * displayScale,
           }}
         >
           {flatLayers.map(({ layer, depth }, i) => {
             if (!layer.visible) return null
             const isSelected = selection.layerIds.includes(layer.id)
             const zOffset = (flatLayers.length - 1 - i) * spacing
-            const color = getLayerColor(layer, i)
-
-            // Layer bounds in artboard space
-            const t = (layer as VectorLayer).transform ?? { x: 0, y: 0 }
-            const lx = (t.x ?? 0) * scale
-            const ly = (t.y ?? 0) * scale
-
-            // Estimate layer size from paths or use artboard fraction
-            let lw = abW * scale * 0.6
-            let lh = abH * scale * 0.15
-            if (layer.type === 'vector') {
-              const vl = layer as VectorLayer
-              if (vl.paths.length > 0) {
-                let minX = Infinity,
-                  minY = Infinity,
-                  maxX = -Infinity,
-                  maxY = -Infinity
-                for (const p of vl.paths) {
-                  for (const seg of p.segments) {
-                    if ('x' in seg && 'y' in seg) {
-                      if (seg.x < minX) minX = seg.x
-                      if (seg.y < minY) minY = seg.y
-                      if (seg.x > maxX) maxX = seg.x
-                      if (seg.y > maxY) maxY = seg.y
-                    }
-                  }
-                }
-                if (isFinite(minX)) {
-                  lw = Math.max(4, (maxX - minX) * scale * (vl.transform.scaleX ?? 1))
-                  lh = Math.max(4, (maxY - minY) * scale * (vl.transform.scaleY ?? 1))
-                }
-              }
-            }
-            if (layer.type === 'raster') {
-              const rl = layer as RasterLayer
-              lw = (rl.width ?? 100) * scale
-              lh = (rl.height ?? 100) * scale
-            }
-
-            const opacity = layer.opacity ?? 1
+            const isGroup = layer.type === 'group'
 
             return (
               <div
@@ -191,39 +335,51 @@ export function Layer3DPanel() {
                 title={layer.name}
                 style={{
                   position: 'absolute',
-                  left: lx,
-                  top: ly,
-                  width: lw,
-                  height: lh,
+                  left: 0,
+                  top: 0,
+                  width: abW * displayScale,
+                  height: abH * displayScale,
                   transform: `translateZ(${zOffset}px)`,
-                  background: color,
-                  opacity: opacity * 0.85,
-                  border: isSelected ? '2px solid var(--accent)' : '1px solid rgba(255,255,255,0.2)',
+                  border: isSelected
+                    ? '2px solid var(--accent)'
+                    : isGroup
+                      ? '1px dashed rgba(255,255,255,0.15)'
+                      : '1px solid rgba(255,255,255,0.08)',
                   borderRadius: 2,
-                  boxShadow: isSelected ? '0 0 12px var(--accent)' : '0 1px 4px rgba(0,0,0,0.3)',
+                  boxShadow: isSelected ? '0 0 12px var(--accent)' : 'none',
                   cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  padding: 2,
                   boxSizing: 'border-box',
                   transition: 'border 0.15s, box-shadow 0.15s',
-                  marginLeft: depth * 4,
+                  overflow: 'hidden',
+                  marginLeft: depth * 2,
                 }}
               >
-                <span
-                  style={{
-                    fontSize: 8,
-                    color: '#fff',
-                    textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                    maxWidth: '100%',
-                    lineHeight: '10px',
-                  }}
-                >
-                  {layer.name}
-                </span>
+                {isGroup ? (
+                  <span
+                    style={{
+                      position: 'absolute',
+                      bottom: 2,
+                      left: 4,
+                      fontSize: 8,
+                      color: 'var(--text-disabled)',
+                      textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                      lineHeight: '10px',
+                    }}
+                  >
+                    {layer.name}
+                  </span>
+                ) : (
+                  <canvas
+                    ref={setRef(layer.id)}
+                    width={cW}
+                    height={cH}
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      display: 'block',
+                    }}
+                  />
+                )}
               </div>
             )
           })}
