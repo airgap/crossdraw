@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { getThemePreference, setTheme, getAllThemes, type ThemePreference } from '@/ui/theme'
+import { getToolbarOrder, saveToolbarOrder, resetToolbarOrder, toolLabel } from '@/ui/toolbar'
 
 interface Props {
   onClose: () => void
@@ -169,6 +170,22 @@ export function UISettings({ onClose }: Props) {
               <span>Pan up / down</span>
             </div>
           </div>
+
+          {/* Toolbar order section */}
+          <div
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 'var(--font-weight-semibold)',
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary)',
+              marginTop: 'var(--space-4)',
+              marginBottom: 8,
+              letterSpacing: '0.5px',
+            }}
+          >
+            Toolbar Order
+          </div>
+          <ToolbarOrderEditor />
         </div>
       </div>
     </div>
@@ -244,5 +261,161 @@ function ThemeOption({
         {label}
       </span>
     </button>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Toolbar order editor — drag to reorder
+// ---------------------------------------------------------------------------
+
+function itemLabel(token: string): string {
+  if (token === 'separator') return '── separator ──'
+  if (token === 'shapes') return 'Shapes'
+  return toolLabel(token)
+}
+
+function ToolbarOrderEditor() {
+  const [order, setOrder] = useState(getToolbarOrder)
+  const dragIdx = useRef<number | null>(null)
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null)
+
+  const commit = useCallback((newOrder: string[]) => {
+    setOrder(newOrder)
+    saveToolbarOrder(newOrder)
+  }, [])
+
+  const handleReset = useCallback(() => {
+    resetToolbarOrder()
+    setOrder(getToolbarOrder())
+  }, [])
+
+  const moveItem = useCallback(
+    (from: number, to: number) => {
+      if (from === to) return
+      const next = [...order]
+      const [item] = next.splice(from, 1)
+      next.splice(to, 0, item!)
+      commit(next)
+    },
+    [order, commit],
+  )
+
+  const handleDragStart = useCallback((idx: number) => {
+    dragIdx.current = idx
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent, idx: number) => {
+    e.preventDefault()
+    setDragOverIdx(idx)
+  }, [])
+
+  const handleDrop = useCallback(
+    (idx: number) => {
+      if (dragIdx.current !== null && dragIdx.current !== idx) {
+        moveItem(dragIdx.current, idx)
+      }
+      dragIdx.current = null
+      setDragOverIdx(null)
+    },
+    [moveItem],
+  )
+
+  const handleDragEnd = useCallback(() => {
+    dragIdx.current = null
+    setDragOverIdx(null)
+  }, [])
+
+  return (
+    <div>
+      <div
+        style={{
+          maxHeight: 260,
+          overflowY: 'auto',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-md)',
+          background: 'var(--bg-input)',
+        }}
+      >
+        {order.map((token, idx) => {
+          const isSep = token === 'separator'
+          return (
+            <div
+              key={`${token}-${idx}`}
+              draggable
+              onDragStart={() => handleDragStart(idx)}
+              onDragOver={(e) => handleDragOver(e, idx)}
+              onDrop={() => handleDrop(idx)}
+              onDragEnd={handleDragEnd}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '5px 8px',
+                fontSize: 11,
+                color: isSep ? 'var(--text-disabled)' : 'var(--text-primary)',
+                borderBottom: '1px solid var(--border-subtle)',
+                background: dragOverIdx === idx ? 'var(--bg-hover)' : 'transparent',
+                cursor: 'grab',
+                userSelect: 'none',
+              }}
+            >
+              {/* Drag handle */}
+              <span style={{ color: 'var(--text-disabled)', fontSize: 10, lineHeight: 1, flexShrink: 0 }}>{'⠿'}</span>
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {itemLabel(token)}
+              </span>
+              {/* Move up/down buttons */}
+              <button
+                onClick={() => idx > 0 && moveItem(idx, idx - 1)}
+                disabled={idx === 0}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: idx === 0 ? 'var(--text-disabled)' : 'var(--text-secondary)',
+                  cursor: idx === 0 ? 'default' : 'pointer',
+                  fontSize: 10,
+                  padding: '0 2px',
+                  lineHeight: 1,
+                }}
+                title="Move up"
+              >
+                {'\u25B2'}
+              </button>
+              <button
+                onClick={() => idx < order.length - 1 && moveItem(idx, idx + 1)}
+                disabled={idx === order.length - 1}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: idx === order.length - 1 ? 'var(--text-disabled)' : 'var(--text-secondary)',
+                  cursor: idx === order.length - 1 ? 'default' : 'pointer',
+                  fontSize: 10,
+                  padding: '0 2px',
+                  lineHeight: 1,
+                }}
+                title="Move down"
+              >
+                {'\u25BC'}
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      <button
+        onClick={handleReset}
+        style={{
+          marginTop: 8,
+          padding: '4px 10px',
+          fontSize: 11,
+          background: 'var(--bg-input)',
+          border: '1px solid var(--border-default)',
+          borderRadius: 'var(--radius-sm)',
+          color: 'var(--text-primary)',
+          cursor: 'pointer',
+        }}
+      >
+        Reset to Default
+      </button>
+    </div>
   )
 }

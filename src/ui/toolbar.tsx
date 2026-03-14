@@ -64,6 +64,48 @@ function BrushIcon({ size = 24, strokeWidth = 1.75 }: { size?: number; strokeWid
 type ToolIcon = LucideIcon | ((props: { size?: number; strokeWidth?: number }) => JSX.Element)
 type ToolEntry = { id: EditorState['activeTool']; icon: ToolIcon; key: string }
 
+// ---------------------------------------------------------------------------
+// Toolbar order persistence
+// ---------------------------------------------------------------------------
+
+const STORAGE_KEY = 'crossdraw:toolbar-order'
+
+/** Serialisable token: tool id, 'separator', or 'shapes' */
+type ToolToken = string
+
+function defaultOrder(): ToolToken[] {
+  return DEFAULT_TOOLS.map((t) => (typeof t === 'string' ? t : t.id))
+}
+
+function loadOrder(): ToolToken[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) return defaultOrder()
+    const parsed = JSON.parse(raw) as ToolToken[]
+    if (!Array.isArray(parsed) || parsed.length === 0) return defaultOrder()
+    return parsed
+  } catch {
+    return defaultOrder()
+  }
+}
+
+export function saveToolbarOrder(order: ToolToken[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(order))
+  window.dispatchEvent(new Event('crossdraw:toolbar-changed'))
+}
+
+export function resetToolbarOrder() {
+  localStorage.removeItem(STORAGE_KEY)
+  window.dispatchEvent(new Event('crossdraw:toolbar-changed'))
+}
+
+export function getToolbarOrder(): ToolToken[] {
+  return loadOrder()
+}
+
+/** All known tool entries by id for lookup */
+const toolEntryMap = new Map<string, ToolEntry>()
+
 const shapeTools: ToolEntry[] = [
   { id: 'rectangle', icon: Square, key: 'r' },
   { id: 'ellipse', icon: Circle, key: 'e' },
@@ -73,7 +115,7 @@ const shapeTools: ToolEntry[] = [
 
 const shapeToolIds = new Set(shapeTools.map((t) => t.id))
 
-const tools: (ToolEntry | 'shapes' | 'separator')[] = [
+const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'separator')[] = [
   // ── Selection & navigation ──
   { id: 'select', icon: MousePointer2, key: 'v' },
   { id: 'node', icon: Spline, key: 'a' },
@@ -110,6 +152,47 @@ const tools: (ToolEntry | 'shapes' | 'separator')[] = [
   { id: 'slice', icon: ScissorsLineDashed, key: 'w' },
   { id: 'comment', icon: MessageCircle, key: 'c' },
 ]
+
+// Populate tool entry map
+for (const t of DEFAULT_TOOLS) {
+  if (typeof t !== 'string') toolEntryMap.set(t.id, t)
+}
+for (const t of shapeTools) {
+  toolEntryMap.set(t.id, t)
+}
+
+/** Build ordered tool list from persisted order, falling back to defaults. */
+function getOrderedTools(): (ToolEntry | 'shapes' | 'separator')[] {
+  const order = loadOrder()
+  const result: (ToolEntry | 'shapes' | 'separator')[] = []
+  const seen = new Set<string>()
+  for (const token of order) {
+    if (token === 'separator') {
+      result.push('separator')
+    } else if (token === 'shapes') {
+      if (!seen.has('shapes')) {
+        result.push('shapes')
+        seen.add('shapes')
+      }
+    } else {
+      const entry = toolEntryMap.get(token)
+      if (entry && !seen.has(token)) {
+        result.push(entry)
+        seen.add(token)
+      }
+    }
+  }
+  // Append any tools not in the persisted order (e.g. newly added tools)
+  for (const t of DEFAULT_TOOLS) {
+    const id = typeof t === 'string' ? t : t.id
+    if (id === 'separator') continue
+    if (!seen.has(id)) {
+      result.push(t)
+      seen.add(id)
+    }
+  }
+  return result
+}
 
 /** Long-press delay in ms before showing shape picker */
 const LONG_PRESS_MS = 300
@@ -302,7 +385,7 @@ const toolLabels: Record<string, string> = {
   comment: 'Comment',
 }
 
-function toolLabel(id: string): string {
+export function toolLabel(id: string): string {
   return toolLabels[id] ?? id.charAt(0).toUpperCase() + id.slice(1)
 }
 
@@ -313,7 +396,15 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [toolAnnouncement, setToolAnnouncement] = useState('')
+  const [tools, setTools] = useState(getOrderedTools)
   const toolbarRef = useRef<HTMLDivElement>(null)
+
+  // Re-read tool order when it changes
+  useEffect(() => {
+    const handler = () => setTools(getOrderedTools())
+    window.addEventListener('crossdraw:toolbar-changed', handler)
+    return () => window.removeEventListener('crossdraw:toolbar-changed', handler)
+  }, [])
 
   const handleToggleTheme = () => {
     toggleTheme()
