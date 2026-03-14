@@ -2363,10 +2363,28 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     updateCollabPresence(cursorX: number, cursorY: number) {
       const provider = get().collabProvider
       if (!provider) return
+      const state = get()
+      let viewportBounds: { x: number; y: number; width: number; height: number } | undefined
+      try {
+        const canvas = globalThis.document?.querySelector?.('canvas')
+        if (canvas) {
+          const rect = (canvas as HTMLCanvasElement).getBoundingClientRect()
+          const vp = state.viewport
+          viewportBounds = {
+            x: -vp.panX / vp.zoom,
+            y: -vp.panY / vp.zoom,
+            width: rect.width / vp.zoom,
+            height: rect.height / vp.zoom,
+          }
+        }
+      } catch {
+        // DOM not available (test environment)
+      }
       provider.updatePresence({
         cursorX,
         cursorY,
-        selectedLayerIds: get().selection.layerIds,
+        selectedLayerIds: state.selection.layerIds,
+        viewportBounds,
       })
     },
 

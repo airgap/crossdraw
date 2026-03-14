@@ -10,6 +10,13 @@ export interface UserPresence {
   cursorY?: number
   selectedLayerIds: string[]
   lastSeen: number
+  /** Remote user's viewport bounds (document coordinates) */
+  viewportBounds?: {
+    x: number
+    y: number
+    width: number
+    height: number
+  }
 }
 
 // ── Message Protocol ──

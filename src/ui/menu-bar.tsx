@@ -11,6 +11,7 @@ import type { BBox } from '@/math/bbox'
 import { toggleAnimation, isAnimationPlaying } from '@/animation/animator'
 import type { RenameLayerInfo } from '@/ai/prompt-templates'
 
+import { UserProfile } from '@/ui/user-profile'
 import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { isAIEnabled } from '@/ui/panels/panel-registry'
 import type { TextLayer } from '@/types'
@@ -2258,8 +2259,8 @@ export function MenuBar() {
           {openMenu === menu.label && <MenuDropdown items={menu.items} onItemClick={handleItemClick} />}
         </div>
       ))}
-      {/* Right-aligned download link */}
-      <div style={{ marginLeft: 'auto' }}>
+      {/* Right-aligned actions */}
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         <a
           href="#/download"
           style={{
@@ -2271,6 +2272,7 @@ export function MenuBar() {
             color: 'var(--text-secondary)',
             textDecoration: 'none',
             fontSize: 'var(--font-size-base)',
+            borderRadius: 'var(--radius-sm)',
           }}
           onMouseOver={(e) => {
             e.currentTarget.style.background = 'var(--bg-hover)'
@@ -2310,6 +2312,7 @@ export function MenuBar() {
           </svg>
           Get the apps
         </a>
+        <UserProfile />
       </div>
     </div>
   )

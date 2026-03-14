@@ -17,16 +17,28 @@ export interface ShareEntry {
   createdAt: string
   expiresAt: string | null
   hasPassword: boolean
+  permission: 'view' | 'edit'
+  roomId: string | null
 }
 
 export interface CreateShareResult {
   slug: string
   url: string
+  permission: 'view' | 'edit'
+  roomId?: string
 }
 
 export interface CreateShareOptions {
   password?: string
   expiresAt?: string
+  permission?: 'view' | 'edit'
+}
+
+export interface EditShareData {
+  documentData: string
+  name: string
+  roomId: string
+  permission: 'edit'
 }
 
 // ── Request helpers ─────────────────────────────────────────────
@@ -69,9 +81,10 @@ export async function createShare(
   if (options.expiresAt) {
     body['expiresAt'] = options.expiresAt
   }
+  if (options.permission) {
+    body['permission'] = options.permission
+  }
 
-  // Extract document name from the binary header if possible
-  // The document name comes from the store, so we pass it separately
   const url = buildUrl(serverUrl, '/api/shares')
   const res = await fetch(url, {
     method: 'POST',
@@ -114,6 +127,9 @@ export async function createShareWithName(
   }
   if (options.expiresAt) {
     body['expiresAt'] = options.expiresAt
+  }
+  if (options.permission) {
+    body['permission'] = options.permission
   }
 
   const url = buildUrl(serverUrl, '/api/shares')
@@ -168,4 +184,22 @@ export async function listShares(config?: CloudConfig): Promise<ShareEntry[]> {
 export function getShareUrl(slug: string, serverUrl?: string): string {
   const base = serverUrl ?? getCloudConfig().serverUrl
   return buildUrl(base, `/share/${slug}`)
+}
+
+/**
+ * Fetch document data for an edit-permission share.
+ * Returns the base64-encoded document and room ID for multiplayer.
+ */
+export async function fetchEditShareData(slug: string, config?: CloudConfig): Promise<EditShareData> {
+  const { serverUrl, apiKey } = config ?? getCloudConfig()
+  const url = buildUrl(serverUrl, `/api/shares/${slug}/data`)
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: buildHeaders(apiKey),
+  })
+  if (!res.ok) {
+    const err = (await res.json()) as { error?: string }
+    throw new Error(err.error ?? `Failed to fetch share data: ${res.status}`)
+  }
+  return (await res.json()) as EditShareData
 }

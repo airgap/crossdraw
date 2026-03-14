@@ -1,0 +1,88 @@
+{
+  "name": "crossdraw-vscode",
+  "displayName": "Crossdraw",
+  "description": "Edit image assets with Crossdraw — multiplayer vector + raster design editor",
+  "version": "0.1.0",
+  "publisher": "airgap",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/airgap/crossdraw"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "crossdraw.editor",
+        "displayName": "Crossdraw Editor",
+        "selector": [
+          { "filenamePattern": "*.xd" }
+        ],
+        "priority": "default"
+      },
+      {
+        "viewType": "crossdraw.imageEditor",
+        "displayName": "Crossdraw Image Editor",
+        "selector": [
+          { "filenamePattern": "*.png" },
+          { "filenamePattern": "*.jpg" },
+          { "filenamePattern": "*.jpeg" },
+          { "filenamePattern": "*.gif" },
+          { "filenamePattern": "*.webp" },
+          { "filenamePattern": "*.svg" },
+          { "filenamePattern": "*.psd" }
+        ],
+        "priority": "option"
+      }
+    ],
+    "configuration": {
+      "title": "Crossdraw",
+      "properties": {
+        "crossdraw.serverUrl": {
+          "type": "string",
+          "default": "",
+          "description": "Crossdraw server URL for multiplayer (e.g. https://crossdraw.internal:3000)"
+        },
+        "crossdraw.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for authenticating with the Crossdraw server"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "crossdraw.openInEditor",
+        "title": "Open in Crossdraw",
+        "category": "Crossdraw"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "crossdraw.openInEditor",
+          "when": "resourceExtname =~ /^\\.(xd|png|jpg|jpeg|gif|webp|svg|psd)$/i",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "bun build src/extension.ts --outdir dist --target node --external vscode",
+    "watch": "bun build src/extension.ts --outdir dist --target node --external vscode --watch",
+    "package": "bunx @vscode/vsce package --no-dependencies",
+    "publish": "bunx @vscode/vsce publish --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.0.0"
+  }
+}

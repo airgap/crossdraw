@@ -14,6 +14,7 @@
 import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, unlinkSync } from 'fs'
 import { join, extname, resolve } from 'path'
 import { createHash } from 'crypto'
+import { authenticateRequest } from './auth'
 
 // ── CLI args ────────────────────────────────────────────────────
 
@@ -137,11 +138,13 @@ const API_KEY = process.env['CROSSDRAW_API_KEY'] ?? ''
 
 const LIBRARIES_DIR = join(DATA_DIR, 'libraries')
 const LIBRARIES_INDEX_PATH = join(DATA_DIR, 'libraries-index.json')
+const PREFS_DIR = join(DATA_DIR, 'preferences')
 
 // Ensure data directories exist on startup
 mkdirSync(FILES_DIR, { recursive: true })
 mkdirSync(SHARES_DIR, { recursive: true })
 mkdirSync(LIBRARIES_DIR, { recursive: true })
+mkdirSync(PREFS_DIR, { recursive: true })
 
 export function loadIndex(): FileIndex {
   if (!existsSync(INDEX_PATH)) {
@@ -186,6 +189,10 @@ export interface ShareMetadata {
   expiresAt: string | null
   viewCount: number
   createdAt: string
+  /** 'view' (default) or 'edit' — edit shares create a collab room */
+  permission?: 'view' | 'edit'
+  /** Room ID for multiplayer collaboration (set when permission='edit') */
+  roomId?: string
 }
 
 export interface ShareIndex {
@@ -610,6 +617,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
       password?: string
       expiresAt?: string
       name?: string
+      permission?: 'view' | 'edit'
     }
 
     if (!body.documentData) {
@@ -629,6 +637,8 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
 
     const slug = generateSlug()
     const now = new Date().toISOString()
+    const permission = body.permission === 'edit' ? 'edit' : 'view'
+    const roomId = permission === 'edit' ? `share-${slug}` : undefined
 
     const meta: ShareMetadata = {
       slug,
@@ -637,6 +647,8 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
       expiresAt: body.expiresAt ?? null,
       viewCount: 0,
       createdAt: now,
+      permission,
+      roomId,
     }
 
     // Write document data to shares directory
@@ -648,7 +660,7 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
     shareIndex.shares.push(meta)
     saveShareIndex(shareIndex)
 
-    return jsonResponse({ slug, url: `/share/${slug}` }, 201)
+    return jsonResponse({ slug, url: `/share/${slug}`, permission, roomId }, 201)
   }
 
   // GET /api/shares — list all shares
@@ -663,13 +675,43 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
         createdAt: s.createdAt,
         expiresAt: s.expiresAt,
         hasPassword: s.passwordHash !== null,
+        permission: s.permission ?? 'view',
+        roomId: s.roomId ?? null,
       }))
     return jsonResponse(entries)
   }
 
   // Routes with :slug
+  const shareDataMatch = pathname.match(/^\/api\/shares\/([a-z0-9]+)\/data$/)
   const shareViewMatch = pathname.match(/^\/api\/shares\/([a-z0-9]+)\/view$/)
   const shareMatch = pathname.match(/^\/api\/shares\/([a-z0-9]+)$/)
+
+  // GET /api/shares/:slug/data — return raw document data for edit shares
+  if (shareDataMatch && req.method === 'GET') {
+    const slug = shareDataMatch[1]!
+    const shareIndex = loadShareIndex()
+    const share = shareIndex.shares.find((s) => s.slug === slug)
+
+    if (!share) return errorResponse('Share not found', 404)
+    if (isShareExpired(share)) return errorResponse('Share has expired', 410)
+    if ((share.permission ?? 'view') !== 'edit') {
+      return errorResponse('This share does not allow editing', 403)
+    }
+
+    const shareFilePath = join(SHARES_DIR, slug)
+    if (!existsSync(shareFilePath)) return errorResponse('Share data missing', 404)
+    const documentBase64 = readFileSync(shareFilePath, 'utf-8')
+
+    return jsonResponse(
+      {
+        documentData: documentBase64,
+        name: share.name,
+        roomId: share.roomId,
+        permission: share.permission,
+      },
+      200,
+    )
+  }
 
   // GET /api/shares/:slug/view — returns HTML page with embedded prototype player
   if (shareViewMatch && req.method === 'GET') {
@@ -728,6 +770,8 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
         hasPassword: share.passwordHash !== null,
         viewCount: share.viewCount,
         expiresAt: share.expiresAt,
+        permission: share.permission ?? 'view',
+        roomId: share.roomId ?? null,
       })
     }
 
@@ -741,6 +785,40 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
       shareIndex.shares = shareIndex.shares.filter((s) => s.slug !== slug)
       saveShareIndex(shareIndex)
       return new Response(null, { status: 204, headers: corsHeaders(req) })
+    }
+  }
+
+  // ── Preferences (cloud sync) ────────────────────────────────
+
+  if (pathname === '/api/preferences') {
+    const authResult = await authenticateRequest(req)
+    if (!authResult.authenticated || authResult.user.id === '__anonymous__') {
+      return errorResponse('Authentication required', 401)
+    }
+    const userId = authResult.user.id
+    const prefsPath = join(PREFS_DIR, `${userId}.json`)
+
+    if (req.method === 'GET') {
+      if (!existsSync(prefsPath)) return errorResponse('No preferences', 404)
+      try {
+        const raw = readFileSync(prefsPath, 'utf-8')
+        return jsonResponse(JSON.parse(raw))
+      } catch {
+        return errorResponse('Failed to read preferences', 500)
+      }
+    }
+
+    if (req.method === 'PUT') {
+      try {
+        const body = (await req.json()) as { updatedAt?: number; data?: Record<string, string> }
+        if (typeof body.updatedAt !== 'number' || typeof body.data !== 'object' || body.data === null) {
+          return errorResponse('Invalid preferences format', 400)
+        }
+        writeFileSync(prefsPath, JSON.stringify(body, null, 2), 'utf-8')
+        return jsonResponse({ ok: true })
+      } catch {
+        return errorResponse('Failed to save preferences', 500)
+      }
     }
   }
 

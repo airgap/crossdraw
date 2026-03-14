@@ -284,7 +284,10 @@ if (typeof globalThis.window === 'undefined') {
   ;(globalThis as any).window = {
     addEventListener: () => {},
     removeEventListener: () => {},
+    dispatchEvent: () => true,
     devicePixelRatio: 1,
+    location: { origin: 'http://localhost:5173', href: 'http://localhost:5173/' },
+    matchMedia: () => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} }),
     __openCanvasContextMenu: undefined,
   }
 }

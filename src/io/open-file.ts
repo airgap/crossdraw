@@ -4,7 +4,8 @@ import { storeRasterData } from '@/store/raster-data'
 import { importSVG } from '@/io/svg-import'
 import { importPSD } from '@/io/psd-import'
 import { decodeDocument } from '@/io/file-format'
-import type { RasterLayer } from '@/types'
+import { isAnimatedGIF, decodeGIF } from '@/io/gif-decoder'
+import type { RasterLayer, AnimationFrame, AnimationTimeline } from '@/types'
 
 const OPEN_ACCEPT = '.xd,.psd,.png,.jpg,.jpeg,.gif,.webp,.svg'
 
@@ -42,6 +43,13 @@ export async function openFileAsDocument(file: File): Promise<void> {
     await openPSDAsDocument(file)
   } else if (name.endsWith('.svg') || file.type === 'image/svg+xml') {
     await openSVGAsDocument(file)
+  } else if (name.endsWith('.gif') || file.type === 'image/gif') {
+    const buffer = await file.arrayBuffer()
+    if (isAnimatedGIF(buffer)) {
+      await openAnimatedGIFAsDocument(file.name, buffer)
+    } else {
+      await openImageAsDocument(file)
+    }
   } else if (file.type.startsWith('image/')) {
     await openImageAsDocument(file)
   }
@@ -84,6 +92,110 @@ async function openSVGAsDocument(file: File): Promise<void> {
 
   useEditorStore.setState({
     document: doc,
+    history: [],
+    historyIndex: -1,
+    selection: { layerIds: [] },
+    isDirty: false,
+    filePath: null,
+  })
+}
+
+async function openAnimatedGIFAsDocument(fileName: string, buffer: ArrayBuffer): Promise<void> {
+  const gif = decodeGIF(buffer)
+  const title = fileName.replace(/\.[^.]+$/, '') || 'GIF'
+  const artboardId = uuid()
+
+  // Create one raster layer per frame
+  const layers: RasterLayer[] = []
+  const animFrames: AnimationFrame[] = []
+
+  for (let i = 0; i < gif.frames.length; i++) {
+    const frame = gif.frames[i]!
+    const layerId = uuid()
+    const chunkId = uuid()
+    storeRasterData(chunkId, frame.imageData)
+
+    layers.push({
+      id: layerId,
+      name: `Frame ${i + 1}`,
+      type: 'raster',
+      visible: i === 0, // only first frame visible initially
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      effects: [],
+      imageChunkId: chunkId,
+      width: frame.imageData.width,
+      height: frame.imageData.height,
+    })
+
+    // Each animation frame shows only its corresponding layer
+    const layerVisibility: Record<string, boolean> = {}
+    for (let j = 0; j < gif.frames.length; j++) {
+      layerVisibility[layers[j]?.id ?? `pending-${j}`] = false
+    }
+    // Fix: we'll fill in IDs after all layers are created
+    animFrames.push({
+      id: uuid(),
+      name: `Frame ${i + 1}`,
+      duration: frame.delayMs,
+      layerVisibility: {}, // filled below
+    })
+  }
+
+  // Now fill in layerVisibility with actual layer IDs
+  for (let i = 0; i < animFrames.length; i++) {
+    const vis: Record<string, boolean> = {}
+    for (let j = 0; j < layers.length; j++) {
+      vis[layers[j]!.id] = j === i
+    }
+    animFrames[i]!.layerVisibility = vis
+  }
+
+  // Compute average FPS from frame delays
+  const totalMs = gif.frames.reduce((sum, f) => sum + f.delayMs, 0)
+  const avgDelayMs = totalMs / gif.frames.length
+  const fps = Math.round(Math.min(60, Math.max(1, 1000 / avgDelayMs)))
+
+  const timeline: AnimationTimeline = {
+    frames: animFrames,
+    fps,
+    loop: gif.loopCount === 0 || gif.loopCount > 1,
+    currentFrame: 0,
+  }
+
+  useEditorStore.setState({
+    document: {
+      id: uuid(),
+      metadata: {
+        title,
+        author: '',
+        created: new Date().toISOString(),
+        modified: new Date().toISOString(),
+        colorspace: 'srgb',
+        width: gif.width,
+        height: gif.height,
+      },
+      artboards: [
+        {
+          id: artboardId,
+          name: 'Artboard 1',
+          x: 0,
+          y: 0,
+          width: gif.width,
+          height: gif.height,
+          backgroundColor: '#ffffff',
+          layers,
+          animation: timeline,
+        },
+      ],
+      assets: {
+        gradients: [],
+        patterns: [],
+        colors: [],
+      },
+    },
     history: [],
     historyIndex: -1,
     selection: { layerIds: [] },

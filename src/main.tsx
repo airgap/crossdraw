@@ -8,6 +8,9 @@ import { useEditorStore } from '@/store/editor.store'
 // Initialize Electron IPC if running inside Electron
 setupElectronBridge()
 
+// Start cloud preference syncing (auto-activates when logged in)
+import '@/cloud/preference-sync'
+
 // Warn before unloading if document has unsaved changes
 window.addEventListener('beforeunload', (e) => {
   if (useEditorStore.getState().isDirty) {

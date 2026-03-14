@@ -22,6 +22,7 @@ export function ShareDialog({ onClose }: Props) {
   const [copied, setCopied] = useState<string | null>(null)
 
   // Options for new share
+  const [permission, setPermission] = useState<'view' | 'edit'>('view')
   const [usePassword, setUsePassword] = useState(false)
   const [password, setPassword] = useState('')
   const [useExpiry, setUseExpiry] = useState(false)
@@ -52,7 +53,7 @@ export function ShareDialog({ onClose }: Props) {
       const encoded = encodeDocument(doc)
       const name = doc.metadata.title || 'Untitled'
 
-      const options: CreateShareOptions = {}
+      const options: CreateShareOptions = { permission }
       if (usePassword && password) {
         options.password = password
       }
@@ -72,6 +73,7 @@ export function ShareDialog({ onClose }: Props) {
       await refreshShares()
 
       // Reset options
+      setPermission('view')
       setPassword('')
       setUsePassword(false)
       setUseExpiry(false)
@@ -132,6 +134,41 @@ export function ShareDialog({ onClose }: Props) {
         {hasServer && (
           <div style={sectionStyle}>
             <div style={{ marginBottom: 12 }}>
+              {/* Permission toggle */}
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+                <button
+                  onClick={() => setPermission('view')}
+                  style={{
+                    ...permToggleStyle,
+                    ...(permission === 'view' ? permToggleActiveStyle : {}),
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                  View only
+                </button>
+                <button
+                  onClick={() => setPermission('edit')}
+                  style={{
+                    ...permToggleStyle,
+                    ...(permission === 'edit' ? permToggleActiveEditStyle : {}),
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  Can edit
+                </button>
+              </div>
+              {permission === 'edit' && (
+                <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
+                  Recipients can open the file in Crossdraw and edit together in real-time.
+                </div>
+              )}
+
               {/* Password option */}
               <label style={checkboxLabelStyle}>
                 <input
@@ -181,7 +218,7 @@ export function ShareDialog({ onClose }: Props) {
                 opacity: loading || (usePassword && !password) || (useExpiry && !expiryDate) ? 0.5 : 1,
               }}
             >
-              {loading ? 'Generating...' : 'Generate Share Link'}
+              {loading ? 'Generating...' : permission === 'edit' ? 'Generate Edit Link' : 'Generate Share Link'}
             </button>
           </div>
         )}
@@ -195,7 +232,31 @@ export function ShareDialog({ onClose }: Props) {
                 <div key={share.slug} style={shareRowStyle}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 500, color: '#ddd', marginBottom: 2 }}>{share.name}</div>
-                    <div style={{ fontSize: 11, color: '#777' }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: '#777',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 4,
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: 9,
+                          fontWeight: 700,
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          padding: '1px 4px',
+                          borderRadius: 3,
+                          background: share.permission === 'edit' ? 'rgba(34,197,94,0.15)' : 'rgba(100,100,100,0.2)',
+                          color: share.permission === 'edit' ? '#22c55e' : '#999',
+                          border: `1px solid ${share.permission === 'edit' ? 'rgba(34,197,94,0.3)' : 'rgba(100,100,100,0.3)'}`,
+                        }}
+                      >
+                        {share.permission === 'edit' ? 'edit' : 'view'}
+                      </span>
                       {share.viewCount} view{share.viewCount !== 1 ? 's' : ''}
                       {' \u00b7 '}
                       {formatDate(share.createdAt)}
@@ -355,4 +416,33 @@ const iconButtonStyle: React.CSSProperties = {
   cursor: 'pointer',
   display: 'flex',
   alignItems: 'center',
+}
+
+const permToggleStyle: React.CSSProperties = {
+  flex: 1,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 6,
+  padding: '8px 12px',
+  border: '1px solid #333',
+  borderRadius: 6,
+  background: '#111',
+  color: '#888',
+  fontSize: 13,
+  fontWeight: 500,
+  cursor: 'pointer',
+  transition: 'all 0.15s',
+}
+
+const permToggleActiveStyle: React.CSSProperties = {
+  borderColor: '#2563eb',
+  background: 'rgba(37,99,235,0.1)',
+  color: '#60a5fa',
+}
+
+const permToggleActiveEditStyle: React.CSSProperties = {
+  borderColor: '#22c55e',
+  background: 'rgba(34,197,94,0.1)',
+  color: '#4ade80',
 }

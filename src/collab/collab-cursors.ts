@@ -77,6 +77,62 @@ export function renderCollabSelections(
   }
 }
 
+/**
+ * Render viewport rectangles showing what each remote user is looking at.
+ * Draws colored outlines representing each user's visible area on the canvas.
+ */
+export function renderCollabViewports(
+  ctx: CanvasRenderingContext2D,
+  presences: UserPresence[],
+  viewport: CollabViewport,
+): void {
+  for (const presence of presences) {
+    const vb = presence.viewportBounds
+    if (!vb) continue
+
+    // Convert document coordinates to screen coordinates
+    const x = vb.x * viewport.zoom + viewport.panX
+    const y = vb.y * viewport.zoom + viewport.panY
+    const w = vb.width * viewport.zoom
+    const h = vb.height * viewport.zoom
+
+    ctx.save()
+
+    // Semi-transparent fill
+    ctx.globalAlpha = 0.04
+    ctx.fillStyle = presence.color
+    ctx.fillRect(x, y, w, h)
+
+    // Solid border
+    ctx.globalAlpha = 0.5
+    ctx.strokeStyle = presence.color
+    ctx.lineWidth = 1.5
+    ctx.setLineDash([])
+    ctx.strokeRect(x, y, w, h)
+
+    // Name label in the top-left corner of the viewport rect
+    const label = presence.name
+    ctx.font = 'bold 10px system-ui, sans-serif'
+    const metrics = ctx.measureText(label)
+    const labelW = metrics.width + 8
+    const labelH = 16
+    const labelX = x + 1
+    const labelY = y + 1
+
+    ctx.globalAlpha = 0.75
+    ctx.fillStyle = presence.color
+    roundRect(ctx, labelX, labelY, labelW, labelH, 3)
+    ctx.fill()
+
+    ctx.globalAlpha = 1
+    ctx.fillStyle = '#ffffff'
+    ctx.textBaseline = 'middle'
+    ctx.fillText(label, labelX + 4, labelY + labelH / 2)
+
+    ctx.restore()
+  }
+}
+
 // ── Private Helpers ──
 
 /** Draw a cursor arrow at the given screen position. */

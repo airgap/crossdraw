@@ -18,6 +18,7 @@ import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import { warpPaths } from '@/render/envelope-distort'
 import { render3DLayer } from '@/render/extrude-3d'
 import { isCustomBlendMode, compositeImageData } from '@/render/blend-modes'
+import { renderCollabCursors, renderCollabViewports } from '@/collab/collab-cursors'
 import {
   penMouseDown,
   penMouseDrag,
@@ -275,6 +276,7 @@ export function Viewport() {
   const selectedCommentId = useEditorStore((s) => s.selectedCommentId)
   const prototypeMode = useEditorStore((s) => s.prototypeMode)
   const quickMaskActive = useEditorStore((s) => s.quickMaskActive)
+  const collabPresences = useEditorStore((s) => s.collabPresences)
 
   const lastDocId = useRef<string | null>(null)
 
@@ -1165,6 +1167,13 @@ export function Viewport() {
     const toolLabel = quickMaskActive ? 'QUICK MASK' : activeTool.toUpperCase()
     ctx.fillText(toolLabel, rect.width - ctx.measureText(toolLabel).width - 8, rect.height - 8)
 
+    // Collaboration: remote user viewport rectangles and cursors
+    if (collabPresences.length > 0) {
+      const collabVP = { zoom: viewport.zoom, panX: viewport.panX, panY: viewport.panY }
+      renderCollabViewports(ctx, collabPresences, collabVP)
+      renderCollabCursors(ctx, collabPresences, collabVP)
+    }
+
     // Eyedropper loupe
     if (activeTool === 'eyedropper' && eyedropperHover.current && canvasRef.current) {
       renderLoupe(ctx, canvasRef.current, eyedropperHover.current.x, eyedropperHover.current.y)
@@ -1182,6 +1191,7 @@ export function Viewport() {
     selectedCommentId,
     prototypeMode,
     quickMaskActive,
+    collabPresences,
   ])
 
   useEffect(() => {
