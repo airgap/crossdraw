@@ -102,7 +102,19 @@ export function updateLineDrag(docX: number, docY: number, shift: boolean) {
 
 export function endLineDrag() {
   if (!dragState.active) return
-  useEditorStore.getState().setActiveSnapLines(null)
+  const store = useEditorStore.getState()
+  store.setActiveSnapLines(null)
+  // Commit the silent updates to undo history
+  if (dragState.layerId) {
+    const artboard = store.document.artboards.find((a) => a.id === dragState.artboardId)
+    const layer = artboard?.layers.find((l) => l.id === dragState.layerId) as VectorLayer | undefined
+    if (layer) {
+      store.updateLayer(dragState.artboardId, dragState.layerId, {
+        paths: layer.paths,
+        transform: layer.transform,
+      } as Partial<VectorLayer>)
+    }
+  }
   dragState.active = false
   dragState.layerId = null
 }

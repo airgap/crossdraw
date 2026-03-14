@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid'
 import type { Segment, Path, VectorLayer } from '@/types'
 import { useEditorStore, createDefaultVectorLayer } from '@/store/editor.store'
 import { screenToDocument, type Point } from '@/math/viewport'
+import { snapPoint } from '@/tools/snap'
 
 export interface PenState {
   isDrawing: boolean
@@ -62,15 +63,52 @@ function getArtboardId(): string | null {
   return store.document.artboards[0]?.id ?? null
 }
 
-function getDocPoint(e: MouseEvent, canvasRect: DOMRect): Point {
-  const viewport = useEditorStore.getState().viewport
-  const doc = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, canvasRect)
-  // Subtract artboard offset
-  const artboard = useEditorStore.getState().document.artboards.find((a) => a.id === penState.artboardId)
-  if (artboard) {
-    return { x: doc.x - artboard.x, y: doc.y - artboard.y }
+function getDocPoint(e: MouseEvent, canvasRect: DOMRect, snap = false): Point {
+  const store = useEditorStore.getState()
+  const doc = screenToDocument({ x: e.clientX, y: e.clientY }, store.viewport, canvasRect)
+
+  let x = doc.x
+  let y = doc.y
+  let snapLinesH: number[] = []
+  let snapLinesV: number[] = []
+
+  if (snap) {
+    const exclude = penState.layerId ? [penState.layerId] : []
+    const result = snapPoint(x, y, exclude)
+    if (result.x !== null) x = result.x
+    if (result.y !== null) y = result.y
+    snapLinesH = result.snapLinesH
+    snapLinesV = result.snapLinesV
+
+    // Snap to first node for path closure (need 2+ segments to be meaningful)
+    const firstSeg = penState.currentPath[0]
+    if (penState.currentPath.length >= 2 && firstSeg && firstSeg.type === 'move') {
+      const artboard = store.document.artboards.find((a) => a.id === penState.artboardId)
+      const ax = artboard?.x ?? 0
+      const ay = artboard?.y ?? 0
+      // First node in document space
+      const firstDocX = firstSeg.x + ax
+      const firstDocY = firstSeg.y + ay
+      const threshold = store.snapThreshold / store.viewport.zoom
+      const dx = Math.abs(doc.x - firstDocX)
+      const dy = Math.abs(doc.y - firstDocY)
+      if (dx < threshold && dy < threshold) {
+        x = firstDocX
+        y = firstDocY
+        snapLinesH = [firstDocY]
+        snapLinesV = [firstDocX]
+      }
+    }
+
+    store.setActiveSnapLines(snapLinesH.length || snapLinesV.length ? { h: snapLinesH, v: snapLinesV } : null)
   }
-  return doc
+
+  // Subtract artboard offset to get local coordinates
+  const artboard = store.document.artboards.find((a) => a.id === penState.artboardId)
+  if (artboard) {
+    return { x: x - artboard.x, y: y - artboard.y }
+  }
+  return { x, y }
 }
 
 export function penMouseDown(e: MouseEvent, canvasRect: DOMRect) {
@@ -102,18 +140,14 @@ export function penMouseDown(e: MouseEvent, canvasRect: DOMRect) {
     useEditorStore.getState().addLayer(artboardId, layer)
   }
 
-  const point = getDocPoint(e, canvasRect)
+  const point = getDocPoint(e, canvasRect, true)
 
-  // Check if clicking near first point to close
+  // Check if snapped to first point to close
   if (penState.currentPath.length >= 2 && penState.lastPoint) {
     const firstSeg = penState.currentPath[0]
     if (firstSeg && firstSeg.type === 'move') {
-      const dx = point.x - firstSeg.x
-      const dy = point.y - firstSeg.y
-      const dist = Math.sqrt(dx * dx + dy * dy)
-      const viewport = useEditorStore.getState().viewport
-      if (dist < 8 / viewport.zoom) {
-        // Close the path
+      if (point.x === firstSeg.x && point.y === firstSeg.y) {
+        // Snapped exactly to first node — close the path
         finishPath(true)
         return
       }
@@ -150,7 +184,7 @@ export function penMouseDown(e: MouseEvent, canvasRect: DOMRect) {
 export function penMouseDrag(e: MouseEvent, canvasRect: DOMRect) {
   if (!penState.isDrawing || !penState.lastPoint) return
 
-  const point = getDocPoint(e, canvasRect)
+  const point = getDocPoint(e, canvasRect, true)
 
   // Track drag state for live bezier preview
   penState.isDragging = true
@@ -195,7 +229,7 @@ export function penMouseDrag(e: MouseEvent, canvasRect: DOMRect) {
 
 export function penMouseMove(e: MouseEvent, canvasRect: DOMRect) {
   if (!penState.isDrawing) return
-  penState.previewPoint = getDocPoint(e, canvasRect)
+  penState.previewPoint = getDocPoint(e, canvasRect, true)
 }
 
 export function penMouseUp() {
@@ -215,6 +249,7 @@ export function penKeyDown(e: KeyboardEvent) {
       useEditorStore.getState().deleteLayer(penState.artboardId, penState.layerId)
     }
     resetPen()
+    useEditorStore.getState().setActiveSnapLines(null)
   } else if (e.key === 'Enter') {
     finishPath(false)
   }
@@ -227,6 +262,7 @@ function finishPath(close: boolean) {
   commitCurrentPath()
   commitFinalPath(close)
   resetPen()
+  useEditorStore.getState().setActiveSnapLines(null)
 }
 
 function commitCurrentPath() {

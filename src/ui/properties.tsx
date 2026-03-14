@@ -1074,16 +1074,29 @@ function FillSection({
                 Remove
               </button>
             </>
-          ) : (
-            <button
-              style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
-              onClick={() => setFill(artboardId, layer.id, { type: 'solid', color: '#000000', opacity: 1 })}
-            >
-              Add
-            </button>
-          )}
+          ) : null}
         </div>
       </div>
+      {!fill && (
+        <div style={rowStyle}>
+          <div
+            onClick={() => setFill(artboardId, layer.id, { type: 'solid', color: '#000000', opacity: 1 })}
+            title="Add fill"
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 3,
+              border: '1px solid var(--border-default)',
+              cursor: 'pointer',
+              backgroundImage:
+                'linear-gradient(45deg, #ccc 25%, transparent 25%), linear-gradient(-45deg, #ccc 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #ccc 75%), linear-gradient(-45deg, transparent 75%, #ccc 75%)',
+              backgroundSize: '8px 8px',
+              backgroundPosition: '0 0, 0 4px, 4px -4px, -4px 0px',
+            }}
+          />
+          <span style={{ fontSize: 10, color: 'var(--text-disabled)' }}>No fill</span>
+        </div>
+      )}
       {fill && fill.type === 'solid' && (
         <>
           <div style={rowStyle}>

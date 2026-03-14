@@ -255,12 +255,12 @@ function SVSquare({
   }, [hue, saturation, value])
 
   const pick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+    (clientX: number, clientY: number) => {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = Math.max(0, Math.min(SIZE, e.clientX - rect.left))
-      const y = Math.max(0, Math.min(SIZE, e.clientY - rect.top))
+      const x = Math.max(0, Math.min(SIZE, clientX - rect.left))
+      const y = Math.max(0, Math.min(SIZE, clientY - rect.top))
       const s = (x / SIZE) * 100
       const v = (1 - y / SIZE) * 100
       onChange(s, v)
@@ -269,18 +269,18 @@ function SVSquare({
   )
 
   useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
+    const handleMove = (e: PointerEvent) => {
       if (!dragging.current) return
-      pick(e as any)
+      pick(e.clientX, e.clientY)
     }
     const handleUp = () => {
       dragging.current = false
     }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
     return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
     }
   }, [pick])
 
@@ -296,10 +296,11 @@ function SVSquare({
         cursor: 'crosshair',
         display: 'block',
         border: '1px solid var(--border-default)',
+        touchAction: 'none',
       }}
-      onMouseDown={(e) => {
+      onPointerDown={(e) => {
         dragging.current = true
-        pick(e)
+        pick(e.clientX, e.clientY)
       }}
     />
   )
@@ -338,29 +339,29 @@ function HueSlider({ hue, onChange }: { hue: number; onChange: (h: number) => vo
   }, [hue])
 
   const pick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+    (clientX: number) => {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = Math.max(0, Math.min(WIDTH, e.clientX - rect.left))
+      const x = Math.max(0, Math.min(WIDTH, clientX - rect.left))
       onChange((x / WIDTH) * 360)
     },
     [onChange],
   )
 
   useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
+    const handleMove = (e: PointerEvent) => {
       if (!dragging.current) return
-      pick(e as any)
+      pick(e.clientX)
     }
     const handleUp = () => {
       dragging.current = false
     }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
     return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
     }
   }, [pick])
 
@@ -369,10 +370,10 @@ function HueSlider({ hue, onChange }: { hue: number; onChange: (h: number) => vo
       ref={canvasRef}
       width={WIDTH}
       height={HEIGHT}
-      style={{ ...sliderTrackStyle, width: WIDTH, height: HEIGHT }}
-      onMouseDown={(e) => {
+      style={{ ...sliderTrackStyle, width: WIDTH, height: HEIGHT, touchAction: 'none' }}
+      onPointerDown={(e) => {
         dragging.current = true
-        pick(e)
+        pick(e.clientX)
       }}
     />
   )
@@ -434,29 +435,29 @@ function AlphaSlider({
   }, [hue, saturation, value, alpha])
 
   const pick = useCallback(
-    (e: React.MouseEvent<HTMLCanvasElement> | MouseEvent) => {
+    (clientX: number) => {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = Math.max(0, Math.min(WIDTH, e.clientX - rect.left))
+      const x = Math.max(0, Math.min(WIDTH, clientX - rect.left))
       onChange(x / WIDTH)
     },
     [onChange],
   )
 
   useEffect(() => {
-    const handleMove = (e: MouseEvent) => {
+    const handleMove = (e: PointerEvent) => {
       if (!dragging.current) return
-      pick(e as any)
+      pick(e.clientX)
     }
     const handleUp = () => {
       dragging.current = false
     }
-    window.addEventListener('mousemove', handleMove)
-    window.addEventListener('mouseup', handleUp)
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
     return () => {
-      window.removeEventListener('mousemove', handleMove)
-      window.removeEventListener('mouseup', handleUp)
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
     }
   }, [pick])
 
@@ -465,10 +466,10 @@ function AlphaSlider({
       ref={canvasRef}
       width={WIDTH}
       height={HEIGHT}
-      style={{ ...sliderTrackStyle, width: WIDTH, height: HEIGHT }}
-      onMouseDown={(e) => {
+      style={{ ...sliderTrackStyle, width: WIDTH, height: HEIGHT, touchAction: 'none' }}
+      onPointerDown={(e) => {
         dragging.current = true
-        pick(e)
+        pick(e.clientX)
       }}
     />
   )
@@ -615,7 +616,7 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
   }, [])
 
   return (
-    <div style={pickerContainerStyle} onMouseDown={(e) => e.stopPropagation()}>
+    <div style={pickerContainerStyle} onPointerDown={(e) => e.stopPropagation()}>
       {/* SV Square */}
       <SVSquare hue={hsv.h} saturation={hsv.s} value={hsv.v} onChange={handleSVChange} />
 
@@ -798,7 +799,7 @@ export function ColorSwatch({ color, opacity = 1, onChange, size = 24 }: ColorSw
   // Close on click outside
   useEffect(() => {
     if (!open) return
-    const handleClick = (e: MouseEvent) => {
+    const handleClick = (e: PointerEvent) => {
       if (
         containerRef.current &&
         !containerRef.current.contains(e.target as Node) &&
@@ -810,11 +811,11 @@ export function ColorSwatch({ color, opacity = 1, onChange, size = 24 }: ColorSw
     }
     // Delay to avoid catching the opening click
     const timer = setTimeout(() => {
-      window.addEventListener('mousedown', handleClick)
+      window.addEventListener('pointerdown', handleClick)
     }, 0)
     return () => {
       clearTimeout(timer)
-      window.removeEventListener('mousedown', handleClick)
+      window.removeEventListener('pointerdown', handleClick)
     }
   }, [open])
 

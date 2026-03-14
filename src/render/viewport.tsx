@@ -42,6 +42,8 @@ import { openFileAsDocument } from '@/io/open-file'
 import { beginShapeDrag, updateShapeDrag, endShapeDrag, isShapeDragging } from '@/tools/shapes'
 import {
   getNodeState,
+  getNodeCursorPos,
+  setNodeCursorPos,
   nodeMouseDown,
   nodeMouseDrag,
   nodeMouseUp,
@@ -2153,10 +2155,14 @@ export function Viewport() {
       render()
     }
 
-    if (activeTool === 'node' && isDragging.current && getNodeState().dragging) {
-      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      nodeMouseDrag(docPoint.x, docPoint.y, e.shiftKey)
-      return
+    if (activeTool === 'node') {
+      setNodeCursorPos(docPt.x, docPt.y)
+      if (isDragging.current && getNodeState().dragging) {
+        const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+        nodeMouseDrag(docPoint.x, docPoint.y, e.shiftKey)
+        return
+      }
+      render()
     }
 
     // Measure drag
@@ -2509,7 +2515,13 @@ export function Viewport() {
     }
 
     if (activeTool === 'node' && getNodeState().dragging) {
-      nodeMouseUp()
+      if (_e && canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect()
+        const doc = screenToDocument({ x: _e.clientX, y: _e.clientY }, viewport, rect)
+        nodeMouseUp(doc.x, doc.y)
+      } else {
+        nodeMouseUp(0, 0)
+      }
       isDragging.current = false
       return
     }
@@ -4675,6 +4687,15 @@ function renderNodeToolOverlay(
   zoom: number,
 ) {
   const nodeState = getNodeState()
+  const cursorDoc = getNodeCursorPos()
+  const isTouchDevice = useEditorStore.getState().touchMode
+
+  // Proximity constants (in screen pixels)
+  const BASE_ANCHOR = 2.5 // minimum anchor half-size
+  const MAX_ANCHOR = 5.0 // maximum anchor half-size
+  const BASE_HANDLE = 2.0
+  const MAX_HANDLE = 3.5
+  const PROXIMITY_RADIUS = 80 // screen-px radius for full influence
 
   for (const artboard of doc.artboards) {
     const layer = artboard.layers.find((l) => l.id === selectedLayerId)
@@ -4685,9 +4706,30 @@ function renderNodeToolOverlay(
     ctx.scale(layer.transform.scaleX, layer.transform.scaleY)
     if (layer.transform.rotation) ctx.rotate((layer.transform.rotation * Math.PI) / 180)
 
-    const anchorSize = 3.5 / zoom
-    const handleRadius = 2.5 / zoom
     const lineWidth = 1 / zoom
+
+    // Compute local cursor position for proximity testing
+    let localCursorX = 0
+    let localCursorY = 0
+    let hasCursor = false
+    if (cursorDoc && !isTouchDevice) {
+      localCursorX = cursorDoc.x - artboard.x - layer.transform.x
+      localCursorY = cursorDoc.y - artboard.y - layer.transform.y
+      hasCursor = true
+    }
+
+    /** Cubic ease-in-out: 0→0, 0.5→0.5, 1→1 */
+    function easeInOut(t: number): number {
+      return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2
+    }
+
+    /** Compute proximity scale factor (0 = far, 1 = close) for a local-space point */
+    function proximityFactor(lx: number, ly: number): number {
+      if (isTouchDevice || !hasCursor) return 1
+      const screenDist = Math.sqrt((lx - localCursorX) ** 2 + (ly - localCursorY) ** 2) * zoom
+      if (screenDist >= PROXIMITY_RADIUS) return 0
+      return easeInOut(1 - screenDist / PROXIMITY_RADIUS)
+    }
 
     for (const path of layer.paths) {
       // Draw the path outline
@@ -4704,14 +4746,17 @@ function renderNodeToolOverlay(
         const key = `${path.id}:${i}`
         const isSelected = nodeState.selectedNodes.has(key)
 
+        const pf = proximityFactor(seg.x, seg.y)
+        const anchorSize = (BASE_ANCHOR + (MAX_ANCHOR - BASE_ANCHOR) * pf) / zoom
+        const handleRadius = (BASE_HANDLE + (MAX_HANDLE - BASE_HANDLE) * pf) / zoom
+
         // Draw control handles for selected nodes
         if (isSelected) {
           if (seg.type === 'cubic') {
-            // cp1 handle line + circle
+            // cp2 handle line + circle
             ctx.strokeStyle = '#4a7dff88'
             ctx.lineWidth = lineWidth
             ctx.beginPath()
-            // cp1 is the incoming handle — draw from previous point
             ctx.moveTo(seg.x, seg.y)
             ctx.lineTo(seg.cp2x, seg.cp2y)
             ctx.stroke()
@@ -4724,7 +4769,7 @@ function renderNodeToolOverlay(
             ctx.fill()
             ctx.stroke()
 
-            // Also draw cp1
+            // cp1 handle
             let prevX = 0,
               prevY = 0
             for (let j = i - 1; j >= 0; j--) {

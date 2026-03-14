@@ -100,6 +100,15 @@ export function updateGradientDrag(docX: number, docY: number, shift: boolean) {
 
 export function endGradientDrag() {
   if (!dragState.active) return
+  // Commit the silent updates to undo history
+  if (dragState.layerId) {
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards.find((a) => a.id === dragState.artboardId)
+    const layer = artboard?.layers.find((l) => l.id === dragState.layerId) as VectorLayer | undefined
+    if (layer?.fill) {
+      store.updateLayer(dragState.artboardId, dragState.layerId, { fill: layer.fill } as Partial<VectorLayer>)
+    }
+  }
   dragState.active = false
   dragState.layerId = null
 }

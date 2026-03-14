@@ -65,7 +65,7 @@ export function endKnifeCut() {
 
   if (newPaths.length > vectorLayer.paths.length) {
     // Create new layers for the split result
-    store.updateLayerSilent(artboard.id, selectedId, {
+    store.updateLayer(artboard.id, selectedId, {
       paths: [newPaths[0]!],
       shapeParams: undefined,
     } as Partial<VectorLayer>)

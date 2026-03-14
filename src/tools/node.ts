@@ -15,6 +15,8 @@ export interface NodeState {
   dragStart: { x: number; y: number } | null
   /** Whether we're dragging a control handle vs an anchor */
   draggingHandle: { pathId: string; segIndex: number; handle: 'cp1' | 'cp2' | 'cp' } | null
+  /** Whether we're bending a segment edge by dragging */
+  bendingSegment: { pathId: string; segIndex: number } | null
   /** The layer being edited */
   layerId: string | null
   artboardId: string | null
@@ -25,8 +27,20 @@ const state: NodeState = {
   dragging: false,
   dragStart: null,
   draggingHandle: null,
+  bendingSegment: null,
   layerId: null,
   artboardId: null,
+}
+
+/** Cursor position in document space for proximity-based node sizing */
+let nodeCursorDocPos: { x: number; y: number } | null = null
+
+export function setNodeCursorPos(docX: number, docY: number) {
+  nodeCursorDocPos = { x: docX, y: docY }
+}
+
+export function getNodeCursorPos(): { x: number; y: number } | null {
+  return nodeCursorDocPos
 }
 
 export function getNodeState(): NodeState {
@@ -38,6 +52,7 @@ export function clearNodeSelection() {
   state.dragging = false
   state.dragStart = null
   state.draggingHandle = null
+  state.bendingSegment = null
   state.layerId = null
   state.artboardId = null
 }
@@ -80,6 +95,117 @@ function getAnchorPos(seg: Segment): { x: number; y: number } | null {
 /** Distance between two points. */
 function dist(ax: number, ay: number, bx: number, by: number): number {
   return Math.sqrt((ax - bx) ** 2 + (ay - by) ** 2)
+}
+
+/**
+ * Given a raw drag delta, constrain it to the nearest guide direction.
+ * Guide directions include global H/V axes plus the tangent and normal
+ * of each neighbor connected to the selected node(s).
+ */
+function constrainToGuides(
+  dx: number,
+  dy: number,
+  layer: VectorLayer,
+  selectedNodes: Set<string>,
+): { dx: number; dy: number } {
+  const len = Math.sqrt(dx * dx + dy * dy)
+  if (len < 0.001) return { dx: 0, dy: 0 }
+
+  // Collect unit direction vectors for all constraint axes
+  const dirs: Array<{ nx: number; ny: number }> = [
+    { nx: 1, ny: 0 }, // global horizontal
+    { nx: 0, ny: 1 }, // global vertical
+  ]
+
+  // For each selected node, find tangent directions from connected neighbors
+  for (const key of selectedNodes) {
+    const { pathId, segIndex } = parseNodeKey(key)
+    const path = layer.paths.find((p) => p.id === pathId)
+    if (!path) continue
+    const seg = path.segments[segIndex]
+    if (!seg || seg.type === 'close') continue
+
+    const anchor = { x: seg.x, y: seg.y }
+
+    // Previous neighbor: the segment before this one defines a direction into this node
+    if (segIndex > 0) {
+      const prev = path.segments[segIndex - 1]!
+      if (prev.type !== 'close') {
+        // Direction from prev anchor to this anchor
+        const tdx = anchor.x - prev.x
+        const tdy = anchor.y - prev.y
+        const tl = Math.sqrt(tdx * tdx + tdy * tdy)
+        if (tl > 0.001) {
+          const nx = tdx / tl
+          const ny = tdy / tl
+          dirs.push({ nx, ny }) // tangent
+          dirs.push({ nx: -ny, ny: nx }) // normal
+        }
+      }
+    }
+
+    // Next neighbor: the segment after this one defines a direction out of this node
+    if (segIndex + 1 < path.segments.length) {
+      const next = path.segments[segIndex + 1]!
+      if (next.type !== 'close' && next.type !== 'move') {
+        const tdx = next.x - anchor.x
+        const tdy = next.y - anchor.y
+        const tl = Math.sqrt(tdx * tdx + tdy * tdy)
+        if (tl > 0.001) {
+          const nx = tdx / tl
+          const ny = tdy / tl
+          dirs.push({ nx, ny }) // tangent
+          dirs.push({ nx: -ny, ny: nx }) // normal
+        }
+      }
+    }
+
+    // If this segment has control handles, use those for tangent direction
+    if (seg.type === 'cubic') {
+      // Outgoing handle direction (cp2 → anchor, mirrored = anchor → opposite of cp2)
+      const hx = seg.cp2x - anchor.x
+      const hy = seg.cp2y - anchor.y
+      const hl = Math.sqrt(hx * hx + hy * hy)
+      if (hl > 0.001) {
+        const nx = hx / hl
+        const ny = hy / hl
+        dirs.push({ nx, ny })
+        dirs.push({ nx: -ny, ny: nx })
+      }
+    }
+    // Next segment's cp1 is the outgoing handle from this node
+    if (segIndex + 1 < path.segments.length) {
+      const next = path.segments[segIndex + 1]!
+      if (next.type === 'cubic') {
+        const hx = next.cp1x - anchor.x
+        const hy = next.cp1y - anchor.y
+        const hl = Math.sqrt(hx * hx + hy * hy)
+        if (hl > 0.001) {
+          const nx = hx / hl
+          const ny = hy / hl
+          dirs.push({ nx, ny })
+          dirs.push({ nx: -ny, ny: nx })
+        }
+      }
+    }
+  }
+
+  // Project dx,dy onto each direction and pick the one with smallest angular error
+  let bestProj = { dx: 0, dy: 0 }
+  let bestDot = -Infinity
+
+  for (const { nx, ny } of dirs) {
+    // Project: dot product gives signed length along direction
+    const dot = dx * nx + dy * ny
+    // Absolute projection alignment (how well the drag matches this direction)
+    const absDot = Math.abs(dot)
+    if (absDot > bestDot) {
+      bestDot = absDot
+      bestProj = { dx: dot * nx, dy: dot * ny }
+    }
+  }
+
+  return bestProj
 }
 
 /**
@@ -195,7 +321,52 @@ export function nodeMouseDown(docX: number, docY: number, zoom: number, shiftKey
     state.dragging = true
     state.dragStart = { x: docX, y: docY }
     state.draggingHandle = null
-  } else if (!shiftKey) {
+    state.bendingSegment = null
+    return
+  }
+
+  // Check segment edges — click-drag to bend, click/tap to insert node
+  const edgeHit = hitTestSegmentEdge(docX, docY, layer, artboard.x, artboard.y, zoom)
+  if (edgeHit) {
+    state.dragging = true
+    state.dragStart = { x: docX, y: docY }
+    state.draggingHandle = null
+    state.bendingSegment = edgeHit
+
+    // Convert the segment to cubic if it's a line, so dragging bends it
+    const path = layer.paths.find((p) => p.id === edgeHit.pathId)
+    if (path) {
+      const seg = path.segments[edgeHit.segIndex]
+      if (seg && seg.type === 'line') {
+        let prevX = 0,
+          prevY = 0
+        for (let i = edgeHit.segIndex - 1; i >= 0; i--) {
+          const prev = path.segments[i]!
+          if (prev.type !== 'close') {
+            prevX = prev.x
+            prevY = prev.y
+            break
+          }
+        }
+        // Convert to cubic with handles at 1/3 and 2/3
+        const newPaths: Path[] = JSON.parse(JSON.stringify(layer.paths))
+        const updatedPath = newPaths.find((p) => p.id === edgeHit.pathId)!
+        updatedPath.segments[edgeHit.segIndex] = {
+          type: 'cubic',
+          x: seg.x,
+          y: seg.y,
+          cp1x: prevX + (seg.x - prevX) / 3,
+          cp1y: prevY + (seg.y - prevY) / 3,
+          cp2x: prevX + (2 * (seg.x - prevX)) / 3,
+          cp2y: prevY + (2 * (seg.y - prevY)) / 3,
+        }
+        useEditorStore.getState().updateLayerSilent(artboardId, layer.id, { paths: newPaths })
+      }
+    }
+    return
+  }
+
+  if (!shiftKey) {
     state.selectedNodes.clear()
   }
 }
@@ -215,13 +386,34 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
   let dx = docX - state.dragStart.x
   let dy = docY - state.dragStart.y
 
-  // Shift constrains to axis
-  if (shiftKey) {
-    if (Math.abs(dx) > Math.abs(dy)) dy = 0
-    else dx = 0
+  // Shift constrains to axis, tangent, or normal of connected nodes
+  if (shiftKey && !state.bendingSegment) {
+    const constrained = constrainToGuides(dx, dy, layer, state.selectedNodes)
+    dx = constrained.dx
+    dy = constrained.dy
   }
 
-  if (state.draggingHandle) {
+  if (state.bendingSegment) {
+    // Bend a segment by moving both control points toward the cursor
+    const { pathId, segIndex } = state.bendingSegment
+    const path = layer.paths.find((p) => p.id === pathId)
+    if (!path) return
+    const seg = path.segments[segIndex]
+    if (!seg || seg.type !== 'cubic') return
+
+    const updates: Partial<VectorLayer> = { paths: JSON.parse(JSON.stringify(layer.paths)) }
+    const updatedPath = (updates.paths as Path[]).find((p) => p.id === pathId)
+    if (!updatedPath) return
+    const updatedSeg = updatedPath.segments[segIndex]!
+    if (updatedSeg.type === 'cubic') {
+      updatedSeg.cp1x += dx
+      updatedSeg.cp1y += dy
+      updatedSeg.cp2x += dx
+      updatedSeg.cp2y += dy
+    }
+
+    store.updateLayerSilent(state.artboardId!, state.layerId!, updates)
+  } else if (state.draggingHandle) {
     // Move a control handle
     const { pathId, segIndex, handle } = state.draggingHandle
     const path = layer.paths.find((p) => p.id === pathId)
@@ -283,8 +475,22 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
 /**
  * Handle mouseup for node tool.
  */
-export function nodeMouseUp() {
+export function nodeMouseUp(docX: number, docY: number) {
   if (!state.dragging) return
+
+  // If we clicked a segment edge without dragging, insert a node at midpoint
+  if (state.bendingSegment && state.dragStart) {
+    const movedDist = dist(docX, docY, state.dragStart.x, state.dragStart.y)
+    if (movedDist < 2) {
+      // Tap/click without drag — insert node at midpoint
+      insertPointOnSegment(state.bendingSegment.pathId, state.bendingSegment.segIndex)
+      state.dragging = false
+      state.dragStart = null
+      state.draggingHandle = null
+      state.bendingSegment = null
+      return
+    }
+  }
 
   // Commit as an undo entry
   if (state.layerId && state.artboardId) {
@@ -301,6 +507,7 @@ export function nodeMouseUp() {
   state.dragging = false
   state.dragStart = null
   state.draggingHandle = null
+  state.bendingSegment = null
 }
 
 /**

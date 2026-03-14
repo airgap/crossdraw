@@ -414,7 +414,7 @@ describe('node tool - nodeMouseDown', () => {
     expect(st.selectedNodes.size).toBe(1)
 
     // Shift+click on same node should deselect it
-    nodeMouseUp()
+    nodeMouseUp(0, 0)
     nodeMouseDown(50 + artboard.x, 50 + artboard.y, 1, true)
     expect(st.selectedNodes.size).toBe(0)
   })
@@ -432,7 +432,7 @@ describe('node tool - nodeMouseDown', () => {
     ])
 
     nodeMouseDown(50 + artboard.x, 50 + artboard.y, 1, false)
-    nodeMouseUp()
+    nodeMouseUp(0, 0)
     nodeMouseDown(100 + artboard.x, 100 + artboard.y, 1, true)
     const st = getNodeState()
     expect(st.selectedNodes.size).toBe(2)
@@ -448,7 +448,7 @@ describe('node tool - nodeMouseDown', () => {
     ])
 
     nodeMouseDown(50 + artboard.x, 50 + artboard.y, 1, false)
-    nodeMouseUp()
+    nodeMouseUp(0, 0)
     expect(getNodeState().selectedNodes.size).toBe(1)
 
     nodeMouseDown(500 + artboard.x, 500 + artboard.y, 1, false)
@@ -562,7 +562,7 @@ describe('node tool - nodeMouseUp', () => {
   })
 
   test('does nothing when not dragging', () => {
-    nodeMouseUp()
+    nodeMouseUp(0, 0)
     expect(getNodeState().dragging).toBe(false)
   })
 
@@ -583,7 +583,7 @@ describe('node tool - nodeMouseUp', () => {
 
     nodeMouseDown(50 + artboard.x, 50 + artboard.y, 1, false)
     nodeMouseDrag(60 + artboard.x, 60 + artboard.y, false)
-    nodeMouseUp()
+    nodeMouseUp(0, 0)
 
     const st = getNodeState()
     expect(st.dragging).toBe(false)

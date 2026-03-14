@@ -68,6 +68,7 @@ const LazyPNGTuberPreview = React.lazy(() =>
 const LazyThemeEditorPanel = React.lazy(() =>
   import('@/ui/theme-editor-panel').then((m) => ({ default: m.ThemeEditorPanel })),
 )
+const LazyLayer3DPanel = React.lazy(() => import('@/ui/layer-3d-panel').then((m) => ({ default: m.Layer3DPanel })))
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -103,6 +104,7 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'pngtuber', label: 'PNGtuber', icon: '\uD83D\uDC64', component: LazyPNGTuberPanel },
   { id: 'pngtuber-preview', label: 'PNGtuber Preview', icon: '\uD83C\uDFAD', component: LazyPNGTuberPreview },
   { id: 'theme-editor', label: 'Theme Editor', icon: '\uD83C\uDFA8', component: LazyThemeEditorPanel },
+  { id: 'layer-3d', label: '3D Layers', icon: '\uD83D\uDDFC', component: LazyLayer3DPanel },
 ]
 
 const AI_PANEL_IDS = new Set(['ai-assistant'])
