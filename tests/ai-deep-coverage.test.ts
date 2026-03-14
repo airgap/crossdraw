@@ -1165,9 +1165,8 @@ describe('remove-tool: beginRemoveBrush and commitRemove', () => {
     storeRasterData(chunkId, makeImageData(50, 50))
     setupStoreWithRasterLayer(chunkId, 'rt-layer-1', 50, 50)
 
-    const { beginRemoveBrush, paintRemoveBrush, isRemoveActive, getRemoveMask, cancelRemove } = await import(
-      '@/ai/remove-tool'
-    )
+    const { beginRemoveBrush, paintRemoveBrush, isRemoveActive, getRemoveMask, cancelRemove } =
+      await import('@/ai/remove-tool')
     const { setRemoveToolSettings } = await import('@/ai/remove-tool')
     setRemoveToolSettings({ brushRadius: 5, featherRadius: 2 })
 

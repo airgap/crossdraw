@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { useEditorStore } from '@/store/editor.store'
 import { getBrushSettings, setBrushSettings } from '@/tools/brush'
 import { getScatterSettings, setScatterSettings } from '@/tools/scatter-brush'
@@ -1841,7 +1842,7 @@ export function ToolOptionsBar() {
   const activeTool = useEditorStore((s) => s.activeTool)
   const refineEdgeActive = useEditorStore((s) => s.refineEdgeActive)
 
-  const toolName = refineEdgeActive ? 'Select & Mask' : toolLabels[activeTool] ?? activeTool
+  const toolName = refineEdgeActive ? 'Select & Mask' : (toolLabels[activeTool] ?? activeTool)
 
   let options: React.ReactNode = null
 
@@ -2033,11 +2034,14 @@ function SnapDropdown() {
   const setGridSize = useEditorStore((s) => s.setGridSize)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const [dropPos, setDropPos] = useState({ top: 0, left: 0 })
 
   useEffect(() => {
     if (!open) return
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+      if (ref.current && !ref.current.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node))
+        setOpen(false)
     }
     const keyHandler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -2047,6 +2051,13 @@ function SnapDropdown() {
     return () => {
       window.removeEventListener('mousedown', handler)
       window.removeEventListener('keydown', keyHandler)
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setDropPos({ top: rect.bottom + 4, left: rect.right - 220 })
     }
   }, [open])
 
@@ -2073,8 +2084,9 @@ function SnapDropdown() {
   }
 
   return (
-    <div ref={ref} style={{ position: 'relative', flexShrink: 0 }}>
+    <div style={{ flexShrink: 0 }}>
       <button
+        ref={btnRef}
         onClick={() => setOpen(!open)}
         title="Snapping settings"
         className="cd-hoverable"
@@ -2098,144 +2110,151 @@ function SnapDropdown() {
           <path d="M1 2.5L4 5.5L7 2.5" />
         </svg>
       </button>
-      {open && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            right: 0,
-            marginTop: 4,
-            background: 'var(--bg-overlay)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 'var(--radius-lg)',
-            padding: '6px 0',
-            minWidth: 220,
-            boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
-            zIndex: 1000,
-          }}
-        >
-          {/* Master toggle */}
-          <label className="cd-hoverable" style={rowStyle}>
-            <input type="checkbox" checked={snapEnabled} onChange={toggleSnap} style={checkStyle} />
-            <span style={{ fontWeight: 600 }}>Enable Snapping</span>
-          </label>
-          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
-
-          {/* Snap targets */}
+      {open &&
+        createPortal(
           <div
+            ref={ref}
             style={{
-              padding: '4px 12px 2px',
-              fontSize: 9,
-              color: 'var(--text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontWeight: 600,
+              position: 'fixed',
+              top: dropPos.top,
+              left: Math.max(0, dropPos.left),
+              background: 'var(--bg-overlay)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '6px 0',
+              minWidth: 220,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              zIndex: 10000,
             }}
           >
-            Snap To
-          </div>
-          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
-            <input
-              type="checkbox"
-              checked={snapToGrid}
-              onChange={toggleSnapToGrid}
-              disabled={!snapEnabled}
-              style={checkStyle}
-            />
-            <span>Grid</span>
-          </label>
-          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
-            <input
-              type="checkbox"
-              checked={snapToGuides}
-              onChange={toggleSnapToGuides}
-              disabled={!snapEnabled}
-              style={checkStyle}
-            />
-            <span>Guides</span>
-          </label>
-          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
-            <input
-              type="checkbox"
-              checked={snapToLayers}
-              onChange={toggleSnapToLayers}
-              disabled={!snapEnabled}
-              style={checkStyle}
-            />
-            <span>Layer Edges & Centers</span>
-          </label>
-          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
-            <input
-              type="checkbox"
-              checked={snapToArtboard}
-              onChange={toggleSnapToArtboard}
-              disabled={!snapEnabled}
-              style={checkStyle}
-            />
-            <span>Artboard Edges</span>
-          </label>
-          <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
-            <input
-              type="checkbox"
-              checked={snapToPixel}
-              onChange={toggleSnapToPixel}
-              disabled={!snapEnabled}
-              style={checkStyle}
-            />
-            <span>Pixel Grid</span>
-          </label>
+            {/* Master toggle */}
+            <label className="cd-hoverable" style={rowStyle}>
+              <input type="checkbox" checked={snapEnabled} onChange={toggleSnap} style={checkStyle} />
+              <span style={{ fontWeight: 600 }}>Enable Snapping</span>
+            </label>
+            <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
 
-          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
-
-          {/* Threshold */}
-          <div
-            style={{
-              padding: '4px 12px 2px',
-              fontSize: 9,
-              color: 'var(--text-secondary)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.5px',
-              fontWeight: 600,
-            }}
-          >
-            Settings
-          </div>
-          <div style={{ ...rowStyle, cursor: 'default' }}>
-            <span style={{ minWidth: 70 }}>Threshold</span>
-            <input
-              type="range"
-              min={1}
-              max={20}
-              value={snapThreshold}
-              onChange={(e) => setSnapThreshold(Number(e.target.value))}
-              disabled={!snapEnabled}
-              style={{ flex: 1, height: 14, cursor: snapEnabled ? 'pointer' : 'default', accentColor: 'var(--accent)' }}
-            />
-            <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', minWidth: 22, textAlign: 'right' }}>
-              {snapThreshold}px
-            </span>
-          </div>
-          <div style={{ ...rowStyle, cursor: 'default' }}>
-            <span style={{ minWidth: 70 }}>Grid Size</span>
-            <input
-              type="number"
-              min={1}
-              max={200}
-              value={gridSize}
-              onChange={(e) => {
-                const v = parseInt(e.target.value, 10)
-                if (!isNaN(v) && v >= 1) setGridSize(v)
-              }}
+            {/* Snap targets */}
+            <div
               style={{
-                ...smallInputStyle,
-                width: 50,
-                textAlign: 'center',
+                padding: '4px 12px 2px',
+                fontSize: 9,
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                fontWeight: 600,
               }}
-            />
-            <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>px</span>
-          </div>
-        </div>
-      )}
+            >
+              Snap To
+            </div>
+            <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+              <input
+                type="checkbox"
+                checked={snapToGrid}
+                onChange={toggleSnapToGrid}
+                disabled={!snapEnabled}
+                style={checkStyle}
+              />
+              <span>Grid</span>
+            </label>
+            <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+              <input
+                type="checkbox"
+                checked={snapToGuides}
+                onChange={toggleSnapToGuides}
+                disabled={!snapEnabled}
+                style={checkStyle}
+              />
+              <span>Guides</span>
+            </label>
+            <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+              <input
+                type="checkbox"
+                checked={snapToLayers}
+                onChange={toggleSnapToLayers}
+                disabled={!snapEnabled}
+                style={checkStyle}
+              />
+              <span>Layer Edges & Centers</span>
+            </label>
+            <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+              <input
+                type="checkbox"
+                checked={snapToArtboard}
+                onChange={toggleSnapToArtboard}
+                disabled={!snapEnabled}
+                style={checkStyle}
+              />
+              <span>Artboard Edges</span>
+            </label>
+            <label className="cd-hoverable" style={{ ...rowStyle, opacity: snapEnabled ? 1 : 0.4 }}>
+              <input
+                type="checkbox"
+                checked={snapToPixel}
+                onChange={toggleSnapToPixel}
+                disabled={!snapEnabled}
+                style={checkStyle}
+              />
+              <span>Pixel Grid</span>
+            </label>
+
+            <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
+
+            {/* Threshold */}
+            <div
+              style={{
+                padding: '4px 12px 2px',
+                fontSize: 9,
+                color: 'var(--text-secondary)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                fontWeight: 600,
+              }}
+            >
+              Settings
+            </div>
+            <div style={{ ...rowStyle, cursor: 'default' }}>
+              <span style={{ minWidth: 70 }}>Threshold</span>
+              <input
+                type="range"
+                min={1}
+                max={20}
+                value={snapThreshold}
+                onChange={(e) => setSnapThreshold(Number(e.target.value))}
+                disabled={!snapEnabled}
+                style={{
+                  flex: 1,
+                  height: 14,
+                  cursor: snapEnabled ? 'pointer' : 'default',
+                  accentColor: 'var(--accent)',
+                }}
+              />
+              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', minWidth: 22, textAlign: 'right' }}>
+                {snapThreshold}px
+              </span>
+            </div>
+            <div style={{ ...rowStyle, cursor: 'default' }}>
+              <span style={{ minWidth: 70 }}>Grid Size</span>
+              <input
+                type="number"
+                min={1}
+                max={200}
+                value={gridSize}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10)
+                  if (!isNaN(v) && v >= 1) setGridSize(v)
+                }}
+                style={{
+                  ...smallInputStyle,
+                  width: 50,
+                  textAlign: 'center',
+                }}
+              />
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>px</span>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

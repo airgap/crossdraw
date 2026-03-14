@@ -643,7 +643,7 @@ function VariableRow({
   const currentValue =
     isInherited && !hasLocalOverride
       ? getEffectiveValue(collection, variable.id, activeModeId, allCollections)
-      : collection.values[variable.id]?.[activeModeId] ?? null
+      : (collection.values[variable.id]?.[activeModeId] ?? null)
 
   return (
     <div

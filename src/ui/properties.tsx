@@ -727,7 +727,7 @@ export function PropertiesPanel() {
                     value={
                       typeof selectedLayer.shapeParams.cornerRadius === 'number'
                         ? selectedLayer.shapeParams.cornerRadius
-                        : selectedLayer.shapeParams.cornerRadius?.[0] ?? 0
+                        : (selectedLayer.shapeParams.cornerRadius?.[0] ?? 0)
                     }
                     onChange={(e) => {
                       const r = Number(e.target.value)
@@ -746,7 +746,7 @@ export function PropertiesPanel() {
                     value={
                       typeof selectedLayer.shapeParams.cornerRadius === 'number'
                         ? selectedLayer.shapeParams.cornerRadius
-                        : selectedLayer.shapeParams.cornerRadius?.[0] ?? 0
+                        : (selectedLayer.shapeParams.cornerRadius?.[0] ?? 0)
                     }
                     onChange={(e) => {
                       const r = Math.max(0, Number(e.target.value))
