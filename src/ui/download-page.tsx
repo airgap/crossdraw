@@ -111,6 +111,23 @@ function VSCodeIcon({ size = 28 }: { size?: number }) {
   )
 }
 
+function EIcon({ size = 28 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M5 5h14M5 12h10M5 19h14" />
+    </svg>
+  )
+}
+
 interface Release {
   name: string
   platform: string
@@ -235,6 +252,14 @@ const releases: Release[] = [
     arch: 'universal',
     icon: VSCodeIcon,
     filename: 'crossdraw-vscode-0.1.0.vsix',
+    type: 'extension',
+  },
+  {
+    name: 'E IDE (built-in)',
+    platform: 'Any',
+    arch: 'universal',
+    icon: EIcon,
+    filename: '',
     type: 'extension',
   },
 ]
@@ -467,7 +492,7 @@ export function DownloadPage() {
         </p>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12 }}>
           {extensionReleases.map((r) => (
-            <DownloadCard key={r.filename} release={r} hovered={hovered === r.filename} onHover={setHovered} />
+            <DownloadCard key={r.filename || r.name} release={r} hovered={hovered === (r.filename || r.name)} onHover={setHovered} />
           ))}
         </div>
       </div>
@@ -497,9 +522,14 @@ function DownloadCard({
   onHover: (f: string | null) => void
 }) {
   const Icon = release.icon
+  const isBuiltIn = !release.filename
+  const key = release.filename || release.name
   return (
     <button
-      onClick={(e) => triggerDownload(release.filename, e.currentTarget)}
+      onClick={(e) => {
+        if (isBuiltIn) return
+        triggerDownload(release.filename, e.currentTarget)
+      }}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -509,19 +539,19 @@ function DownloadCard({
         border: '1px solid',
         borderColor: hovered ? '#333' : '#1a1a1a',
         borderRadius: 8,
-        cursor: 'pointer',
+        cursor: isBuiltIn ? 'default' : 'pointer',
         color: '#e0e0e0',
         transition: 'all 0.15s',
         width: '100%',
         textAlign: 'left',
       }}
-      onMouseEnter={() => onHover(release.filename)}
+      onMouseEnter={() => onHover(key)}
       onMouseLeave={() => onHover(null)}
     >
       <Icon size={28} />
       <div>
         <div style={{ fontWeight: 600, fontSize: 14 }}>{release.name}</div>
-        <div style={{ color: '#666', fontSize: 12 }}>{release.filename}</div>
+        <div style={{ color: '#666', fontSize: 12 }}>{isBuiltIn ? 'Built-in — no install needed' : release.filename}</div>
       </div>
     </button>
   )
