@@ -74,33 +74,40 @@ const shapeTools: ToolEntry[] = [
 const shapeToolIds = new Set(shapeTools.map((t) => t.id))
 
 const tools: (ToolEntry | 'shapes' | 'separator')[] = [
+  // ── Selection & navigation ──
   { id: 'select', icon: MousePointer2, key: 'v' },
   { id: 'node', icon: Spline, key: 'a' },
-  { id: 'artboard', icon: Frame, key: 'f' },
+  { id: 'hand', icon: Hand, key: 'h' },
+  { id: 'zoom', icon: ZoomIn, key: 'z' },
   'separator',
+  // ── Vector drawing ──
   { id: 'pen', icon: PenTool, key: 'p' },
   { id: 'pencil', icon: Pencil, key: 'n' },
   { id: 'line', icon: Minus, key: 'l' },
   'shapes',
   { id: 'text', icon: Type, key: 't' },
   'separator',
+  // ── Raster painting ──
   { id: 'brush', icon: BrushIcon, key: 'b' },
   { id: 'eraser', icon: Eraser, key: 'x' },
   { id: 'clone-stamp', icon: Stamp, key: 's' },
   { id: 'fill', icon: PaintBucket, key: 'g' },
   { id: 'gradient', icon: Blend, key: 'j' },
-  { id: 'eyedropper', icon: Pipette, key: 'i' },
   'separator',
+  // ── Selection regions ──
   { id: 'marquee', icon: SquareDashed, key: 'm' },
   { id: 'lasso', icon: Lasso, key: 'q' },
+  'separator',
+  // ── Transform & modify ──
+  { id: 'crop', icon: Crop, key: 'shift+c' },
   { id: 'knife', icon: Scissors, key: 'k' },
   { id: 'shape-builder', icon: Combine, key: 'shift+m' },
-  { id: 'slice', icon: ScissorsLineDashed, key: 'w' },
-  'separator',
-  { id: 'hand', icon: Hand, key: 'h' },
-  { id: 'zoom', icon: ZoomIn, key: 'z' },
+  { id: 'eyedropper', icon: Pipette, key: 'i' },
   { id: 'measure', icon: Ruler, key: 'u' },
-  { id: 'crop', icon: Crop, key: 'shift+c' },
+  'separator',
+  // ── Layout & export ──
+  { id: 'artboard', icon: Frame, key: 'f' },
+  { id: 'slice', icon: ScissorsLineDashed, key: 'w' },
   { id: 'comment', icon: MessageCircle, key: 'c' },
 ]
 
