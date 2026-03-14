@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const R2_BASE = '/releases'
 
@@ -275,6 +275,17 @@ function detectPlatform(): string {
 export function DownloadPage() {
   const [hovered, setHovered] = useState<string | null>(null)
   const platform = detectPlatform()
+
+  // Override the root overflow:hidden so this page can scroll
+  useEffect(() => {
+    const root = document.getElementById('root')
+    if (root) root.style.overflow = 'auto'
+    document.body.style.overflow = 'auto'
+    return () => {
+      if (root) root.style.overflow = ''
+      document.body.style.overflow = ''
+    }
+  }, [])
 
   const desktopReleases = releases.filter((r) => r.type === 'desktop')
   const mobileReleases = releases.filter((r) => r.type === 'mobile')
