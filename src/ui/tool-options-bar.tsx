@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useEditorStore } from '@/store/editor.store'
+import { v4 as uuid } from 'uuid'
+import type { Breakpoint } from '@/types'
 import { getBrushSettings, setBrushSettings } from '@/tools/brush'
 import { getScatterSettings, setScatterSettings } from '@/tools/scatter-brush'
 import type { ScatterBrushSettings, TexturePatternType } from '@/tools/scatter-brush'
@@ -1987,7 +1989,221 @@ export function ToolOptionsBar() {
         <span style={{ color: 'var(--text-disabled)', fontSize: 11 }}>No tool options</span>
       )}
       <span style={{ flex: 1 }} />
+      <BreakpointSection />
+      <span style={{ width: 1, height: 16, background: 'var(--border-subtle)', flexShrink: 0 }} />
       <SnapDropdown />
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Breakpoint section — inline responsive breakpoint controls
+// ---------------------------------------------------------------------------
+
+const BP_PRESETS: Omit<Breakpoint, 'id'>[] = [
+  { name: 'Mobile', width: 375 },
+  { name: 'Tablet', width: 768 },
+  { name: 'Desktop', width: 1440 },
+  { name: 'Large Desktop', width: 1920 },
+]
+
+const bpChipStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 3,
+  padding: '1px 6px',
+  borderRadius: 3,
+  border: '1px solid var(--border-color)',
+  background: 'var(--bg-input)',
+  color: 'var(--text-primary)',
+  fontSize: 10,
+  cursor: 'pointer',
+  whiteSpace: 'nowrap',
+  lineHeight: '18px',
+}
+
+const bpChipActiveStyle: React.CSSProperties = {
+  ...bpChipStyle,
+  background: 'var(--accent)',
+  color: '#fff',
+  borderColor: 'var(--accent)',
+  fontWeight: 600,
+}
+
+function BreakpointSection() {
+  const artboard = useEditorStore((s) => {
+    const artboardId = s.viewport.artboardId
+    if (!artboardId) return s.document.artboards[0] ?? null
+    return s.document.artboards.find((a) => a.id === artboardId) ?? null
+  })
+  const setActiveBreakpoint = useEditorStore((s) => s.setActiveBreakpoint)
+  const removeBreakpoint = useEditorStore((s) => s.removeBreakpoint)
+  const addBreakpoint = useEditorStore((s) => s.addBreakpoint)
+  const [showPresets, setShowPresets] = useState(false)
+  const btnRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 })
+
+  useEffect(() => {
+    if (!showPresets) return
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node) && !btnRef.current?.contains(e.target as Node))
+        setShowPresets(false)
+    }
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowPresets(false)
+    }
+    window.addEventListener('mousedown', handler)
+    window.addEventListener('keydown', keyHandler)
+    return () => {
+      window.removeEventListener('mousedown', handler)
+      window.removeEventListener('keydown', keyHandler)
+    }
+  }, [showPresets])
+
+  useEffect(() => {
+    if (showPresets && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect()
+      setMenuPos({ top: rect.bottom + 4, left: rect.left })
+    }
+  }, [showPresets])
+
+  if (!artboard) return null
+
+  const breakpoints = artboard.breakpoints ?? []
+  const activeId = artboard.activeBreakpointId
+  const existingWidths = new Set(breakpoints.map((b) => b.width))
+
+  const presetMenuRow: React.CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '5px 10px',
+    cursor: 'pointer',
+    fontSize: 11,
+    color: 'var(--text-primary)',
+    background: 'transparent',
+    border: 'none',
+    width: '100%',
+    textAlign: 'left',
+  }
+
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+      {breakpoints.length > 0 && (
+        <>
+          <span style={{ color: 'var(--text-disabled)', fontSize: 9 }}>BP</span>
+          <button
+            style={activeId == null ? bpChipActiveStyle : bpChipStyle}
+            onClick={() => setActiveBreakpoint(artboard.id, null)}
+          >
+            {artboard.width}
+          </button>
+          {breakpoints.map((bp) => (
+            <button
+              key={bp.id}
+              style={activeId === bp.id ? bpChipActiveStyle : bpChipStyle}
+              onClick={() => setActiveBreakpoint(artboard.id, bp.id)}
+            >
+              {bp.name} {bp.width}
+              <span
+                style={{
+                  marginLeft: 2,
+                  fontSize: 8,
+                  opacity: 0.6,
+                  cursor: 'pointer',
+                }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  removeBreakpoint(artboard.id, bp.id)
+                }}
+                title="Remove"
+              >
+                x
+              </span>
+            </button>
+          ))}
+        </>
+      )}
+      <button
+        ref={btnRef}
+        onClick={() => setShowPresets((v) => !v)}
+        title="Add breakpoint"
+        className="cd-hoverable"
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: 20,
+          height: 20,
+          borderRadius: 3,
+          border: '1px solid var(--border-color)',
+          background: 'none',
+          color: 'var(--text-secondary)',
+          fontSize: 12,
+          cursor: 'pointer',
+          flexShrink: 0,
+        }}
+      >
+        +
+      </button>
+      {showPresets &&
+        createPortal(
+          <div
+            ref={menuRef}
+            style={{
+              position: 'fixed',
+              top: menuPos.top,
+              left: menuPos.left,
+              background: 'var(--bg-overlay)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '4px 0',
+              minWidth: 180,
+              boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
+              zIndex: 10000,
+            }}
+          >
+            {BP_PRESETS.map((preset) => {
+              const exists = existingWidths.has(preset.width)
+              return (
+                <button
+                  key={preset.width}
+                  className="cd-hoverable"
+                  style={{ ...presetMenuRow, opacity: exists ? 0.4 : 1, cursor: exists ? 'default' : 'pointer' }}
+                  disabled={exists}
+                  onClick={() => {
+                    if (!exists) {
+                      addBreakpoint(artboard.id, { ...preset, id: uuid() })
+                      setShowPresets(false)
+                    }
+                  }}
+                >
+                  <span>{preset.name}</span>
+                  <span style={{ color: 'var(--text-disabled)', fontSize: 10 }}>{preset.width}px</span>
+                </button>
+              )
+            })}
+            <div style={{ height: 1, background: 'var(--border-subtle)', margin: '2px 0' }} />
+            <button
+              className="cd-hoverable"
+              style={presetMenuRow}
+              onClick={() => {
+                const widthStr = prompt('Enter breakpoint width (px):')
+                if (!widthStr) return
+                const width = parseInt(widthStr, 10)
+                if (isNaN(width) || width < 1) return
+                const name = prompt('Breakpoint name:', `${width}px`) ?? `${width}px`
+                addBreakpoint(artboard.id, { id: uuid(), name, width })
+                setShowPresets(false)
+              }}
+            >
+              Custom...
+            </button>
+          </div>,
+          document.body,
+        )}
     </div>
   )
 }

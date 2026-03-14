@@ -1441,6 +1441,10 @@ export function Viewport() {
                 beginTextEdit(layer.id, artboard.id)
                 return
               }
+              if (layer.type === 'vector' && tool === 'select') {
+                useEditorStore.getState().setActiveTool('node')
+                return
+              }
             }
           }
         }
@@ -2817,6 +2821,7 @@ export function Viewport() {
     }
 
     // Double-click on a TextLayer → enter editing mode
+    // Double-click on a VectorLayer → enter node editing mode
     // Read selection fresh from store — the first click of the double-click
     // may have just selected the layer, so the closure's `selection` is stale
     if (activeTool === 'select' || activeTool === 'text') {
@@ -2826,6 +2831,11 @@ export function Viewport() {
           if (!currentSelection.layerIds.includes(layer.id)) continue
           if (layer.type === 'text') {
             beginTextEdit(layer.id, artboard.id)
+            return
+          }
+          if (layer.type === 'vector' && activeTool === 'select') {
+            useEditorStore.getState().setActiveTool('node')
+            render()
             return
           }
         }

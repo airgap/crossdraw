@@ -1991,6 +1991,13 @@ function buildMenus(): MenuDef[] {
           usePanelLayoutStore.getState().focusTab('pngtuber-preview')
         },
       },
+      { label: '', divider: true },
+      {
+        label: '3D Layers',
+        action: () => {
+          usePanelLayoutStore.getState().focusTab('layer-3d')
+        },
+      },
     ],
   }
 

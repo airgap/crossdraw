@@ -7,7 +7,6 @@ import { MenuBar } from '@/ui/menu-bar'
 import { setupKeyboardShortcuts } from '@/ui/keyboard'
 import { PanelShell } from '@/ui/panels/panel-shell'
 import { ToolOptionsBar } from '@/ui/tool-options-bar'
-import { BreakpointBar } from '@/ui/breakpoint-bar'
 import { DownloadPage } from '@/ui/download-page'
 import { SplashScreen } from '@/ui/splash-screen'
 import { NewDocumentModal } from '@/ui/new-document-modal'
@@ -214,7 +213,6 @@ export function App() {
       </a>
       <MenuBar />
       <ToolOptionsBar />
-      <BreakpointBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Toolbar />
         <PanelShell>
