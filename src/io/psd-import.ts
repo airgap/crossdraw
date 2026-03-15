@@ -374,6 +374,9 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
           const chanW = isMaskChannel ? mw : lw
           const chanH = isMaskChannel ? mh : lh
 
+          // Track start offset for bounded reads
+          const chanStartOffset = r.offset
+
           if (chanW <= 0 || chanH <= 0) {
             // Empty channel — skip data
             r.skip(chan.dataLength)
@@ -401,20 +404,47 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
             r.skip(chan.dataLength - 2)
             chan._data = new Uint8Array(unpackedLen) // transparent
           }
+
+          // Ensure reader position matches expected end to prevent offset drift
+          const expectedEnd = chanStartOffset + chan.dataLength
+          if (r.offset !== expectedEnd && chan.dataLength > 0) {
+            r.offset = expectedEnd
+          }
         }
       }
     }
 
-    // Skip to end of layer/mask section
+    // Skip to end of layer info sub-section
     r.offset = layerInfoEnd
+
+    // ── 4b. Global layer mask info ───────────────────────────────────
+    if (r.offset < layerMaskEnd) {
+      const globalMaskLen = r.u32()
+      if (globalMaskLen > 0) {
+        r.skip(globalMaskLen)
+      }
+    }
+
+    // ── 4c. Additional layer information (tagged blocks) ─────────────
+    // Some PSDs (16-bit, 32-bit, newer Photoshop versions) store layer
+    // data here instead of the main layer info section.
+    if (psdLayers.length === 0 && r.offset < layerMaskEnd) {
+      parseAdditionalLayerInfo(r, layerMaskEnd, psdLayers, isPSB, depth)
+    }
   }
 
-  // Skip remaining layer/mask info (global layer mask, additional data)
+  // Skip remaining layer/mask info
   r.offset = layerMaskEnd
 
   // ── 5. Build Crossdraw document ───────────────────────────────────────
 
   const is16bit = depth === 16
+
+  // If no layers were parsed, fall back to the composite image data
+  if (psdLayers.length === 0 && r.remaining() > 0) {
+    readCompositeAsLayer(r, width, height, depth, psdLayers)
+  }
+
   const layers = buildLayers(psdLayers, width, height, is16bit)
 
   const now = new Date().toISOString()
@@ -451,6 +481,307 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
   }
 
   return doc
+}
+
+// ── Parse additional layer information blocks ───────────────────────────────
+
+/**
+ * Scan the additional layer information section for Layr/Lr16/Lr32 tagged
+ * blocks.  These contain the same layer-record + channel-data structure as
+ * the main layer info section but are used by 16/32-bit PSDs and newer
+ * Photoshop versions that moved layer data here.
+ */
+function parseAdditionalLayerInfo(
+  r: PSDReader,
+  endOffset: number,
+  psdLayers: PSDLayerInfo[],
+  isPSB: boolean,
+  depth: number,
+) {
+  while (r.offset < endOffset - 12) {
+    const tagSig = r.ascii(4)
+    if (tagSig !== '8BIM' && tagSig !== '8B64') {
+      // Not a valid tagged block — stop scanning
+      break
+    }
+
+    const tagKey = r.ascii(4)
+
+    // Length: 8B64 uses 8-byte lengths for large-resource keys in PSB
+    const useLongLength =
+      isPSB &&
+      tagSig === '8B64' &&
+      ['LMsk', 'Lr16', 'Lr32', 'Layr', 'Mt16', 'Mt32', 'Mtrn', 'Alph', 'FMsk', 'lnk2', 'FEid', 'FXid', 'PxSD', 'cinf', 'lnkE'].includes(tagKey)
+    let tagLen: number
+    if (useLongLength) {
+      tagLen = Number(r.u32()) * 0x100000000 + r.u32()
+    } else {
+      tagLen = r.u32()
+    }
+
+    const tagEnd = r.offset + tagLen
+    // Pad to even
+    const paddedEnd = tagEnd + (tagEnd % 2)
+
+    if (tagKey === 'Layr' || tagKey === 'Lr16' || tagKey === 'Lr32') {
+      // This block contains the same structure as the main layer info section
+      const blockDepth = tagKey === 'Lr32' ? 32 : tagKey === 'Lr16' ? 16 : depth
+      parseLayerBlock(r, psdLayers, isPSB, blockDepth, tagEnd)
+      break // Only process the first layer block found
+    }
+
+    r.offset = paddedEnd
+  }
+}
+
+/**
+ * Parse a layer info block (layer count + records + channel data).
+ * Same structure as the main layer info section.
+ */
+function parseLayerBlock(
+  r: PSDReader,
+  psdLayers: PSDLayerInfo[],
+  isPSB: boolean,
+  depth: number,
+  blockEnd: number,
+) {
+  if (r.offset >= blockEnd) return
+
+  let layerCount = r.i16()
+  if (layerCount < 0) layerCount = -layerCount
+  if (layerCount === 0) return
+
+  // Parse layer records
+  for (let i = 0; i < layerCount && r.offset < blockEnd; i++) {
+    const top = r.i32()
+    const left = r.i32()
+    const bottom = r.i32()
+    const right = r.i32()
+    const channelCount = r.u16()
+
+    const channels: { id: number; dataLength: number; _data?: Uint8Array }[] = []
+    for (let c = 0; c < channelCount; c++) {
+      const id = r.i16()
+      const dataLength = isPSB ? Number(r.u32()) * 0x100000000 + r.u32() : r.u32()
+      channels.push({ id, dataLength })
+    }
+
+    const blendSig = r.ascii(4)
+    if (blendSig !== '8BIM') {
+      // Invalid — bail out
+      return
+    }
+    const blendKey = r.ascii(4)
+    const blendMode = mapBlendMode(blendKey)
+    const opacityRaw = r.u8()
+    const opacity = opacityRaw / 255
+    const clipping = r.u8()
+    const flags = r.u8()
+    r.skip(1) // filler
+    const visible = (flags & 0x02) === 0
+
+    const extraDataLen = r.u32()
+    const extraDataEnd = r.offset + extraDataLen
+
+    // Layer mask data
+    const layerMaskDataLen = r.u32()
+    const layerMaskDataEnd = r.offset + layerMaskDataLen
+    let maskBounds: MaskBounds | null = null
+    if (layerMaskDataLen >= 16) {
+      const maskTop = r.i32()
+      const maskLeft = r.i32()
+      const maskBottom = r.i32()
+      const maskRight = r.i32()
+      const defaultColor = layerMaskDataLen >= 17 ? r.u8() : 0
+      maskBounds = { top: maskTop, left: maskLeft, bottom: maskBottom, right: maskRight, defaultColor }
+    }
+    r.offset = layerMaskDataEnd
+
+    // Blending ranges
+    const blendingRangesLen = r.u32()
+    r.skip(blendingRangesLen)
+
+    // Layer name
+    const nameLen = r.u8()
+    const name = nameLen > 0 ? r.ascii(nameLen) : `Layer ${i + 1}`
+    const nameFieldLen = nameLen + 1
+    const padding = (4 - (nameFieldLen % 4)) % 4
+    r.skip(padding)
+
+    // Tagged blocks for section dividers
+    let sectionDivider = 0
+    while (r.offset < extraDataEnd - 4) {
+      const tSig = r.ascii(4)
+      if (tSig !== '8BIM' && tSig !== '8B64') {
+        r.offset -= 4
+        break
+      }
+      const tKey = r.ascii(4)
+      let tLen: number
+      if (isPSB && tSig === '8B64') {
+        tLen = Number(r.u32()) * 0x100000000 + r.u32()
+      } else {
+        tLen = r.u32()
+      }
+      const tEnd = r.offset + tLen
+      const tPaddedEnd = tEnd + (tEnd % 2)
+
+      if (tKey === 'lsct' || tKey === 'lsdk') {
+        sectionDivider = r.u32()
+      }
+
+      r.offset = tPaddedEnd
+    }
+
+    r.offset = extraDataEnd
+
+    psdLayers.push({
+      name,
+      top,
+      left,
+      bottom,
+      right,
+      channelCount,
+      channels,
+      blendMode,
+      opacity,
+      visible,
+      flags,
+      sectionDivider,
+      maskBounds,
+      clipping,
+    })
+  }
+
+  // Parse channel image data
+  for (const layer of psdLayers) {
+    const lw = layer.right - layer.left
+    const lh = layer.bottom - layer.top
+    const mw = layer.maskBounds ? layer.maskBounds.right - layer.maskBounds.left : 0
+    const mh = layer.maskBounds ? layer.maskBounds.bottom - layer.maskBounds.top : 0
+
+    for (const chan of layer.channels) {
+      const isMaskChannel = chan.id === -2
+      const chanW = isMaskChannel ? mw : lw
+      const chanH = isMaskChannel ? mh : lh
+
+      if (chanW <= 0 || chanH <= 0) {
+        r.skip(chan.dataLength)
+        continue
+      }
+
+      const chanStartOffset = r.offset
+      const compression = r.u16()
+      const pixelCount = chanW * chanH
+      const effectiveBpp = depth === 32 ? 4 : depth === 16 ? 2 : 1
+      const unpackedLen = pixelCount * effectiveBpp
+
+      if (compression === 0) {
+        chan._data = r.bytes(unpackedLen)
+      } else if (compression === 1) {
+        const scanLineCounts = new Array(chanH)
+        for (let row = 0; row < chanH; row++) {
+          scanLineCounts[row] = isPSB ? r.u32() : r.u16()
+        }
+        chan._data = decompressPackBits(r, unpackedLen)
+      } else {
+        r.skip(chan.dataLength - 2)
+        chan._data = new Uint8Array(unpackedLen)
+      }
+
+      // Ensure we consumed exactly the right amount of data
+      const expectedEnd = chanStartOffset + chan.dataLength
+      if (r.offset !== expectedEnd && chan.dataLength > 0) {
+        r.offset = expectedEnd
+      }
+    }
+  }
+}
+
+// ── Composite image fallback ────────────────────────────────────────────────
+
+/**
+ * Read the merged/composite image data section as a single raster layer.
+ * This is the fallback when no layer records were found (flat PSD).
+ */
+function readCompositeAsLayer(
+  r: PSDReader,
+  width: number,
+  height: number,
+  depth: number,
+  psdLayers: PSDLayerInfo[],
+) {
+  if (r.remaining() < 2) return
+
+  const compression = r.u16()
+  const pixelCount = width * height
+  const bytesPerPixel = depth === 16 ? 2 : 1
+  const channelLen = pixelCount * bytesPerPixel
+
+  // The composite image stores channels in order: R, G, B (and optionally A)
+  // All data for channel 0, then all for channel 1, etc.
+  const channelDatas: Uint8Array[] = []
+
+  if (compression === 0) {
+    // Raw — 3 or 4 channels of raw data
+    for (let c = 0; c < 3 && r.remaining() >= channelLen; c++) {
+      channelDatas.push(r.bytes(channelLen))
+    }
+    // Try reading alpha
+    if (r.remaining() >= channelLen) {
+      channelDatas.push(r.bytes(channelLen))
+    }
+  } else if (compression === 1) {
+    // RLE — scan line byte counts for ALL channels first, then data
+    // Count = height * numChannels
+    const numChannels = r.remaining() > height * 2 * 4 ? 4 : 3
+    const totalScanLines = height * numChannels
+    const scanLineCounts = new Array(totalScanLines)
+    for (let i = 0; i < totalScanLines && r.remaining() >= 2; i++) {
+      scanLineCounts[i] = r.u16()
+    }
+    // Then compressed data for each channel
+    for (let c = 0; c < numChannels && r.remaining() > 0; c++) {
+      channelDatas.push(decompressPackBits(r, channelLen))
+    }
+  } else {
+    // ZIP or unknown — can't read composite
+    return
+  }
+
+  if (channelDatas.length < 3) return // Need at least RGB
+
+  const rData = channelDatas[0]!
+  const gData = channelDatas[1]!
+  const bData = channelDatas[2]!
+  const aData = channelDatas.length > 3 ? channelDatas[3] : undefined
+
+  // Build channel array in PSDLayerInfo format
+  const channels: { id: number; dataLength: number; _data?: Uint8Array }[] = [
+    { id: 0, dataLength: 0, _data: rData },
+    { id: 1, dataLength: 0, _data: gData },
+    { id: 2, dataLength: 0, _data: bData },
+  ]
+  if (aData) {
+    channels.unshift({ id: -1, dataLength: 0, _data: aData })
+  }
+
+  psdLayers.push({
+    name: 'Background',
+    top: 0,
+    left: 0,
+    bottom: height,
+    right: width,
+    channelCount: channels.length,
+    channels,
+    blendMode: 'normal',
+    opacity: 1,
+    visible: true,
+    flags: 0,
+    sectionDivider: 0,
+    maskBounds: null,
+    clipping: 0,
+  })
 }
 
 // ── Build Crossdraw layers from parsed PSD layer records ────────────────────

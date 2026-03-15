@@ -1212,14 +1212,16 @@ describe('psd-import: error handling', () => {
     await expect(importPSD(buf)).rejects.toThrow('Only 8-bit and 16-bit')
   })
 
-  test('imports minimal PSD with no layers', async () => {
+  test('imports minimal PSD with no layers (composite fallback)', async () => {
     const buf = buildMinimalPSD({ width: 10, height: 10 })
     const doc = await importPSD(buf)
     expect(doc.metadata.title).toBe('PSD Import')
     expect(doc.artboards.length).toBe(1)
     expect(doc.artboards[0]!.width).toBe(10)
     expect(doc.artboards[0]!.height).toBe(10)
-    expect(doc.artboards[0]!.layers.length).toBe(0)
+    // Flat PSDs with no layer records fall back to composite image as Background layer
+    expect(doc.artboards[0]!.layers.length).toBe(1)
+    expect(doc.artboards[0]!.layers[0]!.name).toBe('Background')
   })
 
   test('imports 16-bit PSD', async () => {

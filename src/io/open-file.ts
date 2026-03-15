@@ -37,21 +37,25 @@ export async function openFile(): Promise<void> {
 export async function openFileAsDocument(file: File): Promise<void> {
   const name = file.name.toLowerCase()
 
-  if (name.endsWith('.xd')) {
-    await openDesignFile(file)
-  } else if (name.endsWith('.psd')) {
-    await openPSDAsDocument(file)
-  } else if (name.endsWith('.svg') || file.type === 'image/svg+xml') {
-    await openSVGAsDocument(file)
-  } else if (name.endsWith('.gif') || file.type === 'image/gif') {
-    const buffer = await file.arrayBuffer()
-    if (isAnimatedGIF(buffer)) {
-      await openAnimatedGIFAsDocument(file.name, buffer)
-    } else {
+  try {
+    if (name.endsWith('.xd')) {
+      await openDesignFile(file)
+    } else if (name.endsWith('.psd')) {
+      await openPSDAsDocument(file)
+    } else if (name.endsWith('.svg') || file.type === 'image/svg+xml') {
+      await openSVGAsDocument(file)
+    } else if (name.endsWith('.gif') || file.type === 'image/gif') {
+      const buffer = await file.arrayBuffer()
+      if (isAnimatedGIF(buffer)) {
+        await openAnimatedGIFAsDocument(file.name, buffer)
+      } else {
+        await openImageAsDocument(file)
+      }
+    } else if (file.type.startsWith('image/')) {
       await openImageAsDocument(file)
     }
-  } else if (file.type.startsWith('image/')) {
-    await openImageAsDocument(file)
+  } catch (err) {
+    console.error(`Failed to open ${file.name}:`, err)
   }
 }
 
