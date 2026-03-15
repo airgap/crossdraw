@@ -787,53 +787,52 @@ function readCompositeAsLayer(
 // ── Build Crossdraw layers from parsed PSD layer records ────────────────────
 
 function buildLayers(psdLayers: PSDLayerInfo[], _docWidth: number, _docHeight: number, is16bit: boolean): Layer[] {
-  // PSD layers are stored bottom-to-top; Crossdraw expects top-to-bottom
-  // (first element renders on top).  We'll process in PSD order then reverse.
+  // PSD layers are stored bottom-to-top (index 0 = bottom).
+  // Crossdraw also stores layers bottom-to-top (index 0 = drawn first = bottom).
+  // Iterate forward through PSD array so the output order matches directly.
+  //
+  // In forward (bottom-to-top) iteration:
+  //   END marker (type 3) appears first  → PUSH (start collecting group children)
+  //   HEADER    (type 1/2) appears after → POP  (finalize group with its name/props)
 
   interface StackFrame {
-    group: GroupLayer
     children: Layer[]
   }
 
   const rootChildren: Layer[] = []
   const stack: StackFrame[] = []
 
-  // PSD stores layers bottom-to-top. When iterating top-to-bottom (reverse),
-  // we encounter the group HEADER (type 1/2) first, then children, then the
-  // END marker (type 3). So: HEADER → PUSH, END → POP.
-  for (let i = psdLayers.length - 1; i >= 0; i--) {
+  for (let i = 0; i < psdLayers.length; i++) {
     const psd = psdLayers[i]!
 
-    // Section divider: type 1 or 2 = open/closed folder (group header).
-    // Start a new group — push frame to collect children.
-    if (psd.sectionDivider === 1 || psd.sectionDivider === 2) {
-      const group: GroupLayer = {
-        id: uuid(),
-        name: psd.name || 'Group',
-        type: 'group',
-        visible: psd.visible,
-        locked: false,
-        opacity: psd.opacity,
-        blendMode: psd.blendMode,
-        transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
-        effects: [],
-        children: [],
-      }
-      stack.push({ group, children: [] })
+    // Section divider: type 3 = bounding end marker.
+    // Start collecting children for this group.
+    if (psd.sectionDivider === 3) {
+      stack.push({ children: [] })
       continue
     }
 
-    // Section divider: type 3 = bounding section (end marker).
-    // Pop the stack — finalize the group with collected children.
-    if (psd.sectionDivider === 3) {
+    // Section divider: type 1 or 2 = group header (open/closed folder).
+    // Finalize the group — pop the stack and assign name/properties from header.
+    if (psd.sectionDivider === 1 || psd.sectionDivider === 2) {
       if (stack.length > 0) {
         const frame = stack.pop()!
-        frame.group.children = frame.children
-        // Add to parent
+        const group: GroupLayer = {
+          id: uuid(),
+          name: psd.name || 'Group',
+          type: 'group',
+          visible: psd.visible,
+          locked: false,
+          opacity: psd.opacity,
+          blendMode: psd.blendMode,
+          transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+          effects: [],
+          children: frame.children,
+        }
         if (stack.length > 0) {
-          stack[stack.length - 1]!.children.push(frame.group)
+          stack[stack.length - 1]!.children.push(group)
         } else {
-          rootChildren.push(frame.group)
+          rootChildren.push(group)
         }
       }
       continue
@@ -850,14 +849,25 @@ function buildLayers(psdLayers: PSDLayerInfo[], _docWidth: number, _docHeight: n
     }
   }
 
-  // Close any unclosed groups
+  // Close any unclosed groups (missing headers)
   while (stack.length > 0) {
     const frame = stack.pop()!
-    frame.group.children = frame.children
+    const orphanGroup: GroupLayer = {
+      id: uuid(),
+      name: 'Group',
+      type: 'group',
+      visible: true,
+      locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      transform: { x: 0, y: 0, scaleX: 1, scaleY: 1, rotation: 0 },
+      effects: [],
+      children: frame.children,
+    }
     if (stack.length > 0) {
-      stack[stack.length - 1]!.children.push(frame.group)
+      stack[stack.length - 1]!.children.push(orphanGroup)
     } else {
-      rootChildren.push(frame.group)
+      rootChildren.push(orphanGroup)
     }
   }
 

@@ -415,15 +415,15 @@ describe('importPSD', () => {
 
   it('should import groups via section dividers', async () => {
     // PSD layer records are stored bottom-to-top.
-    // buildLayers iterates from length-1 down to 0 (i.e., top to bottom in visual order).
+    // buildLayers iterates forward (0 → N-1), matching PSD bottom-to-top order.
     // In the PSD file format, a group looks like (from bottom to top in the array):
     //   [0] End marker (sectionDivider=3) — name = "</Layer group>"
     //   [1] Child layer
     //   [2] Group header (sectionDivider=1) — name = "MyGroup"
-    // buildLayers processes from index 2 → 0:
-    //   i=2: sectionDivider=1 → push new group onto stack (start collecting children)
+    // buildLayers processes from index 0 → 2:
+    //   i=0: sectionDivider=3 → push stack (start collecting children)
     //   i=1: regular layer → add to stack top's children
-    //   i=0: sectionDivider=3 → pop stack, finalize group
+    //   i=2: sectionDivider=1 → pop stack, finalize group with name/props
     const buf = buildPSD({
       width: 10,
       height: 10,
@@ -551,11 +551,11 @@ describe('importPSD', () => {
     })
 
     const doc = await importPSD(buf)
-    // PSD layers are bottom-to-top; buildLayers reverses them
+    // PSD layers are bottom-to-top; Crossdraw also stores bottom-to-top
+    // (layers[0] drawn first = bottom, layers[last] drawn last = top)
     expect(doc.artboards[0]!.layers.length).toBe(2)
-    // The first layer in the output should be the top one
-    expect(doc.artboards[0]!.layers[0]!.name).toBe('Top')
-    expect(doc.artboards[0]!.layers[1]!.name).toBe('Bottom')
+    expect(doc.artboards[0]!.layers[0]!.name).toBe('Bottom')
+    expect(doc.artboards[0]!.layers[1]!.name).toBe('Top')
   })
 
   it('should produce a document with expected structure', async () => {
