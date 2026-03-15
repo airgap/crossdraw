@@ -200,9 +200,13 @@ const LONG_PRESS_MS = 300
 function ShapeToolButton({
   activeTool,
   setActiveTool,
+  btnSize,
+  iconSize,
 }: {
   activeTool: EditorState['activeTool']
   setActiveTool: (tool: EditorState['activeTool']) => void
+  btnSize?: number
+  iconSize: number
 }) {
   const [currentShape, setCurrentShape] = useState<EditorState['activeTool']>('rectangle')
   const [showPicker, setShowPicker] = useState(false)
@@ -270,8 +274,8 @@ function ShapeToolButton({
         aria-pressed={isActive}
         className="cd-hoverable"
         style={{
-          width: 'var(--height-toolbar)',
-          height: 'var(--height-toolbar)',
+          width: btnSize ?? 'var(--height-toolbar)',
+          height: btnSize ?? 'var(--height-toolbar)',
           border: 'none',
           borderRadius: 'var(--radius-md)',
           cursor: 'pointer',
@@ -283,7 +287,7 @@ function ShapeToolButton({
           position: 'relative',
         }}
       >
-        <Icon size={16} strokeWidth={1.75} />
+        <Icon size={iconSize} strokeWidth={1.75} />
         {/* Small triangle indicator for flyout */}
         <svg
           width={5}
@@ -332,8 +336,8 @@ function ShapeToolButton({
                 aria-label={`${toolLabel(shape.id)} (${shape.key.toUpperCase()})`}
                 className="cd-hoverable"
                 style={{
-                  width: 'var(--height-toolbar)',
-                  height: 'var(--height-toolbar)',
+                  width: btnSize ?? 'var(--height-toolbar)',
+                  height: btnSize ?? 'var(--height-toolbar)',
                   border: 'none',
                   borderRadius: 'var(--radius-md)',
                   cursor: 'pointer',
@@ -344,7 +348,7 @@ function ShapeToolButton({
                   background: isShapeActive ? 'var(--accent)' : 'transparent',
                 }}
               >
-                <ShapeIcon size={16} strokeWidth={1.75} />
+                <ShapeIcon size={iconSize} strokeWidth={1.75} />
               </button>
             )
           })}
@@ -546,6 +550,10 @@ function ToolScrollArea({ children }: { children: React.ReactNode }) {
 export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {}) {
   const activeTool = useEditorStore((s) => s.activeTool)
   const setActiveTool = useEditorStore((s) => s.setActiveTool)
+  const touchMode = useEditorStore((s) => s.touchMode)
+  const btnSize = touchMode ? 48 : undefined // undefined → use var(--height-toolbar)
+  const iconSize = touchMode ? 20 : 16
+  const toolbarWidth = touchMode ? 56 : 40
   const [themeName, setThemeName] = useState(getTheme().name)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -612,7 +620,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           padding: 'var(--space-1)',
           background: 'var(--bg-surface)',
           borderRight: '1px solid var(--border-subtle)',
-          width: 40,
+          width: toolbarWidth,
           alignItems: 'center',
           minHeight: 0,
         }}
@@ -642,7 +650,15 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                 )
               }
               if (tool === 'shapes') {
-                return <ShapeToolButton key="shapes" activeTool={activeTool} setActiveTool={handleSetActiveTool} />
+                return (
+                  <ShapeToolButton
+                    key="shapes"
+                    activeTool={activeTool}
+                    setActiveTool={handleSetActiveTool}
+                    btnSize={btnSize}
+                    iconSize={iconSize}
+                  />
+                )
               }
               const Icon = tool.icon
               const isActive = activeTool === tool.id
@@ -664,8 +680,8 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                   aria-pressed={isActive}
                   className="cd-hoverable"
                   style={{
-                    width: 'var(--height-toolbar)',
-                    height: 'var(--height-toolbar)',
+                    width: btnSize ?? 'var(--height-toolbar)',
+                    height: btnSize ?? 'var(--height-toolbar)',
                     border: 'none',
                     borderRadius: 'var(--radius-md)',
                     cursor: 'pointer',
@@ -677,7 +693,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                     flexShrink: 0,
                   }}
                 >
-                  <Icon size={16} strokeWidth={1.75} />
+                  <Icon size={iconSize} strokeWidth={1.75} />
                 </button>
               )
             })}
@@ -702,8 +718,8 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             aria-label="Keyboard shortcuts"
             className="cd-hoverable"
             style={{
-              width: 'var(--height-toolbar)',
-              height: 'var(--height-toolbar)',
+              width: btnSize ?? 'var(--height-toolbar)',
+              height: btnSize ?? 'var(--height-toolbar)',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
@@ -714,7 +730,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
               background: 'transparent',
             }}
           >
-            <Keyboard size={16} strokeWidth={1.75} />
+            <Keyboard size={iconSize} strokeWidth={1.75} />
           </button>
           <button
             onClick={() => setShowSettings(true)}
@@ -722,8 +738,8 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             aria-label="UI Settings"
             className="cd-hoverable"
             style={{
-              width: 'var(--height-toolbar)',
-              height: 'var(--height-toolbar)',
+              width: btnSize ?? 'var(--height-toolbar)',
+              height: btnSize ?? 'var(--height-toolbar)',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
@@ -734,7 +750,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
               background: 'transparent',
             }}
           >
-            <Settings size={16} strokeWidth={1.75} />
+            <Settings size={iconSize} strokeWidth={1.75} />
           </button>
           <button
             onClick={handleToggleTheme}
@@ -742,8 +758,8 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             aria-label={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
             className="cd-hoverable"
             style={{
-              width: 'var(--height-toolbar)',
-              height: 'var(--height-toolbar)',
+              width: btnSize ?? 'var(--height-toolbar)',
+              height: btnSize ?? 'var(--height-toolbar)',
               border: 'none',
               borderRadius: 'var(--radius-md)',
               cursor: 'pointer',
@@ -754,7 +770,11 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
               background: 'transparent',
             }}
           >
-            {themeName === 'dark' ? <Sun size={16} strokeWidth={1.75} /> : <Moon size={16} strokeWidth={1.75} />}
+            {themeName === 'dark' ? (
+              <Sun size={iconSize} strokeWidth={1.75} />
+            ) : (
+              <Moon size={iconSize} strokeWidth={1.75} />
+            )}
           </button>
         </div>
       </div>
