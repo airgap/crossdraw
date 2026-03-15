@@ -511,7 +511,23 @@ function parseAdditionalLayerInfo(
     const useLongLength =
       isPSB &&
       tagSig === '8B64' &&
-      ['LMsk', 'Lr16', 'Lr32', 'Layr', 'Mt16', 'Mt32', 'Mtrn', 'Alph', 'FMsk', 'lnk2', 'FEid', 'FXid', 'PxSD', 'cinf', 'lnkE'].includes(tagKey)
+      [
+        'LMsk',
+        'Lr16',
+        'Lr32',
+        'Layr',
+        'Mt16',
+        'Mt32',
+        'Mtrn',
+        'Alph',
+        'FMsk',
+        'lnk2',
+        'FEid',
+        'FXid',
+        'PxSD',
+        'cinf',
+        'lnkE',
+      ].includes(tagKey)
     let tagLen: number
     if (useLongLength) {
       tagLen = Number(r.u32()) * 0x100000000 + r.u32()
@@ -538,13 +554,7 @@ function parseAdditionalLayerInfo(
  * Parse a layer info block (layer count + records + channel data).
  * Same structure as the main layer info section.
  */
-function parseLayerBlock(
-  r: PSDReader,
-  psdLayers: PSDLayerInfo[],
-  isPSB: boolean,
-  depth: number,
-  blockEnd: number,
-) {
+function parseLayerBlock(r: PSDReader, psdLayers: PSDLayerInfo[], isPSB: boolean, depth: number, blockEnd: number) {
   if (r.offset >= blockEnd) return
 
   let layerCount = r.i16()
@@ -704,13 +714,7 @@ function parseLayerBlock(
  * Read the merged/composite image data section as a single raster layer.
  * This is the fallback when no layer records were found (flat PSD).
  */
-function readCompositeAsLayer(
-  r: PSDReader,
-  width: number,
-  height: number,
-  depth: number,
-  psdLayers: PSDLayerInfo[],
-) {
+function readCompositeAsLayer(r: PSDReader, width: number, height: number, depth: number, psdLayers: PSDLayerInfo[]) {
   if (r.remaining() < 2) return
 
   const compression = r.u16()
