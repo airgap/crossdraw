@@ -417,24 +417,24 @@ describe('importPSD', () => {
     // PSD layer records are stored bottom-to-top.
     // buildLayers iterates from length-1 down to 0 (i.e., top to bottom in visual order).
     // In the PSD file format, a group looks like (from bottom to top in the array):
-    //   [0] Group header (sectionDivider=1) — name = "MyGroup"
+    //   [0] End marker (sectionDivider=3) — name = "</Layer group>"
     //   [1] Child layer
-    //   [2] End marker (sectionDivider=3) — name = "</Layer group>"
+    //   [2] Group header (sectionDivider=1) — name = "MyGroup"
     // buildLayers processes from index 2 → 0:
-    //   i=2: sectionDivider=3 → push new group onto stack
+    //   i=2: sectionDivider=1 → push new group onto stack (start collecting children)
     //   i=1: regular layer → add to stack top's children
-    //   i=0: sectionDivider=1 → pop stack, set group name from this layer
+    //   i=0: sectionDivider=3 → pop stack, finalize group
     const buf = buildPSD({
       width: 10,
       height: 10,
       layers: [
         {
-          name: 'MyGroup',
+          name: '</Layer group>',
           top: 0,
           left: 0,
           bottom: 0,
           right: 0,
-          sectionDivider: 1,
+          sectionDivider: 3,
           channels: [
             { id: 0, data: new Uint8Array(0) },
             { id: 1, data: new Uint8Array(0) },
@@ -454,12 +454,12 @@ describe('importPSD', () => {
           ],
         },
         {
-          name: '</Layer group>',
+          name: 'MyGroup',
           top: 0,
           left: 0,
           bottom: 0,
           right: 0,
-          sectionDivider: 3,
+          sectionDivider: 1,
           channels: [
             { id: 0, data: new Uint8Array(0) },
             { id: 1, data: new Uint8Array(0) },

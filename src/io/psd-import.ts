@@ -3,7 +3,7 @@
  *
  * Parses the PSD binary format and converts it into a Crossdraw DesignDocument.
  * Handles: file header, layer info (names, bounds, opacity, visibility),
- * channel image data (raw + RLE/PackBits), and group layer structure.
+ * channel image data (raw + RLE/PackBits), layer masks, and group layer structure.
  *
  * Limitations: text layers, smart objects, layer effects, and adjustment layers
  * are imported as rasterised layers.  Only RGB color mode is supported.
@@ -124,6 +124,14 @@ const BLEND_MODE_MAP: Record<string, BlendMode> = {
   'sat ': 'saturation',
   colr: 'color',
   'lum ': 'luminosity',
+  lbrn: 'linear-burn',
+  lddg: 'linear-dodge',
+  vLit: 'vivid-light',
+  lLit: 'linear-light',
+  pLit: 'pin-light',
+  hMix: 'hard-mix',
+  diss: 'normal', // dissolve → fallback to normal
+  pass: 'pass-through',
 }
 
 function mapBlendMode(key: string): BlendMode {
@@ -158,6 +166,14 @@ function decompressPackBits(reader: PSDReader, unpackedLength: number): Uint8Arr
 
 // ── Per-layer parsed info ───────────────────────────────────────────────────
 
+interface MaskBounds {
+  top: number
+  left: number
+  bottom: number
+  right: number
+  defaultColor: number // 0 or 255
+}
+
 interface PSDLayerInfo {
   name: string
   top: number
@@ -172,6 +188,10 @@ interface PSDLayerInfo {
   flags: number
   /** Section divider type: 0=none, 1=open folder, 2=closed folder, 3=bounding end */
   sectionDivider: number
+  /** Layer mask bounds (if present) — used for channel -2 dimensions */
+  maskBounds: MaskBounds | null
+  /** Clipping base flag: 0=base, 1=non-base (clipping layer) */
+  clipping: number
 }
 
 // ── Main import function ────────────────────────────────────────────────────
@@ -253,7 +273,7 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
         const blendMode = mapBlendMode(blendKey)
         const opacityRaw = r.u8()
         const opacity = opacityRaw / 255
-        r.skip(1) // clipping
+        const clipping = r.u8()
         const flags = r.u8()
         r.skip(1) // filler
 
@@ -263,9 +283,19 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
         const extraDataLen = r.u32()
         const extraDataEnd = r.offset + extraDataLen
 
-        // Layer mask data
+        // Layer mask data — parse bounds for channel -2 sizing
         const layerMaskDataLen = r.u32()
-        r.skip(layerMaskDataLen)
+        const layerMaskDataEnd = r.offset + layerMaskDataLen
+        let maskBounds: MaskBounds | null = null
+        if (layerMaskDataLen >= 16) {
+          const maskTop = r.i32()
+          const maskLeft = r.i32()
+          const maskBottom = r.i32()
+          const maskRight = r.i32()
+          const defaultColor = layerMaskDataLen >= 17 ? r.u8() : 0
+          maskBounds = { top: maskTop, left: maskLeft, bottom: maskBottom, right: maskRight, defaultColor }
+        }
+        r.offset = layerMaskDataEnd
 
         // Blending ranges
         const blendingRangesLen = r.u32()
@@ -289,7 +319,14 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
             break
           }
           const tagKey = r.ascii(4)
-          const tagLen = r.u32()
+          let tagLen: number
+          // 8B64 uses 8-byte lengths for certain keys in PSB, but for simplicity
+          // and PSD v1, use 4-byte lengths
+          if (isPSB && tagSig === '8B64') {
+            tagLen = Number(r.u32()) * 0x100000000 + r.u32()
+          } else {
+            tagLen = r.u32()
+          }
           const tagEnd = r.offset + tagLen
           // Pad to even
           const paddedEnd = tagEnd + (tagEnd % 2)
@@ -317,6 +354,8 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
           visible,
           flags,
           sectionDivider,
+          maskBounds,
+          clipping,
         })
       }
 
@@ -325,15 +364,24 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
         const lw = layer.right - layer.left
         const lh = layer.bottom - layer.top
 
+        // Mask dimensions (for channel -2)
+        const mw = layer.maskBounds ? layer.maskBounds.right - layer.maskBounds.left : 0
+        const mh = layer.maskBounds ? layer.maskBounds.bottom - layer.maskBounds.top : 0
+
         for (const chan of layer.channels) {
-          if (lw <= 0 || lh <= 0) {
-            // Empty layer — skip channel data
+          // Determine the pixel dimensions for this channel
+          const isMaskChannel = chan.id === -2
+          const chanW = isMaskChannel ? mw : lw
+          const chanH = isMaskChannel ? mh : lh
+
+          if (chanW <= 0 || chanH <= 0) {
+            // Empty channel — skip data
             r.skip(chan.dataLength)
             continue
           }
 
           const compression = r.u16()
-          const pixelCount = lw * lh
+          const pixelCount = chanW * chanH
           const bytesPerPixel = depth === 16 ? 2 : 1
           const unpackedLen = pixelCount * bytesPerPixel
 
@@ -342,8 +390,8 @@ export async function importPSD(buffer: ArrayBuffer): Promise<DesignDocument> {
             chan._data = r.bytes(unpackedLen)
           } else if (compression === 1) {
             // RLE — read scan line byte counts first
-            const scanLineCounts = new Array(lh)
-            for (let row = 0; row < lh; row++) {
+            const scanLineCounts = new Array(chanH)
+            for (let row = 0; row < chanH; row++) {
               scanLineCounts[row] = isPSB ? r.u32() : r.u16()
             }
             chan._data = decompressPackBits(r, unpackedLen)
@@ -419,12 +467,15 @@ function buildLayers(psdLayers: PSDLayerInfo[], _docWidth: number, _docHeight: n
   const rootChildren: Layer[] = []
   const stack: StackFrame[] = []
 
+  // PSD stores layers bottom-to-top. When iterating top-to-bottom (reverse),
+  // we encounter the group HEADER (type 1/2) first, then children, then the
+  // END marker (type 3). So: HEADER → PUSH, END → POP.
   for (let i = psdLayers.length - 1; i >= 0; i--) {
     const psd = psdLayers[i]!
 
-    // Section divider: type 3 = bounding section (end marker)
-    if (psd.sectionDivider === 3) {
-      // Start a new group — the *next* record up the stack has the group name
+    // Section divider: type 1 or 2 = open/closed folder (group header).
+    // Start a new group — push frame to collect children.
+    if (psd.sectionDivider === 1 || psd.sectionDivider === 2) {
       const group: GroupLayer = {
         id: uuid(),
         name: psd.name || 'Group',
@@ -441,15 +492,11 @@ function buildLayers(psdLayers: PSDLayerInfo[], _docWidth: number, _docHeight: n
       continue
     }
 
-    // Section divider: type 1 or 2 = open/closed folder (group header).
-    // Pop the stack — this layer is the group name.
-    if (psd.sectionDivider === 1 || psd.sectionDivider === 2) {
+    // Section divider: type 3 = bounding section (end marker).
+    // Pop the stack — finalize the group with collected children.
+    if (psd.sectionDivider === 3) {
       if (stack.length > 0) {
         const frame = stack.pop()!
-        frame.group.name = psd.name || frame.group.name
-        frame.group.visible = psd.visible
-        frame.group.opacity = psd.opacity
-        frame.group.blendMode = psd.blendMode
         frame.group.children = frame.children
         // Add to parent
         if (stack.length > 0) {
@@ -496,7 +543,7 @@ function createRasterLayer(psd: PSDLayerInfo, is16bit: boolean): RasterLayer | n
   const pixelCount = lw * lh
   const rgba = new Uint8ClampedArray(pixelCount * 4)
 
-  // Find channels by ID: -1=transparency(A), 0=R, 1=G, 2=B
+  // Find channels by ID: -1=transparency(A), 0=R, 1=G, 2=B, -2=mask
   const channelData: Record<number, Uint8Array | undefined> = {}
   for (const chan of psd.channels) {
     channelData[chan.id] = chan._data
@@ -522,6 +569,43 @@ function createRasterLayer(psd: PSDLayerInfo, is16bit: boolean): RasterLayer | n
       rgba[p * 4 + 1] = gData ? gData[p]! : 0
       rgba[p * 4 + 2] = bData ? bData[p]! : 0
       rgba[p * 4 + 3] = aData ? aData[p]! : 255
+    }
+  }
+
+  // Apply layer mask (channel -2) if present
+  const maskData = channelData[-2]
+  if (maskData && psd.maskBounds) {
+    const mb = psd.maskBounds
+    const mw = mb.right - mb.left
+    const mh = mb.bottom - mb.top
+
+    if (mw > 0 && mh > 0) {
+      // The mask has its own coordinate space. We need to map mask pixels
+      // to layer pixels. Both are in document (artboard) coordinates.
+      for (let p = 0; p < pixelCount; p++) {
+        const layerX = psd.left + (p % lw)
+        const layerY = psd.top + Math.floor(p / lw)
+
+        // Find corresponding mask pixel
+        const maskX = layerX - mb.left
+        const maskY = layerY - mb.top
+
+        let maskAlpha: number
+        if (maskX >= 0 && maskX < mw && maskY >= 0 && maskY < mh) {
+          const maskIdx = maskY * mw + maskX
+          if (is16bit) {
+            maskAlpha = maskData[maskIdx * 2]!
+          } else {
+            maskAlpha = maskData[maskIdx]!
+          }
+        } else {
+          // Outside mask bounds: use default color
+          maskAlpha = mb.defaultColor
+        }
+
+        // Multiply existing alpha by mask alpha
+        rgba[p * 4 + 3] = (rgba[p * 4 + 3]! * maskAlpha) / 255
+      }
     }
   }
 
