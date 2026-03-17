@@ -1,5 +1,6 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
+import { getTextEditState } from '@/tools/text-edit'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
 import { newDocumentFromClipboard } from '@/tools/import-image'
 import { quickExport } from '@/ui/quick-export'
@@ -101,7 +102,8 @@ function buildDefaultBindings(): ShortcutBinding[] {
     toolShortcut('tool.polygon', 'Polygon Tool', 'y', 'polygon'),
     toolShortcut('tool.star', 'Star Tool', 'shift+s', 'star'),
     toolShortcut('tool.cloneStamp', 'Clone Stamp Tool', 's', 'clone-stamp'),
-    toolShortcut('tool.text', 'Text Tool', 't', 'text'),
+    toolShortcut('tool.text', 'Artistic Text Tool', 't', 'text'),
+    toolShortcut('tool.frameText', 'Frame Text Tool', 'shift+t', 'frame-text'),
     toolShortcut('tool.node', 'Node Tool', 'a', 'node'),
     toolShortcut('tool.eyedropper', 'Eyedropper Tool', 'i', 'eyedropper'),
     toolShortcut('tool.hand', 'Hand Tool', 'h', 'hand'),
@@ -642,6 +644,9 @@ export function initShortcuts() {
       target.isContentEditable
     )
       return
+
+    // Don't intercept when editing text on the canvas
+    if (getTextEditState().active) return
 
     for (const binding of bindings) {
       if (matchesCombo(e, binding.key)) {

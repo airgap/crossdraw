@@ -441,8 +441,8 @@ export function Viewport() {
       ctx.setLineDash([])
     }
 
-    // Text tool drag preview (area text box)
-    if (textDragStart.current && textDragEnd.current && isDragging.current && activeTool === 'text') {
+    // Frame Text tool drag preview (area text box)
+    if (textDragStart.current && textDragEnd.current && isDragging.current && activeTool === 'frame-text') {
       const ts = textDragStart.current
       const te = textDragEnd.current
       const tx = Math.min(ts.x, te.x)
@@ -1432,7 +1432,7 @@ export function Viewport() {
           commitCrop()
           return
         }
-        if (tool === 'select' || tool === 'text') {
+        if (tool === 'select' || tool === 'text' || tool === 'frame-text') {
           const currentSelection = useEditorStore.getState().selection
           const doc = useEditorStore.getState().document
           for (const artboard of doc.artboards) {
@@ -1680,10 +1680,26 @@ export function Viewport() {
       return
     }
 
-    // Text tool — click to place point text, drag to create area text box
+    // Artistic Text tool — click to place point text
     if (activeTool === 'text') {
       const textState = getTextEditState()
-      // If already editing, clicking elsewhere ends editing
+      if (textState.active) {
+        endTextEdit()
+      }
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard =
+        document.artboards.find(
+          (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
+        ) ?? document.artboards[0]
+      if (artboard) {
+        createAndEditText(docPoint.x, docPoint.y, artboard.id)
+      }
+      return
+    }
+
+    // Frame Text tool — drag to create area text box
+    if (activeTool === 'frame-text') {
+      const textState = getTextEditState()
       if (textState.active) {
         endTextEdit()
       }
@@ -2230,8 +2246,8 @@ export function Viewport() {
       return
     }
 
-    // Text tool drag (area text creation)
-    if (activeTool === 'text' && isDragging.current && textDragStart.current) {
+    // Frame Text tool drag (area text creation)
+    if (activeTool === 'frame-text' && isDragging.current && textDragStart.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       textDragEnd.current = { x: docPoint.x, y: docPoint.y }
       render()
@@ -2573,21 +2589,20 @@ export function Viewport() {
       return
     }
 
-    // Text tool — finish drag or click
-    if (activeTool === 'text' && isDragging.current && textDragStart.current) {
+    // Frame Text tool — finish drag
+    if (activeTool === 'frame-text' && isDragging.current && textDragStart.current) {
       const start = textDragStart.current
       const end = textDragEnd.current ?? start
       const dx = Math.abs(end.x - start.x)
       const dy = Math.abs(end.y - start.y)
 
       if (dx > 10 || dy > 10) {
-        // Dragged enough — create area text box
         const rectX = Math.min(start.x, end.x)
         const rectY = Math.min(start.y, end.y)
         createAreaText(rectX, rectY, dx, dy, start.artboardId)
       } else {
-        // Click — create point text
-        createAndEditText(start.x, start.y, start.artboardId)
+        // Click with no drag — create a default-sized text frame
+        createAreaText(start.x, start.y, 200, 100, start.artboardId)
       }
 
       textDragStart.current = null
@@ -2867,7 +2882,7 @@ export function Viewport() {
     // Double-click on a VectorLayer → enter node editing mode
     // Read selection fresh from store — the first click of the double-click
     // may have just selected the layer, so the closure's `selection` is stale
-    if (activeTool === 'select' || activeTool === 'text') {
+    if (activeTool === 'select' || activeTool === 'text' || activeTool === 'frame-text') {
       const currentSelection = useEditorStore.getState().selection
       for (const artboard of document.artboards) {
         for (const layer of artboard.layers) {
@@ -2942,9 +2957,13 @@ export function Viewport() {
             ? 'crosshair'
             : activeTool === 'select'
               ? undefined
-              : activeTool === 'comment'
-                ? 'crosshair'
-                : 'default'
+              : activeTool === 'text'
+                ? 'text'
+                : activeTool === 'frame-text'
+                  ? 'crosshair'
+                  : activeTool === 'comment'
+                    ? 'crosshair'
+                    : 'default'
 
   // Pointer event wrappers — extract pressure from PointerEvent and forward
   // to existing mouse handlers (PointerEvent extends MouseEvent).

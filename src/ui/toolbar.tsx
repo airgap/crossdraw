@@ -13,6 +13,7 @@ import {
   Hexagon,
   Star,
   Type,
+  TextCursorInput,
   Pipette,
   Hand,
   Ruler,
@@ -115,7 +116,14 @@ const shapeTools: ToolEntry[] = [
 
 const shapeToolIds = new Set(shapeTools.map((t) => t.id))
 
-const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'separator')[] = [
+const textTools: ToolEntry[] = [
+  { id: 'text', icon: Type, key: 't' },
+  { id: 'frame-text', icon: TextCursorInput, key: 'shift+t' },
+]
+
+const textToolIds = new Set(textTools.map((t) => t.id))
+
+const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'textTools' | 'separator')[] = [
   // ── Selection & navigation ──
   { id: 'select', icon: MousePointer2, key: 'v' },
   { id: 'node', icon: Spline, key: 'a' },
@@ -127,7 +135,7 @@ const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'separator')[] = [
   { id: 'pencil', icon: Pencil, key: 'n' },
   { id: 'line', icon: Minus, key: 'l' },
   'shapes',
-  { id: 'text', icon: Type, key: 't' },
+  'textTools',
   'separator',
   // ── Raster painting ──
   { id: 'brush', icon: BrushIcon, key: 'b' },
@@ -160,11 +168,14 @@ for (const t of DEFAULT_TOOLS) {
 for (const t of shapeTools) {
   toolEntryMap.set(t.id, t)
 }
+for (const t of textTools) {
+  toolEntryMap.set(t.id, t)
+}
 
 /** Build ordered tool list from persisted order, falling back to defaults. */
-function getOrderedTools(): (ToolEntry | 'shapes' | 'separator')[] {
+function getOrderedTools(): (ToolEntry | 'shapes' | 'textTools' | 'separator')[] {
   const order = loadOrder()
-  const result: (ToolEntry | 'shapes' | 'separator')[] = []
+  const result: (ToolEntry | 'shapes' | 'textTools' | 'separator')[] = []
   const seen = new Set<string>()
   for (const token of order) {
     if (token === 'separator') {
@@ -173,6 +184,11 @@ function getOrderedTools(): (ToolEntry | 'shapes' | 'separator')[] {
       if (!seen.has('shapes')) {
         result.push('shapes')
         seen.add('shapes')
+      }
+    } else if (token === 'textTools') {
+      if (!seen.has('textTools')) {
+        result.push('textTools')
+        seen.add('textTools')
       }
     } else {
       const entry = toolEntryMap.get(token)
@@ -358,6 +374,164 @@ function ShapeToolButton({
   )
 }
 
+function TextToolButton({
+  activeTool,
+  setActiveTool,
+  btnSize,
+  iconSize,
+}: {
+  activeTool: EditorState['activeTool']
+  setActiveTool: (tool: EditorState['activeTool']) => void
+  btnSize?: number
+  iconSize: number
+}) {
+  const [currentText, setCurrentText] = useState<EditorState['activeTool']>('text')
+  const [showPicker, setShowPicker] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (textToolIds.has(activeTool)) setCurrentText(activeTool)
+  }, [activeTool])
+
+  useEffect(() => {
+    if (!showPicker) return
+    const close = (e: PointerEvent) => {
+      if (containerRef.current?.contains(e.target as Node)) return
+      setShowPicker(false)
+    }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [showPicker])
+
+  const onPointerDown = useCallback(() => {
+    didLongPress.current = false
+    timerRef.current = setTimeout(() => {
+      didLongPress.current = true
+      setShowPicker(true)
+    }, LONG_PRESS_MS)
+  }, [])
+
+  const onPointerUp = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (!didLongPress.current) {
+      setActiveTool(currentText)
+      setShowPicker(false)
+    }
+  }, [currentText, setActiveTool])
+
+  const onPointerLeave = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  const isActive = textToolIds.has(activeTool)
+  const current = textTools.find((t) => t.id === currentText) || textTools[0]!
+  const Icon = current.icon
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <button
+        data-tool-textTools="true"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        title={`${toolLabel(current.id)} (${current.key.toUpperCase()}) — hold for more`}
+        role="button"
+        tabIndex={0}
+        aria-label={`${toolLabel(current.id)} (${current.key.toUpperCase()}) — hold for more text tools`}
+        aria-pressed={isActive}
+        className="cd-hoverable"
+        style={{
+          width: btnSize ?? 'var(--height-toolbar)',
+          height: btnSize ?? 'var(--height-toolbar)',
+          border: 'none',
+          borderRadius: 'var(--radius-md)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: isActive ? '#fff' : 'var(--text-secondary)',
+          background: isActive ? 'var(--accent)' : 'transparent',
+          position: 'relative',
+        }}
+      >
+        <Icon size={iconSize} strokeWidth={1.75} />
+        <svg
+          width={5}
+          height={5}
+          viewBox="0 0 5 5"
+          style={{ position: 'absolute', bottom: 2, right: 2, opacity: 0.6 }}
+          fill="currentColor"
+        >
+          <polygon points="0,5 5,5 5,0" />
+        </svg>
+      </button>
+
+      {showPicker && (
+        <div
+          role="menu"
+          aria-label="Text tools"
+          style={{
+            position: 'absolute',
+            left: '100%',
+            top: 0,
+            marginLeft: 2,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          }}
+        >
+          {textTools.map((tt) => {
+            const TtIcon = tt.icon
+            const isTtActive = activeTool === tt.id
+            return (
+              <button
+                key={tt.id}
+                onClick={() => {
+                  setCurrentText(tt.id)
+                  setActiveTool(tt.id)
+                  setShowPicker(false)
+                }}
+                title={`${toolLabel(tt.id)} (${tt.key.toUpperCase()})`}
+                role="menuitem"
+                aria-label={`${toolLabel(tt.id)} (${tt.key.toUpperCase()})`}
+                className="cd-hoverable"
+                style={{
+                  width: btnSize ?? 'var(--height-toolbar)',
+                  height: btnSize ?? 'var(--height-toolbar)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isTtActive ? '#fff' : 'var(--text-secondary)',
+                  background: isTtActive ? 'var(--accent)' : 'transparent',
+                }}
+              >
+                <TtIcon size={iconSize} strokeWidth={1.75} />
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Human-readable label for each tool id */
 const toolLabels: Record<string, string> = {
   select: 'Select',
@@ -370,7 +544,8 @@ const toolLabels: Record<string, string> = {
   ellipse: 'Ellipse',
   polygon: 'Polygon',
   star: 'Star',
-  text: 'Text',
+  text: 'Artistic Text',
+  'frame-text': 'Frame Text',
   brush: 'Brush',
   eraser: 'Eraser',
   'clone-stamp': 'Clone Stamp',
@@ -630,7 +805,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           {tools
             .filter((tool) => {
               if (!modeConfig) return true
-              if (tool === 'separator' || tool === 'shapes') return true
+              if (tool === 'separator' || tool === 'shapes' || tool === 'textTools') return true
               return modeConfig.tools.includes(tool.id)
             })
             .map((tool, idx) => {
@@ -653,6 +828,17 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                 return (
                   <ShapeToolButton
                     key="shapes"
+                    activeTool={activeTool}
+                    setActiveTool={handleSetActiveTool}
+                    btnSize={btnSize}
+                    iconSize={iconSize}
+                  />
+                )
+              }
+              if (tool === 'textTools') {
+                return (
+                  <TextToolButton
+                    key="textTools"
                     activeTool={activeTool}
                     setActiveTool={handleSetActiveTool}
                     btnSize={btnSize}

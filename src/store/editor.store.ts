@@ -83,6 +83,7 @@ export interface EditorState {
     | 'polygon'
     | 'star'
     | 'text'
+    | 'frame-text'
     | 'gradient'
     | 'eyedropper'
     | 'hand'
@@ -1468,7 +1469,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     setActiveTool(tool) {
       // End text editing when switching away from text tool
-      if (tool !== 'text' && getTextEditState().active) {
+      if (tool !== 'text' && tool !== 'frame-text' && getTextEditState().active) {
         endTextEdit()
       }
       set({ activeTool: tool })
