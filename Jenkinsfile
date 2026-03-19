@@ -1,4 +1,4 @@
-// Triggered via Gitea push webhook → generic-webhook-trigger (token: crossdraw-webhook)
+// Triggered via Gitea push webhook → generic-webhook-trigger
 
 pipeline {
     agent none
@@ -8,7 +8,7 @@ pipeline {
             genericVariables: [
                 [key: 'ref', value: '$.ref']
             ],
-            token: 'crossdraw-webhook',
+            tokenCredentialId: 'crossdraw-webhook-token',
             causeString: 'Push to $ref',
             printContributedVariables: true,
             printPostContent: false,
