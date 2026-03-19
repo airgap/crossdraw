@@ -1559,17 +1559,21 @@ export function Viewport() {
       }
 
       if (e.ctrlKey || e.metaKey) {
+        // Ctrl+scroll = pan
+        if (e.shiftKey) {
+          const vp = useEditorStore.getState().viewport
+          useEditorStore.getState().setPan(vp.panX - dy, vp.panY)
+        } else {
+          const vp = useEditorStore.getState().viewport
+          useEditorStore.getState().setPan(vp.panX - dx, vp.panY - dy)
+        }
+      } else {
+        // Scroll = zoom at cursor
         const delta = -dy * 0.002
         const vp = useEditorStore.getState().viewport
         const newViewport = zoomAtPoint(vp, { x: e.clientX, y: e.clientY }, rect, delta)
         useEditorStore.getState().setZoom(newViewport.zoom)
         useEditorStore.getState().setPan(newViewport.panX, newViewport.panY)
-      } else if (e.shiftKey) {
-        const vp = useEditorStore.getState().viewport
-        useEditorStore.getState().setPan(vp.panX - dy, vp.panY)
-      } else {
-        const vp = useEditorStore.getState().viewport
-        useEditorStore.getState().setPan(vp.panX - dx, vp.panY - dy)
       }
     }
     canvas.addEventListener('wheel', handler, { passive: false })

@@ -16,7 +16,7 @@ const steps: OnboardingStep[] = [
   {
     title: 'Canvas',
     description:
-      'The center area is your workspace. Scroll to pan, pinch or Ctrl+scroll to zoom, and drag with the Hand tool (H) to navigate.',
+      'The center area is your workspace. Scroll to zoom, Ctrl+scroll to pan, and drag with the Hand tool (H) to navigate.',
   },
   {
     title: 'Layers Panel',
