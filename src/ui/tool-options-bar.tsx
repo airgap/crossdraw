@@ -63,6 +63,7 @@ import { getMeshWarpSettings, setMeshWarpSettings } from '@/tools/mesh-warp'
 import { getPuppetWarpSettings, setPuppetWarpSettings } from '@/tools/puppet-warp'
 import { getPerspectiveWarpSettings, setPerspectiveWarpSettings } from '@/tools/perspective-warp'
 import { getCageTransformSettings, setCageTransformSettings } from '@/tools/cage-transform'
+import { getPixelDrawSettings, setPixelDrawSettings } from '@/tools/pixel-draw'
 
 // ── Shared styles ──
 
@@ -636,6 +637,40 @@ function EraserOptions() {
         step={0.05}
         format={(v) => `${Math.round(v * 100)}%`}
         onChange={(v) => update({ hardness: v })}
+      />
+    </>
+  )
+}
+
+function PixelDrawOptions() {
+  const [settings, setSettings] = useState(getPixelDrawSettings)
+
+  useEffect(() => {
+    setSettings(getPixelDrawSettings())
+  }, [])
+
+  const update = useCallback((patch: Partial<typeof settings>) => {
+    setPixelDrawSettings(patch)
+    setSettings((prev) => ({ ...prev, ...patch }))
+  }, [])
+
+  return (
+    <>
+      <NumberInput
+        label="Pixel Size"
+        value={settings.pixelSize}
+        min={1}
+        max={64}
+        onChange={(v) => update({ pixelSize: v })}
+      />
+      <SliderInput
+        label="Opacity"
+        value={settings.opacity}
+        min={0}
+        max={1}
+        step={0.05}
+        format={(v) => `${Math.round(v * 100)}%`}
+        onChange={(v) => update({ opacity: v })}
       />
     </>
   )
@@ -1882,6 +1917,9 @@ export function ToolOptionsBar() {
           <SymmetryOptions />
         </>
       )
+      break
+    case 'pixel-draw':
+      options = <PixelDrawOptions />
       break
     case 'text':
       options = <TextOptions />

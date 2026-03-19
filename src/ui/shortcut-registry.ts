@@ -114,6 +114,7 @@ function buildDefaultBindings(): ShortcutBinding[] {
     toolShortcut('tool.line', 'Line Tool', 'l', 'line'),
     toolShortcut('tool.pencil', 'Pencil Tool', 'n', 'pencil'),
     toolShortcut('tool.eraser', 'Eraser Tool', 'x', 'eraser'),
+    toolShortcut('tool.pixelDraw', 'Pixel Draw Tool', 'shift+p', 'pixel-draw'),
     toolShortcut('tool.gradient', 'Gradient Tool', 'j', 'gradient'),
     toolShortcut('tool.fill', 'Fill Bucket', 'g', 'fill'),
     toolShortcut('tool.zoom', 'Zoom Tool', 'z', 'zoom'),

@@ -36,6 +36,7 @@ import {
   Stamp,
   MessageCircle,
   Combine,
+  Grid2x2,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -143,6 +144,7 @@ const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'textTools' | 'separator')[] = [
   { id: 'clone-stamp', icon: Stamp, key: 's' },
   { id: 'fill', icon: PaintBucket, key: 'g' },
   { id: 'gradient', icon: Blend, key: 'j' },
+  { id: 'pixel-draw', icon: Grid2x2, key: 'shift+p' },
   'separator',
   // ── Selection regions ──
   { id: 'marquee', icon: SquareDashed, key: 'm' },
@@ -551,6 +553,7 @@ const toolLabels: Record<string, string> = {
   'clone-stamp': 'Clone Stamp',
   fill: 'Fill',
   gradient: 'Gradient',
+  'pixel-draw': 'Pixel Draw',
   eyedropper: 'Eyedropper',
   marquee: 'Marquee',
   lasso: 'Lasso',

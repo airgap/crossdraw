@@ -74,6 +74,7 @@ import { notifyPressure } from '@/tools/pressure'
 import { beginLineDrag, updateLineDrag, endLineDrag, isLineDragging } from '@/tools/line'
 import { beginPencilStroke, updatePencilStroke, endPencilStroke, isPencilDrawing } from '@/tools/pencil'
 import { beginEraserStroke, paintEraser, endEraserStroke, getEraserSettings } from '@/tools/eraser'
+import { beginPixelStroke, paintPixelStroke, endPixelStroke, getPixelDrawSettings } from '@/tools/pixel-draw'
 import { beginGradientDrag, updateGradientDrag, endGradientDrag, isGradientDragging } from '@/tools/gradient-tool'
 import { applyFillBucket } from '@/tools/fill-bucket'
 import { zoomToolClick, beginZoomDrag, updateZoomDrag, endZoomDrag, isZoomDragging } from '@/tools/zoom-tool'
@@ -311,6 +312,8 @@ export function Viewport() {
   const brushRafId = useRef(0)
   const eraserPoints = useRef<Array<{ x: number; y: number }>>([])
   const eraserRafId = useRef(0)
+  const pixelDrawPoints = useRef<Array<{ x: number; y: number }>>([])
+  const pixelDrawRafId = useRef(0)
   const gradientEnd = useRef<{ x: number; y: number } | null>(null)
   const cloneStampRafId = useRef(0)
   const mixerBrushPoints = useRef<Array<{ x: number; y: number }>>([])
@@ -539,6 +542,25 @@ export function Viewport() {
       ctx.arc(mx, my, r, 0, Math.PI * 2)
       ctx.stroke()
       ctx.restore()
+    }
+
+    // Pixel Draw cursor
+    if (activeTool === 'pixel-draw') {
+      const ps = getPixelDrawSettings()
+      const mx = mouseDocPos.current.x
+      const my = mouseDocPos.current.y
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const localX = mx - artboard.x
+        const localY = my - artboard.y
+        const gx = Math.floor(localX / ps.pixelSize) * ps.pixelSize + artboard.x
+        const gy = Math.floor(localY / ps.pixelSize) * ps.pixelSize + artboard.y
+        ctx.save()
+        ctx.lineWidth = 1 / viewport.zoom
+        ctx.strokeStyle = 'rgba(100,200,255,0.8)'
+        ctx.strokeRect(gx, gy, ps.pixelSize, ps.pixelSize)
+        ctx.restore()
+      }
     }
 
     // Clone Stamp cursor
@@ -1508,35 +1530,46 @@ export function Viewport() {
       if (useEditorStore.getState().touchMode) return
       const rect = canvas.getBoundingClientRect()
 
+      // Normalize deltaY across deltaMode (pixel vs line vs page)
+      let dy = e.deltaY
+      let dx = e.deltaX
+      if (e.deltaMode === 1) {
+        dy *= 16
+        dx *= 16
+      } else if (e.deltaMode === 2) {
+        dy *= 100
+        dx *= 100
+      }
+
       const { view3d } = useEditorStore.getState().viewport
 
       // In 3D mode: scroll adjusts layer spacing, ctrl+scroll zooms
       if (view3d.enabled) {
         if (e.ctrlKey || e.metaKey) {
-          const delta = -e.deltaY * 0.01
+          const delta = -dy * 0.002
           const vp = useEditorStore.getState().viewport
           const newViewport = zoomAtPoint(vp, { x: e.clientX, y: e.clientY }, rect, delta)
           useEditorStore.getState().setZoom(newViewport.zoom)
           useEditorStore.getState().setPan(newViewport.panX, newViewport.panY)
         } else {
-          const newSpacing = Math.max(5, Math.min(200, view3d.spacing - e.deltaY * 0.3))
+          const newSpacing = Math.max(5, Math.min(200, view3d.spacing - dy * 0.3))
           useEditorStore.getState().setView3DSpacing(newSpacing)
         }
         return
       }
 
       if (e.ctrlKey || e.metaKey) {
-        const delta = -e.deltaY * 0.01
+        const delta = -dy * 0.002
         const vp = useEditorStore.getState().viewport
         const newViewport = zoomAtPoint(vp, { x: e.clientX, y: e.clientY }, rect, delta)
         useEditorStore.getState().setZoom(newViewport.zoom)
         useEditorStore.getState().setPan(newViewport.panX, newViewport.panY)
       } else if (e.shiftKey) {
         const vp = useEditorStore.getState().viewport
-        useEditorStore.getState().setPan(vp.panX - e.deltaY, vp.panY)
+        useEditorStore.getState().setPan(vp.panX - dy, vp.panY)
       } else {
         const vp = useEditorStore.getState().viewport
-        useEditorStore.getState().setPan(vp.panX - e.deltaX, vp.panY - e.deltaY)
+        useEditorStore.getState().setPan(vp.panX - dx, vp.panY - dy)
       }
     }
     canvas.addEventListener('wheel', handler, { passive: false })
@@ -1804,6 +1837,20 @@ export function Viewport() {
       if (artboard && beginEraserStroke()) {
         eraserPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         isDragging.current = true
+      }
+      return
+    }
+
+    // Pixel Draw tool
+    if (activeTool === 'pixel-draw') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard && beginPixelStroke()) {
+        const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        pixelDrawPoints.current = [pt]
+        paintPixelStroke([pt])
+        isDragging.current = true
+        render()
       }
       return
     }
@@ -2200,7 +2247,13 @@ export function Viewport() {
       return
     }
 
-    if ((activeTool === 'brush' || activeTool === 'eraser' || activeTool === 'clone-stamp') && !isDragging.current) {
+    if (
+      (activeTool === 'brush' ||
+        activeTool === 'eraser' ||
+        activeTool === 'clone-stamp' ||
+        activeTool === 'pixel-draw') &&
+      !isDragging.current
+    ) {
       // Throttle cursor-only redraws to animation frame
       if (!brushRafId.current) {
         brushRafId.current = requestAnimationFrame(() => {
@@ -2329,6 +2382,27 @@ export function Viewport() {
             const len = eraserPoints.current.length
             if (len >= 2) {
               paintEraser(eraserPoints.current.slice(-2))
+              render()
+            }
+          })
+        }
+      }
+      return
+    }
+
+    // Pixel Draw tool drag
+    if (activeTool === 'pixel-draw' && isDragging.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = document.artboards[0]
+      if (artboard) {
+        const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        pixelDrawPoints.current.push(pt)
+        if (!pixelDrawRafId.current) {
+          pixelDrawRafId.current = requestAnimationFrame(() => {
+            pixelDrawRafId.current = 0
+            const len = pixelDrawPoints.current.length
+            if (len >= 2) {
+              paintPixelStroke(pixelDrawPoints.current.slice(-2))
               render()
             }
           })
@@ -2699,6 +2773,15 @@ export function Viewport() {
       return
     }
 
+    // Pixel Draw tool
+    if (activeTool === 'pixel-draw' && isDragging.current) {
+      endPixelStroke()
+      pixelDrawPoints.current = []
+      isDragging.current = false
+      render()
+      return
+    }
+
     // Mixer Brush tool
     if (activeTool === 'mixer-brush' && isDragging.current) {
       endMixerStroke()
@@ -2946,7 +3029,7 @@ export function Viewport() {
     ? 'grabbing'
     : activeTool === 'hand'
       ? 'grab'
-      : activeTool === 'brush' || activeTool === 'clone-stamp'
+      : activeTool === 'brush' || activeTool === 'clone-stamp' || activeTool === 'pixel-draw'
         ? 'none'
         : activeTool === 'pen' || activeTool === 'curvature-pen' || activeTool === 'node' || activeTool === 'measure'
           ? 'crosshair'

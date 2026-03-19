@@ -134,6 +134,7 @@ export interface EditorState {
     | 'puppet-warp'
     | 'perspective-warp'
     | 'cage-transform'
+    | 'pixel-draw'
   selectedCommentId: string | null
   showRulers: boolean
   showGrid: boolean
