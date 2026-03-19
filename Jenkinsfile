@@ -186,7 +186,36 @@ pipeline {
         }
 
         // ────────────────────────────────────────────────────────
-        // Stage 3: Deploy to Cloudflare
+        // Stage 3: Publish editor-core to npm
+        // ────────────────────────────────────────────────────────
+        stage('npm Publish') {
+            agent { label 'linux' }
+            environment {
+                NPM_TOKEN = credentials('npm-token')
+            }
+            steps {
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                unstash 'web-dist'
+                dir('packages/editor-core') {
+                    sh 'export PATH=$HOME/.bun/bin:$PATH && bun run build'
+                    sh '''
+                        echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
+                        PUBLISHED=$(npm view crossdraw version 2>/dev/null || echo "0.0.0")
+                        CURRENT=$(node -p "require('./package.json').version")
+                        if [ "$PUBLISHED" != "$CURRENT" ]; then
+                            npm publish --access public
+                            echo "Published crossdraw@${CURRENT}"
+                        else
+                            echo "crossdraw@${CURRENT} already published, skipping"
+                        fi
+                        rm -f .npmrc
+                    '''
+                }
+            }
+        }
+
+        // ────────────────────────────────────────────────────────
+        // Stage 4: Deploy to Cloudflare
         // ────────────────────────────────────────────────────────
         stage('Deploy') {
             agent { label 'linux' }
