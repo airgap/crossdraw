@@ -6,7 +6,7 @@
   "homepage": "https://crossdraw.app",
   "repository": {
     "type": "git",
-    "url": "https://t.muzz.in/muzzin/Crossdraw.git",
+    "url": "https://github.com/airgap/crossdraw.git",
     "directory": "packages/editor-core"
   },
   "license": "MIT",

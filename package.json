@@ -4,6 +4,10 @@
   "private": true,
   "author": "airgap",
   "homepage": "https://crossdraw.app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/airgap/crossdraw.git"
+  },
   "description": "Vector and raster design editor",
   "type": "module",
   "main": "dist-electron/main.js",

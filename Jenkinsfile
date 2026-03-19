@@ -36,7 +36,7 @@ pipeline {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun test'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bunx vite build'
                 stash includes: 'dist/**', name: 'web-dist'
-                // Stash source for Windows (can't git-fetch from t.muzz.in)
+                // Stash source for Windows (can't git-fetch from internal Gitea)
                 stash includes: 'package.json,bun.lockb,electron/**,electron-builder.yml,src/**,tsconfig*.json,index.html,vite.config.ts,public/**', name: 'source'
             }
         }
