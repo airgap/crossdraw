@@ -832,6 +832,8 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         selection: { layerIds: [] },
         isDirty: false,
         filePath: null,
+        activeTabId: 'overview',
+        tabViewports: {},
       })
     },
 
