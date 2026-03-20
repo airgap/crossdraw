@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 /**
  * Layer ordering and flip operations.
@@ -6,7 +6,7 @@ import { useEditorStore } from '@/store/editor.store'
 
 function getSelectedLayerAndArtboard() {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || store.selection.layerIds.length === 0) return null
   const layerId = store.selection.layerIds[0]!
   const idx = artboard.layers.findIndex((l) => l.id === layerId)
@@ -56,7 +56,7 @@ export function sendToBack() {
 
 export function flipHorizontal() {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || store.selection.layerIds.length === 0) return
 
   for (const layerId of store.selection.layerIds) {
@@ -73,7 +73,7 @@ export function flipHorizontal() {
 
 export function flipVertical() {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || store.selection.layerIds.length === 0) return
 
   for (const layerId of store.selection.layerIds) {
@@ -92,7 +92,7 @@ export function flipVertical() {
 
 export function nudgeSelection(dx: number, dy: number) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || store.selection.layerIds.length === 0) return
 
   for (const layerId of store.selection.layerIds) {

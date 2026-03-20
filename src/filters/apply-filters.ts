@@ -8,7 +8,7 @@
  * 4. Writes the result back and pushes an undo entry.
  */
 
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, storeRasterData, updateRasterCache } from '@/store/raster-data'
 import { applySharpen } from '@/filters/sharpen'
 import { applyMotionBlur, applyRadialBlur } from '@/filters/motion-blur'
@@ -27,7 +27,7 @@ import type { RasterLayer } from '@/types/document'
 /** Resolve the first selected raster layer's chunk data, or null. */
 function getSelectedRasterChunk(): { chunkId: string; srcData: ImageData } | null {
   const state = useEditorStore.getState()
-  const artboard = state.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   const layerId = state.selection.layerIds[0]

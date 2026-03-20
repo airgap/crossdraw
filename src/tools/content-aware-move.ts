@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, updateRasterCache } from '@/store/raster-data'
 import { getSelectionMask, getSelectionBounds, type SelectionMask } from '@/tools/raster-selection'
 import { performContentAwareFill, type ContentAwareFillSettings } from '@/tools/content-aware-fill'
@@ -105,7 +105,7 @@ export function beginContentAwareMove(docX: number, docY: number): boolean {
   if (!bounds) return false
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   // Find the active raster layer

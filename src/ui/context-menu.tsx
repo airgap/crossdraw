@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { copyLayers, pasteLayers, cutLayers, hasClipboard } from '@/tools/clipboard'
 import { bringToFront, bringForward, sendBackward, sendToBack, flipHorizontal, flipVertical } from '@/tools/layer-ops'
 
@@ -91,7 +91,7 @@ export function CanvasContextMenu() {
       disabled: !hasSelection,
       action: () => {
         const store = useEditorStore.getState()
-        const artboard = store.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard) {
           for (const layerId of store.selection.layerIds) {
             store.deleteLayer(artboard.id, layerId)
@@ -107,7 +107,7 @@ export function CanvasContextMenu() {
       disabled: !hasSelection,
       action: () => {
         const store = useEditorStore.getState()
-        const artboard = store.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard) {
           for (const layerId of store.selection.layerIds) {
             store.duplicateLayer(artboard.id, layerId)
@@ -178,11 +178,25 @@ export function CanvasContextMenu() {
       shortcut: 'Ctrl+A',
       action: () => {
         const store = useEditorStore.getState()
-        const artboard = store.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard) {
           for (const layer of artboard.layers) {
             store.selectLayer(layer.id, true)
           }
+        }
+        close()
+      },
+    },
+    { separator: true },
+    {
+      label: (() => {
+        const ab = getActiveArtboard()
+        return ab?.isInfinite ? 'Make Bounded Artboard' : 'Make Infinite Canvas'
+      })(),
+      action: () => {
+        const ab = getActiveArtboard()
+        if (ab) {
+          useEditorStore.getState().toggleArtboardInfinite(ab.id)
         }
         close()
       },

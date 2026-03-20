@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { storeRasterData } from '@/store/raster-data'
 import { importSVG } from '@/io/svg-import'
 import type { RasterLayer } from '@/types'
@@ -42,7 +42,7 @@ export async function newDocumentFromClipboardBlob(blob: Blob): Promise<boolean>
   const store = useEditorStore.getState()
   store.newDocument({ title: 'Pasted Image', width: w, height: h })
 
-  const artboard = useEditorStore.getState().document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   const layer: RasterLayer = {
@@ -80,7 +80,7 @@ export async function newDocumentFromClipboard(): Promise<boolean> {
  */
 export async function importImageFile(file: File): Promise<void> {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const bitmap = await createImageBitmap(file)
@@ -118,7 +118,7 @@ export async function importImageFile(file: File): Promise<void> {
  */
 export async function importImageFromBlob(blob: Blob, name = 'Pasted Image'): Promise<void> {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const bitmap = await createImageBitmap(blob)
@@ -183,7 +183,7 @@ export async function importImageFromPicker(): Promise<void> {
  */
 async function importSVGAsMergedLayers(file: File): Promise<void> {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const svgString = await file.text()

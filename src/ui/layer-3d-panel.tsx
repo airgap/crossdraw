@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, VectorLayer, RasterLayer, TextLayer, GroupLayer } from '@/types'
 import { segmentsToPath2D } from '@/math/path'
 import { getRasterCanvas } from '@/store/raster-data'
@@ -183,11 +183,10 @@ function flattenLayers(layers: Layer[], depth: number = 0): Array<{ layer: Layer
 // ── Component ──────────────────────────────────────────────────
 
 export function Layer3DPanel() {
-  const document = useEditorStore((s) => s.document)
   const selection = useEditorStore((s) => s.selection)
   const selectLayer = useEditorStore((s) => s.selectLayer)
 
-  const artboard = document.artboards[0]
+  const artboard = getActiveArtboard()
   const layers = artboard?.layers ?? []
   const flatLayers = flattenLayers(layers)
 

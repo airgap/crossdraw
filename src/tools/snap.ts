@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getLayerBBox, type BBox } from '@/math/bbox'
 
 export interface SnapResult {
@@ -17,7 +17,7 @@ export function snapPoint(docX: number, docY: number, excludeLayerIds: string[] 
   const store = useEditorStore.getState()
   if (!store.snapEnabled) return { x: null, y: null, snapLinesH: [], snapLinesV: [] }
 
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return { x: null, y: null, snapLinesH: [], snapLinesV: [] }
 
   const zoom = store.viewport.zoom
@@ -112,7 +112,7 @@ export function snapBBox(
   const store = useEditorStore.getState()
   if (!store.snapEnabled) return { dx, dy, snapLinesH: [], snapLinesV: [] }
 
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return { dx, dy, snapLinesH: [], snapLinesV: [] }
 
   const zoom = store.viewport.zoom

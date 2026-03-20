@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, GroupLayer, VectorLayer, TextLayer, Artboard } from '@/types'
 import { getLayerBBox } from '@/math/bbox'
 
@@ -349,7 +349,7 @@ export function DevModePanel() {
   const selection = useEditorStore((s) => s.selection)
   const document = useEditorStore((s) => s.document)
 
-  const artboard = document.artboards[0] ?? null
+  const artboard = getActiveArtboard()
   const selectedLayerId = selection.layerIds[0] ?? null
   const selectedLayer = artboard && selectedLayerId ? findLayerDeep(artboard.layers, selectedLayerId) : null
 

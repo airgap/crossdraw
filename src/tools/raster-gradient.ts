@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { storeRasterData, getRasterData, syncCanvasToImageData, updateRasterCache } from '@/store/raster-data'
 import type { RasterLayer } from '@/types'
 
@@ -87,7 +87,7 @@ function snapAngle(dx: number, dy: number): { dx: number; dy: number } {
  */
 export function beginRasterGradient(docX: number, docY: number) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   // Find or create a raster layer

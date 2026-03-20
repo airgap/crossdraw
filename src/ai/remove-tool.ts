@@ -14,7 +14,7 @@ import { requestInpainting, compositeResult } from './generative-fill'
 import type { SelectionMask } from '@/tools/raster-selection'
 import { getSelectionBounds } from '@/tools/raster-selection'
 import { getRasterData, updateRasterCache } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { performContentAwareFill } from '@/tools/content-aware-fill'
 import type { RasterLayer } from '@/types'
 
@@ -69,7 +69,7 @@ const state: RemoveState = {
  */
 export function beginRemoveBrush(x: number, y: number): boolean {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   const selectedId = store.selection.layerIds[0]

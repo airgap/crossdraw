@@ -1,6 +1,6 @@
 import { useRef, useEffect, useCallback } from 'react'
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getAnimationOverrides } from '@/animation/animator'
 import { zoomAtPoint, screenToDocument } from '@/math/viewport'
 import { segmentsToPath2D } from '@/math/path'
@@ -354,14 +354,30 @@ export function Viewport() {
     ctx.translate(viewport.panX, viewport.panY)
     ctx.scale(viewport.zoom, viewport.zoom)
 
+    // Filter artboards by active tab
+    const activeTabId = useEditorStore.getState().activeTabId
+    const artboardsToRender =
+      activeTabId === 'overview'
+        ? document.artboards.filter((a) => !a.isInfinite)
+        : document.artboards.filter((a) => a.id === activeTabId)
+
     // Render each artboard
-    for (const artboard of document.artboards) {
+    for (const artboard of artboardsToRender) {
       renderArtboard(ctx, artboard, selection.layerIds, viewport.zoom)
     }
 
-    // Pixel grid at high zoom
+    // Dot grid for infinite artboards
+    if (activeTabId !== 'overview') {
+      const infAb = artboardsToRender.find((a) => a.isInfinite)
+      if (infAb) {
+        renderDotGrid(ctx, viewport, rect.width, rect.height)
+      }
+    }
+
+    // Pixel grid at high zoom (skip for infinite artboards)
     if (viewport.zoom >= 8) {
-      for (const artboard of document.artboards) {
+      for (const artboard of artboardsToRender) {
+        if (artboard.isInfinite) continue
         const ax = artboard.x
         const ay = artboard.y
         const aw = getEffectiveWidth(artboard)
@@ -395,7 +411,7 @@ export function Viewport() {
     }
 
     // Perspective grid overlay
-    for (const artboard of document.artboards) {
+    for (const artboard of artboardsToRender) {
       if (artboard.perspectiveGrid) {
         renderPerspectiveGrid(
           ctx,
@@ -408,7 +424,7 @@ export function Viewport() {
 
     // Auto-layout group overlays (in document space)
     if (selection.layerIds.length > 0) {
-      for (const artboard of document.artboards) {
+      for (const artboard of artboardsToRender) {
         renderAutoLayoutOverlay(ctx, artboard, selection.layerIds, viewport.zoom)
       }
     }
@@ -549,7 +565,7 @@ export function Viewport() {
       const ps = getPixelDrawSettings()
       const mx = mouseDocPos.current.x
       const my = mouseDocPos.current.y
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = mx - artboard.x
         const localY = my - artboard.y
@@ -589,7 +605,7 @@ export function Viewport() {
       // Draw source crosshair if set
       const source = getCloneSource()
       if (source) {
-        const artboard = document.artboards[0]
+        const artboard = getActiveArtboard()!
         if (artboard) {
           const srcDocX = source.x + artboard.x
           const srcDocY = source.y + artboard.y
@@ -956,7 +972,7 @@ export function Viewport() {
 
     // CSS Inspect measurement overlay — show distances to parent (artboard) edges
     if (showInspectOverlay && selection.layerIds.length > 0) {
-      const inspArtboard = document.artboards[0]
+      const inspArtboard = getActiveArtboard()!
       if (inspArtboard) {
         for (const layerId of selection.layerIds) {
           // Find layer recursively
@@ -1130,7 +1146,7 @@ export function Viewport() {
 
     // ── Quick Mask overlay (document space) ──
     if (quickMaskActive) {
-      const qmArtboard = document.artboards[0]
+      const qmArtboard = getActiveArtboard()!
       if (qmArtboard) {
         const overlay = getQuickMaskOverlay(qmArtboard.width, qmArtboard.height)
         if (overlay && typeof OffscreenCanvas !== 'undefined') {
@@ -1159,7 +1175,7 @@ export function Viewport() {
     }
 
     // ── Guides, grid, rulers (screen space) ──
-    const artboard0 = document.artboards[0]
+    const artboard0 = getActiveArtboard()!
     if (artboard0) {
       const rulerParams = {
         ctx,
@@ -1240,7 +1256,7 @@ export function Viewport() {
   // Quick Mask enter/exit
   useEffect(() => {
     if (quickMaskActive) {
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         enterQuickMask(artboard.width, artboard.height)
       }
@@ -1612,7 +1628,7 @@ export function Viewport() {
     if (showRulers) {
       const localX = e.clientX - rect.left
       const localY = e.clientY - rect.top
-      const artboard0 = document.artboards[0]
+      const artboard0 = getActiveArtboard()!
       if (artboard0) {
         if (localY < RULER_SIZE && localX > RULER_SIZE) {
           // Dragging from horizontal ruler → create horizontal guide
@@ -1673,7 +1689,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         const text = window.prompt('Add comment:')
         if (text && text.trim()) {
@@ -1709,7 +1725,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         beginShapeDrag(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
@@ -1727,7 +1743,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         createAndEditText(docPoint.x, docPoint.y, artboard.id)
       }
@@ -1744,7 +1760,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         textDragStart.current = { x: docPoint.x, y: docPoint.y, artboardId: artboard.id }
         textDragEnd.current = { x: docPoint.x, y: docPoint.y }
@@ -1769,7 +1785,7 @@ export function Viewport() {
     // Quick Mask painting (intercepts brush/eraser when quick mask is active)
     if (quickMaskActive && (activeTool === 'brush' || activeTool === 'eraser')) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -1786,7 +1802,7 @@ export function Viewport() {
     // Brush tool
     if (activeTool === 'brush') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard && beginStroke()) {
         brushPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         // brushPressure is already set by handlePointerDown / touch handler
@@ -1798,7 +1814,7 @@ export function Viewport() {
     // Mixer Brush tool
     if (activeTool === 'mixer-brush') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard && beginMixerStroke()) {
         mixerBrushPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         isDragging.current = true
@@ -1812,7 +1828,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         beginLineDrag(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
@@ -1826,7 +1842,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         beginPencilStroke(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
@@ -1837,7 +1853,7 @@ export function Viewport() {
     // Eraser tool
     if (activeTool === 'eraser') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard && beginEraserStroke()) {
         eraserPoints.current = [{ x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }]
         isDragging.current = true
@@ -1848,7 +1864,7 @@ export function Viewport() {
     // Pixel Draw tool
     if (activeTool === 'pixel-draw') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard && beginPixelStroke()) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         pixelDrawPoints.current = [pt]
@@ -1862,7 +1878,7 @@ export function Viewport() {
     // Clone Stamp tool
     if (activeTool === 'clone-stamp') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -1887,7 +1903,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         beginGradientDrag(docPoint.x, docPoint.y, artboard.id)
         gradientEnd.current = { x: docPoint.x, y: docPoint.y }
@@ -1899,7 +1915,7 @@ export function Viewport() {
     // Color Range tool
     if (activeTool === 'color-range') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -1923,7 +1939,7 @@ export function Viewport() {
     // Quick Selection tool
     if (activeTool === 'quick-selection') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -1976,7 +1992,7 @@ export function Viewport() {
         const shouldClose = addPolygonalLassoPoint(docPoint.x, docPoint.y)
         if (shouldClose) {
           // Clicked near first point — close the polygon
-          const artboard = document.artboards[0]
+          const artboard = getActiveArtboard()!
           if (artboard) {
             closePolygonalLasso('replace', artboard.width, artboard.height)
           } else {
@@ -1993,7 +2009,7 @@ export function Viewport() {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
       if (!isMagneticLassoActive()) {
         // Find the first visible raster layer to compute edge map
-        const artboard = document.artboards[0]
+        const artboard = getActiveArtboard()!
         if (artboard) {
           const rasterLayer = artboard.layers.find(
             (l): l is RasterLayer => l.type === 'raster' && l.visible && !l.locked,
@@ -2008,7 +2024,7 @@ export function Viewport() {
           }
         }
       } else {
-        const artboard = document.artboards[0]
+        const artboard = getActiveArtboard()!
         const localX = artboard ? docPoint.x - artboard.x : docPoint.x
         const localY = artboard ? docPoint.y - artboard.y : docPoint.y
         const shouldClose = addMagneticLassoAnchor(localX, localY)
@@ -2061,7 +2077,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         curvaturePenMouseDown(docPoint.x, docPoint.y, artboard.id, artboard.x, artboard.y, e.shiftKey, false)
         render()
@@ -2075,7 +2091,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         spiralMouseDown(docPoint.x, docPoint.y, artboard.id, artboard.x, artboard.y)
         isDragging.current = true
@@ -2089,7 +2105,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         widthToolMouseDown(docPoint.x, docPoint.y, viewport.zoom, artboard.id, artboard.x, artboard.y)
         isDragging.current = true
@@ -2124,7 +2140,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         beginCropDrag(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
@@ -2138,7 +2154,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         beginSliceDrag(docPoint.x, docPoint.y, artboard.id)
         isDragging.current = true
@@ -2321,7 +2337,7 @@ export function Viewport() {
     // Quick Mask drag — paint on the mask
     if (quickMaskActive && (activeTool === 'brush' || activeTool === 'eraser') && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -2340,7 +2356,7 @@ export function Viewport() {
     // Brush tool drag — accumulate points, paint on rAF
     if (activeTool === 'brush' && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         brushPoints.current.push(pt)
@@ -2376,7 +2392,7 @@ export function Viewport() {
     // Eraser tool drag
     if (activeTool === 'eraser' && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         eraserPoints.current.push(pt)
@@ -2397,7 +2413,7 @@ export function Viewport() {
     // Pixel Draw tool drag
     if (activeTool === 'pixel-draw' && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         pixelDrawPoints.current.push(pt)
@@ -2418,7 +2434,7 @@ export function Viewport() {
     // Mixer Brush tool drag
     if (activeTool === 'mixer-brush' && isDragging.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
         mixerBrushPoints.current.push(pt)
@@ -2439,7 +2455,7 @@ export function Viewport() {
     // Clone Stamp tool drag
     if (activeTool === 'clone-stamp' && isDragging.current && isCloneStamping()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -2472,7 +2488,7 @@ export function Viewport() {
     // Quick Selection tool drag
     if (activeTool === 'quick-selection' && isDragging.current && isQuickSelectionActive()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         const localX = docPoint.x - artboard.x
         const localY = docPoint.y - artboard.y
@@ -2505,7 +2521,7 @@ export function Viewport() {
     // Magnetic lasso — update edge snapping on mouse move
     if (activeTool === 'magnetic-lasso' && isMagneticLassoActive()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       const localX = artboard ? docPoint.x - artboard.x : docPoint.x
       const localY = artboard ? docPoint.y - artboard.y : docPoint.y
       updateMagneticLasso(localX, localY)
@@ -2943,7 +2959,7 @@ export function Viewport() {
 
     // Polygonal lasso: double-click to close polygon
     if (activeTool === 'polygonal-lasso' && isPolygonalLassoActive()) {
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         closePolygonalLasso('replace', artboard.width, artboard.height)
       } else {
@@ -2955,7 +2971,7 @@ export function Viewport() {
 
     // Magnetic lasso: double-click to close
     if (activeTool === 'magnetic-lasso' && isMagneticLassoActive()) {
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()!
       if (artboard) {
         closeMagneticLasso('replace', artboard.width, artboard.height)
       } else {
@@ -2992,7 +3008,7 @@ export function Viewport() {
       const artboard =
         document.artboards.find(
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
-        ) ?? document.artboards[0]
+        ) ?? getActiveArtboard()!
       if (artboard) {
         curvaturePenMouseDown(docPoint.x, docPoint.y, artboard.id, artboard.x, artboard.y, e.shiftKey, true)
         render()
@@ -4211,7 +4227,95 @@ function getCheckerboardPattern(ctx: CanvasRenderingContext2D): CanvasPattern {
   return checkerboardPattern
 }
 
+/** Render a dot grid for spatial reference on infinite canvases. */
+function renderDotGrid(
+  ctx: CanvasRenderingContext2D,
+  viewport: { zoom: number; panX: number; panY: number },
+  screenW: number,
+  screenH: number,
+) {
+  const spacing = 50 // document-space pixels between dots
+  const dotRadius = 1.5 / viewport.zoom // constant screen size
+
+  // Visible area in document space
+  const docLeft = -viewport.panX / viewport.zoom
+  const docTop = -viewport.panY / viewport.zoom
+  const docRight = (screenW - viewport.panX) / viewport.zoom
+  const docBottom = (screenH - viewport.panY) / viewport.zoom
+
+  const startX = Math.floor(docLeft / spacing) * spacing
+  const startY = Math.floor(docTop / spacing) * spacing
+
+  ctx.save()
+  ctx.fillStyle = 'rgba(255,255,255,0.15)'
+  for (let x = startX; x <= docRight; x += spacing) {
+    for (let y = startY; y <= docBottom; y += spacing) {
+      ctx.beginPath()
+      ctx.arc(x, y, dotRadius, 0, Math.PI * 2)
+      ctx.fill()
+    }
+  }
+  ctx.restore()
+}
+
+/** Render an infinite artboard — no chrome, no clipping. */
+function renderInfiniteArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[]) {
+  const effectiveLayers = getEffectiveLayers(artboard)
+
+  ctx.save()
+  ctx.translate(artboard.x, artboard.y)
+
+  // No clip — infinite canvas has no bounds
+
+  // Check for adjustment/filter layers
+  const hasAdjustments = effectiveLayers.some((l) => (l.type === 'adjustment' || l.type === 'filter') && l.visible)
+
+  if (hasAdjustments) {
+    // For adjustment layers on infinite canvas, use a large working area based on visible viewport
+    const zoom = useEditorStore.getState().viewport.zoom
+    const workW = Math.ceil(4000 / zoom)
+    const workH = Math.ceil(4000 / zoom)
+    const offscreen = new OffscreenCanvas(Math.min(workW, 8192), Math.min(workH, 8192))
+    const offCtx = offscreen.getContext('2d')!
+
+    for (const layer of effectiveLayers) {
+      if (!layer.visible) continue
+      if (layer.type === 'adjustment') {
+        const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height)
+        applyAdjustment(imageData, layer as AdjustmentLayer)
+        offCtx.putImageData(imageData, 0, 0)
+      } else {
+        renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, offscreen.width, offscreen.height)
+      }
+    }
+    ctx.drawImage(offscreen, 0, 0)
+  } else {
+    // Use a large sentinel size for rendering (layers define their own bounds)
+    const renderW = 100000
+    const renderH = 100000
+    for (const layer of effectiveLayers) {
+      renderLayerWithEffects(ctx, layer, renderW, renderH)
+    }
+  }
+
+  // Selection outlines
+  ctx.globalAlpha = 1
+  ctx.globalCompositeOperation = 'source-over'
+  for (const layer of effectiveLayers) {
+    if (!selectedLayerIds.includes(layer.id)) continue
+    if (layer.type === 'vector') renderSelectionOutline(ctx, layer)
+  }
+
+  ctx.restore()
+}
+
 function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selectedLayerIds: string[], zoom: number) {
+  // Branch to infinite renderer if applicable
+  if (artboard.isInfinite) {
+    renderInfiniteArtboard(ctx, artboard, selectedLayerIds)
+    return
+  }
+
   const effectiveW = getEffectiveWidth(artboard)
   const effectiveH = artboard.height
   const effectiveLayers = getEffectiveLayers(artboard)

@@ -47,6 +47,7 @@ import { endTextEdit, getTextEditState } from '@/tools/text-edit'
 import { storeSnapshot, getSnapshot, deleteSnapshots } from '@/store/raster-undo'
 import { applyGaussianNoise, applyUniformNoise, applyFilmGrain } from '@/filters/noise'
 import { applyAutoLayout, computeLayerBounds } from '@/layout/auto-layout'
+import { getInfiniteArtboardBounds } from '@/math/bbox'
 import {
   createSnapshot as createVersionSnapshotDB,
   getSnapshot as getVersionSnapshotDB,
@@ -58,6 +59,17 @@ import { createDefaultPerspectiveConfig } from '@/render/perspective-grid'
 import { createTimeline, startPlayback, stopPlayback } from '@/animation/timeline'
 
 enablePatches()
+
+/** Returns the artboard that should be used for tool/menu operations.
+ *  When viewing an infinite tab, returns that artboard.
+ *  In overview, returns the first non-infinite artboard (fallback: first artboard). */
+export function getActiveArtboard(): Artboard | null {
+  const state = useEditorStore.getState()
+  if (state.activeTabId !== 'overview') {
+    return state.document.artboards.find((a) => a.id === state.activeTabId) ?? null
+  }
+  return state.document.artboards.find((a) => !a.isInfinite) ?? state.document.artboards[0] ?? null
+}
 
 export interface HistoryEntry {
   description: string
@@ -187,6 +199,10 @@ export interface EditorState {
   animationPlaying: boolean
   animationCurrentFrame: number
   animationFps: number
+
+  // Infinite canvas tabs
+  activeTabId: 'overview' | string
+  tabViewports: Record<string, { zoom: number; panX: number; panY: number }>
 }
 
 export interface EditorActions {
@@ -506,6 +522,11 @@ export interface EditorActions {
   stopAnimationPlayback: () => void
   nextFrame: (artboardId: string) => void
   prevFrame: (artboardId: string) => void
+
+  // Infinite canvas tabs
+  switchTab: (tabId: 'overview' | string) => void
+  addInfiniteArtboard: (name: string) => void
+  toggleArtboardInfinite: (artboardId: string) => void
 }
 
 interface NewDocumentOptions {
@@ -798,6 +819,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     animationCurrentFrame: 0,
     animationFps: 12,
 
+    // Infinite canvas tabs
+    activeTabId: 'overview' as 'overview' | string,
+    tabViewports: {} as Record<string, { zoom: number; panX: number; panY: number }>,
+
     // Document
     newDocument(opts) {
       set({
@@ -829,6 +854,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     },
 
     deleteArtboard(id) {
+      // If deleting the active infinite artboard tab, switch back to overview
+      if (get().activeTabId === id) {
+        get().switchTab('overview')
+      }
       mutateDocument('Delete artboard', (draft) => {
         draft.artboards = draft.artboards.filter((a) => a.id !== id)
       })
@@ -1455,16 +1484,32 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     },
 
     zoomToFit(viewportWidth, viewportHeight) {
-      const artboard = get().document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard || viewportWidth <= 0 || viewportHeight <= 0) return
       // Account for ruler gutter (20px on each axis) when rulers are visible
       const rulerSize = get().showRulers ? 20 : 0
       const availW = viewportWidth - rulerSize
       const availH = viewportHeight - rulerSize
       if (availW <= 0 || availH <= 0) return
-      const scale = Math.min((availW * 0.8) / artboard.width, (availH * 0.8) / artboard.height, 10)
-      const panX = rulerSize + (availW - artboard.width * scale) / 2 - artboard.x * scale
-      const panY = rulerSize + (availH - artboard.height * scale) / 2 - artboard.y * scale
+
+      let fitW: number, fitH: number, fitX: number, fitY: number
+      if (artboard.isInfinite) {
+        // For infinite artboards, zoom to fit layer content bounds
+        const bounds = getInfiniteArtboardBounds(artboard)
+        fitW = bounds.width
+        fitH = bounds.height
+        fitX = bounds.offsetX
+        fitY = bounds.offsetY
+      } else {
+        fitW = artboard.width
+        fitH = artboard.height
+        fitX = artboard.x
+        fitY = artboard.y
+      }
+
+      const scale = Math.min((availW * 0.8) / fitW, (availH * 0.8) / fitH, 10)
+      const panX = rulerSize + (availW - fitW * scale) / 2 - fitX * scale
+      const panY = rulerSize + (availH - fitH * scale) / 2 - fitY * scale
       set({ viewport: { ...get().viewport, zoom: scale, panX, panY } })
     },
 
@@ -1815,7 +1860,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const state = get()
       // Find the active artboard
       const artboardId = state.viewport.artboardId
-      const artboard = state.document.artboards.find((a) => a.id === artboardId) ?? state.document.artboards[0]
+      const artboard = state.document.artboards.find((a) => a.id === artboardId) ?? getActiveArtboard()
       if (!artboard) return
 
       // Collect selected layers from the artboard
@@ -2312,7 +2357,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       if (!artboardId) {
         // Find a flow starting artboard, or use the first one
         const flowStart = doc.artboards.find((a) => a.flowStarting)
-        artboardId = flowStart ? flowStart.id : (doc.artboards[0]?.id ?? null)
+        artboardId = flowStart ? flowStart.id : (getActiveArtboard()?.id ?? null)
       }
       set({ showPrototypePlayer: true, prototypeStartArtboardId: artboardId })
     },
@@ -3272,6 +3317,87 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         prev = tl.loop ? tl.frames.length - 1 : 0
       }
       get().goToFrame(artboardId, prev)
+    },
+
+    // ─── Infinite canvas tabs ──────────────────────────────────
+    switchTab(tabId) {
+      const state = get()
+      const currentTabId = state.activeTabId
+      if (currentTabId === tabId) return
+
+      // Save current tab's viewport
+      const tabViewports = { ...state.tabViewports }
+      tabViewports[currentTabId] = {
+        zoom: state.viewport.zoom,
+        panX: state.viewport.panX,
+        panY: state.viewport.panY,
+      }
+
+      // Restore target tab's viewport or keep current
+      const saved = tabViewports[tabId]
+      const newViewport = saved
+        ? {
+            ...state.viewport,
+            zoom: saved.zoom,
+            panX: saved.panX,
+            panY: saved.panY,
+            artboardId: tabId === 'overview' ? null : tabId,
+          }
+        : { ...state.viewport, artboardId: tabId === 'overview' ? null : tabId }
+
+      set({
+        activeTabId: tabId,
+        tabViewports,
+        viewport: newViewport,
+        selection: { layerIds: [] },
+      })
+    },
+
+    addInfiniteArtboard(name) {
+      const id = uuid()
+      mutateDocument(`Add infinite canvas "${name}"`, (draft) => {
+        draft.artboards.push({
+          id,
+          name,
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0,
+          backgroundColor: '#2a2a2a',
+          layers: [],
+          isInfinite: true,
+        })
+      })
+      // Auto-switch to the new infinite tab
+      get().switchTab(id)
+    },
+
+    toggleArtboardInfinite(artboardId) {
+      mutateDocument('Toggle infinite canvas', (draft) => {
+        const ab = draft.artboards.find((a) => a.id === artboardId)
+        if (!ab) return
+        if (ab.isInfinite) {
+          // Switching back to bounded — give sensible defaults
+          ab.isInfinite = false
+          ab.width = ab.width || 1920
+          ab.height = ab.height || 1080
+          if (ab.backgroundColor === '#2a2a2a') ab.backgroundColor = '#ffffff'
+        } else {
+          ab.isInfinite = true
+          ab.width = 0
+          ab.height = 0
+          ab.backgroundColor = '#2a2a2a'
+        }
+      })
+
+      // If toggling to infinite, switch to that tab
+      const ab = get().document.artboards.find((a) => a.id === artboardId)
+      if (ab?.isInfinite) {
+        get().switchTab(artboardId)
+      } else if (get().activeTabId === artboardId) {
+        // Was viewing infinite tab, toggled back to bounded — go to overview
+        get().switchTab('overview')
+      }
     },
   }
 })

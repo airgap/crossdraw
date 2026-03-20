@@ -13,7 +13,7 @@
 import { getAIConfig, isAIConfigured } from './ai-config'
 import { getSelectionMask, getSelectionBounds, type SelectionMask } from '@/tools/raster-selection'
 import { getRasterData, updateRasterCache } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { RasterLayer } from '@/types'
 
 // ── Settings ──
@@ -252,7 +252,7 @@ export async function performGenerativeFill(prompt: string, numVariations: numbe
   if (!mask) throw new Error('No selection active. Create a selection first.')
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) throw new Error('No artboard found.')
 
   // Find active raster layer

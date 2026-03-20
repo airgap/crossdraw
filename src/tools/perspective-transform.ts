@@ -8,7 +8,7 @@
 
 import { bilinearSample } from '@/filters/distort'
 import { getRasterData, updateRasterCache, storeRasterData } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -285,7 +285,7 @@ export function applyPerspectiveTransform(src: ImageData, H: number[]): ImageDat
  */
 export function beginPerspectiveTransform(bounds: { x: number; y: number; width: number; height: number }): boolean {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   // Find selected raster layer

@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
 import { getTextEditState } from '@/tools/text-edit'
 import { copyLayers, pasteLayers, cutLayers } from '@/tools/clipboard'
@@ -221,7 +221,7 @@ function buildDefaultBindings(): ShortcutBinding[] {
       key: 'ctrl+a',
       action: () => {
         const s = store()
-        const artboard = s.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard) {
           for (const layer of artboard.layers) {
             s.selectLayer(layer.id, true)
@@ -248,7 +248,7 @@ function buildDefaultBindings(): ShortcutBinding[] {
       key: 'delete',
       action: () => {
         const s = store()
-        const artboard = s.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard && s.selection.layerIds.length > 0) {
           for (const layerId of s.selection.layerIds) {
             s.deleteLayer(artboard.id, layerId)
@@ -267,7 +267,7 @@ function buildDefaultBindings(): ShortcutBinding[] {
       key: 'ctrl+d',
       action: () => {
         const s = store()
-        const artboard = s.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard && s.selection.layerIds.length > 0) {
           for (const layerId of s.selection.layerIds) {
             s.duplicateLayer(artboard.id, layerId)
@@ -283,7 +283,7 @@ function buildDefaultBindings(): ShortcutBinding[] {
       key: 'ctrl+g',
       action: () => {
         const s = store()
-        const artboard = s.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard && s.selection.layerIds.length >= 2) {
           s.groupLayers(artboard.id, s.selection.layerIds)
         }
@@ -297,7 +297,7 @@ function buildDefaultBindings(): ShortcutBinding[] {
       key: 'ctrl+shift+g',
       action: () => {
         const s = store()
-        const artboard = s.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (artboard && s.selection.layerIds.length === 1) {
           const layerId = s.selection.layerIds[0]!
           const layer = artboard.layers.find((l) => l.id === layerId)

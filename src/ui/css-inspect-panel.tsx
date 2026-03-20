@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getLayerBBox } from '@/math/bbox'
 import { useEffect, useState, useCallback } from 'react'
 import type {
@@ -460,7 +460,6 @@ function SpacingSection({ layer, artboard }: { layer: Layer; artboard: Artboard 
 
 export function CSSInspectPanel() {
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const setShowInspectOverlay = useEditorStore((s) => s.setShowInspectOverlay)
   const [allCopied, setAllCopied] = useState(false)
 
@@ -470,7 +469,7 @@ export function CSSInspectPanel() {
     return () => setShowInspectOverlay(false)
   }, [setShowInspectOverlay])
 
-  const artboard = document.artboards[0]
+  const artboard = getActiveArtboard()
   const layerId = selection.layerIds[0]
   const selectedLayer = artboard && layerId ? findLayerRecursive(artboard.layers, layerId) : null
 

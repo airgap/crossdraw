@@ -12,7 +12,7 @@ import { getAIConfig, isAIConfigured } from './ai-config'
 import { bulkRenameLayers, type LayerRename } from './ai-service'
 import type { RenameLayerInfo } from './prompt-templates'
 import { getRasterData } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, RasterLayer } from '@/types'
 
 // ── Types ──
@@ -204,7 +204,7 @@ export async function generateLayerNames(layers: Layer[]): Promise<SmartRenameRe
  */
 export async function performSmartRename(scope: 'selected' | 'all' | 'unnamed'): Promise<SmartRenameResult[]> {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return []
 
   let layers: Layer[]

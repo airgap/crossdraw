@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Breakpoint, Artboard } from '@/types'
 
 // ── Preset breakpoints ──
@@ -209,7 +209,7 @@ function PresetMenu({ artboard, onClose }: { artboard: Artboard; onClose: () => 
 export function BreakpointBar() {
   const artboard = useEditorStore((s) => {
     const artboardId = s.viewport.artboardId
-    if (!artboardId) return s.document.artboards[0] ?? null
+    if (!artboardId) return getActiveArtboard()
     return s.document.artboards.find((a) => a.id === artboardId) ?? null
   })
 

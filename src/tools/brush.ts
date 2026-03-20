@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { storeRasterData, getRasterData, getRasterCanvasCtx, syncCanvasToImageData } from '@/store/raster-data'
 import type { RasterLayer, BrushSettings } from '@/types'
 import { applyPressure } from '@/tools/pressure'
@@ -147,7 +147,7 @@ let strokeStarted = false
  */
 export function beginStroke(): string | null {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   let rasterLayer: RasterLayer | undefined
@@ -202,8 +202,7 @@ export function beginStroke(): string | null {
 export function paintStroke(points: Array<{ x: number; y: number }>, brush?: Partial<BrushSettings>, pressure = 1) {
   // Validate active chunk's layer still exists in the current document
   if (activeChunkId) {
-    const store = useEditorStore.getState()
-    const artboard = store.document.artboards[0]
+    const artboard = getActiveArtboard()
     const layerExists = artboard?.layers.some(
       (l) => l.type === 'raster' && (l as RasterLayer).imageChunkId === activeChunkId,
     )

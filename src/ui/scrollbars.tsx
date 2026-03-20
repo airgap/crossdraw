@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 interface ScrollbarProps {
   viewportWidth: number
@@ -11,7 +11,7 @@ interface ScrollbarProps {
 export function ViewportScrollbars({ viewportWidth, viewportHeight }: ScrollbarProps) {
   const viewport = useEditorStore((s) => s.viewport)
   const setPan = useEditorStore((s) => s.setPan)
-  const artboard = useEditorStore((s) => s.document.artboards[0])
+  const artboard = getActiveArtboard()
 
   if (!artboard) return null
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { downloadBlob } from '@/io/raster-export'
 import {
   type PrintSettings,
@@ -77,7 +77,7 @@ export function PrintDialog() {
   // Generate preview when settings or visibility change
   useEffect(() => {
     if (!visible) return
-    if (!doc.artboards[0]) return
+    if (!getActiveArtboard()) return
 
     if (previewTimeoutRef.current) {
       clearTimeout(previewTimeoutRef.current)

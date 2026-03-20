@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { v4 as uuid } from 'uuid'
 import type { VectorLayer, Layer } from '@/types'
 
@@ -14,7 +14,7 @@ import type { VectorLayer, Layer } from '@/types'
  */
 export function makeClippingMask(): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds
@@ -73,7 +73,7 @@ export function makeClippingMask(): void {
  */
 export function releaseClippingMask(): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds

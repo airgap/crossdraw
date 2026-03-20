@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { ColorSwatch } from '@/ui/color-picker'
 import type {
   VectorLayer,
@@ -216,7 +216,6 @@ function AnchorPointGrid({
 
 export function PropertiesPanel() {
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const setFill = useEditorStore((s) => s.setFill)
   const setStroke = useEditorStore((s) => s.setStroke)
   const updateLayer = useEditorStore((s) => s.updateLayer)
@@ -230,7 +229,7 @@ export function PropertiesPanel() {
   const setLayoutSizing = useEditorStore((s) => s.setLayoutSizing)
   const runAutoLayout = useEditorStore((s) => s.runAutoLayout)
 
-  const artboard = document.artboards[0]
+  const artboard = getActiveArtboard()
   const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
 
   return (

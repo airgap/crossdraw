@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { storeRasterData, getRasterData, getRasterCanvasCtx, syncCanvasToImageData } from '@/store/raster-data'
 import { getBrushSettings } from '@/tools/brush'
 import type { RasterLayer } from '@/types'
@@ -66,7 +66,7 @@ function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{ 
 
 export function beginPixelStroke(): string | null {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   let rasterLayer: RasterLayer | undefined

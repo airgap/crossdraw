@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, VectorLayer } from '@/types'
 
 // --- HSL helpers ---
@@ -125,10 +125,9 @@ function Swatch({ color, onClick }: { color: string; onClick: () => void }) {
 
 export function ColorHarmonyPanel() {
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const setFill = useEditorStore((s) => s.setFill)
 
-  const artboard = document.artboards[0]
+  const artboard = getActiveArtboard()
   const selectedLayerRaw = artboard?.layers.find((l: Layer) => selection.layerIds.includes(l.id))
   const selectedLayer = selectedLayerRaw?.type === 'vector' ? (selectedLayerRaw as VectorLayer) : null
   const selectedFillColor =

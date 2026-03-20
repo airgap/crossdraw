@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import ClipperLib from 'clipper-lib'
 import type { Segment, Path, VectorLayer, Layer } from '@/types'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { pathBBox } from '@/math/bbox'
 
 // ─── Types ──────────────────────────────────────────────────
@@ -54,8 +54,7 @@ export function isShapeBuilderActive(): boolean {
  * Computes intersection regions from overlapping paths.
  */
 export function initShapeBuilder(selectedLayerIds: string[]): boolean {
-  const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   const layers = selectedLayerIds
@@ -450,7 +449,7 @@ export function finalizeShapeBuilder(): void {
   if (!state.active) return
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   // Collect kept regions (anything not 'removed')
@@ -509,7 +508,7 @@ export function finalizeShapeBuilderWithRegions(keptRegionIds: string[], artboar
   if (!state.active) return null
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards.find((a) => a.id === artboardId)
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   const keptRegions = state.regions.filter((r) => keptRegionIds.includes(r.id))

@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 import { exportArtboardToPDF } from '@/io/pdf-export'
@@ -73,7 +73,7 @@ function getExportFilename(title: string, settings: ExportSettings): string {
 export async function performExport(settings: ExportSettings, artboardId?: string): Promise<Blob> {
   const store = useEditorStore.getState()
   const doc = store.document
-  const targetArtboardId = artboardId ?? doc.artboards[0]?.id
+  const targetArtboardId = artboardId ?? getActiveArtboard()?.id
 
   switch (settings.format) {
     case 'png': {

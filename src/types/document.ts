@@ -146,6 +146,8 @@ export interface Artboard {
   perspectiveGrid?: PerspectiveConfig
   /** Frame-by-frame animation timeline. */
   animation?: AnimationTimeline
+  /** Infinite (boundless) canvas — excluded from overview, gets its own tab. */
+  isInfinite?: boolean
 }
 
 export type Layer =

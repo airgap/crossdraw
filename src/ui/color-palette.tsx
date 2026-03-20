@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { NamedColor } from '@/types'
 import { v4 as uuid } from 'uuid'
 
@@ -31,10 +31,9 @@ function savePalette(colors: NamedColor[]) {
 export function ColorPalette() {
   const [colors, setColors] = useState<NamedColor[]>(loadPalette)
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const setFill = useEditorStore((s) => s.setFill)
 
-  const artboard = document.artboards[0]
+  const artboard = getActiveArtboard()
   const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
 
   function handleSwatchClick(color: string) {

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, GroupLayer } from '@/types'
 
 let clipboardLayers: Layer[] = []
@@ -19,7 +19,7 @@ function deepCloneWithNewIds(layer: Layer): Layer {
 
 export function copyLayers() {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || store.selection.layerIds.length === 0) return
 
   clipboardLayers = []
@@ -36,7 +36,7 @@ export function pasteLayers() {
   if (clipboardLayers.length === 0) return
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   pasteCount++
@@ -58,7 +58,7 @@ export function pasteLayers() {
 
 export function cutLayers() {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || store.selection.layerIds.length === 0) return
 
   copyLayers()

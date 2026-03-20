@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { EmptyState } from '@/ui/empty-state'
 import type { Layer, GroupLayer } from '@/types'
 import {
@@ -42,7 +42,6 @@ interface ContextMenuState {
 }
 
 export function LayersPanel() {
-  const document = useEditorStore((s) => s.document)
   const selection = useEditorStore((s) => s.selection)
   const selectLayer = useEditorStore((s) => s.selectLayer)
   const setLayerVisibility = useEditorStore((s) => s.setLayerVisibility)
@@ -61,7 +60,7 @@ export function LayersPanel() {
   const [typeFilter, setTypeFilter] = useState<string | ''>('')
   const dragRef = useRef<DragState | null>(null)
 
-  const artboard = document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   const handleDragStart = useCallback((layerId: string, index: number, e: React.DragEvent) => {

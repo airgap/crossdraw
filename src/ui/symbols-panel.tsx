@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type {
   ComponentProperty,
   SymbolVariant,
@@ -66,7 +66,7 @@ export function SymbolsPanel() {
   const [expandedSymbolId, setExpandedSymbolId] = useState<string | null>(null)
 
   const hasSelection = selection.length > 0
-  const activeArtboardId = viewport.artboardId ?? useEditorStore.getState().document.artboards[0]?.id
+  const activeArtboardId = viewport.artboardId ?? getActiveArtboard()?.id
 
   function handleCreateSymbol() {
     if (!hasSelection) return

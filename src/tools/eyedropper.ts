@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 /**
  * Eyedropper tool: sample a pixel color from the viewport canvas.
@@ -62,7 +62,7 @@ export function sampleColor(
  */
 export function applyColorToSelection(hex: string, opacity: number, shiftKey: boolean) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedId = store.selection.layerIds[0]

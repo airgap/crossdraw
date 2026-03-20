@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { v4 as uuid } from 'uuid'
 import type { VectorLayer, Path } from '@/types'
 
@@ -13,7 +13,7 @@ import type { VectorLayer, Path } from '@/types'
  */
 export function makeCompoundPath(): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds
@@ -78,7 +78,7 @@ export function makeCompoundPath(): void {
  */
 export function releaseCompoundPath(): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds

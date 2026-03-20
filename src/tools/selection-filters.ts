@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, VectorLayer, TextLayer, GroupLayer } from '@/types'
 
 /**
@@ -52,7 +52,7 @@ function getPropertyValue(layer: Layer, property: SelectSameProperty): string | 
  */
 export function selectSame(property: SelectSameProperty): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds
@@ -92,7 +92,7 @@ export function selectSame(property: SelectSameProperty): void {
  */
 export function selectInverse(): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = new Set(store.selection.layerIds)

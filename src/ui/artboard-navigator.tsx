@@ -7,8 +7,11 @@ export function ArtboardNavigator() {
   const artboards = useEditorStore((s) => s.document.artboards)
   const viewport = useEditorStore((s) => s.viewport)
   const showRulers = useEditorStore((s) => s.showRulers)
+  const activeTabId = useEditorStore((s) => s.activeTabId)
   const addArtboard = useEditorStore((s) => s.addArtboard)
   const deleteArtboard = useEditorStore((s) => s.deleteArtboard)
+  const addInfiniteArtboard = useEditorStore((s) => s.addInfiniteArtboard)
+  const switchTab = useEditorStore((s) => s.switchTab)
   const setPan = useEditorStore((s) => s.setPan)
   const setZoom = useEditorStore((s) => s.setZoom)
 
@@ -53,6 +56,11 @@ export function ArtboardNavigator() {
   function handleAddArtboard() {
     const count = artboards.length
     addArtboard(`Artboard ${count + 1}`, 1920, 1080)
+  }
+
+  function handleAddInfiniteArtboard() {
+    const count = artboards.filter((a) => a.isInfinite).length
+    addInfiniteArtboard(`Infinite Canvas ${count + 1}`)
   }
 
   /**
@@ -125,6 +133,22 @@ export function ArtboardNavigator() {
         >
           Add Artboard
         </button>
+        <button
+          onClick={handleAddInfiniteArtboard}
+          style={{
+            width: '100%',
+            marginTop: 4,
+            padding: '6px 12px',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-sm, 4px)',
+            background: 'transparent',
+            color: 'var(--text-secondary)',
+            cursor: 'pointer',
+            fontSize: 'var(--font-size-sm, 12px)',
+          }}
+        >
+          ∞ Add Infinite Canvas
+        </button>
       </div>
 
       {/* Artboards list */}
@@ -143,7 +167,7 @@ export function ArtboardNavigator() {
         )}
 
         {artboards.map((ab) => {
-          const isActive = viewport.artboardId === ab.id
+          const isActive = ab.isInfinite ? activeTabId === ab.id : viewport.artboardId === ab.id
 
           return (
             <div
@@ -158,8 +182,8 @@ export function ArtboardNavigator() {
                 background: isActive ? 'var(--bg-selected, rgba(59,130,246,0.12))' : 'transparent',
                 borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
               }}
-              onClick={() => panToArtboard(ab)}
-              onDoubleClick={() => zoomToFitArtboard(ab)}
+              onClick={() => (ab.isInfinite ? switchTab(ab.id) : panToArtboard(ab))}
+              onDoubleClick={() => (ab.isInfinite ? undefined : zoomToFitArtboard(ab))}
               onMouseEnter={(e) => {
                 if (!isActive) {
                   ;(e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
@@ -210,6 +234,7 @@ export function ArtboardNavigator() {
                       whiteSpace: 'nowrap',
                     }}
                   >
+                    {ab.isInfinite && <span style={{ marginRight: 4 }}>∞</span>}
                     {ab.name}
                   </span>
                 )}
@@ -219,7 +244,8 @@ export function ArtboardNavigator() {
                     color: 'var(--text-tertiary)',
                   }}
                 >
-                  {ab.width} x {ab.height} &middot; ({Math.round(ab.x)}, {Math.round(ab.y)})
+                  {ab.isInfinite ? 'Infinite' : `${ab.width} x ${ab.height}`} &middot; ({Math.round(ab.x)},{' '}
+                  {Math.round(ab.y)})
                 </span>
               </div>
 

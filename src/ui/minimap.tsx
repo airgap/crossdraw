@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { useRef, useCallback } from 'react'
 
 const MINIMAP_WIDTH = 150
@@ -9,7 +9,7 @@ const MINIMAP_HEIGHT = 100
  * with a viewport indicator rectangle.
  */
 export function MiniMap({ viewportWidth, viewportHeight }: { viewportWidth: number; viewportHeight: number }) {
-  const artboard = useEditorStore((s) => s.document.artboards[0])
+  const artboard = getActiveArtboard()
   const viewport = useEditorStore((s) => s.viewport)
   const setPan = useEditorStore((s) => s.setPan)
   const mapRef = useRef<HTMLDivElement>(null)

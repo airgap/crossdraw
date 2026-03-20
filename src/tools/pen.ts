@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import type { Segment, Path, VectorLayer } from '@/types'
-import { useEditorStore, createDefaultVectorLayer } from '@/store/editor.store'
+import { useEditorStore, createDefaultVectorLayer, getActiveArtboard } from '@/store/editor.store'
 import { screenToDocument, type Point } from '@/math/viewport'
 import { snapPoint } from '@/tools/snap'
 
@@ -59,8 +59,7 @@ export function resetPen() {
 }
 
 function getArtboardId(): string | null {
-  const store = useEditorStore.getState()
-  return store.document.artboards[0]?.id ?? null
+  return getActiveArtboard()?.id ?? null
 }
 
 function getDocPoint(e: MouseEvent, canvasRect: DOMRect, snap = false): Point {

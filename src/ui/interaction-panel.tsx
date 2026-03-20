@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Interaction, InteractionAction, Transition, Layer, GroupLayer } from '@/types'
 
 const TRIGGER_OPTIONS: Interaction['trigger'][] = ['click', 'hover', 'press', 'drag']
@@ -152,7 +152,7 @@ export function InteractionPanel() {
   const interactions = layer.interactions ?? []
 
   const handleAdd = () => {
-    const firstArtboard = doc.artboards[0]
+    const firstArtboard = getActiveArtboard()
     if (!firstArtboard) return
     addInteraction(artboardInfo.artboardId, selectedLayerId, defaultInteraction(firstArtboard.id))
   }
@@ -167,7 +167,7 @@ export function InteractionPanel() {
     currentAction: InteractionAction,
   ) => {
     let newAction: InteractionAction
-    const firstArtboardId = doc.artboards[0]?.id ?? ''
+    const firstArtboardId = getActiveArtboard()?.id ?? ''
 
     switch (actionType) {
       case 'navigate':

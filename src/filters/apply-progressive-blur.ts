@@ -7,7 +7,7 @@
  * 4. Writes the result back and pushes an undo entry.
  */
 
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, storeRasterData, updateRasterCache } from '@/store/raster-data'
 import { applyProgressiveBlur } from '@/filters/progressive-blur'
 import type { RasterLayer } from '@/types/document'
@@ -19,7 +19,7 @@ import type { ProgressiveBlurParams } from '@/filters/progressive-blur'
  */
 export function applyProgressiveBlurFilter(): void {
   const state = useEditorStore.getState()
-  const artboard = state.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const layerId = state.selection.layerIds[0]

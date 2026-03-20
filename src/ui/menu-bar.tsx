@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getWorkspacePresets, saveWorkspacePreset, loadWorkspacePreset, resetWorkspace } from '@/ui/workspace-presets'
 import { isElectron, electronOpen } from '@/io/electron-bridge'
 import { openFile, openFileAsDocument } from '@/io/open-file'
@@ -532,7 +532,7 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+D',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (artboard) {
             for (const layerId of s.selection.layerIds) {
               s.duplicateLayer(artboard.id, layerId)
@@ -546,7 +546,7 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Delete',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (artboard) {
             for (const layerId of s.selection.layerIds) {
               s.deleteLayer(artboard.id, layerId)
@@ -562,7 +562,7 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+A',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (artboard) {
             for (const layer of artboard.layers) {
               s.selectLayer(layer.id, true)
@@ -636,7 +636,7 @@ function buildMenus(): MenuDef[] {
           const s = store()
           const layerId = s.selection.layerIds[0]
           if (!layerId) return
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return
           const layer = artboard.layers.find((l) => l.id === layerId)
           if (!layer || layer.type !== 'raster') return
@@ -654,7 +654,7 @@ function buildMenus(): MenuDef[] {
           const s = store()
           const layerId = s.selection.layerIds[0]
           if (!layerId) return
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return
           const layer = artboard.layers.find((l) => l.id === layerId)
           if (!layer || layer.type !== 'raster') return
@@ -692,7 +692,7 @@ function buildMenus(): MenuDef[] {
         label: 'AI Rename Layers\u2026',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || artboard.layers.length === 0) return
 
           const layerInfos = collectLayerInfos(artboard.layers)
@@ -708,7 +708,7 @@ function buildMenus(): MenuDef[] {
           }
         },
         disabled: () => {
-          const artboard = store().document.artboards[0]
+          const artboard = getActiveArtboard()
           return !artboard || artboard.layers.length === 0
         },
       },
@@ -795,7 +795,7 @@ function buildMenus(): MenuDef[] {
         shortcut: '',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (artboard) s.togglePerspectiveGrid(artboard.id)
         },
       },
@@ -888,7 +888,7 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+G',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (artboard && s.selection.layerIds.length >= 2) {
             s.groupLayers(artboard.id, s.selection.layerIds)
           }
@@ -900,7 +900,7 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+Shift+G',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (artboard && s.selection.layerIds.length === 1) {
             const layerId = s.selection.layerIds[0]!
             const layer = artboard.layers.find((l) => l.id === layerId)
@@ -912,7 +912,7 @@ function buildMenus(): MenuDef[] {
         disabled: () => {
           const s = store()
           if (s.selection.layerIds.length !== 1) return true
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return true
           const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
           return !layer || layer.type !== 'group'
@@ -964,16 +964,16 @@ function buildMenus(): MenuDef[] {
             label: 'Solid Color...',
             action: () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (artboard) s.addFillLayer(artboard.id, 'solid', { color: '#ffffff' })
             },
-            disabled: () => !store().document.artboards[0],
+            disabled: () => !getActiveArtboard(),
           },
           {
             label: 'Gradient...',
             action: () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (artboard)
                 s.addFillLayer(artboard.id, 'gradient', {
                   gradient: {
@@ -991,16 +991,16 @@ function buildMenus(): MenuDef[] {
                   },
                 })
             },
-            disabled: () => !store().document.artboards[0],
+            disabled: () => !getActiveArtboard(),
           },
           {
             label: 'Pattern...',
             action: () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (artboard) s.addFillLayer(artboard.id, 'pattern', { patternScale: 1 })
             },
-            disabled: () => !store().document.artboards[0],
+            disabled: () => !getActiveArtboard(),
           },
         ],
       },
@@ -1008,7 +1008,7 @@ function buildMenus(): MenuDef[] {
         label: 'New Clone Layer',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return
           const layerId = s.selection.layerIds[0]
           if (!layerId) return
@@ -1016,7 +1016,7 @@ function buildMenus(): MenuDef[] {
         },
         disabled: () => {
           const s = store()
-          return !s.document.artboards[0] || s.selection.layerIds.length === 0
+          return !getActiveArtboard() || s.selection.layerIds.length === 0
         },
       },
       { label: '', divider: true },
@@ -1027,7 +1027,7 @@ function buildMenus(): MenuDef[] {
             label: 'Convert to Smart Object',
             action: () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (!artboard) return
               const layerId = s.selection.layerIds[0]
               if (!layerId) return
@@ -1035,8 +1035,8 @@ function buildMenus(): MenuDef[] {
             },
             disabled: () => {
               const s = store()
-              if (!s.document.artboards[0] || s.selection.layerIds.length === 0) return true
-              const artboard = s.document.artboards[0]!
+              if (!getActiveArtboard() || s.selection.layerIds.length === 0) return true
+              const artboard = getActiveArtboard()!
               const layerId = s.selection.layerIds[0]!
               const layer = artboard.layers.find((l) => l.id === layerId)
               return !layer || layer.type === 'smart-object'
@@ -1050,8 +1050,8 @@ function buildMenus(): MenuDef[] {
             },
             disabled: () => {
               const s = store()
-              if (!s.document.artboards[0] || s.selection.layerIds.length === 0) return true
-              const artboard = s.document.artboards[0]!
+              if (!getActiveArtboard() || s.selection.layerIds.length === 0) return true
+              const artboard = getActiveArtboard()!
               const layerId = s.selection.layerIds[0]!
               const layer = artboard.layers.find((l) => l.id === layerId)
               return !layer || layer.type !== 'smart-object'
@@ -1061,7 +1061,7 @@ function buildMenus(): MenuDef[] {
             label: 'Rasterize',
             action: () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (!artboard) return
               const layerId = s.selection.layerIds[0]
               if (!layerId) return
@@ -1069,8 +1069,8 @@ function buildMenus(): MenuDef[] {
             },
             disabled: () => {
               const s = store()
-              if (!s.document.artboards[0] || s.selection.layerIds.length === 0) return true
-              const artboard = s.document.artboards[0]!
+              if (!getActiveArtboard() || s.selection.layerIds.length === 0) return true
+              const artboard = getActiveArtboard()!
               const layerId = s.selection.layerIds[0]!
               const layer = artboard.layers.find((l) => l.id === layerId)
               return !layer || layer.type !== 'smart-object'
@@ -1083,7 +1083,7 @@ function buildMenus(): MenuDef[] {
 
   const getSelectedTextLayer = (): TextLayer | null => {
     const s = store()
-    const artboard = s.document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return null
     const layerId = s.selection.layerIds[0]
     if (!layerId) return null
@@ -1095,7 +1095,7 @@ function buildMenus(): MenuDef[] {
 
   const updateSelectedText = (updates: Partial<TextLayer>) => {
     const s = store()
-    const artboard = s.document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     const layerId = s.selection.layerIds[0]
     if (!layerId) return
@@ -1181,7 +1181,7 @@ function buildMenus(): MenuDef[] {
   const hasSelectedRaster = (): boolean => {
     const s = store()
     if (s.selection.layerIds.length === 0) return false
-    const artboard = s.document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return false
     const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
     return !!layer && layer.type === 'raster'
@@ -1190,7 +1190,7 @@ function buildMenus(): MenuDef[] {
   const hasSelectedVector = (): boolean => {
     const s = store()
     if (s.selection.layerIds.length === 0) return false
-    const artboard = s.document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return false
     const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
     return !!layer && layer.type === 'vector'
@@ -1198,7 +1198,7 @@ function buildMenus(): MenuDef[] {
 
   const addFilterLayerToArtboard = (filterKind: string, customParams?: Partial<import('@/types').FilterParams>) => {
     const s = store()
-    const artboard = s.document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     if ('addFilterLayer' in s) {
       ;(s as any).addFilterLayer(artboard.id, filterKind, customParams)
@@ -1308,7 +1308,7 @@ function buildMenus(): MenuDef[] {
             label: 'Noise Fill',
             action: () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (!artboard) return
               const layerId = s.selection.layerIds[0]
               if (!layerId) return
@@ -1555,7 +1555,7 @@ function buildMenus(): MenuDef[] {
         label: 'Offset Path\u2026',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const deltaStr = prompt('Offset amount in pixels (positive = expand, negative = contract):', '10')
@@ -1571,7 +1571,7 @@ function buildMenus(): MenuDef[] {
         label: 'Contour Path\u2026',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const offsetStr = prompt('Offset per step (px, positive=outward, negative=inward):', '5')
@@ -1601,7 +1601,7 @@ function buildMenus(): MenuDef[] {
         label: 'Expand Stroke',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const m = await lazyImport.booleanOps()
@@ -1613,7 +1613,7 @@ function buildMenus(): MenuDef[] {
         label: 'Simplify Path',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const m = await lazyImport.booleanOps()
@@ -1625,7 +1625,7 @@ function buildMenus(): MenuDef[] {
         label: 'Flatten Curves',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const m = await lazyImport.pathOps()
@@ -1637,7 +1637,7 @@ function buildMenus(): MenuDef[] {
         label: 'Join Paths',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length < 2) return
           const m = await lazyImport.pathOps()
           m.joinPaths(artboard.id, s.selection.layerIds)
@@ -1645,7 +1645,7 @@ function buildMenus(): MenuDef[] {
         disabled: () => {
           const s = store()
           if (s.selection.layerIds.length < 2) return true
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return true
           const vectorCount = s.selection.layerIds.filter((id) => {
             const l = artboard.layers.find((la) => la.id === id)
@@ -1658,7 +1658,7 @@ function buildMenus(): MenuDef[] {
         label: 'Break at Intersections',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length < 2) return
           const m = await lazyImport.pathOps()
           m.breakAtIntersections(artboard.id, s.selection.layerIds)
@@ -1691,7 +1691,7 @@ function buildMenus(): MenuDef[] {
         disabled: () => {
           const s = store()
           if (s.selection.layerIds.length !== 1) return true
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return true
           const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
           return !layer || layer.type !== 'vector' || (layer as import('@/types').VectorLayer).paths.length < 2
@@ -1717,7 +1717,7 @@ function buildMenus(): MenuDef[] {
         disabled: () => {
           const s = store()
           if (s.selection.layerIds.length !== 1) return true
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return true
           const layer = artboard.layers.find((l) => l.id === s.selection.layerIds[0])
           return !layer || !layer.mask
@@ -1740,7 +1740,7 @@ function buildMenus(): MenuDef[] {
             label: 'Blend (Linear)\u2026',
             action: async () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (!artboard || s.selection.layerIds.length !== 2) return
               const stepsStr = prompt('Number of blend steps:', '5')
               if (!stepsStr) return
@@ -1755,7 +1755,7 @@ function buildMenus(): MenuDef[] {
             label: 'Blend (Smooth)\u2026',
             action: async () => {
               const s = store()
-              const artboard = s.document.artboards[0]
+              const artboard = getActiveArtboard()
               if (!artboard || s.selection.layerIds.length !== 2) return
               const stepsStr = prompt('Number of blend steps:', '5')
               if (!stepsStr) return
@@ -1815,7 +1815,7 @@ function buildMenus(): MenuDef[] {
         label: 'Envelope Distort\u2026',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const layer = artboard.layers.find((l) => l.id === layerId)
@@ -1846,7 +1846,7 @@ function buildMenus(): MenuDef[] {
         label: 'Extrude 3D\u2026',
         action: () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
           const layer = artboard.layers.find((l) => l.id === layerId)
@@ -1871,7 +1871,7 @@ function buildMenus(): MenuDef[] {
         label: 'Repeat\u2026',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || s.selection.layerIds.length !== 1) return
           const layerId = s.selection.layerIds[0]!
 
@@ -2100,7 +2100,7 @@ function buildMenus(): MenuDef[] {
         label: 'Rename Layers\u2026',
         action: async () => {
           const s = store()
-          const artboard = s.document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard || artboard.layers.length === 0) return
 
           const layerInfos = collectLayerInfos(artboard.layers)
@@ -2116,7 +2116,7 @@ function buildMenus(): MenuDef[] {
           }
         },
         disabled: () => {
-          const artboard = store().document.artboards[0]
+          const artboard = getActiveArtboard()
           return !artboard || artboard.layers.length === 0
         },
       },

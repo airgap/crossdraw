@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, storeRasterData } from '@/store/raster-data'
 import type { RasterLayer, BlendMode } from '@/types'
 
@@ -116,7 +116,7 @@ function gaussianBlur(src: ImageData, radius: number): ImageData {
 export function performFrequencySeparation(layerId: string, radius?: number): boolean {
   const blurRadius = radius ?? currentSettings.radius
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   const layer = artboard.layers.find((l) => l.id === layerId)

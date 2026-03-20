@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { v4 as uuid } from 'uuid'
 import type { Breakpoint } from '@/types'
 import { getBrushSettings, setBrushSettings } from '@/tools/brush'
@@ -2072,7 +2072,7 @@ const bpChipActiveStyle: React.CSSProperties = {
 function BreakpointSection() {
   const artboard = useEditorStore((s) => {
     const artboardId = s.viewport.artboardId
-    if (!artboardId) return s.document.artboards[0] ?? null
+    if (!artboardId) return getActiveArtboard()
     return s.document.artboards.find((a) => a.id === artboardId) ?? null
   })
   const setActiveBreakpoint = useEditorStore((s) => s.setActiveBreakpoint)

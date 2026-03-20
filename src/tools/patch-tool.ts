@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, updateRasterCache, syncCanvasToImageData } from '@/store/raster-data'
 import type { RasterLayer } from '@/types'
 
@@ -70,7 +70,7 @@ let preStrokeSnapshot: ImageData | null = null
 
 function findRasterChunkId(): string | null {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   const selectedId = store.selection.layerIds[0]

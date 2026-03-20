@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, Artboard } from '@/types'
 import { segmentsToPath2D } from '@/math/path'
 import { getRasterCanvas } from '@/store/raster-data'
@@ -89,7 +89,7 @@ export function PNGTuberPreview() {
   const talkingRef = useRef(false)
 
   // Get active artboard
-  const activeArtboardId = viewport.artboardId ?? document.artboards[0]?.id
+  const activeArtboardId = viewport.artboardId ?? getActiveArtboard()?.id
   const artboard = document.artboards.find((a) => a.id === activeArtboardId)
 
   // Collect all layers (flattened)

@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import type { VectorLayer, GroupLayer, Path, Segment, Fill, Stroke, Transform } from '@/types'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 // ── Config ──
 
@@ -32,7 +32,7 @@ export function setBlendSettings(settings: Partial<{ steps: number; method: 'lin
  */
 export function performBlend(steps?: number, method?: 'linear' | 'smooth'): void {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds

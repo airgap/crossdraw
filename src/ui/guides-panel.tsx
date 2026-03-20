@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 export function GuidesPanel() {
   const document = useEditorStore((s) => s.document)
@@ -17,7 +17,7 @@ export function GuidesPanel() {
   } | null>(null)
   const [editValue, setEditValue] = useState('')
 
-  const activeArtboardId = viewport.artboardId ?? document.artboards[0]?.id
+  const activeArtboardId = viewport.artboardId ?? getActiveArtboard()?.id
   const artboard = document.artboards.find((a) => a.id === activeArtboardId)
 
   if (!artboard) {

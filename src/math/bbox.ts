@@ -307,6 +307,37 @@ function getTextLayerBBox(layer: TextLayer, artboard: Artboard): BBox {
   return { minX, minY, maxX, maxY }
 }
 
+/** Compute the union bounding box of all layers in an infinite artboard, with padding.
+ *  Falls back to 1920x1080 if the artboard has no layers or all bounds are empty. */
+export function getInfiniteArtboardBounds(artboard: Artboard): {
+  width: number
+  height: number
+  offsetX: number
+  offsetY: number
+} {
+  const padding = 20
+  let union = { ...EMPTY_BBOX }
+
+  for (const layer of artboard.layers) {
+    if (!layer.visible) continue
+    const lb = getLayerBBox(layer, artboard)
+    if (lb.minX === Infinity) continue
+    union = mergeBBox(union, lb)
+  }
+
+  if (union.minX === Infinity) {
+    // Empty — fallback
+    return { width: 1920, height: 1080, offsetX: artboard.x, offsetY: artboard.y }
+  }
+
+  return {
+    width: Math.ceil(union.maxX - union.minX + padding * 2),
+    height: Math.ceil(union.maxY - union.minY + padding * 2),
+    offsetX: union.minX - padding,
+    offsetY: union.minY - padding,
+  }
+}
+
 function getVectorLayerBBox(layer: VectorLayer, artboard: Artboard): BBox {
   if (layer.paths.length === 0) return { ...EMPTY_BBOX }
 

@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { SymbolDefinition, SymbolInstanceLayer, GroupLayer, Layer } from '@/types'
 
 // ─── Symbol Sprayer tool (Task #16) ────────────────────────────
@@ -110,7 +110,7 @@ export function endSymbolSpray(): string | null {
   if (sprayInstances.length === 0) return null
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   const symbolId = sprayInstances[0]!.symbolId

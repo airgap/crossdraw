@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { downloadSVG } from '@/io/svg-export'
 import {
@@ -31,7 +31,7 @@ export function ExportModal() {
   const [exporting, setExporting] = useState(false)
   const previewTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const artboard = doc.artboards[0]
+  const artboard = getActiveArtboard()
   const artboardW = artboard?.width ?? 1920
   const artboardH = artboard?.height ?? 1080
 

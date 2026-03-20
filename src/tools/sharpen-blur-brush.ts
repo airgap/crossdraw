@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, syncCanvasToImageData, updateRasterCache } from '@/store/raster-data'
 import type { RasterLayer } from '@/types'
 
@@ -170,7 +170,7 @@ function stampSharpenBlur(
 
 export function beginSharpenBlurStroke(): string | null {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   // Find selected raster layer

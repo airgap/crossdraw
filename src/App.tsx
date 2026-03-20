@@ -17,6 +17,7 @@ import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { ShareDialog } from '@/ui/share-dialog'
 import { ToastContainer } from '@/ui/toast'
 import { Onboarding } from '@/ui/onboarding'
+import { CanvasTabBar } from '@/ui/canvas-tab-bar'
 import { newDocumentFromClipboard } from '@/tools/import-image'
 
 // Lazy-loaded heavy components (export/print pull in raster-export, pdf, gif, tiff encoders)
@@ -213,6 +214,7 @@ export function App() {
       </a>
       <MenuBar />
       <ToolOptionsBar />
+      <CanvasTabBar />
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Toolbar />
         <PanelShell>

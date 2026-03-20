@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { VectorLayer, Segment, Path } from '@/types'
 
 interface KnifeState {
@@ -30,7 +30,7 @@ export function endKnifeCut() {
   }
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) {
     state.active = false
     state.points = []

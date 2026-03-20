@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Artboard, Layer, TextLayer } from '@/types/document'
 
 // ── Color blindness simulation ──
@@ -367,8 +367,7 @@ export function AccessibilityPanel() {
   const [simulation, setSimulation] = useState<SimulationType>(activeSimulation)
 
   const handleScan = useCallback(() => {
-    const state = useEditorStore.getState()
-    const artboard = state.document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) {
       setResults({ contrastIssues: [], touchTargetIssues: [] })
       return

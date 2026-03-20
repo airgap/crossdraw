@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { createDefaultPerspectiveConfig, type PerspectiveMode } from '@/render/perspective-grid'
 import type { PerspectiveConfig } from '@/types'
 
@@ -66,7 +66,7 @@ const MODES: { label: string; value: PerspectiveMode | 'off' }[] = [
 ]
 
 export function PerspectivePanel() {
-  const artboard = useEditorStore((s) => s.document.artboards[0])
+  const artboard = useEditorStore(() => getActiveArtboard())
   const setPerspectiveGrid = useEditorStore((s) => s.setPerspectiveGrid)
 
   if (!artboard) return null

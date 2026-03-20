@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, updateRasterCache, syncCanvasToImageData } from '@/store/raster-data'
 import type { RasterLayer } from '@/types'
 
@@ -204,7 +204,7 @@ function mixerDab(imageData: ImageData, cx: number, cy: number, settings: MixerB
 
 export function beginMixerStroke(): string | null {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   // Find existing raster layer

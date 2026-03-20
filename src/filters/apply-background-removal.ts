@@ -7,7 +7,7 @@
  * 4. Writes the result back and pushes an undo entry.
  */
 
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, storeRasterData, updateRasterCache } from '@/store/raster-data'
 import { removeBackground, DEFAULT_REMOVAL_PARAMS } from '@/filters/background-removal'
 import type { BackgroundRemovalParams } from '@/filters/background-removal'
@@ -20,7 +20,7 @@ import type { RasterLayer } from '@/types/document'
  */
 export function applyBackgroundRemovalFilter(params: Partial<BackgroundRemovalParams> = {}): void {
   const state = useEditorStore.getState()
-  const artboard = state.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const layerId = state.selection.layerIds[0]

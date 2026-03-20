@@ -9,7 +9,7 @@
 
 import { bilinearSample } from '@/filters/distort'
 import { getRasterData, updateRasterCache, storeRasterData } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ function brushFalloff(dist: number, radius: number): number {
  */
 export function beginLiquify(): boolean {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   // Find selected raster layer

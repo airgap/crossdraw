@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, syncCanvasToImageData, updateRasterCache } from '@/store/raster-data'
 import type { RasterLayer } from '@/types'
 
@@ -39,7 +39,7 @@ export function setSmudgeSettings(settings: Partial<SmudgeSettings>) {
 
 export function beginSmudgeStroke(): string | null {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   // Find existing raster layer

@@ -1,7 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import ClipperLib from 'clipper-lib'
 import type { Segment, Path, VectorLayer } from '@/types'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 export type BooleanOp = 'union' | 'subtract' | 'intersect' | 'xor' | 'divide' | 'trim' | 'merge'
 
@@ -15,7 +15,7 @@ const SCALE = 1000 // Clipper uses integer math; scale up for precision
  */
 export function performBooleanOp(op: BooleanOp, deleteOriginals = true) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedIds = store.selection.layerIds

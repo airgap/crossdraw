@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, syncCanvasToImageData, updateRasterCache } from '@/store/raster-data'
 import type { RasterLayer } from '@/types'
 
@@ -199,7 +199,7 @@ export function applyRedEyeRemoval(
 
 export function applyRedEyeAtPoint(x: number, y: number): number {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return 0
 
   // Find selected raster layer

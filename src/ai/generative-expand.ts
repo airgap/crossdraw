@@ -13,7 +13,7 @@ import { isAIConfigured } from './ai-config'
 import { requestInpainting, compositeResult } from './generative-fill'
 import type { SelectionMask } from '@/tools/raster-selection'
 import { getRasterData, storeRasterData, updateRasterCache } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { RasterLayer } from '@/types'
 
 // ── Types ──
@@ -222,7 +222,7 @@ export async function performGenerativeExpand(
   }
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) throw new Error('No artboard found.')
 
   // Find raster layer

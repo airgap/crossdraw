@@ -7,7 +7,7 @@
  */
 
 import type { DesignDocument, Artboard, Layer, NamedColor } from '@/types'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { exportArtboardToSVG } from '@/io/svg-export'
 import { exportArtboardToBlob } from '@/io/raster-export'
 
@@ -145,7 +145,7 @@ export function createCrossdrawPluginAPI(): CrossdrawPluginAPI {
       const artboardId = state.viewport.artboardId
       if (!artboardId) {
         // Fall back to first artboard
-        return state.document.artboards[0] ?? null
+        return getActiveArtboard() ?? null
       }
       return state.document.artboards.find((a) => a.id === artboardId) ?? null
     },

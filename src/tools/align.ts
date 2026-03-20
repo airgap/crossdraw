@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getLayerBBox, type BBox } from '@/math/bbox'
 import type { Layer } from '@/types'
 
@@ -9,7 +9,7 @@ interface LayerBBox {
 
 function getSelectedLayerBBoxes(): LayerBBox[] {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return []
 
   const results: LayerBBox[] = []
@@ -24,8 +24,7 @@ function getSelectedLayerBBoxes(): LayerBBox[] {
 }
 
 function getArtboardBBox(): BBox | null {
-  const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
   return {
     minX: artboard.x,
@@ -37,7 +36,7 @@ function getArtboardBBox(): BBox | null {
 
 function moveLayerBy(layerId: string, dx: number, dy: number) {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return
   const layer = artboard.layers.find((l) => l.id === layerId)
   if (!layer) return

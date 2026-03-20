@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getRasterData, getRasterCanvasCtx, syncCanvasToImageData, updateRasterCache } from '@/store/raster-data'
 import type { RasterLayer, BrushSettings } from '@/types'
 
@@ -79,7 +79,7 @@ export function beginHealingStroke(docX: number, docY: number, _artboardId: stri
   if (!state.sourceSet) return null
 
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return null
 
   // Find existing raster layer

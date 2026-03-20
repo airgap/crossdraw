@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { v4 as uuid } from 'uuid'
 import type { TextStyle, ColorStyle, EffectStyle, Layer, VectorLayer, TextLayer, GroupLayer } from '@/types'
 
@@ -21,7 +21,6 @@ function findLayerDeep(layers: readonly Layer[], id: string): Layer | null {
 function TextStylesSection() {
   const styles = useEditorStore((s) => s.document.styles?.textStyles ?? [])
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const addTextStyle = useEditorStore((s) => s.addTextStyle)
   const updateTextStyle = useEditorStore((s) => s.updateTextStyle)
   const removeTextStyle = useEditorStore((s) => s.removeTextStyle)
@@ -33,7 +32,7 @@ function TextStylesSection() {
   const handleCreateFromSelection = useCallback(() => {
     const layerId = selection.layerIds[0]
     if (!layerId) return
-    const artboard = document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     const layer = findLayerDeep(artboard.layers, layerId)
     if (!layer || layer.type !== 'text') return
@@ -50,26 +49,26 @@ function TextStylesSection() {
       color: tl.color,
     }
     addTextStyle(style)
-  }, [selection, document, addTextStyle])
+  }, [selection, addTextStyle])
 
   const handleApply = useCallback(
     (styleId: string) => {
       const layerId = selection.layerIds[0]
       if (!layerId) return
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard) return
       applyTextStyle(layerId, artboard.id, styleId)
     },
-    [selection, document, applyTextStyle],
+    [selection, applyTextStyle],
   )
 
   const handleDetach = useCallback(() => {
     const layerId = selection.layerIds[0]
     if (!layerId) return
-    const artboard = document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     detachTextStyle(layerId, artboard.id)
-  }, [selection, document, detachTextStyle])
+  }, [selection, detachTextStyle])
 
   const startEdit = (style: TextStyle) => {
     setEditingId(style.id)
@@ -201,7 +200,7 @@ function TextStylesSection() {
       ))}
       {selection.layerIds.length > 0 &&
         (() => {
-          const artboard = document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return null
           const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
           if (!layer || !layer.textStyleId) return null
@@ -230,7 +229,6 @@ function TextStylesSection() {
 function ColorStylesSection() {
   const styles = useEditorStore((s) => s.document.styles?.colorStyles ?? [])
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const addColorStyle = useEditorStore((s) => s.addColorStyle)
   const updateColorStyle = useEditorStore((s) => s.updateColorStyle)
   const removeColorStyle = useEditorStore((s) => s.removeColorStyle)
@@ -242,7 +240,7 @@ function ColorStylesSection() {
   const handleCreateFromSelection = useCallback(() => {
     const layerId = selection.layerIds[0]
     if (!layerId) return
-    const artboard = document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     const layer = findLayerDeep(artboard.layers, layerId)
     if (!layer || layer.type !== 'vector') return
@@ -254,26 +252,26 @@ function ColorStylesSection() {
       opacity: vec.fill?.opacity ?? 1,
     }
     addColorStyle(style)
-  }, [selection, document, addColorStyle])
+  }, [selection, addColorStyle])
 
   const handleApply = useCallback(
     (styleId: string) => {
       const layerId = selection.layerIds[0]
       if (!layerId) return
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard) return
       applyColorStyle(layerId, artboard.id, styleId)
     },
-    [selection, document, applyColorStyle],
+    [selection, applyColorStyle],
   )
 
   const handleDetach = useCallback(() => {
     const layerId = selection.layerIds[0]
     if (!layerId) return
-    const artboard = document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     detachColorStyle(layerId, artboard.id)
-  }, [selection, document, detachColorStyle])
+  }, [selection, detachColorStyle])
 
   const startEdit = (style: ColorStyle) => {
     setEditingId(style.id)
@@ -400,7 +398,7 @@ function ColorStylesSection() {
       ))}
       {selection.layerIds.length > 0 &&
         (() => {
-          const artboard = document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return null
           const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
           if (!layer || !layer.fillStyleId) return null
@@ -429,7 +427,6 @@ function ColorStylesSection() {
 function EffectStylesSection() {
   const styles = useEditorStore((s) => s.document.styles?.effectStyles ?? [])
   const selection = useEditorStore((s) => s.selection)
-  const document = useEditorStore((s) => s.document)
   const addEffectStyle = useEditorStore((s) => s.addEffectStyle)
   const updateEffectStyle = useEditorStore((s) => s.updateEffectStyle)
   const removeEffectStyle = useEditorStore((s) => s.removeEffectStyle)
@@ -444,7 +441,7 @@ function EffectStylesSection() {
   const handleCreateFromSelection = useCallback(() => {
     const layerId = selection.layerIds[0]
     if (!layerId) return
-    const artboard = document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     const layer = findLayerDeep(artboard.layers, layerId)
     if (!layer || (layer.effects ?? []).length === 0) return
@@ -454,26 +451,26 @@ function EffectStylesSection() {
       effects: JSON.parse(JSON.stringify(layer.effects ?? [])),
     }
     addEffectStyle(style)
-  }, [selection, document, addEffectStyle])
+  }, [selection, addEffectStyle])
 
   const handleApply = useCallback(
     (styleId: string) => {
       const layerId = selection.layerIds[0]
       if (!layerId) return
-      const artboard = document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard) return
       applyEffectStyle(layerId, artboard.id, styleId)
     },
-    [selection, document, applyEffectStyle],
+    [selection, applyEffectStyle],
   )
 
   const handleDetach = useCallback(() => {
     const layerId = selection.layerIds[0]
     if (!layerId) return
-    const artboard = document.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
     detachEffectStyle(layerId, artboard.id)
-  }, [selection, document, detachEffectStyle])
+  }, [selection, detachEffectStyle])
 
   const startEdit = (style: EffectStyle) => {
     setEditingId(style.id)
@@ -601,7 +598,7 @@ function EffectStylesSection() {
       ))}
       {selection.layerIds.length > 0 &&
         (() => {
-          const artboard = document.artboards[0]
+          const artboard = getActiveArtboard()
           if (!artboard) return null
           const layer = findLayerDeep(artboard.layers, selection.layerIds[0]!)
           if (!layer || !layer.effectStyleId) return null

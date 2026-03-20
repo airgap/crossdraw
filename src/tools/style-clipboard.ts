@@ -1,4 +1,4 @@
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Fill, Stroke, BlendMode } from '@/types'
 
 interface CopiedStyle {
@@ -15,7 +15,7 @@ let copiedStyle: CopiedStyle | null = null
  */
 export function copyStyle(): boolean {
   const state = useEditorStore.getState()
-  const artboard = state.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || state.selection.layerIds.length === 0) return false
 
   const layer = artboard.layers.find((l) => state.selection.layerIds.includes(l.id))
@@ -47,7 +47,7 @@ export function pasteStyle(): boolean {
   if (!copiedStyle) return false
 
   const state = useEditorStore.getState()
-  const artboard = state.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard || state.selection.layerIds.length === 0) return false
 
   for (const layerId of state.selection.layerIds) {

@@ -16,7 +16,7 @@ import { bilinearSample } from '@/filters/distort'
 import { computeHomography, invertHomography } from '@/tools/perspective-transform'
 import type { Point2D } from '@/tools/perspective-transform'
 import { getRasterData, updateRasterCache, storeRasterData } from '@/store/raster-data'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -318,7 +318,7 @@ export function applyPerspectiveWarp(src: ImageData, planes: PerspectivePlane[])
  */
 export function beginPerspectiveWarp(bounds: { x: number; y: number; width: number; height: number }): boolean {
   const store = useEditorStore.getState()
-  const artboard = store.document.artboards[0]
+  const artboard = getActiveArtboard()
   if (!artboard) return false
 
   const selectedId = store.selection.layerIds[0]

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import {
   getAIConfig,
   setAIConfig,
@@ -153,7 +153,7 @@ export function AIPanel() {
 
       try {
         const store = useEditorStore.getState()
-        const artboard = store.document.artboards[0]
+        const artboard = getActiveArtboard()
         if (!artboard) throw new Error('No artboard found.')
 
         const layers = await generateDesignFromPrompt(prompt, artboard.width, artboard.height)
@@ -191,8 +191,7 @@ export function AIPanel() {
     setActiveQuickAction(null)
 
     try {
-      const store = useEditorStore.getState()
-      const artboard = store.document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard) throw new Error('No artboard found.')
       if (artboard.layers.length === 0) throw new Error('Artboard has no layers to critique.')
 
@@ -229,7 +228,7 @@ export function AIPanel() {
 
     try {
       const store = useEditorStore.getState()
-      const artboard = store.document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard) throw new Error('No artboard found.')
 
       const svgString = await generateVectorArt(vectorArtDescription, artboard.width, artboard.height)
@@ -292,7 +291,7 @@ export function AIPanel() {
 
     try {
       const s = useEditorStore.getState()
-      const artboard = s.document.artboards[0]
+      const artboard = getActiveArtboard()
       if (!artboard) throw new Error('No artboard found.')
       if (artboard.layers.length === 0) throw new Error('Artboard has no layers to rename.')
 

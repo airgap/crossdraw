@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 import { v4 as uuid } from 'uuid'
-import { useEditorStore } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import {
   startAnimation,
   stopAnimation,
@@ -177,7 +177,7 @@ export function AnimationTimeline() {
   const handleAddKeyframe = useCallback(() => {
     if (selection.layerIds.length === 0) return
     const layerId = selection.layerIds[0]!
-    const artboard = doc.artboards[0]
+    const artboard = getActiveArtboard()
     if (!artboard) return
 
     const layer = findLayer(artboard.layers, layerId)
