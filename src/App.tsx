@@ -9,6 +9,8 @@ import { PanelShell } from '@/ui/panels/panel-shell'
 import { ToolOptionsBar } from '@/ui/tool-options-bar'
 import { DownloadPage } from '@/ui/download-page'
 import { SplashScreen } from '@/ui/splash-screen'
+import { LoginPage } from '@/ui/login-page'
+import { isAuthenticated } from '@/auth/auth'
 import { NewDocumentModal } from '@/ui/new-document-modal'
 import { restoreLastDocument, setupSessionPersist } from '@/io/session-persist'
 import { handleCallback as handleAuthCallback } from '@/auth/auth'
@@ -35,7 +37,7 @@ function useHashRoute() {
   return hash
 }
 
-type BootState = 'loading' | 'splash' | 'editor'
+type BootState = 'loading' | 'login' | 'splash' | 'editor'
 
 export function App() {
   const hash = useHashRoute()
@@ -49,13 +51,19 @@ export function App() {
   const closePrototypePlayer = useEditorStore((s) => s.closePrototypePlayer)
   const editorDocument = useEditorStore((s) => s.document)
 
-  // On mount: try to restore last document, then show splash or editor
+  // On mount: try to restore last document, then show login/splash/editor
   useEffect(() => {
     if (hash === '#/download') return
     let cancelled = false
     restoreLastDocument().then((restored) => {
       if (cancelled) return
-      setBoot(restored ? 'editor' : 'splash')
+      if (restored) {
+        setBoot('editor')
+      } else if (isAuthenticated()) {
+        setBoot('splash')
+      } else {
+        setBoot('login')
+      }
     })
     return () => {
       cancelled = true
@@ -73,6 +81,16 @@ export function App() {
     return useEditorStore.subscribe((state, prev) => {
       if (state.document !== prev.document) setBoot('editor')
     })
+  }, [boot])
+
+  // Transition from login to splash when user authenticates
+  useEffect(() => {
+    if (boot !== 'login') return
+    const handler = () => {
+      if (isAuthenticated()) setBoot('splash')
+    }
+    window.addEventListener('crossdraw:auth-changed', handler)
+    return () => window.removeEventListener('crossdraw:auth-changed', handler)
   }, [boot])
 
   // Listen for menu bar "New Document" event
@@ -146,6 +164,65 @@ export function App() {
     }
   }, [])
 
+  // Handle share link URLs: /share/<slug>
+  useEffect(() => {
+    const path = window.location.pathname
+    const shareMatch = path.match(/^\/share\/(.+)$/)
+    if (!shareMatch) return
+    const slug = shareMatch[1]
+
+    // Fetch share data from server and load document
+    const serverUrl = window.location.origin
+    fetch(`${serverUrl}/api/shares/${slug}/data`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`Share not found: ${res.status}`)
+        const arrayBuffer = await res.arrayBuffer()
+        const { decodeDocument } = await import('@/io/file-format')
+        const doc = decodeDocument(arrayBuffer)
+        useEditorStore.setState({
+          document: doc,
+          history: [],
+          historyIndex: -1,
+          selection: { layerIds: [] },
+          isDirty: false,
+        })
+        setBoot('editor')
+
+        // Check permission from response headers or fetch share info
+        try {
+          const infoRes = await fetch(`${serverUrl}/api/shares/${slug}`)
+          if (infoRes.ok) {
+            const info = (await infoRes.json()) as { permission?: string; roomId?: string }
+            if (info.permission === 'view') {
+              useEditorStore.getState().setReadOnlyMode(true)
+            } else if (info.permission === 'edit' && info.roomId) {
+              const wsUrl = serverUrl.replace(/^http/, 'ws')
+              useEditorStore.getState().startCollabSession(info.roomId, wsUrl)
+            }
+          }
+        } catch {
+          /* share info not available */
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load shared document:', err)
+        window.history.replaceState({}, '', '/')
+      })
+  }, [])
+
+  // Handle collab invite URLs: ?collab=<roomId>
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const collabRoom = params.get('collab')
+    const collabServer = params.get('server')
+    if (collabRoom && boot === 'editor') {
+      const wsUrl = collabServer || window.location.origin.replace(/^http/, 'ws')
+      useEditorStore.getState().startCollabSession(collabRoom, wsUrl)
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname)
+    }
+  }, [boot])
+
   useEffect(() => {
     if (boot === 'editor' && hash !== '#/download') setupKeyboardShortcuts()
   }, [boot, hash])
@@ -180,6 +257,10 @@ export function App() {
         }}
       />
     )
+  }
+
+  if (boot === 'login') {
+    return <LoginPage onSkip={() => setBoot('splash')} />
   }
 
   if (boot === 'splash') {

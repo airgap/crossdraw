@@ -28,11 +28,13 @@ export interface AuthSession {
 }
 
 export interface AuthConfig {
-  /** Lyku OAuth authorize URL (e.g. https://lyku.app/oauth/authorize) */
+  /** Lyku API base URL */
+  apiBaseUrl: string
+  /** Lyku OAuth authorize URL (e.g. https://api.lyku.org/oauth-authorize) */
   authorizeUrl: string
-  /** Lyku token endpoint (e.g. https://lyku.app/oauth/token) */
+  /** Lyku token endpoint (e.g. https://api.lyku.org/oauth-token) */
   tokenUrl: string
-  /** Lyku userinfo endpoint (e.g. https://lyku.app/api/me) */
+  /** Lyku userinfo endpoint (e.g. https://api.lyku.org/oauth-userinfo) */
   userinfoUrl: string
   /** OAuth client ID registered with Lyku */
   clientId: string
@@ -51,9 +53,10 @@ const CONFIG_KEY = 'crossdraw:auth-config'
 // ── Default config ──
 
 const DEFAULT_CONFIG: AuthConfig = {
-  authorizeUrl: 'https://lyku.app/oauth/authorize',
-  tokenUrl: 'https://lyku.app/oauth/token',
-  userinfoUrl: 'https://lyku.app/api/me',
+  apiBaseUrl: 'https://api.lyku.org',
+  authorizeUrl: 'https://api.lyku.org/oauth-authorize',
+  tokenUrl: 'https://api.lyku.org/oauth-token',
+  userinfoUrl: 'https://api.lyku.org/oauth-userinfo',
   clientId: 'crossdraw',
   redirectUri: typeof window !== 'undefined' ? `${window.location.origin}/auth/callback` : '',
   scopes: ['openid', 'profile', 'email'],
@@ -314,6 +317,124 @@ export function logout(): void {
   currentSession = null
   saveSession(null)
   window.dispatchEvent(new Event('crossdraw:auth-changed'))
+}
+
+// ── Email OTP (built-in) auth ──
+
+/** Request a login OTP code via email. Returns a token for use with attemptOtp. */
+export async function requestLoginEmail(email: string): Promise<string> {
+  const response = await fetch(`${config.apiBaseUrl}/request-login-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Failed to request login email: ${response.status} ${body}`)
+  }
+  const data = (await response.json()) as { token: string }
+  return data.token
+}
+
+/** Verify OTP code and create session. Returns session info. */
+export async function attemptOtp(email: string, code: string, token: string): Promise<AuthSession> {
+  const response = await fetch(`${config.apiBaseUrl}/attempt-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, token }),
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`OTP verification failed: ${response.status} ${body}`)
+  }
+  const data = (await response.json()) as { sessionId: string }
+
+  // Fetch user info using the session
+  const userResponse = await fetch(`${config.apiBaseUrl}/get-current-user`, {
+    headers: { Cookie: `sessionId=${data.sessionId}` },
+    credentials: 'include',
+  })
+
+  let user: AuthUser = { id: '', displayName: email.split('@')[0] ?? 'User', email, avatarUrl: null }
+  if (userResponse.ok) {
+    const userData = (await userResponse.json()) as {
+      id?: string
+      username?: string
+      email?: string
+      profilePicture?: string
+    }
+    user = {
+      id: userData.id ?? '',
+      displayName: userData.username ?? email.split('@')[0] ?? 'User',
+      email: userData.email ?? email,
+      avatarUrl: userData.profilePicture ?? null,
+    }
+  }
+
+  const session: AuthSession = {
+    user,
+    accessToken: data.sessionId,
+    refreshToken: '',
+    expiresAt: Date.now() + 365 * 24 * 60 * 60 * 1000, // 1 year
+  }
+
+  currentSession = session
+  saveSession(session)
+  window.dispatchEvent(new Event('crossdraw:auth-changed'))
+  return session
+}
+
+/** Request a registration OTP code via email. Returns a token. */
+export async function requestRegistrationEmail(email: string): Promise<string> {
+  const response = await fetch(`${config.apiBaseUrl}/request-registration-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, captcha: '' }),
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Failed to request registration email: ${response.status} ${body}`)
+  }
+  const data = (await response.json()) as { token: string }
+  return data.token
+}
+
+/** Verify registration OTP and create account. Returns session info. */
+export async function submitRegistrationOtp(
+  email: string,
+  code: string,
+  username: string,
+  token: string,
+): Promise<AuthSession> {
+  const response = await fetch(`${config.apiBaseUrl}/submit-registration-otp`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, username, token, agreed: true }),
+  })
+  if (!response.ok) {
+    const body = await response.text()
+    throw new Error(`Registration failed: ${response.status} ${body}`)
+  }
+  const data = (await response.json()) as { sessionId: string }
+
+  const user: AuthUser = {
+    id: '',
+    displayName: username,
+    email,
+    avatarUrl: null,
+  }
+
+  const session: AuthSession = {
+    user,
+    accessToken: data.sessionId,
+    refreshToken: '',
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 days
+  }
+
+  currentSession = session
+  saveSession(session)
+  window.dispatchEvent(new Event('crossdraw:auth-changed'))
+  return session
 }
 
 /** Fetch user info from the Lyku userinfo endpoint. */

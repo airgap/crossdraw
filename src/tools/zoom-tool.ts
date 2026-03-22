@@ -1,5 +1,6 @@
 import { useEditorStore } from '@/store/editor.store'
 import { zoomAtPoint } from '@/math/viewport'
+import { MIN_ZOOM, MAX_ZOOM } from '@/math/viewport-constants'
 
 const ZOOM_STEP = 0.5 // 50% per click
 
@@ -48,7 +49,7 @@ export function updateZoomDrag(screenY: number, canvasRect: DOMRect) {
   const store = useEditorStore.getState()
   const deltaY = dragState.startY - screenY // drag up = zoom in
   const factor = 1 + deltaY * 0.005
-  const newZoom = Math.max(0.1, Math.min(10, dragState.startZoom * factor))
+  const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, dragState.startZoom * factor))
 
   const newViewport = zoomAtPoint(
     { ...store.viewport, zoom: dragState.startZoom },

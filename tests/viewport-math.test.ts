@@ -239,11 +239,11 @@ describe('zoomAtPoint', () => {
     expect(result.zoom).toBeGreaterThanOrEqual(0.1)
   })
 
-  test('zoom clamps to maximum 10', () => {
-    const viewport = makeViewport({ zoom: 9.5, panX: 0, panY: 0 })
+  test('zoom clamps to maximum 64', () => {
+    const viewport = makeViewport({ zoom: 63, panX: 0, panY: 0 })
     const rect = makeRect(0, 0, 800, 600)
     const result = zoomAtPoint(viewport, { x: 400, y: 300 }, rect, 0.2)
-    expect(result.zoom).toBeLessThanOrEqual(10)
+    expect(result.zoom).toBeLessThanOrEqual(64)
   })
 
   test('point under cursor stays fixed after zoom', () => {
@@ -323,8 +323,8 @@ describe('zoomAtPoint', () => {
     const viewport = makeViewport({ zoom: 8, panX: 0, panY: 0 })
     const rect = makeRect(0, 0, 800, 600)
     const result = zoomAtPoint(viewport, { x: 400, y: 300 }, rect, 1)
-    // 8 * (1 + 1) = 16 => clamped to 10
-    expect(result.zoom).toBe(10)
+    // 8 * (1 + 1) = 16 => within the 64 max, not clamped
+    expect(result.zoom).toBe(16)
   })
 
   test('zoom with rect offset and pan', () => {

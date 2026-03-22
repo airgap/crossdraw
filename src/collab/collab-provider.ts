@@ -80,6 +80,7 @@ export class CollabProvider {
   private onRemoteOpCallbacks: Array<(op: CollabOperation) => void> = []
   private onPresenceCallbacks: Array<(presences: UserPresence[]) => void> = []
   private onStateChangeCallbacks: Array<(state: ConnectionState) => void> = []
+  private onRasterUpdateCallbacks: Array<(chunkId: string, data: ArrayBuffer) => void> = []
 
   /** Remote presences indexed by clientId. */
   private remotePresences: Map<string, UserPresence> = new Map()
@@ -184,6 +185,24 @@ export class CollabProvider {
     }
   }
 
+  /** Broadcast a raster chunk update to all collaborators. */
+  broadcastRasterUpdate(chunkId: string, data: ArrayBuffer): void {
+    if (this._state === 'connected' && this.ws) {
+      this.sendMessage({
+        type: 'op',
+        payload: {
+          id: crypto.randomUUID(),
+          clientId: this.clientId,
+          timestamp: Date.now(),
+          type: 'raster-update' as CollabOperation['type'],
+          path: [],
+          chunkId,
+          data: Array.from(new Uint8Array(data)),
+        } as CollabOperation & { chunkId: string; data: number[] },
+      })
+    }
+  }
+
   updatePresence(partial: Partial<UserPresence>): void {
     this.localPresence = { ...this.localPresence, ...partial, lastSeen: Date.now() }
     if (this._state === 'connected' && this.ws) {
@@ -217,6 +236,14 @@ export class CollabProvider {
     }
   }
 
+  onRasterUpdate(callback: (chunkId: string, data: ArrayBuffer) => void): () => void {
+    this.onRasterUpdateCallbacks.push(callback)
+    return () => {
+      const idx = this.onRasterUpdateCallbacks.indexOf(callback)
+      if (idx !== -1) this.onRasterUpdateCallbacks.splice(idx, 1)
+    }
+  }
+
   // ── Private ──
 
   private setState(state: ConnectionState): void {
@@ -235,9 +262,16 @@ export class CollabProvider {
   private handleMessage(msg: CollabMessage): void {
     switch (msg.type) {
       case 'op': {
-        const op = msg.payload as CollabOperation
+        const op = msg.payload as CollabOperation & { chunkId?: string; data?: number[] }
         // Ignore own operations echoed back
         if (op.clientId === this.clientId) return
+        // Handle raster updates separately
+        if (op.type === ('raster-update' as string) && op.chunkId && op.data) {
+          for (const cb of this.onRasterUpdateCallbacks) {
+            cb(op.chunkId, new Uint8Array(op.data).buffer)
+          }
+          break
+        }
         for (const cb of this.onRemoteOpCallbacks) {
           cb(op)
         }

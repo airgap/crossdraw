@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { MIN_ZOOM, MAX_ZOOM } from '@/math/viewport-constants'
 import { v4 as uuid } from 'uuid'
 import { enablePatches, produce, produceWithPatches, applyPatches, type Patch } from 'immer'
 import type {
@@ -147,6 +148,10 @@ export interface EditorState {
     | 'perspective-warp'
     | 'cage-transform'
     | 'pixel-draw'
+    | 'pixel-line'
+    | 'pixel-rect'
+    | 'pixel-ellipse'
+    | 'pixel-erase'
   selectedCommentId: string | null
   showRulers: boolean
   showGrid: boolean
@@ -172,9 +177,17 @@ export interface EditorState {
   // AI
   showAIPanel: boolean
 
+  // Cloud storage
+  cloudFileId: string | null
+  cloudSyncStatus: 'idle' | 'saving' | 'loading' | 'error'
+
   // Collaboration
   collabProvider: import('@/collab/collab-provider').CollabProvider | null
   collabPresences: import('@/collab/collab-provider').UserPresence[]
+  crdtDocument: import('@/collab/crdt-document').CRDTDocument | null
+
+  // Sharing
+  readOnlyMode: boolean
 
   // Dev mode
   devMode: boolean
@@ -408,10 +421,18 @@ export interface EditorActions {
   // AI
   toggleAIPanel: () => void
 
+  // Cloud storage
+  saveToCloud: () => Promise<void>
+  openFromCloud: (fileId: string) => Promise<void>
+  setCloudFileId: (id: string | null) => void
+
   // Collaboration
   startCollabSession: (roomId: string, serverUrl: string) => void
   leaveCollabSession: () => void
   updateCollabPresence: (cursorX: number, cursorY: number) => void
+
+  // Sharing
+  setReadOnlyMode: (readOnly: boolean) => void
 
   // Version control
   createVersionSnapshot: (name: string) => Promise<void>
@@ -661,6 +682,10 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
    */
   function mutateDocument(description: string, recipe: (draft: DesignDocument) => void) {
     const state = get()
+
+    // Read-only mode blocks all mutations
+    if (state.readOnlyMode) return
+
     const [nextDoc, patches, inversePatches] = produceWithPatches(state.document, recipe)
     if (patches.length === 0) return // no-op
 
@@ -679,6 +704,21 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       historyIndex: newIndex,
       isDirty: true,
     })
+
+    // Broadcast to collaborators if in a collab session
+    if (state.collabProvider) {
+      try {
+        const { patchesToCollabOps } = require('@/collab/patch-bridge') as typeof import('@/collab/patch-bridge')
+        const ops = patchesToCollabOps(patches, state.collabProvider.clientId, nextDoc)
+        for (const op of ops) {
+          state.collabProvider.broadcastOperation(op)
+          // Also record in local CRDT for conflict tracking
+          if (state.crdtDocument) state.crdtDocument.applyLocal(op)
+        }
+      } catch {
+        /* patch-bridge not available */
+      }
+    }
   }
 
   function findArtboard(doc: DesignDocument, artboardId: string): Artboard | undefined {
@@ -777,8 +817,11 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       try {
         const stored = localStorage.getItem('crossdraw:touch-mode')
         if (stored !== null) return stored === 'true'
-        // Auto-detect touch capability
-        return typeof window !== 'undefined' && ('ontouchstart' in window || navigator.maxTouchPoints > 0)
+        // Auto-detect: only enable touch mode if the device has touch AND no fine pointer (mouse/trackpad)
+        if (typeof window === 'undefined') return false
+        const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0
+        const hasFinePointer = window.matchMedia?.('(pointer: fine)')?.matches ?? false
+        return hasTouch && !hasFinePointer
       } catch {
         return false
       }
@@ -791,9 +834,17 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     // AI
     showAIPanel: false,
 
+    // Cloud storage
+    cloudFileId: null,
+    cloudSyncStatus: 'idle',
+
     // Collaboration
     collabProvider: null,
     collabPresences: [],
+    crdtDocument: null,
+
+    // Sharing
+    readOnlyMode: false,
 
     // Dev mode
     devMode: false,
@@ -1463,7 +1514,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
 
     // Viewport
     setZoom(zoom) {
-      set({ viewport: { ...get().viewport, zoom: Math.max(0.1, Math.min(10, zoom)) } })
+      set({ viewport: { ...get().viewport, zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) } })
     },
 
     setPan(x, y) {
@@ -1509,7 +1560,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         fitY = artboard.y
       }
 
-      const scale = Math.min((availW * 0.8) / fitW, (availH * 0.8) / fitH, 10)
+      const scale = Math.min((availW * 0.8) / fitW, (availH * 0.8) / fitH, MAX_ZOOM)
       const panX = rulerSize + (availW - fitW * scale) / 2 - fitX * scale
       const panY = rulerSize + (availH - fitH * scale) / 2 - fitY * scale
       set({ viewport: { ...get().viewport, zoom: scale, panX, panY } })
@@ -2399,13 +2450,37 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       const { CollabProvider } = require('@/collab/collab-provider') as typeof import('@/collab/collab-provider')
       const provider = new CollabProvider(roomId, serverUrl, clientId, authToken, userName)
 
+      // Create a persistent CRDTDocument for this session
+      const { CRDTDocument } = require('@/collab/crdt-document') as typeof import('@/collab/crdt-document')
+      const crdt = new CRDTDocument(get().document)
+
       // Listen for remote operations
       provider.onRemoteOperation((op) => {
-        const { CRDTDocument } = require('@/collab/crdt-document') as typeof import('@/collab/crdt-document')
-        const crdt = new CRDTDocument(get().document)
         const applied = crdt.applyRemote(op)
         if (applied) {
           set({ document: crdt.getState() })
+        }
+      })
+
+      // Listen for remote raster updates
+      provider.onRasterUpdate((chunkId, data) => {
+        try {
+          const { storeRasterData } = require('@/store/raster-data') as typeof import('@/store/raster-data')
+          const bytes = new Uint8ClampedArray(data)
+          // Infer dimensions from data size (RGBA = 4 bytes per pixel)
+          // The actual dimensions are stored in the layer metadata
+          const doc = get().document
+          for (const ab of doc.artboards) {
+            for (const layer of ab.layers) {
+              if (layer.type === 'raster' && layer.imageChunkId === chunkId) {
+                const imageData = new ImageData(bytes, layer.width, layer.height)
+                storeRasterData(chunkId, imageData)
+                break
+              }
+            }
+          }
+        } catch {
+          /* raster-data module not available */
         }
       })
 
@@ -2422,7 +2497,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         selectedLayerIds: state.selection.layerIds,
       })
 
-      set({ collabProvider: provider, collabPresences: [] })
+      set({ collabProvider: provider, collabPresences: [], crdtDocument: crdt })
     },
 
     leaveCollabSession() {
@@ -2430,7 +2505,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       if (provider) {
         provider.disconnect()
       }
-      set({ collabProvider: null, collabPresences: [] })
+      set({ collabProvider: null, collabPresences: [], crdtDocument: null })
     },
 
     updateCollabPresence(cursorX: number, cursorY: number) {
@@ -2460,6 +2535,64 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         viewportBounds,
       })
     },
+
+    // ── Cloud storage ──
+
+    async saveToCloud() {
+      const state = get()
+      set({ cloudSyncStatus: 'saving' })
+      try {
+        const { encodeDocument } = require('@/io/file-format') as typeof import('@/io/file-format')
+        const data = encodeDocument(state.document)
+        const name = state.document.metadata.title || 'Untitled'
+        const { uploadFile, updateFile } = require('@/cloud/cloud-client') as typeof import('@/cloud/cloud-client')
+        if (state.cloudFileId) {
+          await updateFile(state.cloudFileId, data)
+        } else {
+          const entry = await uploadFile(`${name}.xd`, data)
+          set({ cloudFileId: entry.id })
+        }
+        set({ cloudSyncStatus: 'idle', isDirty: false })
+      } catch (err) {
+        console.error('Cloud save failed:', err)
+        set({ cloudSyncStatus: 'error' })
+      }
+    },
+
+    async openFromCloud(fileId: string) {
+      set({ cloudSyncStatus: 'loading' })
+      try {
+        const { downloadFile } = require('@/cloud/cloud-client') as typeof import('@/cloud/cloud-client')
+        const data = await downloadFile(fileId)
+        const { decodeDocument } = require('@/io/file-format') as typeof import('@/io/file-format')
+        const doc = decodeDocument(data)
+        set({
+          document: doc,
+          history: [],
+          historyIndex: -1,
+          selection: { layerIds: [] },
+          isDirty: false,
+          filePath: null,
+          cloudFileId: fileId,
+          cloudSyncStatus: 'idle',
+        })
+      } catch (err) {
+        console.error('Cloud load failed:', err)
+        set({ cloudSyncStatus: 'error' })
+      }
+    },
+
+    setCloudFileId(id: string | null) {
+      set({ cloudFileId: id })
+    },
+
+    // ── Sharing ──
+
+    setReadOnlyMode(readOnly: boolean) {
+      set({ readOnlyMode: readOnly })
+    },
+
+    // ── Version control ──
 
     async createVersionSnapshot(name: string) {
       const doc = get().document

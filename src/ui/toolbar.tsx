@@ -37,6 +37,8 @@ import {
   MessageCircle,
   Combine,
   Grid2x2,
+  RectangleHorizontal,
+  CircleDot,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -124,7 +126,17 @@ const textTools: ToolEntry[] = [
 
 const textToolIds = new Set(textTools.map((t) => t.id))
 
-const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'textTools' | 'separator')[] = [
+const pixelTools: ToolEntry[] = [
+  { id: 'pixel-draw', icon: Grid2x2, key: 'shift+p' },
+  { id: 'pixel-line', icon: Minus, key: 'shift+l' },
+  { id: 'pixel-rect', icon: RectangleHorizontal, key: 'shift+r' },
+  { id: 'pixel-ellipse', icon: CircleDot, key: 'shift+e' },
+  { id: 'pixel-erase', icon: Eraser, key: 'shift+x' },
+]
+
+const pixelToolIds = new Set(pixelTools.map((t) => t.id))
+
+const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'textTools' | 'pixelTools' | 'separator')[] = [
   // ── Selection & navigation ──
   { id: 'select', icon: MousePointer2, key: 'v' },
   { id: 'node', icon: Spline, key: 'a' },
@@ -144,7 +156,7 @@ const DEFAULT_TOOLS: (ToolEntry | 'shapes' | 'textTools' | 'separator')[] = [
   { id: 'clone-stamp', icon: Stamp, key: 's' },
   { id: 'fill', icon: PaintBucket, key: 'g' },
   { id: 'gradient', icon: Blend, key: 'j' },
-  { id: 'pixel-draw', icon: Grid2x2, key: 'shift+p' },
+  'pixelTools',
   'separator',
   // ── Selection regions ──
   { id: 'marquee', icon: SquareDashed, key: 'm' },
@@ -173,11 +185,14 @@ for (const t of shapeTools) {
 for (const t of textTools) {
   toolEntryMap.set(t.id, t)
 }
+for (const t of pixelTools) {
+  toolEntryMap.set(t.id, t)
+}
 
 /** Build ordered tool list from persisted order, falling back to defaults. */
-function getOrderedTools(): (ToolEntry | 'shapes' | 'textTools' | 'separator')[] {
+function getOrderedTools(): (ToolEntry | 'shapes' | 'textTools' | 'pixelTools' | 'separator')[] {
   const order = loadOrder()
-  const result: (ToolEntry | 'shapes' | 'textTools' | 'separator')[] = []
+  const result: (ToolEntry | 'shapes' | 'textTools' | 'pixelTools' | 'separator')[] = []
   const seen = new Set<string>()
   for (const token of order) {
     if (token === 'separator') {
@@ -191,6 +206,11 @@ function getOrderedTools(): (ToolEntry | 'shapes' | 'textTools' | 'separator')[]
       if (!seen.has('textTools')) {
         result.push('textTools')
         seen.add('textTools')
+      }
+    } else if (token === 'pixelTools') {
+      if (!seen.has('pixelTools')) {
+        result.push('pixelTools')
+        seen.add('pixelTools')
       }
     } else {
       const entry = toolEntryMap.get(token)
@@ -440,7 +460,7 @@ function TextToolButton({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
-        data-tool-textTools="true"
+        data-tool-texttools="true"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerLeave}
@@ -534,6 +554,164 @@ function TextToolButton({
   )
 }
 
+function PixelToolButton({
+  activeTool,
+  setActiveTool,
+  btnSize,
+  iconSize,
+}: {
+  activeTool: EditorState['activeTool']
+  setActiveTool: (tool: EditorState['activeTool']) => void
+  btnSize?: number
+  iconSize: number
+}) {
+  const [currentPixel, setCurrentPixel] = useState<EditorState['activeTool']>('pixel-draw')
+  const [showPicker, setShowPicker] = useState(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const didLongPress = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (pixelToolIds.has(activeTool)) setCurrentPixel(activeTool)
+  }, [activeTool])
+
+  useEffect(() => {
+    if (!showPicker) return
+    const close = (e: PointerEvent) => {
+      if (containerRef.current?.contains(e.target as Node)) return
+      setShowPicker(false)
+    }
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [showPicker])
+
+  const onPointerDown = useCallback(() => {
+    didLongPress.current = false
+    timerRef.current = setTimeout(() => {
+      didLongPress.current = true
+      setShowPicker(true)
+    }, LONG_PRESS_MS)
+  }, [])
+
+  const onPointerUp = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+    if (!didLongPress.current) {
+      setActiveTool(currentPixel)
+      setShowPicker(false)
+    }
+  }, [currentPixel, setActiveTool])
+
+  const onPointerLeave = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current)
+      timerRef.current = null
+    }
+  }, [])
+
+  const isActive = pixelToolIds.has(activeTool)
+  const current = pixelTools.find((t) => t.id === currentPixel) || pixelTools[0]!
+  const Icon = current.icon
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative' }}>
+      <button
+        data-tool-pixeltools="true"
+        onPointerDown={onPointerDown}
+        onPointerUp={onPointerUp}
+        onPointerLeave={onPointerLeave}
+        title={`${toolLabel(current.id)} (${current.key.toUpperCase()}) — hold for more`}
+        role="button"
+        tabIndex={0}
+        aria-label={`${toolLabel(current.id)} (${current.key.toUpperCase()}) — hold for more pixel tools`}
+        aria-pressed={isActive}
+        className="cd-hoverable"
+        style={{
+          width: btnSize ?? 'var(--height-toolbar)',
+          height: btnSize ?? 'var(--height-toolbar)',
+          border: 'none',
+          borderRadius: 'var(--radius-md)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: isActive ? '#fff' : 'var(--text-secondary)',
+          background: isActive ? 'var(--accent)' : 'transparent',
+          position: 'relative',
+        }}
+      >
+        <Icon size={iconSize} strokeWidth={1.75} />
+        <svg
+          width={5}
+          height={5}
+          viewBox="0 0 5 5"
+          style={{ position: 'absolute', bottom: 2, right: 2, opacity: 0.6 }}
+          fill="currentColor"
+        >
+          <polygon points="0,5 5,5 5,0" />
+        </svg>
+      </button>
+
+      {showPicker && (
+        <div
+          role="menu"
+          aria-label="Pixel tools"
+          style={{
+            position: 'absolute',
+            left: '100%',
+            top: 0,
+            marginLeft: 2,
+            background: 'var(--bg-surface)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: 'var(--radius-md)',
+            padding: 'var(--space-1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 'var(--space-1)',
+            zIndex: 1000,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          }}
+        >
+          {pixelTools.map((pt) => {
+            const PtIcon = pt.icon
+            const isPtActive = activeTool === pt.id
+            return (
+              <button
+                key={pt.id}
+                onClick={() => {
+                  setCurrentPixel(pt.id)
+                  setActiveTool(pt.id)
+                  setShowPicker(false)
+                }}
+                title={`${toolLabel(pt.id)} (${pt.key.toUpperCase()})`}
+                role="menuitem"
+                aria-label={`${toolLabel(pt.id)} (${pt.key.toUpperCase()})`}
+                className="cd-hoverable"
+                style={{
+                  width: btnSize ?? 'var(--height-toolbar)',
+                  height: btnSize ?? 'var(--height-toolbar)',
+                  border: 'none',
+                  borderRadius: 'var(--radius-md)',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: isPtActive ? '#fff' : 'var(--text-secondary)',
+                  background: isPtActive ? 'var(--accent)' : 'transparent',
+                }}
+              >
+                <PtIcon size={iconSize} strokeWidth={1.75} />
+              </button>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Human-readable label for each tool id */
 const toolLabels: Record<string, string> = {
   select: 'Select',
@@ -554,6 +732,10 @@ const toolLabels: Record<string, string> = {
   fill: 'Fill',
   gradient: 'Gradient',
   'pixel-draw': 'Pixel Draw',
+  'pixel-line': 'Pixel Line',
+  'pixel-rect': 'Pixel Rectangle',
+  'pixel-ellipse': 'Pixel Ellipse',
+  'pixel-erase': 'Pixel Erase',
   eyedropper: 'Eyedropper',
   marquee: 'Marquee',
   lasso: 'Lasso',
@@ -808,7 +990,7 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           {tools
             .filter((tool) => {
               if (!modeConfig) return true
-              if (tool === 'separator' || tool === 'shapes' || tool === 'textTools') return true
+              if (tool === 'separator' || tool === 'shapes' || tool === 'textTools' || tool === 'pixelTools') return true
               return modeConfig.tools.includes(tool.id)
             })
             .map((tool, idx) => {
@@ -842,6 +1024,17 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                 return (
                   <TextToolButton
                     key="textTools"
+                    activeTool={activeTool}
+                    setActiveTool={handleSetActiveTool}
+                    btnSize={btnSize}
+                    iconSize={iconSize}
+                  />
+                )
+              }
+              if (tool === 'pixelTools') {
+                return (
+                  <PixelToolButton
+                    key="pixelTools"
                     activeTool={activeTool}
                     setActiveTool={handleSetActiveTool}
                     btnSize={btnSize}

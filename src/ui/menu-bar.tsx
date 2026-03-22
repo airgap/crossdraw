@@ -206,6 +206,11 @@ function buildMenus(): MenuDef[] {
         shortcut: 'Ctrl+Shift+S',
         action: () => store().saveAs(),
       },
+      {
+        label: 'Save to Cloud',
+        shortcut: '',
+        action: () => store().saveToCloud(),
+      },
       { label: '', divider: true },
       {
         label: 'Import Image\u2026',
@@ -1940,6 +1945,12 @@ function buildMenus(): MenuDef[] {
         label: 'Color Palette',
         action: () => {
           usePanelLayoutStore.getState().focusTab('color-palette')
+        },
+      },
+      {
+        label: 'Color Picker',
+        action: () => {
+          usePanelLayoutStore.getState().focusTab('color-picker')
         },
       },
       {

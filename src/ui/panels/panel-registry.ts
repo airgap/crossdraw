@@ -69,6 +69,9 @@ const LazyThemeEditorPanel = React.lazy(() =>
   import('@/ui/theme-editor-panel').then((m) => ({ default: m.ThemeEditorPanel })),
 )
 const LazyLayer3DPanel = React.lazy(() => import('@/ui/layer-3d-panel').then((m) => ({ default: m.Layer3DPanel })))
+const LazyColorPickerPanel = React.lazy(() =>
+  import('@/ui/color-picker-panel').then((m) => ({ default: m.ColorPickerPanel })),
+)
 
 export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'layers', label: 'Layers', icon: '\u{1F4CB}', component: LazyLayers },
@@ -105,6 +108,7 @@ export const PANEL_DEFINITIONS: PanelDefinition[] = [
   { id: 'pngtuber-preview', label: 'PNGtuber Preview', icon: '\uD83C\uDFAD', component: LazyPNGTuberPreview },
   { id: 'theme-editor', label: 'Theme Editor', icon: '\uD83C\uDFA8', component: LazyThemeEditorPanel },
   { id: 'layer-3d', label: '3D Layers', icon: '\uD83D\uDDFC', component: LazyLayer3DPanel },
+  { id: 'color-picker', label: 'Color Picker', icon: '\uD83C\uDFA8', component: LazyColorPickerPanel },
 ]
 
 const AI_PANEL_IDS = new Set(['ai-assistant'])

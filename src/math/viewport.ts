@@ -1,4 +1,5 @@
 import type { ViewportState } from '@/types'
+import { MIN_ZOOM, MAX_ZOOM } from '@/math/viewport-constants'
 
 export interface Point {
   x: number
@@ -29,7 +30,7 @@ export function zoomAtPoint(
   zoomDelta: number,
 ): ViewportState {
   const oldZoom = viewport.zoom
-  const newZoom = Math.max(0.1, Math.min(10, oldZoom * (1 + zoomDelta)))
+  const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldZoom * (1 + zoomDelta)))
 
   // Point in document space should stay under the cursor
   const docX = (screenPoint.x - canvasRect.left - viewport.panX) / oldZoom

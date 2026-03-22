@@ -13,7 +13,7 @@ const statusBtnStyle: React.CSSProperties = {
   alignItems: 'center',
 }
 
-const ZOOM_PRESETS = [25, 50, 75, 100, 150, 200, 400, 800]
+const ZOOM_PRESETS = [25, 50, 75, 100, 150, 200, 400, 800, 1600, 3200, 6400]
 
 export function StatusBar() {
   const viewport = useEditorStore((s) => s.viewport)

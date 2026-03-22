@@ -131,16 +131,16 @@ describe('zoom tool', () => {
       expect(newZoom).toBeGreaterThanOrEqual(0.1)
     })
 
-    test('zoom is clamped to maximum 10', () => {
+    test('zoom is clamped to maximum 64', () => {
       const store = useEditorStore.getState()
-      store.setZoom(8)
+      store.setZoom(60)
 
       beginZoomDrag(400, 300)
       // Drag way up to try to zoom past max
       updateZoomDrag(-10000, mockCanvasRect())
 
       const newZoom = useEditorStore.getState().viewport.zoom
-      expect(newZoom).toBeLessThanOrEqual(10)
+      expect(newZoom).toBeLessThanOrEqual(64)
     })
   })
 

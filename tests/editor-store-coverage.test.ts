@@ -537,11 +537,11 @@ describe('Editor Store - Selection', () => {
 describe('Editor Store - Viewport', () => {
   beforeEach(resetStore)
 
-  test('setZoom clamps between 0.1 and 10', () => {
+  test('setZoom clamps between 0.1 and 64', () => {
     getState().setZoom(0.01)
     expect(getState().viewport.zoom).toBe(0.1)
-    getState().setZoom(20)
-    expect(getState().viewport.zoom).toBe(10)
+    getState().setZoom(100)
+    expect(getState().viewport.zoom).toBe(64)
     getState().setZoom(2.5)
     expect(getState().viewport.zoom).toBe(2.5)
   })

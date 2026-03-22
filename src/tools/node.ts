@@ -1,4 +1,5 @@
 import { useEditorStore } from '@/store/editor.store'
+import { snapPoint } from '@/tools/snap'
 import type { Segment, VectorLayer, Path } from '@/types'
 
 /**
@@ -442,6 +443,32 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
     store.updateLayerSilent(state.artboardId!, state.layerId!, updates)
   } else {
     // Move selected anchor points
+    // Snap the first selected node's target position to guides/grid/edges
+    let snapped = false
+    for (const key of state.selectedNodes) {
+      const { pathId, segIndex } = parseNodeKey(key)
+      const p = layer.paths.find((pp) => pp.id === pathId)
+      if (!p) continue
+      const seg = p.segments[segIndex]
+      if (!seg || seg.type === 'close') continue
+      // Document-space target = artboard origin + layer transform + local coord + delta
+      const targetX = artboard.x + layer.transform.x + seg.x + dx
+      const targetY = artboard.y + layer.transform.y + seg.y + dy
+      const snap = snapPoint(targetX, targetY, [state.layerId!])
+      if (snap.x !== null) dx += snap.x - targetX
+      if (snap.y !== null) dy += snap.y - targetY
+      store.setActiveSnapLines(
+        snap.snapLinesH.length || snap.snapLinesV.length
+          ? { h: snap.snapLinesH, v: snap.snapLinesV }
+          : null,
+      )
+      snapped = true
+      break // snap based on first selected node only
+    }
+    if (!snapped) {
+      store.setActiveSnapLines(null)
+    }
+
     const updates: Partial<VectorLayer> = { paths: JSON.parse(JSON.stringify(layer.paths)) }
     const paths = updates.paths as Path[]
 
@@ -504,6 +531,7 @@ export function nodeMouseUp(docX: number, docY: number) {
     }
   }
 
+  useEditorStore.getState().setActiveSnapLines(null)
   state.dragging = false
   state.dragStart = null
   state.draggingHandle = null

@@ -2,7 +2,7 @@ import { useEditorStore } from '@/store/editor.store'
 import type { Point } from '@/math/viewport'
 import { pathBBox, mergeBBox, getLayerBBox, type BBox } from '@/math/bbox'
 import type { Transform, Layer } from '@/types'
-import { snapBBox } from '@/tools/snap'
+import { snapBBox, snapPoint } from '@/tools/snap'
 
 export type HandleType = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se' | 'rotation' | 'body'
 
@@ -270,6 +270,51 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
       t.scaleY = t.scaleX * ratio
       if (Math.abs(t.scaleY) < 0.01) t.scaleY = 0.01 * Math.sign(t.scaleY || 1)
       t.y = orig.y + cfg.anchorY(lb) * (orig.scaleY - t.scaleY)
+    }
+
+    // Snap the dragged edge/corner to guides/grid/artboard edges
+    const store = useEditorStore.getState()
+    const artboard = store.document.artboards.find((a) => a.id === d.artboardId)
+    if (artboard) {
+      // The dragged point in document space: the edge opposite the anchor
+      // For sx=1 (dragging right), the moving edge is maxX; for sx=-1 (dragging left), it's minX
+      const movingLocalX = cfg.sx === 1 ? lb.maxX : cfg.sx === -1 ? lb.minX : null
+      const movingLocalY = cfg.sy === 1 ? lb.maxY : cfg.sy === -1 ? lb.minY : null
+
+      const snapDocX = movingLocalX !== null ? artboard.x + t.x + movingLocalX * t.scaleX : null
+      const snapDocY = movingLocalY !== null ? artboard.y + t.y + movingLocalY * t.scaleY : null
+
+      const snap = snapPoint(snapDocX ?? docPoint.x, snapDocY ?? docPoint.y, [d.layerId])
+
+      if (snap.x !== null && movingLocalX !== null) {
+        // Solve for newScaleX given snap target:
+        // snap.x = artboard.x + orig.x + anchorX * orig.scaleX + newScaleX * (movingLocalX - anchorX)
+        const anchorX = cfg.anchorX(lb)
+        const denom = movingLocalX - anchorX
+        if (Math.abs(denom) > 0.001) {
+          const newScaleX = (snap.x - artboard.x - orig.x - anchorX * orig.scaleX) / denom
+          if (Math.abs(newScaleX) >= 0.01) {
+            t.scaleX = newScaleX
+            t.x = orig.x + anchorX * (orig.scaleX - t.scaleX)
+          }
+        }
+      }
+      if (snap.y !== null && movingLocalY !== null) {
+        const anchorY = cfg.anchorY(lb)
+        const denom = movingLocalY - anchorY
+        if (Math.abs(denom) > 0.001) {
+          const newScaleY = (snap.y - artboard.y - orig.y - anchorY * orig.scaleY) / denom
+          if (Math.abs(newScaleY) >= 0.01) {
+            t.scaleY = newScaleY
+            t.y = orig.y + anchorY * (orig.scaleY - t.scaleY)
+          }
+        }
+      }
+
+      store.setActiveSnapLines({
+        h: snap.snapLinesH,
+        v: snap.snapLinesV,
+      })
     }
   }
 

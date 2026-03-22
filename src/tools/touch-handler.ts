@@ -9,6 +9,7 @@
  */
 
 import { useEditorStore } from '@/store/editor.store'
+import { MIN_ZOOM, MAX_ZOOM } from '@/math/viewport-constants'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -261,7 +262,7 @@ function onPointerMove(e: PointerEvent) {
     const mid = midpoint(a, b)
 
     const scale = newDist / pinchStartDist
-    const newZoom = Math.max(0.1, Math.min(10, pinchStartZoom * scale))
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinchStartZoom * scale))
 
     // Keep the pinch midpoint fixed on the same document point.
     // The document point under the initial midpoint was:

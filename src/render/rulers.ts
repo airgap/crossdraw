@@ -215,9 +215,8 @@ export function renderGrid(p: RulerRenderParams) {
 
   ctx.save()
 
-  const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border').trim() || '#333'
-  ctx.fillStyle = borderColor
-  ctx.globalAlpha = 0.3
+  // Use mid-gray so the grid is visible against both light and dark content
+  const gridColor = '#808080'
 
   // Calculate visible artboard range
   const startDocX = Math.max(artboardX, -panX / zoom)
@@ -228,13 +227,41 @@ export function renderGrid(p: RulerRenderParams) {
   const firstGridX = Math.ceil((startDocX - artboardX) / gridSize) * gridSize + artboardX
   const firstGridY = Math.ceil((startDocY - artboardY) / gridSize) * gridSize + artboardY
 
-  // Render as dots at intersections
-  const dotSize = Math.max(1, 1 / zoom)
-  for (let gx = firstGridX; gx <= endDocX; gx += gridSize) {
-    const screenX = gx * zoom + panX
+  if (pixelSize >= 8) {
+    // At higher zoom — render as lines for clear pixel cell boundaries
+    // Opacity scales from 0.15 at 8px to 0.3 at 64px+
+    const alpha = Math.min(0.3, 0.15 + (pixelSize - 8) * 0.003)
+    ctx.strokeStyle = gridColor
+    ctx.globalAlpha = alpha
+    ctx.lineWidth = 1
+
+    ctx.beginPath()
+    for (let gx = firstGridX; gx <= endDocX; gx += gridSize) {
+      const screenX = Math.round(gx * zoom + panX) + 0.5
+      const sy0 = Math.max(0, startDocY * zoom + panY)
+      const sy1 = Math.min(canvasHeight, endDocY * zoom + panY)
+      ctx.moveTo(screenX, sy0)
+      ctx.lineTo(screenX, sy1)
+    }
     for (let gy = firstGridY; gy <= endDocY; gy += gridSize) {
-      const screenY = gy * zoom + panY
-      ctx.fillRect(screenX - dotSize / 2, screenY - dotSize / 2, dotSize, dotSize)
+      const screenY = Math.round(gy * zoom + panY) + 0.5
+      const sx0 = Math.max(0, startDocX * zoom + panX)
+      const sx1 = Math.min(canvasWidth, endDocX * zoom + panX)
+      ctx.moveTo(sx0, screenY)
+      ctx.lineTo(sx1, screenY)
+    }
+    ctx.stroke()
+  } else {
+    // At lower zoom — render as dots at intersections
+    ctx.fillStyle = gridColor
+    ctx.globalAlpha = 0.3
+    const dotSize = Math.max(1, 1 / zoom)
+    for (let gx = firstGridX; gx <= endDocX; gx += gridSize) {
+      const screenX = gx * zoom + panX
+      for (let gy = firstGridY; gy <= endDocY; gy += gridSize) {
+        const screenY = gy * zoom + panY
+        ctx.fillRect(screenX - dotSize / 2, screenY - dotSize / 2, dotSize, dotSize)
+      }
     }
   }
 

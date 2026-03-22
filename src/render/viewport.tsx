@@ -69,12 +69,16 @@ import { renderPerspectiveGrid, hitTestVanishingPoint } from '@/render/perspecti
 import { renderSnapLines } from '@/tools/snap'
 import { openCanvasContextMenu } from '@/ui/context-menu'
 import { attachTouchHandler, detachTouchHandler } from '@/tools/touch-handler'
-import { paintStroke, beginStroke, endStroke, getBrushSettings } from '@/tools/brush'
+import { paintStroke, beginStroke, endStroke, getBrushSettings, getSecondaryColor } from '@/tools/brush'
 import { notifyPressure } from '@/tools/pressure'
 import { beginLineDrag, updateLineDrag, endLineDrag, isLineDragging } from '@/tools/line'
 import { beginPencilStroke, updatePencilStroke, endPencilStroke, isPencilDrawing } from '@/tools/pencil'
 import { beginEraserStroke, paintEraser, endEraserStroke, getEraserSettings } from '@/tools/eraser'
 import { beginPixelStroke, paintPixelStroke, endPixelStroke, getPixelDrawSettings } from '@/tools/pixel-draw'
+import { beginPixelLine, commitPixelLine, getPixelLineStart } from '@/tools/pixel-line'
+import { beginPixelRect, commitPixelRect, getPixelRectStart } from '@/tools/pixel-rect'
+import { beginPixelEllipse, commitPixelEllipse, getPixelEllipseStart } from '@/tools/pixel-ellipse'
+import { beginPixelErase, paintPixelErase, endPixelErase } from '@/tools/pixel-erase'
 import { beginGradientDrag, updateGradientDrag, endGradientDrag, isGradientDragging } from '@/tools/gradient-tool'
 import { applyFillBucket } from '@/tools/fill-bucket'
 import { zoomToolClick, beginZoomDrag, updateZoomDrag, endZoomDrag, isZoomDragging } from '@/tools/zoom-tool'
@@ -314,6 +318,10 @@ export function Viewport() {
   const eraserRafId = useRef(0)
   const pixelDrawPoints = useRef<Array<{ x: number; y: number }>>([])
   const pixelDrawRafId = useRef(0)
+  const pixelErasePoints = useRef<Array<{ x: number; y: number }>>([])
+  const pixelEraseRafId = useRef(0)
+  const pixelShapeEnd = useRef<{ x: number; y: number } | null>(null)
+  const pixelRightClick = useRef(false) // true when right-click drawing with secondary color
   const gradientEnd = useRef<{ x: number; y: number } | null>(null)
   const cloneStampRafId = useRef(0)
   const mixerBrushPoints = useRef<Array<{ x: number; y: number }>>([])
@@ -354,6 +362,11 @@ export function Viewport() {
     ctx.translate(viewport.panX, viewport.panY)
     ctx.scale(viewport.zoom, viewport.zoom)
 
+    // Disable image smoothing at high zoom so pixels stay crisp
+    if (viewport.zoom >= 2) {
+      ctx.imageSmoothingEnabled = false
+    }
+
     // Filter artboards by active tab
     const activeTabId = useEditorStore.getState().activeTabId
     const artboardsToRender =
@@ -393,8 +406,11 @@ export function Viewport() {
         const vLines = visRight - visLeft
         if (hLines > 0 && vLines > 0 && hLines * vLines < 4000000) {
           ctx.save()
-          ctx.strokeStyle = 'rgba(128,128,128,0.15)'
-          ctx.lineWidth = 0.5 / viewport.zoom
+          // Scale opacity with zoom so grid is visible against both light and dark content
+          const screenPx = viewport.zoom
+          const gridAlpha = Math.min(0.25, 0.1 + (screenPx - 8) * 0.0025)
+          ctx.strokeStyle = `rgba(128,128,128,${gridAlpha})`
+          ctx.lineWidth = 1 / viewport.zoom
           ctx.beginPath()
           for (let x = visLeft; x <= visRight; x++) {
             ctx.moveTo(ax + x, ay + visTop)
@@ -560,21 +576,61 @@ export function Viewport() {
       ctx.restore()
     }
 
-    // Pixel Draw cursor
-    if (activeTool === 'pixel-draw') {
+    // Pixel tool cursor (shared for all pixel tools)
+    if (
+      activeTool === 'pixel-draw' ||
+      activeTool === 'pixel-line' ||
+      activeTool === 'pixel-rect' ||
+      activeTool === 'pixel-ellipse' ||
+      activeTool === 'pixel-erase'
+    ) {
       const ps = getPixelDrawSettings()
-      const mx = mouseDocPos.current.x
-      const my = mouseDocPos.current.y
       const artboard = getActiveArtboard()!
       if (artboard) {
-        const localX = mx - artboard.x
-        const localY = my - artboard.y
-        const gx = Math.floor(localX / ps.pixelSize) * ps.pixelSize + artboard.x
-        const gy = Math.floor(localY / ps.pixelSize) * ps.pixelSize + artboard.y
         ctx.save()
-        ctx.lineWidth = 1 / viewport.zoom
-        ctx.strokeStyle = 'rgba(100,200,255,0.8)'
-        ctx.strokeRect(gx, gy, ps.pixelSize, ps.pixelSize)
+        // Pixel cursor is rendered on the overlay canvas (cursorCanvasRef) for efficient pulse animation
+
+        // Preview overlay for pixel shape tools during drag
+        if (isDragging.current && pixelShapeEnd.current) {
+          const endLocalX = pixelShapeEnd.current.x
+          const endLocalY = pixelShapeEnd.current.y
+          ctx.setLineDash([2 / viewport.zoom, 2 / viewport.zoom])
+          ctx.strokeStyle = 'rgba(100,200,255,0.5)'
+
+          if (activeTool === 'pixel-line') {
+            // Draw line from start to current
+            const lineStart = getPixelLineStart()
+            const lsx = lineStart.gx * ps.pixelSize + artboard.x + ps.pixelSize / 2
+            const lsy = lineStart.gy * ps.pixelSize + artboard.y + ps.pixelSize / 2
+            const lex = Math.floor(endLocalX / ps.pixelSize) * ps.pixelSize + artboard.x + ps.pixelSize / 2
+            const ley = Math.floor(endLocalY / ps.pixelSize) * ps.pixelSize + artboard.y + ps.pixelSize / 2
+            ctx.beginPath()
+            ctx.moveTo(lsx, lsy)
+            ctx.lineTo(lex, ley)
+            ctx.stroke()
+          } else if (activeTool === 'pixel-rect') {
+            const startPt = getPixelRectStart()
+            const sx = startPt.gx * ps.pixelSize + artboard.x
+            const sy = startPt.gy * ps.pixelSize + artboard.y
+            const w = (Math.floor(endLocalX / ps.pixelSize) - startPt.gx + 1) * ps.pixelSize
+            const h = (Math.floor(endLocalY / ps.pixelSize) - startPt.gy + 1) * ps.pixelSize
+            ctx.strokeRect(Math.min(sx, sx + w), Math.min(sy, sy + h), Math.abs(w), Math.abs(h))
+          } else if (activeTool === 'pixel-ellipse') {
+            const startPt = getPixelEllipseStart()
+            const ex = Math.floor(endLocalX / ps.pixelSize)
+            const ey = Math.floor(endLocalY / ps.pixelSize)
+            const cxE = ((startPt.gx + ex) / 2) * ps.pixelSize + artboard.x + ps.pixelSize / 2
+            const cyE = ((startPt.gy + ey) / 2) * ps.pixelSize + artboard.y + ps.pixelSize / 2
+            const rxE = (Math.abs(ex - startPt.gx) / 2) * ps.pixelSize
+            const ryE = (Math.abs(ey - startPt.gy) / 2) * ps.pixelSize
+            if (rxE > 0 && ryE > 0) {
+              ctx.beginPath()
+              ctx.ellipse(cxE, cyE, rxE, ryE, 0, 0, Math.PI * 2)
+              ctx.stroke()
+            }
+          }
+        }
+
         ctx.restore()
       }
     }
@@ -1219,6 +1275,8 @@ export function Viewport() {
     if (activeTool === 'eyedropper' && eyedropperHover.current && canvasRef.current) {
       renderLoupe(ctx, canvasRef.current, eyedropperHover.current.x, eyedropperHover.current.y)
     }
+
+    updatePixelCursor()
   }, [
     viewport,
     document,
@@ -1252,6 +1310,61 @@ export function Viewport() {
     setTextEditRenderCallback(render)
     return () => setTextEditRenderCallback(() => {})
   }, [render])
+
+  // Pixel cursor overlay div — positioned over the hovered grid cell, CSS-animated pulse
+  const pixelCursorRef = useRef<HTMLDivElement>(null)
+  const updatePixelCursor = useCallback(() => {
+    const el = pixelCursorRef.current
+    const canvas = canvasRef.current
+    if (!el || !canvas) return
+    const isPixelTool =
+      activeTool === 'pixel-draw' ||
+      activeTool === 'pixel-line' ||
+      activeTool === 'pixel-rect' ||
+      activeTool === 'pixel-ellipse' ||
+      activeTool === 'pixel-erase'
+    if (!isPixelTool) {
+      el.style.display = 'none'
+      return
+    }
+    const ab = getActiveArtboard()
+    if (!ab) {
+      el.style.display = 'none'
+      return
+    }
+    const ps = getPixelDrawSettings()
+    const vp = useEditorStore.getState().viewport
+    const mx = mouseDocPos.current.x
+    const my = mouseDocPos.current.y
+    const localX = mx - ab.x
+    const localY = my - ab.y
+    const gx = Math.floor(localX / ps.pixelSize) * ps.pixelSize + ab.x
+    const gy = Math.floor(localY / ps.pixelSize) * ps.pixelSize + ab.y
+    const screenX = gx * vp.zoom + vp.panX
+    const screenY = gy * vp.zoom + vp.panY
+    const screenSize = ps.pixelSize * vp.zoom
+    el.style.display = 'block'
+    el.style.left = `${screenX}px`
+    el.style.top = `${screenY}px`
+    el.style.width = `${screenSize}px`
+    el.style.height = `${screenSize}px`
+    // Sample canvas pixels under cursor center to pick contrasting border
+    const ctx = canvas.getContext('2d')
+    const dpr = window.devicePixelRatio || 1
+    const cx = (screenX + screenSize / 2) * dpr
+    const cy = (screenY + screenSize / 2) * dpr
+    let luma = 128
+    if (ctx) {
+      try {
+        const px = ctx.getImageData(Math.round(cx), Math.round(cy), 1, 1).data
+        luma = 0.299 * (px[0] ?? 0) + 0.587 * (px[1] ?? 0) + 0.114 * (px[2] ?? 0)
+      } catch (_) {
+        /* canvas tainted or out of bounds */
+      }
+    }
+    el.style.borderColor = luma < 128 ? '#ffffff' : '#000000'
+    el.style.backgroundColor = 'transparent'
+  }, [activeTool])
 
   // Quick Mask enter/exit
   useEffect(() => {
@@ -1604,7 +1717,18 @@ export function Viewport() {
       return
     }
 
-    if (e.button !== 0) return
+    // Allow right-click for pixel tools (secondary color drawing)
+    const isPixelToolActive =
+      activeTool === 'pixel-draw' ||
+      activeTool === 'pixel-line' ||
+      activeTool === 'pixel-rect' ||
+      activeTool === 'pixel-ellipse' ||
+      activeTool === 'pixel-erase'
+    if (e.button === 2 && isPixelToolActive) {
+      pixelRightClick.current = true
+      e.preventDefault()
+      // fall through to pixel tool handling below
+    } else if (e.button !== 0) return
 
     // 3D orbit: in 3D mode, left-drag orbits the view
     if (viewport.view3d.enabled) {
@@ -1867,8 +1991,43 @@ export function Viewport() {
       const artboard = getActiveArtboard()!
       if (artboard && beginPixelStroke()) {
         const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        const strokeColor = pixelRightClick.current ? getSecondaryColor().color : undefined
         pixelDrawPoints.current = [pt]
-        paintPixelStroke([pt])
+        paintPixelStroke([pt], strokeColor)
+        isDragging.current = true
+        render()
+      }
+      return
+    }
+
+    // Pixel Line / Rect / Ellipse tools (click-drag-release)
+    if (activeTool === 'pixel-line' || activeTool === 'pixel-rect' || activeTool === 'pixel-ellipse') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = getActiveArtboard()!
+      if (artboard) {
+        const localX = docPoint.x - artboard.x
+        const localY = docPoint.y - artboard.y
+        let started = false
+        if (activeTool === 'pixel-line') started = beginPixelLine(localX, localY)
+        else if (activeTool === 'pixel-rect') started = beginPixelRect(localX, localY)
+        else started = beginPixelEllipse(localX, localY)
+        if (started) {
+          pixelShapeEnd.current = { x: localX, y: localY }
+          isDragging.current = true
+          render()
+        }
+      }
+      return
+    }
+
+    // Pixel Erase tool (freehand)
+    if (activeTool === 'pixel-erase') {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = getActiveArtboard()!
+      if (artboard && beginPixelErase()) {
+        const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        pixelErasePoints.current = [pt]
+        paintPixelErase([pt])
         isDragging.current = true
         render()
       }
@@ -2241,6 +2400,13 @@ export function Viewport() {
     // Track cursor position for ruler markers
     const docPt = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
     mouseDocPos.current = { x: docPt.x, y: docPt.y }
+    updatePixelCursor()
+
+    // Broadcast cursor position to collaborators
+    const collabStore = useEditorStore.getState()
+    if (collabStore.collabProvider) {
+      collabStore.updateCollabPresence(docPt.x, docPt.y)
+    }
 
     // VP dragging for perspective grid
     if (vpDragState.current && isDragging.current) {
@@ -2271,7 +2437,11 @@ export function Viewport() {
       (activeTool === 'brush' ||
         activeTool === 'eraser' ||
         activeTool === 'clone-stamp' ||
-        activeTool === 'pixel-draw') &&
+        activeTool === 'pixel-draw' ||
+        activeTool === 'pixel-line' ||
+        activeTool === 'pixel-rect' ||
+        activeTool === 'pixel-ellipse' ||
+        activeTool === 'pixel-erase') &&
       !isDragging.current
     ) {
       // Throttle cursor-only redraws to animation frame
@@ -2422,7 +2592,43 @@ export function Viewport() {
             pixelDrawRafId.current = 0
             const len = pixelDrawPoints.current.length
             if (len >= 2) {
-              paintPixelStroke(pixelDrawPoints.current.slice(-2))
+              const strokeColor = pixelRightClick.current ? getSecondaryColor().color : undefined
+              paintPixelStroke(pixelDrawPoints.current.slice(-2), strokeColor)
+              render()
+            }
+          })
+        }
+      }
+      return
+    }
+
+    // Pixel Line / Rect / Ellipse tool drag (update preview endpoint)
+    if (
+      (activeTool === 'pixel-line' || activeTool === 'pixel-rect' || activeTool === 'pixel-ellipse') &&
+      isDragging.current
+    ) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = getActiveArtboard()!
+      if (artboard) {
+        pixelShapeEnd.current = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        render()
+      }
+      return
+    }
+
+    // Pixel Erase tool drag
+    if (activeTool === 'pixel-erase' && isDragging.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      const artboard = getActiveArtboard()!
+      if (artboard) {
+        const pt = { x: docPoint.x - artboard.x, y: docPoint.y - artboard.y }
+        pixelErasePoints.current.push(pt)
+        if (!pixelEraseRafId.current) {
+          pixelEraseRafId.current = requestAnimationFrame(() => {
+            pixelEraseRafId.current = 0
+            const len = pixelErasePoints.current.length
+            if (len >= 2) {
+              paintPixelErase(pixelErasePoints.current.slice(-2))
               render()
             }
           })
@@ -2798,6 +3004,35 @@ export function Viewport() {
       endPixelStroke()
       pixelDrawPoints.current = []
       isDragging.current = false
+      pixelRightClick.current = false
+      render()
+      return
+    }
+
+    // Pixel Line / Rect / Ellipse tool release — commit shape
+    if (
+      (activeTool === 'pixel-line' || activeTool === 'pixel-rect' || activeTool === 'pixel-ellipse') &&
+      isDragging.current
+    ) {
+      const end = pixelShapeEnd.current
+      const strokeColor = pixelRightClick.current ? getSecondaryColor().color : undefined
+      if (end) {
+        if (activeTool === 'pixel-line') commitPixelLine(end.x, end.y, strokeColor)
+        else if (activeTool === 'pixel-rect') commitPixelRect(end.x, end.y, _e?.shiftKey ?? false, strokeColor)
+        else commitPixelEllipse(end.x, end.y, _e?.shiftKey ?? false, strokeColor)
+      }
+      pixelShapeEnd.current = null
+      isDragging.current = false
+      pixelRightClick.current = false
+      render()
+      return
+    }
+
+    // Pixel Erase tool
+    if (activeTool === 'pixel-erase' && isDragging.current) {
+      endPixelErase()
+      pixelErasePoints.current = []
+      isDragging.current = false
       render()
       return
     }
@@ -3049,7 +3284,13 @@ export function Viewport() {
     ? 'grabbing'
     : activeTool === 'hand'
       ? 'grab'
-      : activeTool === 'brush' || activeTool === 'clone-stamp' || activeTool === 'pixel-draw'
+      : activeTool === 'brush' ||
+          activeTool === 'clone-stamp' ||
+          activeTool === 'pixel-draw' ||
+          activeTool === 'pixel-line' ||
+          activeTool === 'pixel-rect' ||
+          activeTool === 'pixel-ellipse' ||
+          activeTool === 'pixel-erase'
         ? 'none'
         : activeTool === 'pen' || activeTool === 'curvature-pen' || activeTool === 'node' || activeTool === 'measure'
           ? 'crosshair'
@@ -3090,33 +3331,52 @@ export function Viewport() {
   }
 
   return (
-    <canvas
-      id="canvas"
-      ref={canvasRef}
-      tabIndex={0}
-      role="application"
-      aria-label="Design canvas"
-      style={{
-        width: '100%',
-        height: '100%',
-        display: 'block',
-        cursor: cursor ?? undefined,
-        touchAction: touchMode ? 'none' : undefined,
-      }}
-      onPointerDown={touchMode ? undefined : handlePointerDown}
-      onPointerMove={touchMode ? undefined : handlePointerMove}
-      onPointerUp={touchMode ? undefined : handlePointerUp}
-      onPointerLeave={touchMode ? undefined : handlePointerLeave}
-      onDoubleClick={touchMode ? undefined : handleDoubleClick}
-      onContextMenu={
-        touchMode
-          ? undefined
-          : (e) => {
-              e.preventDefault()
-              openCanvasContextMenu(e.clientX, e.clientY)
-            }
-      }
-    />
+    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+      <canvas
+        id="canvas"
+        ref={canvasRef}
+        tabIndex={0}
+        role="application"
+        aria-label="Design canvas"
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'block',
+          cursor: cursor ?? undefined,
+          touchAction: touchMode ? 'none' : undefined,
+        }}
+        onPointerDown={touchMode ? undefined : handlePointerDown}
+        onPointerMove={touchMode ? undefined : handlePointerMove}
+        onPointerUp={touchMode ? undefined : handlePointerUp}
+        onPointerLeave={touchMode ? undefined : handlePointerLeave}
+        onDoubleClick={touchMode ? undefined : handleDoubleClick}
+        onContextMenu={
+          touchMode
+            ? undefined
+            : (e) => {
+                e.preventDefault()
+                // Don't open context menu when right-click drawing with pixel tools
+                const isPixelTool =
+                  activeTool === 'pixel-draw' ||
+                  activeTool === 'pixel-line' ||
+                  activeTool === 'pixel-rect' ||
+                  activeTool === 'pixel-ellipse' ||
+                  activeTool === 'pixel-erase'
+                if (!isPixelTool) openCanvasContextMenu(e.clientX, e.clientY)
+              }
+        }
+      />
+      <div
+        ref={pixelCursorRef}
+        style={{
+          position: 'absolute',
+          display: 'none',
+          pointerEvents: 'none',
+          boxSizing: 'border-box',
+          border: '2px solid',
+        }}
+      />
+    </div>
   )
 }
 
@@ -3772,7 +4032,11 @@ function renderRasterLayer(ctx: CanvasRenderingContext2D, layer: RasterLayer) {
   ctx.save()
   applyTransform(ctx, layer.transform, { width: layer.width, height: layer.height })
 
+  // Always render raster data with nearest-neighbor so pixels stay crisp when zoomed
+  const prevSmoothing = ctx.imageSmoothingEnabled
+  ctx.imageSmoothingEnabled = false
   ctx.drawImage(rasterCanvas, 0, 0)
+  ctx.imageSmoothingEnabled = prevSmoothing
   ctx.restore()
 }
 

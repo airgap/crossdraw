@@ -1,6 +1,6 @@
 /**
  * Color space conversion utilities.
- * Supports RGBA, HSLA, and CMYK color representations.
+ * Supports RGBA, HSLA, HSVA, OkLAB, and CMYK color representations.
  */
 
 export interface RGBA {
@@ -15,6 +15,19 @@ export interface HSLA {
   s: number // 0–100
   l: number // 0–100
   a: number // 0–1
+}
+
+export interface HSVA {
+  h: number // 0–360
+  s: number // 0–100
+  v: number // 0–100
+  a: number // 0–1
+}
+
+export interface OkLAB {
+  L: number // 0–1
+  a: number // ~-0.4 to 0.4
+  b: number // ~-0.4 to 0.4
 }
 
 export interface CMYK {
@@ -118,6 +131,119 @@ export function hslaToRgba(c: HSLA): RGBA {
     b: Math.round(hue2rgb(p, q, h - 1 / 3) * 255),
     a: c.a,
   }
+}
+
+// ─── RGBA ↔ HSVA ──────────────────────────────────────────────
+
+export function rgbaToHsva(c: RGBA): HSVA {
+  const r = c.r / 255
+  const g = c.g / 255
+  const b = c.b / 255
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  const d = max - min
+  let h = 0
+  const s = max === 0 ? 0 : (d / max) * 100
+  const v = max * 100
+  if (d > 0) {
+    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60
+    else if (max === g) h = ((b - r) / d + 2) * 60
+    else h = ((r - g) / d + 4) * 60
+  }
+  return { h, s, v, a: c.a }
+}
+
+export function hsvaToRgba(c: HSVA): RGBA {
+  let s = c.s / 100
+  let v = c.v / 100
+  const ch = v * s
+  const x = ch * (1 - Math.abs(((c.h / 60) % 2) - 1))
+  const m = v - ch
+  let r = 0,
+    g = 0,
+    b = 0
+  if (c.h < 60) {
+    r = ch; g = x; b = 0
+  } else if (c.h < 120) {
+    r = x; g = ch; b = 0
+  } else if (c.h < 180) {
+    r = 0; g = ch; b = x
+  } else if (c.h < 240) {
+    r = 0; g = x; b = ch
+  } else if (c.h < 300) {
+    r = x; g = 0; b = ch
+  } else {
+    r = ch; g = 0; b = x
+  }
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+    a: c.a,
+  }
+}
+
+// ─── RGBA ↔ OkLAB ────────────────────────────────────────────
+
+function srgbToLinear(x: number): number {
+  return x <= 0.04045 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4)
+}
+
+function linearToSrgb(x: number): number {
+  return x <= 0.0031308 ? x * 12.92 : 1.055 * Math.pow(x, 1 / 2.4) - 0.055
+}
+
+export function rgbaToOklab(c: RGBA): OkLAB {
+  const r = srgbToLinear(c.r / 255)
+  const g = srgbToLinear(c.g / 255)
+  const b = srgbToLinear(c.b / 255)
+
+  const l_ = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b)
+  const m_ = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b)
+  const s_ = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b)
+
+  return {
+    L: 0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+    a: 1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+    b: 0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+  }
+}
+
+export function oklabToRgba(lab: OkLAB, alpha = 1): RGBA {
+  const l_ = lab.L + 0.3963377774 * lab.a + 0.2158037573 * lab.b
+  const m_ = lab.L - 0.1055613458 * lab.a - 0.0638541728 * lab.b
+  const s_ = lab.L - 0.0894841775 * lab.a - 1.2914855480 * lab.b
+
+  const l = l_ * l_ * l_
+  const m = m_ * m_ * m_
+  const s = s_ * s_ * s_
+
+  const r = +4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s
+  const g = -1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s
+  const b = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
+
+  return {
+    r: Math.round(Math.max(0, Math.min(1, linearToSrgb(r))) * 255),
+    g: Math.round(Math.max(0, Math.min(1, linearToSrgb(g))) * 255),
+    b: Math.round(Math.max(0, Math.min(1, linearToSrgb(b))) * 255),
+    a: alpha,
+  }
+}
+
+export function hexToOklab(hex: string): OkLAB {
+  return rgbaToOklab(hexToRgba(hex))
+}
+
+export function oklabToHex(lab: OkLAB): string {
+  return rgbaToHex(oklabToRgba(lab))
+}
+
+export function hexToHsva(hex: string): HSVA {
+  return rgbaToHsva(hexToRgba(hex))
+}
+
+export function hsvaToHex(c: HSVA): string {
+  return rgbaToHex(hsvaToRgba(c))
 }
 
 // ─── RGBA ↔ CMYK ──────────────────────────────────────────────

@@ -1,10 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { hexToRgba, rgbaToHex, rgbaToHsla, hslaToRgba } from '@/math/color'
-import type { HSLA } from '@/math/color'
+import {
+  hexToRgba,
+  rgbaToHex,
+  rgbaToHsla,
+  hslaToRgba,
+  rgbaToHsva,
+  hsvaToRgba,
+  rgbaToOklab,
+  oklabToRgba,
+} from '@/math/color'
+import type { HSLA, OkLAB } from '@/math/color'
 import { useEditorStore } from '@/store/editor.store'
 import { v4 as uuid } from 'uuid'
 
-// ─── HSV helpers (SV square needs HSV, not HSL) ────────────────
+// ─── HSV helpers (thin wrappers around @/math/color) ───────────
 
 interface HSV {
   h: number // 0-360
@@ -13,62 +22,13 @@ interface HSV {
 }
 
 function rgbToHsv(r: number, g: number, b: number): HSV {
-  r /= 255
-  g /= 255
-  b /= 255
-  const max = Math.max(r, g, b)
-  const min = Math.min(r, g, b)
-  const d = max - min
-  let h = 0
-  const s = max === 0 ? 0 : (d / max) * 100
-  const v = max * 100
-  if (d > 0) {
-    if (max === r) h = ((g - b) / d + (g < b ? 6 : 0)) * 60
-    else if (max === g) h = ((b - r) / d + 2) * 60
-    else h = ((r - g) / d + 4) * 60
-  }
-  return { h, s, v }
+  const hsva = rgbaToHsva({ r, g, b, a: 1 })
+  return { h: hsva.h, s: hsva.s, v: hsva.v }
 }
 
 function hsvToRgb(h: number, s: number, v: number): { r: number; g: number; b: number } {
-  s /= 100
-  v /= 100
-  const c = v * s
-  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
-  const m = v - c
-  let r = 0,
-    g = 0,
-    b = 0
-  if (h < 60) {
-    r = c
-    g = x
-    b = 0
-  } else if (h < 120) {
-    r = x
-    g = c
-    b = 0
-  } else if (h < 180) {
-    r = 0
-    g = c
-    b = x
-  } else if (h < 240) {
-    r = 0
-    g = x
-    b = c
-  } else if (h < 300) {
-    r = x
-    g = 0
-    b = c
-  } else {
-    r = c
-    g = 0
-    b = x
-  }
-  return {
-    r: Math.round((r + m) * 255),
-    g: Math.round((g + m) * 255),
-    b: Math.round((b + m) * 255),
-  }
+  const rgba = hsvaToRgba({ h, s, v, a: 1 })
+  return { r: rgba.r, g: rgba.g, b: rgba.b }
 }
 
 function hsvToHex(h: number, s: number, v: number): string {
@@ -122,9 +82,13 @@ export interface ColorPickerProps {
   color: string // hex color
   opacity?: number // 0-1, default 1
   onChange: (hex: string, opacity: number) => void
+  /** Called when right-click-dragging to set secondary (right-click) color */
+  onSecondaryChange?: (hex: string, opacity: number) => void
+  /** When true, strips popup chrome (shadow, border, fixed width) for use inside panels */
+  embedded?: boolean
 }
 
-type InputMode = 'hex' | 'rgb' | 'hsl'
+type InputMode = 'hex' | 'rgb' | 'hsl' | 'hsv' | 'oklab'
 
 // ─── Styles ────────────────────────────────────────────────────
 
@@ -203,24 +167,49 @@ const smallBtnStyle: React.CSSProperties = {
 
 // ─── SV Square Component ───────────────────────────────────────
 
+/** Hook to measure a container's width via ResizeObserver */
+function useContainerWidth(fallback: number) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [width, setWidth] = useState(fallback)
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w && w > 0) setWidth(Math.round(w))
+    })
+    ro.observe(el)
+    // Initial measure
+    const w = el.clientWidth
+    if (w > 0) setWidth(w)
+    return () => ro.disconnect()
+  }, [])
+  return { ref, width }
+}
+
 function SVSquare({
   hue,
   saturation,
   value,
   onChange,
+  embedded,
 }: {
   hue: number
   saturation: number
   value: number
   onChange: (s: number, v: number) => void
+  embedded?: boolean
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragging = useRef(false)
-  const SIZE = 208
+  const { ref: wrapRef, width: measuredWidth } = useContainerWidth(208)
+  const SIZE = embedded ? measuredWidth : 208
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    canvas.width = SIZE
+    canvas.height = SIZE
     const ctx = canvas.getContext('2d')!
     // Draw hue background
     const { r, g, b } = hsvToRgb(hue, 100, 100)
@@ -252,17 +241,17 @@ function SVSquare({
     ctx.strokeStyle = 'rgba(0,0,0,0.3)'
     ctx.lineWidth = 1
     ctx.stroke()
-  }, [hue, saturation, value])
+  }, [hue, saturation, value, SIZE])
 
   const pick = useCallback(
     (clientX: number, clientY: number) => {
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = Math.max(0, Math.min(SIZE, clientX - rect.left))
-      const y = Math.max(0, Math.min(SIZE, clientY - rect.top))
-      const s = (x / SIZE) * 100
-      const v = (1 - y / SIZE) * 100
+      const x = Math.max(0, Math.min(rect.width, clientX - rect.left))
+      const y = Math.max(0, Math.min(rect.height, clientY - rect.top))
+      const s = (x / rect.width) * 100
+      const v = (1 - y / rect.height) * 100
       onChange(s, v)
     },
     [onChange],
@@ -285,24 +274,26 @@ function SVSquare({
   }, [pick])
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={SIZE}
-      height={SIZE}
-      style={{
-        width: SIZE,
-        height: SIZE,
-        borderRadius: 4,
-        cursor: 'crosshair',
-        display: 'block',
-        border: '1px solid var(--border-default)',
-        touchAction: 'none',
-      }}
-      onPointerDown={(e) => {
-        dragging.current = true
-        pick(e.clientX, e.clientY)
-      }}
-    />
+    <div ref={wrapRef} style={{ width: '100%' }}>
+      <canvas
+        ref={canvasRef}
+        width={SIZE}
+        height={SIZE}
+        style={{
+          width: '100%',
+          height: SIZE,
+          borderRadius: 4,
+          cursor: 'crosshair',
+          display: 'block',
+          border: '1px solid var(--border-default)',
+          touchAction: 'none',
+        }}
+        onPointerDown={(e) => {
+          dragging.current = true
+          pick(e.clientX, e.clientY)
+        }}
+      />
+    </div>
   )
 }
 
@@ -311,23 +302,25 @@ function SVSquare({
 function HueSlider({ hue, onChange }: { hue: number; onChange: (h: number) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragging = useRef(false)
-  const WIDTH = 208
   const HEIGHT = 16
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const W = canvas.clientWidth || 208
+    canvas.width = W
+    canvas.height = HEIGHT
     const ctx = canvas.getContext('2d')!
-    const grad = ctx.createLinearGradient(0, 0, WIDTH, 0)
+    const grad = ctx.createLinearGradient(0, 0, W, 0)
     const stops = [0, 60, 120, 180, 240, 300, 360]
     stops.forEach((deg) => {
       grad.addColorStop(deg / 360, `hsl(${deg}, 100%, 50%)`)
     })
     ctx.fillStyle = grad
-    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    ctx.fillRect(0, 0, W, HEIGHT)
 
     // Indicator
-    const x = (hue / 360) * WIDTH
+    const x = (hue / 360) * W
     ctx.beginPath()
     ctx.rect(x - 2, 0, 4, HEIGHT)
     ctx.strokeStyle = '#fff'
@@ -343,8 +336,8 @@ function HueSlider({ hue, onChange }: { hue: number; onChange: (h: number) => vo
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = Math.max(0, Math.min(WIDTH, clientX - rect.left))
-      onChange((x / WIDTH) * 360)
+      const x = Math.max(0, Math.min(rect.width, clientX - rect.left))
+      onChange((x / rect.width) * 360)
     },
     [onChange],
   )
@@ -368,9 +361,8 @@ function HueSlider({ hue, onChange }: { hue: number; onChange: (h: number) => vo
   return (
     <canvas
       ref={canvasRef}
-      width={WIDTH}
       height={HEIGHT}
-      style={{ ...sliderTrackStyle, width: WIDTH, height: HEIGHT, touchAction: 'none' }}
+      style={{ ...sliderTrackStyle, width: '100%', height: HEIGHT, touchAction: 'none' }}
       onPointerDown={(e) => {
         dragging.current = true
         pick(e.clientX)
@@ -396,18 +388,20 @@ function AlphaSlider({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const dragging = useRef(false)
-  const WIDTH = 208
   const HEIGHT = 16
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
+    const W = canvas.clientWidth || 208
+    canvas.width = W
+    canvas.height = HEIGHT
     const ctx = canvas.getContext('2d')!
 
     // Checkerboard background
     const checkSize = 4
     for (let y = 0; y < HEIGHT; y += checkSize) {
-      for (let x = 0; x < WIDTH; x += checkSize) {
+      for (let x = 0; x < W; x += checkSize) {
         const isLight = (x / checkSize + y / checkSize) % 2 === 0
         ctx.fillStyle = isLight ? '#ddd' : '#aaa'
         ctx.fillRect(x, y, checkSize, checkSize)
@@ -416,14 +410,14 @@ function AlphaSlider({
 
     // Color gradient overlay
     const { r, g, b } = hsvToRgb(hue, saturation, value)
-    const grad = ctx.createLinearGradient(0, 0, WIDTH, 0)
+    const grad = ctx.createLinearGradient(0, 0, W, 0)
     grad.addColorStop(0, `rgba(${r},${g},${b},0)`)
     grad.addColorStop(1, `rgba(${r},${g},${b},1)`)
     ctx.fillStyle = grad
-    ctx.fillRect(0, 0, WIDTH, HEIGHT)
+    ctx.fillRect(0, 0, W, HEIGHT)
 
     // Indicator
-    const x = alpha * WIDTH
+    const x = alpha * W
     ctx.beginPath()
     ctx.rect(x - 2, 0, 4, HEIGHT)
     ctx.strokeStyle = '#fff'
@@ -439,8 +433,8 @@ function AlphaSlider({
       const canvas = canvasRef.current
       if (!canvas) return
       const rect = canvas.getBoundingClientRect()
-      const x = Math.max(0, Math.min(WIDTH, clientX - rect.left))
-      onChange(x / WIDTH)
+      const x = Math.max(0, Math.min(rect.width, clientX - rect.left))
+      onChange(x / rect.width)
     },
     [onChange],
   )
@@ -464,9 +458,8 @@ function AlphaSlider({
   return (
     <canvas
       ref={canvasRef}
-      width={WIDTH}
       height={HEIGHT}
-      style={{ ...sliderTrackStyle, width: WIDTH, height: HEIGHT, touchAction: 'none' }}
+      style={{ ...sliderTrackStyle, width: '100%', height: HEIGHT, touchAction: 'none' }}
       onPointerDown={(e) => {
         dragging.current = true
         pick(e.clientX)
@@ -477,8 +470,11 @@ function AlphaSlider({
 
 // ─── Main ColorPicker Component ────────────────────────────────
 
-export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) {
+export function ColorPicker({ color, opacity = 1, onChange, onSecondaryChange, embedded = false }: ColorPickerProps) {
   const setActiveTool = useEditorStore((s) => s.setActiveTool)
+
+  // Track whether current drag is right-click (for secondary color)
+  const rightDragRef = useRef(false)
 
   // Parse incoming color to HSV for internal state
   const rgba = hexToRgba(color)
@@ -509,10 +505,14 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
 
   const emitChange = useCallback(
     (hex: string, a: number) => {
-      onChange(hex, a)
+      if (rightDragRef.current && onSecondaryChange) {
+        onSecondaryChange(hex, a)
+      } else {
+        onChange(hex, a)
+      }
       saveRecentColor(hex)
     },
-    [onChange],
+    [onChange, onSecondaryChange],
   )
 
   const handleSVChange = useCallback(
@@ -583,6 +583,37 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
     [currentHsla, alpha, emitChange],
   )
 
+  const handleHsvInput = useCallback(
+    (channel: 'h' | 's' | 'v', val: number) => {
+      const limits = { h: 360, s: 100, v: 100 }
+      const clamped = Math.max(0, Math.min(limits[channel], Math.round(val)))
+      const newHsv = { ...hsv, [channel]: clamped }
+      setHsv(newHsv)
+      const hex = hsvToHex(newHsv.h, newHsv.s, newHsv.v)
+      emitChange(hex, alpha)
+    },
+    [hsv, alpha, emitChange],
+  )
+
+  const currentOklab = rgbaToOklab({ ...currentRgb, a: 1 })
+
+  const handleOklabInput = useCallback(
+    (channel: 'L' | 'a' | 'b', val: number) => {
+      const lab: OkLAB = { ...currentOklab, [channel]: val }
+      // Clamp L to [0,1]
+      lab.L = Math.max(0, Math.min(1, lab.L))
+      // Clamp a,b to roughly [-0.4, 0.4]
+      lab.a = Math.max(-0.4, Math.min(0.4, lab.a))
+      lab.b = Math.max(-0.4, Math.min(0.4, lab.b))
+      const rgba = oklabToRgba(lab)
+      const h = rgbToHsv(rgba.r, rgba.g, rgba.b)
+      setHsv(h)
+      const hex = rgbaToHex(rgba)
+      emitChange(hex, alpha)
+    },
+    [currentOklab, alpha, emitChange],
+  )
+
   const handleAlphaInput = useCallback(
     (pct: number) => {
       const a = Math.max(0, Math.min(1, pct / 100))
@@ -615,10 +646,28 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
     setRecentColors(loadRecentColors())
   }, [])
 
+  const containerStyle: React.CSSProperties = embedded
+    ? {
+        width: '100%',
+        fontFamily: 'var(--font-body)',
+        userSelect: 'none',
+      }
+    : pickerContainerStyle
+
   return (
-    <div style={pickerContainerStyle} onPointerDown={(e) => e.stopPropagation()}>
+    <div
+      style={containerStyle}
+      onPointerDown={(e) => {
+        e.stopPropagation()
+        rightDragRef.current = e.button === 2
+      }}
+      onPointerUp={() => {
+        rightDragRef.current = false
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
       {/* SV Square */}
-      <SVSquare hue={hsv.h} saturation={hsv.s} value={hsv.v} onChange={handleSVChange} />
+      <SVSquare hue={hsv.h} saturation={hsv.s} value={hsv.v} onChange={handleSVChange} embedded={embedded} />
 
       {/* Hue Slider */}
       <div style={{ marginTop: 8 }}>
@@ -640,6 +689,12 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
         </button>
         <button style={modeButtonStyle(mode === 'hsl')} onClick={() => setMode('hsl')}>
           HSL
+        </button>
+        <button style={modeButtonStyle(mode === 'hsv')} onClick={() => setMode('hsv')}>
+          HSV
+        </button>
+        <button style={modeButtonStyle(mode === 'oklab')} onClick={() => setMode('oklab')}>
+          Lab
         </button>
         <div style={{ flex: 1 }} />
         <button
@@ -726,6 +781,85 @@ export function ColorPicker({ color, opacity = 1, onChange }: ColorPickerProps) 
                 <div style={fieldLabelStyle}>{ch.toUpperCase()}</div>
               </div>
             ))}
+            <div style={{ width: 44 }}>
+              <input
+                style={fieldInputStyle}
+                type="number"
+                min={0}
+                max={100}
+                value={Math.round(alpha * 100)}
+                onChange={(e) => handleAlphaInput(Number(e.target.value))}
+              />
+              <div style={fieldLabelStyle}>A%</div>
+            </div>
+          </div>
+        )}
+        {mode === 'hsv' && (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+            {(['h', 's', 'v'] as const).map((ch) => (
+              <div key={ch} style={{ flex: 1 }}>
+                <input
+                  style={fieldInputStyle}
+                  type="number"
+                  min={0}
+                  max={ch === 'h' ? 360 : 100}
+                  value={Math.round(hsv[ch])}
+                  onChange={(e) => handleHsvInput(ch, Number(e.target.value))}
+                />
+                <div style={fieldLabelStyle}>{ch.toUpperCase()}</div>
+              </div>
+            ))}
+            <div style={{ width: 44 }}>
+              <input
+                style={fieldInputStyle}
+                type="number"
+                min={0}
+                max={100}
+                value={Math.round(alpha * 100)}
+                onChange={(e) => handleAlphaInput(Number(e.target.value))}
+              />
+              <div style={fieldLabelStyle}>A%</div>
+            </div>
+          </div>
+        )}
+        {mode === 'oklab' && (
+          <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
+            <div style={{ flex: 1 }}>
+              <input
+                style={fieldInputStyle}
+                type="number"
+                min={0}
+                max={1}
+                step={0.01}
+                value={Number(currentOklab.L.toFixed(3))}
+                onChange={(e) => handleOklabInput('L', Number(e.target.value))}
+              />
+              <div style={fieldLabelStyle}>L</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                style={fieldInputStyle}
+                type="number"
+                min={-0.4}
+                max={0.4}
+                step={0.01}
+                value={Number(currentOklab.a.toFixed(3))}
+                onChange={(e) => handleOklabInput('a', Number(e.target.value))}
+              />
+              <div style={fieldLabelStyle}>a</div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                style={fieldInputStyle}
+                type="number"
+                min={-0.4}
+                max={0.4}
+                step={0.01}
+                value={Number(currentOklab.b.toFixed(3))}
+                onChange={(e) => handleOklabInput('b', Number(e.target.value))}
+              />
+              <div style={fieldLabelStyle}>b</div>
+            </div>
             <div style={{ width: 44 }}>
               <input
                 style={fieldInputStyle}

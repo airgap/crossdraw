@@ -1919,6 +1919,10 @@ export function ToolOptionsBar() {
       )
       break
     case 'pixel-draw':
+    case 'pixel-line':
+    case 'pixel-rect':
+    case 'pixel-ellipse':
+    case 'pixel-erase':
       options = <PixelDrawOptions />
       break
     case 'text':

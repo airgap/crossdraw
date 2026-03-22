@@ -17,6 +17,19 @@ const defaultBrush: BrushSettings = {
 
 let currentBrush: BrushSettings = { ...defaultBrush }
 
+// Secondary (right-click) color
+let secondaryColor = '#ffffff'
+let secondaryOpacity = 1
+
+export function getSecondaryColor(): { color: string; opacity: number } {
+  return { color: secondaryColor, opacity: secondaryOpacity }
+}
+
+export function setSecondaryColor(color: string, opacity?: number) {
+  secondaryColor = color
+  if (opacity !== undefined) secondaryOpacity = opacity
+}
+
 // Dab cache — OffscreenCanvas for GPU-accelerated stamping
 let cachedDabCanvas: OffscreenCanvas | null = null
 let cachedDabKey = ''

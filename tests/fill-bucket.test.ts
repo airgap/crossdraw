@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test'
 import { useEditorStore } from '@/store/editor.store'
-import { setFillBucketColor, getFillBucketColor, applyFillBucket } from '@/tools/fill-bucket'
+import { applyFillBucket } from '@/tools/fill-bucket'
+import { setFillDefaults } from '@/ui/tool-options-state'
 import type { VectorLayer, RasterLayer } from '@/types'
 
 // ── Helpers ──
@@ -65,31 +66,7 @@ function addRasterLayer(): RasterLayer {
 describe('Fill Bucket Tool', () => {
   beforeEach(() => {
     resetStore()
-    setFillBucketColor('#4a7dff') // reset to default
-  })
-
-  describe('getFillBucketColor', () => {
-    test('returns default fill color', () => {
-      expect(getFillBucketColor()).toBe('#4a7dff')
-    })
-  })
-
-  describe('setFillBucketColor', () => {
-    test('sets a new fill color', () => {
-      setFillBucketColor('#ff0000')
-      expect(getFillBucketColor()).toBe('#ff0000')
-    })
-
-    test('accepts any hex string', () => {
-      setFillBucketColor('#abcdef')
-      expect(getFillBucketColor()).toBe('#abcdef')
-    })
-
-    test('overwrites previous color', () => {
-      setFillBucketColor('#111111')
-      setFillBucketColor('#222222')
-      expect(getFillBucketColor()).toBe('#222222')
-    })
+    setFillDefaults({ fillColor: '#4a7dff' }) // reset to default
   })
 
   describe('applyFillBucket', () => {
@@ -108,7 +85,7 @@ describe('Fill Bucket Tool', () => {
       const layer = addVectorLayer()
       useEditorStore.getState().selectLayer(layer.id)
 
-      setFillBucketColor('#ff0000')
+      setFillDefaults({ fillColor: '#ff0000' })
       applyFillBucket(50, 50)
 
       const artboard = useEditorStore.getState().document.artboards[0]!
@@ -132,10 +109,50 @@ describe('Fill Bucket Tool', () => {
       expect(selection.layerIds).toContain(layer.id)
     })
 
-    test('does nothing when no target is found', () => {
+    test('creates a filled layer on empty canvas', () => {
       // No layers, no selection
+      setFillDefaults({ fillColor: '#ff00ff' })
       applyFillBucket(50, 50)
-      // No error
+
+      const artboard = useEditorStore.getState().document.artboards[0]!
+      expect(artboard.layers.length).toBe(1)
+
+      const created = artboard.layers[0]!
+      expect(created.type).toBe('vector')
+      expect(created.name).toBe('Fill')
+      if (created.type === 'vector') {
+        expect(created.fill).not.toBeNull()
+        expect(created.fill!.type).toBe('solid')
+        expect(created.fill!.color).toBe('#ff00ff')
+        expect(created.paths.length).toBe(1)
+        expect(created.paths[0]!.closed).toBe(true)
+        expect(created.paths[0]!.segments.length).toBe(4)
+      }
+
+      // Layer should be selected
+      const selection = useEditorStore.getState().selection
+      expect(selection.layerIds).toContain(created.id)
+    })
+
+    test('creates a filled layer after undo removes the previous one', () => {
+      setFillDefaults({ fillColor: '#ff00ff' })
+      applyFillBucket(50, 50)
+
+      // Undo removes the layer but selection may still reference it
+      useEditorStore.getState().undo()
+      const afterUndo = useEditorStore.getState().document.artboards[0]!
+      expect(afterUndo.layers.length).toBe(0)
+
+      // Clicking fill again should create a new layer, not silently fail
+      setFillDefaults({ fillColor: '#00ff00' })
+      applyFillBucket(50, 50)
+
+      const artboard = useEditorStore.getState().document.artboards[0]!
+      expect(artboard.layers.length).toBe(1)
+      const created = artboard.layers[0]!
+      if (created.type === 'vector') {
+        expect(created.fill!.color).toBe('#00ff00')
+      }
     })
 
     test('does not fill non-vector layers', () => {
@@ -159,7 +176,7 @@ describe('Fill Bucket Tool', () => {
       useEditorStore.getState().deselectAll()
 
       // Click at a position that is past the artboard origin + layer transform
-      setFillBucketColor('#00ff00')
+      setFillDefaults({ fillColor: '#00ff00' })
       applyFillBucket(ax + 15, ay + 25)
 
       const artboard = useEditorStore.getState().document.artboards[0]!
@@ -189,11 +206,11 @@ describe('Fill Bucket Tool', () => {
       // Nothing should be filled
     })
 
-    test('uses current fill color from getFillBucketColor', () => {
+    test('uses fill color from tool options', () => {
       const layer = addVectorLayer()
       useEditorStore.getState().selectLayer(layer.id)
 
-      setFillBucketColor('#abcdef')
+      setFillDefaults({ fillColor: '#abcdef' })
       applyFillBucket(0, 0)
 
       const artboard = useEditorStore.getState().document.artboards[0]!

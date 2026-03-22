@@ -61,7 +61,8 @@ export function CloudBrowserPanel() {
   const [autoSave, setAutoSave] = useState(false)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const autoSaveRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const [cloudFileId, setCloudFileId] = useState<string | null>(null)
+  const cloudFileId = useEditorStore((s) => s.cloudFileId)
+  const setCloudFileId = useEditorStore((s) => s.setCloudFileId)
 
   // Persist config changes
   const handleConfigChange = useCallback(
