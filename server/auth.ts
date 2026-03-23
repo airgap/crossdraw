@@ -21,8 +21,8 @@ export type AuthResult = { authenticated: true; user: AuthenticatedUser } | { au
 // ── Configuration ──
 
 const API_KEY = process.env['CROSSDRAW_API_KEY'] ?? ''
-const JWKS_URL = process.env['CROSSDRAW_JWKS_URL'] ?? 'https://lyku.app/.well-known/jwks.json'
-const JWT_ISSUER = process.env['CROSSDRAW_JWT_ISSUER'] ?? 'https://lyku.app'
+const JWKS_URL = process.env['CROSSDRAW_JWKS_URL'] ?? 'https://api.lyku.org/.well-known/jwks.json'
+const JWT_ISSUER = process.env['CROSSDRAW_JWT_ISSUER'] ?? 'https://lyku.org'
 const JWT_AUDIENCE = process.env['CROSSDRAW_JWT_AUDIENCE'] ?? 'crossdraw'
 
 // ── JWKS cache ──

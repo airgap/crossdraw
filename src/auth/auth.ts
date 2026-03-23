@@ -67,9 +67,27 @@ let config: AuthConfig = DEFAULT_CONFIG
 /** Load saved config overrides from localStorage. */
 function loadConfig(): AuthConfig {
   if (typeof localStorage === 'undefined') return DEFAULT_CONFIG
+  // Clear any stale config that pointed to wrong domain (lyku.app)
   try {
     const raw = localStorage.getItem(CONFIG_KEY)
-    if (raw) return { ...DEFAULT_CONFIG, ...JSON.parse(raw) }
+    if (raw) {
+      const saved = JSON.parse(raw) as Partial<AuthConfig>
+      if (
+        saved.authorizeUrl?.includes('lyku.app') ||
+        saved.tokenUrl?.includes('lyku.app') ||
+        saved.userinfoUrl?.includes('lyku.app')
+      ) {
+        localStorage.removeItem(CONFIG_KEY)
+        return DEFAULT_CONFIG
+      }
+      // Only allow non-URL overrides (clientId, redirectUri, scopes)
+      return {
+        ...DEFAULT_CONFIG,
+        clientId: saved.clientId ?? DEFAULT_CONFIG.clientId,
+        redirectUri: saved.redirectUri ?? DEFAULT_CONFIG.redirectUri,
+        scopes: saved.scopes ?? DEFAULT_CONFIG.scopes,
+      }
+    }
   } catch {
     /* ignore */
   }
@@ -84,9 +102,14 @@ export function getAuthConfig(): AuthConfig {
 
 export function setAuthConfig(overrides: Partial<AuthConfig>): void {
   config = { ...config, ...overrides }
-  if (typeof localStorage !== 'undefined') {
+  // Only persist non-URL overrides to avoid stale domain issues
+  const persistable: Partial<AuthConfig> = {}
+  if (overrides.clientId) persistable.clientId = overrides.clientId
+  if (overrides.redirectUri) persistable.redirectUri = overrides.redirectUri
+  if (overrides.scopes) persistable.scopes = overrides.scopes
+  if (typeof localStorage !== 'undefined' && Object.keys(persistable).length > 0) {
     try {
-      localStorage.setItem(CONFIG_KEY, JSON.stringify(overrides))
+      localStorage.setItem(CONFIG_KEY, JSON.stringify(persistable))
     } catch {
       /* ignore */
     }
