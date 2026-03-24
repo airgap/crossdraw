@@ -278,7 +278,7 @@ describe('renderGrid', () => {
     expect(calls).toHaveLength(0)
   })
 
-  test('renders grid dots when sufficiently zoomed in', () => {
+  test('renders grid when sufficiently zoomed in', () => {
     const { ctx, calls } = mockCtx()
     const p = makeParams({
       ctx,
@@ -295,8 +295,9 @@ describe('renderGrid', () => {
       canvasHeight: 200,
     })
     renderGrid(p)
-    const fillRects = calls.filter((c) => c.method === 'fillRect')
-    expect(fillRects.length).toBeGreaterThan(0)
+    // At zoom 2, gridSize 10 → pixelSize 20 → renders as lines (stroke)
+    const strokes = calls.filter((c) => c.method === 'stroke')
+    expect(strokes.length).toBeGreaterThan(0)
   })
 
   test('calls save and restore', () => {
