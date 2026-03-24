@@ -990,7 +990,8 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           {tools
             .filter((tool) => {
               if (!modeConfig) return true
-              if (tool === 'separator' || tool === 'shapes' || tool === 'textTools' || tool === 'pixelTools') return true
+              if (tool === 'separator' || tool === 'shapes' || tool === 'textTools' || tool === 'pixelTools')
+                return true
               return modeConfig.tools.includes(tool.id)
             })
             .map((tool, idx) => {

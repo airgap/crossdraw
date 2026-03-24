@@ -113,12 +113,7 @@ export function bresenhamLine(x0: number, y0: number, x1: number, y1: number): A
 
 // ── Midpoint ellipse algorithm ──
 
-export function midpointEllipse(
-  cx: number,
-  cy: number,
-  rx: number,
-  ry: number,
-): Array<{ x: number; y: number }> {
+export function midpointEllipse(cx: number, cy: number, rx: number, ry: number): Array<{ x: number; y: number }> {
   if (rx <= 0 || ry <= 0) return []
   const points: Array<{ x: number; y: number }> = []
   const set = new Set<string>()
@@ -239,13 +234,7 @@ export function erasePixel(
   ctx.restore()
 }
 
-export function erasePixelImageData(
-  imageData: ImageData,
-  gx: number,
-  gy: number,
-  size: number,
-  opacity: number,
-) {
+export function erasePixelImageData(imageData: ImageData, gx: number, gy: number, size: number, opacity: number) {
   for (let dy = 0; dy < size; dy++) {
     for (let dx = 0; dx < size; dx++) {
       const px = gx * size + dx

@@ -458,9 +458,7 @@ export function nodeMouseDrag(docX: number, docY: number, shiftKey: boolean) {
       if (snap.x !== null) dx += snap.x - targetX
       if (snap.y !== null) dy += snap.y - targetY
       store.setActiveSnapLines(
-        snap.snapLinesH.length || snap.snapLinesV.length
-          ? { h: snap.snapLinesH, v: snap.snapLinesV }
-          : null,
+        snap.snapLinesH.length || snap.snapLinesV.length ? { h: snap.snapLinesH, v: snap.snapLinesV } : null,
       )
       snapped = true
       break // snap based on first selected node only
