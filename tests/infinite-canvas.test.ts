@@ -1,7 +1,7 @@
 import { describe, test, expect, beforeEach, afterAll } from 'bun:test'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { getInfiniteArtboardBounds } from '@/math/bbox'
-import type { Artboard, VectorLayer, Transform, Path, Segment } from '@/types'
+import type { Artboard, VectorLayer, Transform } from '@/types'
 
 // Save originals
 const origDocument = (globalThis as any).document
