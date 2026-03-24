@@ -8,7 +8,7 @@ pipeline {
             genericVariables: [
                 [key: 'ref', value: '$.ref']
             ],
-            tokenCredentialId: 'crossdraw-webhook-token',
+            token: 'Ahahahahahahahahaha',
             causeString: 'Push to $ref',
             printContributedVariables: true,
             printPostContent: false,
