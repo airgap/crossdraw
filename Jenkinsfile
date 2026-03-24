@@ -199,6 +199,7 @@ pipeline {
                 dir('packages/editor-core') {
                     sh 'export PATH=$HOME/.bun/bin:$PATH && bun run build'
                     sh '''
+                        export PATH=$HOME/.bun/bin:$PATH
                         echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > .npmrc
                         PUBLISHED=$(npm view crossdraw version 2>/dev/null || echo "0.0.0")
                         CURRENT=$(node -p "require('./package.json').version")
