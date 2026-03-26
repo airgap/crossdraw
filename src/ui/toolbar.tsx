@@ -100,6 +100,27 @@ export function resetToolbarOrder() {
   window.dispatchEvent(new Event('crossdraw:toolbar-changed'))
 }
 
+// ---------------------------------------------------------------------------
+// Toolbar column count persistence
+// ---------------------------------------------------------------------------
+
+const COLUMNS_KEY = 'crossdraw:toolbar-columns'
+
+function loadColumns(): number {
+  try {
+    const v = localStorage.getItem(COLUMNS_KEY)
+    if (v) {
+      const n = parseInt(v, 10)
+      if (n >= 1 && n <= 4) return n
+    }
+  } catch {}
+  return 1
+}
+
+function saveColumns(n: number) {
+  localStorage.setItem(COLUMNS_KEY, String(n))
+}
+
 export function getToolbarOrder(): ToolToken[] {
   return loadOrder()
 }
@@ -754,7 +775,7 @@ export function toolLabel(id: string): string {
 // Custom overlay scrollbar for the tool list
 // ---------------------------------------------------------------------------
 
-function ToolScrollArea({ children }: { children: React.ReactNode }) {
+function ToolScrollArea({ children, columns = 1 }: { children: React.ReactNode; columns?: number }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const thumbRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -853,10 +874,12 @@ function ToolScrollArea({ children }: { children: React.ReactNode }) {
         ref={scrollRef}
         onScroll={onScroll}
         style={{
-          display: 'flex',
-          flexDirection: 'column',
+          display: columns > 1 ? 'grid' : 'flex',
+          gridTemplateColumns: columns > 1 ? `repeat(${columns}, 1fr)` : undefined,
+          justifyItems: columns > 1 ? 'center' : undefined,
+          flexDirection: columns > 1 ? undefined : 'column',
+          alignItems: columns > 1 ? undefined : 'center',
           gap: 'var(--space-1)',
-          alignItems: 'center',
           height: '100%',
           overflowY: 'auto',
           overflowX: 'hidden',
@@ -910,7 +933,11 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
   const touchMode = useEditorStore((s) => s.touchMode)
   const btnSize = touchMode ? 48 : undefined // undefined → use var(--height-toolbar)
   const iconSize = touchMode ? 20 : 16
-  const toolbarWidth = touchMode ? 56 : 40
+  const [columns, setColumns] = useState(loadColumns)
+  const btnSizeNum = touchMode ? 48 : 32
+  const pad = 4 // var(--space-1)
+  const colGap = 4
+  const toolbarWidth = pad * 2 + columns * btnSizeNum + (columns - 1) * colGap
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [toolAnnouncement, setToolAnnouncement] = useState('')
@@ -950,6 +977,37 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
     buttons[nextIndex]?.focus()
   }, [])
 
+  // Resize handle: drag right edge to add/remove columns
+  const handleResizePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault()
+      e.stopPropagation()
+      const onMove = (ev: MouseEvent) => {
+        const toolbarLeft = toolbarRef.current?.getBoundingClientRect().left ?? 0
+        const cursorX = ev.clientX - toolbarLeft
+        let bestCols = 1
+        let bestDist = Infinity
+        for (let n = 1; n <= 4; n++) {
+          const w = pad * 2 + n * btnSizeNum + (n - 1) * colGap
+          const dist = Math.abs(w - cursorX)
+          if (dist < bestDist) {
+            bestDist = dist
+            bestCols = n
+          }
+        }
+        setColumns(bestCols)
+        saveColumns(bestCols)
+      }
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove)
+        document.removeEventListener('mouseup', onUp)
+      }
+      document.addEventListener('mousemove', onMove)
+      document.addEventListener('mouseup', onUp)
+    },
+    [btnSizeNum],
+  )
+
   // Listen for menu bar events
   useEffect(() => {
     const onShowSettings = () => setShowSettings(true)
@@ -974,10 +1032,11 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           width: toolbarWidth,
           alignItems: 'center',
           minHeight: 0,
+          position: 'relative',
         }}
       >
         {/* Scrollable tool list with custom scrollbar */}
-        <ToolScrollArea>
+        <ToolScrollArea columns={columns}>
           {tools
             .filter((tool) => {
               if (!modeConfig) return true
@@ -992,11 +1051,12 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
                     key={`sep-${idx}`}
                     role="separator"
                     style={{
-                      width: 24,
+                      width: columns > 1 ? '100%' : 24,
                       height: 1,
                       background: 'var(--border-subtle)',
                       margin: '2px 0',
                       flexShrink: 0,
+                      ...(columns > 1 ? { gridColumn: '1 / -1' } : {}),
                     }}
                   />
                 )
@@ -1127,6 +1187,25 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
             <Settings size={iconSize} strokeWidth={1.75} />
           </button>
         </div>
+        {/* Resize handle on right edge */}
+        <div
+          onPointerDown={handleResizePointerDown}
+          style={{
+            position: 'absolute',
+            top: 0,
+            right: -3,
+            bottom: 0,
+            width: 6,
+            cursor: 'col-resize',
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'color-mix(in srgb, var(--accent) 30%, transparent)'
+          }}
+          onMouseLeave={(e) => {
+            ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+          }}
+        />
       </div>
       {/* Screen reader live region for tool announcements */}
       <div role="status" aria-live="polite" className="sr-only">
