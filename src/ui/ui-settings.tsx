@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react'
-import { getThemePreference, setTheme, getAllThemes, type ThemePreference } from '@/ui/theme'
+import { getThemePreference, setTheme, getAllThemes, isBuiltinTheme, type ThemePreference } from '@/ui/theme'
 import { getToolbarOrder, saveToolbarOrder, resetToolbarOrder, toolLabel } from '@/ui/toolbar'
 
 interface Props {
@@ -123,8 +123,26 @@ export function UISettings({ onClose }: Props) {
               preview={{ bg: '#f5f5f5', surface: '#ffffff', text: '#1a1a1a' }}
               onClick={() => handleThemeChange('light')}
             />
+            <ThemeOption
+              label="Nord Dark"
+              active={themePref === 'Nord Dark'}
+              preview={{ bg: '#2e3440', surface: '#3b4252', text: '#eceff4' }}
+              onClick={() => handleThemeChange('Nord Dark')}
+            />
+            <ThemeOption
+              label="Nord Light"
+              active={themePref === 'Nord Light'}
+              preview={{ bg: '#eceff4', surface: '#e5e9f0', text: '#2e3440' }}
+              onClick={() => handleThemeChange('Nord Light')}
+            />
+            <ThemeOption
+              label="Black"
+              active={themePref === 'Black'}
+              preview={{ bg: '#000000', surface: '#0a0a0a', text: '#e0e0e0' }}
+              onClick={() => handleThemeChange('Black')}
+            />
             {allThemes
-              .filter((t) => t.name !== 'dark' && t.name !== 'light')
+              .filter((t) => !isBuiltinTheme(t.name))
               .map((t) => (
                 <ThemeOption
                   key={t.name}

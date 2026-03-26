@@ -170,6 +170,144 @@ export const lightTheme: Theme = {
   textMuted: '#999999',
 }
 
+export const nordDarkTheme: Theme = {
+  name: 'Nord Dark',
+
+  // Surface hierarchy (Nord Polar Night)
+  bgBase: '#2e3440',
+  bgSurface: '#3b4252',
+  bgElevated: '#434c5e',
+  bgOverlay: '#4c566a',
+  bgInput: '#2e3440',
+  bgHover: '#434c5e',
+  bgActive: '#88c0d0',
+  canvasBg: '#2e3440',
+
+  // Borders
+  borderSubtle: 'rgba(216,222,233,0.06)',
+  borderDefault: 'rgba(216,222,233,0.12)',
+  borderStrong: 'rgba(216,222,233,0.20)',
+
+  // Text (Nord Snow Storm)
+  textPrimary: '#eceff4',
+  textSecondary: '#d8dee9',
+  textDisabled: '#4c566a',
+  textAccent: '#88c0d0',
+
+  // Accent (Nord Frost)
+  accent: '#88c0d0',
+  accentHover: '#8fbccd',
+  accentActive: '#7eb3c3',
+  accentDisabled: '#5a8a95',
+
+  // Semantic (Nord Aurora)
+  success: '#a3be8c',
+  warning: '#ebcb8b',
+  error: '#bf616a',
+  info: '#81a1c1',
+
+  // Legacy aliases
+  bg: '#2e3440',
+  bgPanel: '#3b4252',
+  border: 'rgba(216,222,233,0.12)',
+  borderLight: 'rgba(216,222,233,0.20)',
+  textMuted: '#81a1c1',
+}
+
+export const nordLightTheme: Theme = {
+  name: 'Nord Light',
+
+  // Surface hierarchy (Nord Snow Storm)
+  bgBase: '#eceff4',
+  bgSurface: '#e5e9f0',
+  bgElevated: '#ffffff',
+  bgOverlay: '#ffffff',
+  bgInput: '#e5e9f0',
+  bgHover: '#d8dee9',
+  bgActive: '#5e81ac',
+  canvasBg: '#d8dee9',
+
+  // Borders
+  borderSubtle: 'rgba(46,52,64,0.08)',
+  borderDefault: 'rgba(46,52,64,0.15)',
+  borderStrong: 'rgba(46,52,64,0.25)',
+
+  // Text (Nord Polar Night)
+  textPrimary: '#2e3440',
+  textSecondary: '#4c566a',
+  textDisabled: '#a0a8b6',
+  textAccent: '#5e81ac',
+
+  // Accent (Nord Frost — darker for light bg contrast)
+  accent: '#5e81ac',
+  accentHover: '#6d8fb5',
+  accentActive: '#4f7199',
+  accentDisabled: '#9eb3cc',
+
+  // Semantic (Nord Aurora)
+  success: '#a3be8c',
+  warning: '#d08770',
+  error: '#bf616a',
+  info: '#81a1c1',
+
+  // Legacy aliases
+  bg: '#eceff4',
+  bgPanel: '#e5e9f0',
+  border: 'rgba(46,52,64,0.15)',
+  borderLight: 'rgba(46,52,64,0.25)',
+  textMuted: '#81a1c1',
+}
+
+export const blackTheme: Theme = {
+  name: 'Black',
+
+  // Surface hierarchy (true black for OLED)
+  bgBase: '#000000',
+  bgSurface: '#0a0a0a',
+  bgElevated: '#141414',
+  bgOverlay: '#1a1a1a',
+  bgInput: '#0a0a0a',
+  bgHover: '#1a1a1a',
+  bgActive: '#4a9eff',
+  canvasBg: '#000000',
+
+  // Borders
+  borderSubtle: 'rgba(255,255,255,0.06)',
+  borderDefault: 'rgba(255,255,255,0.10)',
+  borderStrong: 'rgba(255,255,255,0.15)',
+
+  // Text
+  textPrimary: '#e0e0e0',
+  textSecondary: '#888888',
+  textDisabled: '#444444',
+  textAccent: '#4a9eff',
+
+  // Accent
+  accent: '#4a9eff',
+  accentHover: '#5aadff',
+  accentActive: '#3a8eef',
+  accentDisabled: '#2a5a8f',
+
+  // Semantic
+  success: '#4caf50',
+  warning: '#ff9800',
+  error: '#f44336',
+  info: '#2196f3',
+
+  // Legacy aliases
+  bg: '#000000',
+  bgPanel: '#0a0a0a',
+  border: 'rgba(255,255,255,0.10)',
+  borderLight: 'rgba(255,255,255,0.15)',
+  textMuted: '#555555',
+}
+
+const BUILTIN_NAMES = new Set(['dark', 'light', 'Nord Dark', 'Nord Light', 'Black'])
+
+export function isBuiltinTheme(name: string): boolean {
+  return BUILTIN_NAMES.has(name)
+}
+
 // ── Storage keys ──
 
 const THEME_STORAGE_KEY = 'crossdraw:theme'
@@ -279,13 +417,19 @@ export function getCustomThemes(): Theme[] {
 }
 
 export function getAllThemes(): Theme[] {
-  return [darkTheme, lightTheme, ...customThemes]
+  return [darkTheme, lightTheme, nordDarkTheme, nordLightTheme, blackTheme, ...customThemes]
+}
+
+const builtinThemes: Record<string, Theme> = {
+  dark: darkTheme,
+  light: lightTheme,
+  'Nord Dark': nordDarkTheme,
+  'Nord Light': nordLightTheme,
+  Black: blackTheme,
 }
 
 export function getThemeByName(name: string): Theme | undefined {
-  if (name === 'dark') return darkTheme
-  if (name === 'light') return lightTheme
-  return customThemes.find((t) => t.name === name)
+  return builtinThemes[name] ?? customThemes.find((t) => t.name === name)
 }
 
 export function saveCustomTheme(theme: Theme): void {
@@ -300,7 +444,7 @@ export function saveCustomTheme(theme: Theme): void {
 }
 
 export function deleteCustomTheme(name: string): boolean {
-  if (name === 'dark' || name === 'light') return false
+  if (isBuiltinTheme(name)) return false
   const idx = customThemes.findIndex((t) => t.name === name)
   if (idx < 0) return false
   customThemes.splice(idx, 1)
@@ -353,7 +497,7 @@ export function importTheme(json: string): Theme | null {
     }
 
     // Prevent overwriting built-in names — suffix with " (imported)"
-    if (theme.name === 'dark' || theme.name === 'light') {
+    if (isBuiltinTheme(theme.name)) {
       theme.name = `${theme.name} (imported)`
     }
 

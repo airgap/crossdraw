@@ -10,6 +10,7 @@ import {
   applyAccentToTheme,
   exportTheme,
   importTheme,
+  isBuiltinTheme,
   type Theme,
   type ThemeColors,
 } from '@/ui/theme'
@@ -95,7 +96,7 @@ export function ThemeEditorPanel() {
   const [showCreate, setShowCreate] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const isBuiltIn = editTheme.name === 'dark' || editTheme.name === 'light'
+  const isBuiltIn = isBuiltinTheme(editTheme.name)
 
   // Sync when theme changes externally
   useEffect(() => {

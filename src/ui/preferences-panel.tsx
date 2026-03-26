@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useEditorStore } from '@/store/editor.store'
-import { getThemePreference, setTheme, getAllThemes, type ThemePreference } from '@/ui/theme'
+import { getThemePreference, setTheme, getAllThemes, isBuiltinTheme, type ThemePreference } from '@/ui/theme'
 import { isAIEnabled, setAIEnabled } from '@/ui/panels/panel-registry'
 
 // ── localStorage helpers ──
@@ -206,8 +206,11 @@ export function PreferencesPanel() {
           <option value="system">System</option>
           <option value="dark">Dark</option>
           <option value="light">Light</option>
+          <option value="Nord Dark">Nord Dark</option>
+          <option value="Nord Light">Nord Light</option>
+          <option value="Black">Black</option>
           {allThemes
-            .filter((t) => t.name !== 'dark' && t.name !== 'light')
+            .filter((t) => !isBuiltinTheme(t.name))
             .map((t) => (
               <option key={t.name} value={t.name}>
                 {t.name}
