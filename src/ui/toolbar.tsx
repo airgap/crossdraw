@@ -1,6 +1,5 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { EditorState } from '@/store/editor.store'
-import { toggleTheme, getTheme } from '@/ui/theme'
 import { useState, useEffect, useRef, useCallback, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { ShortcutPreferences } from '@/ui/shortcut-preferences'
 import { UISettings } from '@/ui/ui-settings'
@@ -19,8 +18,6 @@ import {
   Ruler,
   Crop,
   Keyboard,
-  Sun,
-  Moon,
   Settings,
   Minus,
   Pencil,
@@ -914,7 +911,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
   const btnSize = touchMode ? 48 : undefined // undefined → use var(--height-toolbar)
   const iconSize = touchMode ? 20 : 16
   const toolbarWidth = touchMode ? 56 : 40
-  const [themeName, setThemeName] = useState(getTheme().name)
   const [showShortcuts, setShowShortcuts] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [toolAnnouncement, setToolAnnouncement] = useState('')
@@ -927,11 +923,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
     window.addEventListener('crossdraw:toolbar-changed', handler)
     return () => window.removeEventListener('crossdraw:toolbar-changed', handler)
   }, [])
-
-  const handleToggleTheme = () => {
-    toggleTheme()
-    setThemeName(getTheme().name)
-  }
 
   // Announce tool changes to screen readers
   const handleSetActiveTool = useCallback(
@@ -1135,30 +1126,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
           >
             <Settings size={iconSize} strokeWidth={1.75} />
           </button>
-          <button
-            onClick={handleToggleTheme}
-            title={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
-            aria-label={`Switch to ${themeName === 'dark' ? 'light' : 'dark'} theme`}
-            className="cd-hoverable"
-            style={{
-              width: btnSize ?? 'var(--height-toolbar)',
-              height: btnSize ?? 'var(--height-toolbar)',
-              border: 'none',
-              borderRadius: 'var(--radius-md)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--text-secondary)',
-              background: 'transparent',
-            }}
-          >
-            {themeName === 'dark' ? (
-              <Sun size={iconSize} strokeWidth={1.75} />
-            ) : (
-              <Moon size={iconSize} strokeWidth={1.75} />
-            )}
-          </button>
         </div>
       </div>
       {/* Screen reader live region for tool announcements */}
@@ -1170,7 +1137,6 @@ export function Toolbar({ modeConfig }: { modeConfig?: { tools: string[] } } = {
         <UISettings
           onClose={() => {
             setShowSettings(false)
-            setThemeName(getTheme().name)
           }}
         />
       )}
