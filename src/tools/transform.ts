@@ -213,8 +213,8 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
       rotation = Math.round(rotation / 15) * 15
     }
     t.rotation = rotation
-  } else if (d.isTextLayer) {
-    // Text layers: resize changes textWidth/textHeight for reflow, not scaleX/scaleY
+  } else if (d.isTextLayer && d.originalTextMode === 'area') {
+    // Area text: resize changes textWidth/textHeight for reflow, not scaleX/scaleY
     const cfg = scaleConfigs[d.handle]
     if (!cfg) return
 
@@ -359,8 +359,8 @@ export function endTransform() {
 
   const finalTransform = { ...layer.transform }
 
-  if (d.isTextLayer && layer.type === 'text') {
-    // Capture final text reflow state
+  if (d.isTextLayer && d.originalTextMode === 'area' && layer.type === 'text') {
+    // Area text: capture final text reflow state
     const finalUpdates: Partial<Layer> = {
       transform: finalTransform,
       textMode: layer.textMode,
