@@ -645,6 +645,7 @@ export function clearCanvasBgOverride() {
 function applyThemeToDOM(theme: Theme) {
   if (typeof document === 'undefined') return
   const root = document.documentElement
+  if (typeof root?.style?.setProperty !== 'function') return
 
   // Surface hierarchy
   root.style.setProperty('--bg-base', theme.bgBase)
