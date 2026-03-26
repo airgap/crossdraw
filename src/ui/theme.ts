@@ -258,10 +258,10 @@ export const nordLightTheme: Theme = {
   textMuted: '#81a1c1',
 }
 
-export const blackTheme: Theme = {
-  name: 'Black',
+export const darkerTheme: Theme = {
+  name: 'Darker',
 
-  // Surface hierarchy (true black for OLED)
+  // Surface hierarchy (very dark but not pure black)
   bgBase: '#000000',
   bgSurface: '#0a0a0a',
   bgElevated: '#141414',
@@ -302,7 +302,51 @@ export const blackTheme: Theme = {
   textMuted: '#555555',
 }
 
-const BUILTIN_NAMES = new Set(['dark', 'light', 'Nord Dark', 'Nord Light', 'Black'])
+export const blackTheme: Theme = {
+  name: 'Black',
+
+  // Surface hierarchy — pure #000 everywhere for OLED
+  bgBase: '#000000',
+  bgSurface: '#000000',
+  bgElevated: '#000000',
+  bgOverlay: '#000000',
+  bgInput: '#000000',
+  bgHover: '#111111',
+  bgActive: '#4a9eff',
+  canvasBg: '#000000',
+
+  // Borders — minimal contrast lines
+  borderSubtle: 'rgba(255,255,255,0.08)',
+  borderDefault: 'rgba(255,255,255,0.12)',
+  borderStrong: 'rgba(255,255,255,0.18)',
+
+  // Text
+  textPrimary: '#d0d0d0',
+  textSecondary: '#777777',
+  textDisabled: '#3a3a3a',
+  textAccent: '#4a9eff',
+
+  // Accent
+  accent: '#4a9eff',
+  accentHover: '#5aadff',
+  accentActive: '#3a8eef',
+  accentDisabled: '#2a5a8f',
+
+  // Semantic
+  success: '#4caf50',
+  warning: '#ff9800',
+  error: '#f44336',
+  info: '#2196f3',
+
+  // Legacy aliases
+  bg: '#000000',
+  bgPanel: '#000000',
+  border: 'rgba(255,255,255,0.12)',
+  borderLight: 'rgba(255,255,255,0.18)',
+  textMuted: '#555555',
+}
+
+const BUILTIN_NAMES = new Set(['dark', 'light', 'Nord Dark', 'Nord Light', 'Darker', 'Black'])
 
 export function isBuiltinTheme(name: string): boolean {
   return BUILTIN_NAMES.has(name)
@@ -418,7 +462,7 @@ export function getCustomThemes(): Theme[] {
 }
 
 export function getAllThemes(): Theme[] {
-  return [darkTheme, lightTheme, nordDarkTheme, nordLightTheme, blackTheme, ...customThemes]
+  return [darkTheme, lightTheme, nordDarkTheme, nordLightTheme, darkerTheme, blackTheme, ...customThemes]
 }
 
 const builtinThemes: Record<string, Theme> = {
@@ -426,6 +470,7 @@ const builtinThemes: Record<string, Theme> = {
   light: lightTheme,
   'Nord Dark': nordDarkTheme,
   'Nord Light': nordLightTheme,
+  Darker: darkerTheme,
   Black: blackTheme,
 }
 

@@ -164,9 +164,15 @@ export function UISettings({ onClose }: Props) {
               onClick={() => handleThemeChange('Nord Light')}
             />
             <ThemeOption
+              label="Darker"
+              active={themePref === 'Darker'}
+              preview={{ bg: '#000000', surface: '#0a0a0a', text: '#e0e0e0' }}
+              onClick={() => handleThemeChange('Darker')}
+            />
+            <ThemeOption
               label="Black"
               active={themePref === 'Black'}
-              preview={{ bg: '#000000', surface: '#0a0a0a', text: '#e0e0e0' }}
+              preview={{ bg: '#000000', surface: '#000000', text: '#d0d0d0' }}
               onClick={() => handleThemeChange('Black')}
             />
             {allThemes

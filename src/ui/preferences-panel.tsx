@@ -208,6 +208,7 @@ export function PreferencesPanel() {
           <option value="light">Light</option>
           <option value="Nord Dark">Nord Dark</option>
           <option value="Nord Light">Nord Light</option>
+          <option value="Darker">Darker</option>
           <option value="Black">Black</option>
           {allThemes
             .filter((t) => !isBuiltinTheme(t.name))
