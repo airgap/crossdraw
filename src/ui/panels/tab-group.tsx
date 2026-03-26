@@ -320,9 +320,12 @@ export function SplitDropZone({ column, insertAtIndex }: { column: 'left' | 'rig
 
 function ContentDropZone({ column, groupIndex }: { column: 'left' | 'right'; groupIndex: number }) {
   const dragTabId = usePanelDragStore((s) => s.tabId)
+  const sourceColumn = usePanelDragStore((s) => s.sourceColumn)
+  const sourceGroupIndex = usePanelDragStore((s) => s.sourceGroupIndex)
   const dropTarget = usePanelDragStore((s) => s.dropTarget)
 
-  if (!dragTabId) return null
+  // Don't show drop zones on the group the tab is being dragged from
+  if (!dragTabId || (sourceColumn === column && sourceGroupIndex === groupIndex)) return null
 
   const isTopTarget =
     dropTarget?.type === 'split' && dropTarget.column === column && dropTarget.groupIndex === groupIndex
