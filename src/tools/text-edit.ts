@@ -80,7 +80,7 @@ export function beginTextEdit(layerId: string, artboardId: string) {
 /**
  * Create a new empty TextLayer and begin editing it.
  */
-export function createAndEditText(docX: number, docY: number, artboardId: string) {
+export function createAndEditText(docX: number, docY: number, artboardId: string, fontSize = 24) {
   const store = useEditorStore.getState()
   const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
@@ -103,7 +103,7 @@ export function createAndEditText(docX: number, docY: number, artboardId: string
     effects: [],
     text: '',
     fontFamily: 'sans-serif',
-    fontSize: 24,
+    fontSize,
     fontWeight: 'normal',
     fontStyle: 'normal',
     textAlign: 'left',

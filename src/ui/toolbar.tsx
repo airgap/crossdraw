@@ -269,6 +269,8 @@ function ShapeToolButton({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [pickerPos, setPickerPos] = useState({ left: 0, top: 0 })
 
   // If user presses a shape shortcut key, update currentShape to match
   useEffect(() => {
@@ -290,6 +292,8 @@ function ShapeToolButton({
     didLongPress.current = false
     timerRef.current = setTimeout(() => {
       didLongPress.current = true
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) setPickerPos({ left: rect.right + 2, top: rect.top })
       setShowPicker(true)
     }, LONG_PRESS_MS)
   }, [])
@@ -319,6 +323,7 @@ function ShapeToolButton({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
+        ref={buttonRef}
         data-tool-shapes="true"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
@@ -361,10 +366,9 @@ function ShapeToolButton({
           role="menu"
           aria-label="Shape tools"
           style={{
-            position: 'absolute',
-            left: '100%',
-            top: 0,
-            marginLeft: 2,
+            position: 'fixed',
+            left: pickerPos.left,
+            top: pickerPos.top,
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-md)',
@@ -430,6 +434,8 @@ function TextToolButton({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [pickerPos, setPickerPos] = useState({ left: 0, top: 0 })
 
   useEffect(() => {
     if (textToolIds.has(activeTool)) setCurrentText(activeTool)
@@ -449,6 +455,8 @@ function TextToolButton({
     didLongPress.current = false
     timerRef.current = setTimeout(() => {
       didLongPress.current = true
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) setPickerPos({ left: rect.right + 2, top: rect.top })
       setShowPicker(true)
     }, LONG_PRESS_MS)
   }, [])
@@ -478,6 +486,7 @@ function TextToolButton({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
+        ref={buttonRef}
         data-tool-texttools="true"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
@@ -519,10 +528,9 @@ function TextToolButton({
           role="menu"
           aria-label="Text tools"
           style={{
-            position: 'absolute',
-            left: '100%',
-            top: 0,
-            marginLeft: 2,
+            position: 'fixed',
+            left: pickerPos.left,
+            top: pickerPos.top,
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-md)',
@@ -588,6 +596,8 @@ function PixelToolButton({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const didLongPress = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [pickerPos, setPickerPos] = useState({ left: 0, top: 0 })
 
   useEffect(() => {
     if (pixelToolIds.has(activeTool)) setCurrentPixel(activeTool)
@@ -607,6 +617,8 @@ function PixelToolButton({
     didLongPress.current = false
     timerRef.current = setTimeout(() => {
       didLongPress.current = true
+      const rect = buttonRef.current?.getBoundingClientRect()
+      if (rect) setPickerPos({ left: rect.right + 2, top: rect.top })
       setShowPicker(true)
     }, LONG_PRESS_MS)
   }, [])
@@ -636,6 +648,7 @@ function PixelToolButton({
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <button
+        ref={buttonRef}
         data-tool-pixeltools="true"
         onPointerDown={onPointerDown}
         onPointerUp={onPointerUp}
@@ -677,10 +690,9 @@ function PixelToolButton({
           role="menu"
           aria-label="Pixel tools"
           style={{
-            position: 'absolute',
-            left: '100%',
-            top: 0,
-            marginLeft: 2,
+            position: 'fixed',
+            left: pickerPos.left,
+            top: pickerPos.top,
             background: 'var(--bg-surface)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 'var(--radius-md)',

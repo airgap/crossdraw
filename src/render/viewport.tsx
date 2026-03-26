@@ -477,6 +477,40 @@ export function Viewport() {
       ctx.setLineDash([])
     }
 
+    // Artistic Text tool drag preview (height line showing font size)
+    if (textDragStart.current && textDragEnd.current && isDragging.current && activeTool === 'text') {
+      const ts = textDragStart.current
+      const te = textDragEnd.current
+      const dy = Math.abs(te.y - ts.y)
+      if (dy > 2) {
+        const topY = Math.min(ts.y, te.y)
+        ctx.strokeStyle = '#4a7dff'
+        ctx.lineWidth = 1.5 / viewport.zoom
+        ctx.setLineDash([])
+        // Vertical height line
+        ctx.beginPath()
+        ctx.moveTo(ts.x, topY)
+        ctx.lineTo(ts.x, topY + dy)
+        ctx.stroke()
+        // Horizontal cap lines
+        const capW = 6 / viewport.zoom
+        ctx.beginPath()
+        ctx.moveTo(ts.x - capW, topY)
+        ctx.lineTo(ts.x + capW, topY)
+        ctx.moveTo(ts.x - capW, topY + dy)
+        ctx.lineTo(ts.x + capW, topY + dy)
+        ctx.stroke()
+        // Font size label
+        const fontSize = Math.max(8, Math.min(dy, 800))
+        const labelSize = 11 / viewport.zoom
+        ctx.font = `${labelSize}px sans-serif`
+        ctx.fillStyle = '#4a7dff'
+        ctx.textAlign = 'left'
+        ctx.textBaseline = 'middle'
+        ctx.fillText(`${Math.round(fontSize)}px`, ts.x + capW + 4 / viewport.zoom, topY + dy / 2)
+      }
+    }
+
     // Frame Text tool drag preview (area text box)
     if (textDragStart.current && textDragEnd.current && isDragging.current && activeTool === 'frame-text') {
       const ts = textDragStart.current
@@ -1858,7 +1892,7 @@ export function Viewport() {
       return
     }
 
-    // Artistic Text tool — click to place point text
+    // Artistic Text tool — drag to define font size, or click for default
     if (activeTool === 'text') {
       const textState = getTextEditState()
       if (textState.active) {
@@ -1870,7 +1904,9 @@ export function Viewport() {
           (a) => docPoint.x >= a.x && docPoint.x <= a.x + a.width && docPoint.y >= a.y && docPoint.y <= a.y + a.height,
         ) ?? getActiveArtboard()!
       if (artboard) {
-        createAndEditText(docPoint.x, docPoint.y, artboard.id)
+        textDragStart.current = { x: docPoint.x, y: docPoint.y, artboardId: artboard.id }
+        textDragEnd.current = { x: docPoint.x, y: docPoint.y }
+        isDragging.current = true
       }
       return
     }
@@ -2490,6 +2526,14 @@ export function Viewport() {
       return
     }
 
+    // Artistic Text tool drag (font size from height)
+    if (activeTool === 'text' && isDragging.current && textDragStart.current) {
+      const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
+      textDragEnd.current = { x: docPoint.x, y: docPoint.y }
+      render()
+      return
+    }
+
     // Frame Text tool drag (area text creation)
     if (activeTool === 'frame-text' && isDragging.current && textDragStart.current) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
@@ -2887,6 +2931,28 @@ export function Viewport() {
         nodeMouseUp(0, 0)
       }
       isDragging.current = false
+      return
+    }
+
+    // Artistic Text tool — finish drag
+    if (activeTool === 'text' && isDragging.current && textDragStart.current) {
+      const start = textDragStart.current
+      const end = textDragEnd.current ?? start
+      const dy = Math.abs(end.y - start.y)
+
+      if (dy > 5) {
+        // Font size = drag height (clamped to reasonable range)
+        const fontSize = Math.max(8, Math.min(dy, 800))
+        createAndEditText(start.x, start.y, start.artboardId, fontSize)
+      } else {
+        // Click with no drag — default font size
+        createAndEditText(start.x, start.y, start.artboardId)
+      }
+
+      textDragStart.current = null
+      textDragEnd.current = null
+      isDragging.current = false
+      render()
       return
     }
 
