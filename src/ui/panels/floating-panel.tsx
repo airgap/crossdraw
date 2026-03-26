@@ -1,5 +1,6 @@
-import React, { Suspense, useCallback, useRef } from 'react'
+import React, { Suspense, useCallback, useRef, useEffect } from 'react'
 import { usePanelLayoutStore, type FloatingPanel as FloatingPanelType } from './panel-layout-store'
+import { usePanelDragStore } from './panel-drag'
 import { getPanelDefinition } from './panel-registry'
 
 interface FloatingPanelProps {
@@ -20,36 +21,62 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
   const def = getPanelDefinition(panel.tabId)
   const Component = def?.component
 
-  // Drag state
-  const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null)
+  // Drag state — uses document listeners so pointer events reach drop zones
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => {
+      cleanupRef.current?.()
+    }
+  }, [])
 
   const handleTitlePointerDown = useCallback(
     (e: React.PointerEvent) => {
+      if (e.button !== 0) return
       e.preventDefault()
-      ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
-      dragRef.current = {
-        startX: e.clientX,
-        startY: e.clientY,
-        origX: panel.x,
-        origY: panel.y,
+      cleanupRef.current?.()
+
+      const startX = e.clientX
+      const startY = e.clientY
+      const origX = panel.x
+      const origY = panel.y
+      let started = false
+
+      const handleMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+
+        // Always update floating panel position
+        updatePosition(panel.tabId, origX + dx, origY + dy)
+
+        // Start panel drag after threshold for dock detection
+        if (!started && Math.sqrt(dx * dx + dy * dy) > 5) {
+          started = true
+          usePanelDragStore.getState().startDrag(panel.tabId, 'floating', 0, ev.clientX, ev.clientY)
+        }
+
+        if (started) {
+          usePanelDragStore.getState().updatePosition(ev.clientX, ev.clientY)
+        }
       }
-    },
-    [panel.x, panel.y],
-  )
 
-  const handleTitlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragRef.current) return
-      const dx = e.clientX - dragRef.current.startX
-      const dy = e.clientY - dragRef.current.startY
-      updatePosition(panel.tabId, dragRef.current.origX + dx, dragRef.current.origY + dy)
-    },
-    [panel.tabId, updatePosition],
-  )
+      const handleUp = () => {
+        cleanup()
+        // Drop resolution is handled by PanelShell's global pointerup handler
+      }
 
-  const handleTitlePointerUp = useCallback(() => {
-    dragRef.current = null
-  }, [])
+      const cleanup = () => {
+        document.removeEventListener('pointermove', handleMove)
+        document.removeEventListener('pointerup', handleUp)
+        cleanupRef.current = null
+      }
+
+      cleanupRef.current = cleanup
+      document.addEventListener('pointermove', handleMove)
+      document.addEventListener('pointerup', handleUp)
+    },
+    [panel.x, panel.y, panel.tabId, updatePosition],
+  )
 
   // Resize from edges/corners
   const resizeRef = useRef<{
@@ -137,8 +164,6 @@ export function FloatingPanel({ panel }: FloatingPanelProps) {
       {/* Title bar */}
       <div
         onPointerDown={handleTitlePointerDown}
-        onPointerMove={handleTitlePointerMove}
-        onPointerUp={handleTitlePointerUp}
         style={{
           display: 'flex',
           alignItems: 'center',

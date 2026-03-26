@@ -7,7 +7,6 @@ import type { TabGroup as TabGroupType } from './panel-layout-store'
 // ── Constants ──
 
 const DRAG_THRESHOLD = 5
-const TEAROFF_THRESHOLD = 60
 
 // ── DraggableTab ──
 
@@ -25,105 +24,77 @@ function DraggableTab({
   onActivate: (tabId: string) => void
 }) {
   const def = getPanelDefinition(tabId)
-  const popOut = usePanelLayoutStore((s) => s.popOut)
   const dragTabId = usePanelDragStore((s) => s.tabId)
   const isDraggingThis = dragTabId === tabId
-  const elRef = useRef<HTMLDivElement>(null)
-  const dragState = useRef<{
-    startX: number
-    startY: number
-    pointerId: number
-    started: boolean
-    tornOff: boolean
-  } | null>(null)
 
-  const releaseCapture = useCallback(() => {
-    const el = elRef.current
-    const ds = dragState.current
-    if (el && ds) {
-      try {
-        el.releasePointerCapture(ds.pointerId)
-      } catch {}
+  // Cleanup ref for document-level listeners
+  const cleanupRef = useRef<(() => void) | null>(null)
+
+  useEffect(() => {
+    return () => {
+      cleanupRef.current?.()
     }
   }, [])
 
-  const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    if (e.button !== 0) return
-    e.preventDefault()
-    ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    dragState.current = {
-      startX: e.clientX,
-      startY: e.clientY,
-      pointerId: e.pointerId,
-      started: false,
-      tornOff: false,
-    }
-  }, [])
-
-  const handlePointerMove = useCallback(
+  const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (!dragState.current) return
-      const dx = e.clientX - dragState.current.startX
-      const dy = e.clientY - dragState.current.startY
-      const dist = Math.sqrt(dx * dx + dy * dy)
+      if (e.button !== 0) return
+      e.preventDefault()
+      cleanupRef.current?.()
 
-      if (!dragState.current.started && dist > DRAG_THRESHOLD) {
-        dragState.current.started = true
-        usePanelDragStore.getState().startDrag(tabId, column, groupIndex, e.clientX, e.clientY)
-      }
+      const startX = e.clientX
+      const startY = e.clientY
+      let started = false
 
-      if (dragState.current.started) {
-        usePanelDragStore.getState().updatePosition(e.clientX, e.clientY)
+      const handleMove = (ev: PointerEvent) => {
+        const dx = ev.clientX - startX
+        const dy = ev.clientY - startY
+        const dist = Math.sqrt(dx * dx + dy * dy)
 
-        // Check for tear-off (dragging vertically away from tab bar)
-        if (Math.abs(dy) > TEAROFF_THRESHOLD && !dragState.current.tornOff) {
-          dragState.current.tornOff = true
-          // Release capture and clear state BEFORE popOut unmounts us
-          releaseCapture()
-          usePanelDragStore.getState().cancelDrag()
-          dragState.current = null
-          popOut(tabId, e.clientX - 100, e.clientY - 14)
-          return
+        if (!started && dist > DRAG_THRESHOLD) {
+          started = true
+          usePanelDragStore.getState().startDrag(tabId, column, groupIndex, ev.clientX, ev.clientY)
+        }
+
+        if (started) {
+          usePanelDragStore.getState().updatePosition(ev.clientX, ev.clientY)
         }
       }
-    },
-    [tabId, column, groupIndex, popOut, releaseCapture],
-  )
 
-  const handlePointerUp = useCallback(
-    (_e: React.PointerEvent) => {
-      const ds = dragState.current
-      dragState.current = null
-      releaseCapture()
-
-      if (!ds) return
-      if (!ds.started) {
-        // It was a click, not a drag
-        onActivate(tabId)
-        return
+      const handleUp = () => {
+        cleanup()
+        if (!started) {
+          onActivate(tabId)
+        }
+        // Drop resolution is handled by PanelShell's global pointerup handler
       }
-      // End drag — the drop handling is done by the drop target's pointerUp
-      usePanelDragStore.getState().endDrag()
+
+      const cleanup = () => {
+        document.removeEventListener('pointermove', handleMove)
+        document.removeEventListener('pointerup', handleUp)
+        cleanupRef.current = null
+      }
+
+      cleanupRef.current = cleanup
+      document.addEventListener('pointermove', handleMove)
+      document.addEventListener('pointerup', handleUp)
     },
-    [tabId, onActivate, releaseCapture],
+    [tabId, column, groupIndex, onActivate],
   )
 
   if (!def) return null
 
   return (
     <div
-      ref={elRef}
       data-tab-id={tabId}
       role="tab"
       tabIndex={isActive ? 0 : -1}
       aria-selected={isActive}
       aria-label={def.label}
       onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
       onContextMenu={(e) => {
         e.preventDefault()
-        popOut(tabId, e.clientX, e.clientY)
+        usePanelLayoutStore.getState().popOut(tabId, e.clientX, e.clientY)
       }}
       style={{
         padding: '4px 10px',
@@ -345,6 +316,79 @@ export function SplitDropZone({ column, insertAtIndex }: { column: 'left' | 'rig
   )
 }
 
+// ── ContentDropZone — top/bottom halves of content area for split drops ──
+
+function ContentDropZone({ column, groupIndex }: { column: 'left' | 'right'; groupIndex: number }) {
+  const dragTabId = usePanelDragStore((s) => s.tabId)
+  const dropTarget = usePanelDragStore((s) => s.dropTarget)
+
+  if (!dragTabId) return null
+
+  const isTopTarget =
+    dropTarget?.type === 'split' && dropTarget.column === column && dropTarget.groupIndex === groupIndex
+  const isBottomTarget =
+    dropTarget?.type === 'split' && dropTarget.column === column && dropTarget.groupIndex === groupIndex + 1
+
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        inset: 0,
+        zIndex: 10,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Top half → insert above this group */}
+      <div
+        onPointerEnter={() => {
+          usePanelDragStore.getState().setDropTarget({ type: 'split', column, groupIndex })
+        }}
+        onPointerLeave={() => {
+          const dt = usePanelDragStore.getState().dropTarget
+          if (dt?.type === 'split' && dt.column === column && dt.groupIndex === groupIndex) {
+            usePanelDragStore.getState().setDropTarget(null)
+          }
+        }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'center',
+          paddingTop: 8,
+          transition: 'background 0.15s',
+          background: isTopTarget ? 'rgba(59,130,246,0.08)' : 'transparent',
+        }}
+      >
+        {isTopTarget && <div style={{ width: '60%', height: 2, background: 'var(--accent)', borderRadius: 1 }} />}
+      </div>
+      {/* Bottom half → insert below this group */}
+      <div
+        onPointerEnter={() => {
+          usePanelDragStore.getState().setDropTarget({ type: 'split', column, groupIndex: groupIndex + 1 })
+        }}
+        onPointerLeave={() => {
+          const dt = usePanelDragStore.getState().dropTarget
+          if (dt?.type === 'split' && dt.column === column && dt.groupIndex === groupIndex + 1) {
+            usePanelDragStore.getState().setDropTarget(null)
+          }
+        }}
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          paddingBottom: 8,
+          transition: 'background 0.15s',
+          background: isBottomTarget ? 'rgba(59,130,246,0.08)' : 'transparent',
+        }}
+      >
+        {isBottomTarget && <div style={{ width: '60%', height: 2, background: 'var(--accent)', borderRadius: 1 }} />}
+      </div>
+    </div>
+  )
+}
+
 // ── Main TabGroup component ──
 
 interface TabGroupProps {
@@ -493,6 +537,7 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
             flex: 1,
             overflow: 'auto',
             background: 'var(--bg-base)',
+            position: 'relative',
           }}
         >
           {ActiveComponent && (
@@ -502,6 +547,7 @@ export function TabGroup({ group, column, groupIndex, style }: TabGroupProps) {
               <ActiveComponent />
             </Suspense>
           )}
+          <ContentDropZone column={column} groupIndex={groupIndex} />
         </div>
       )}
     </div>

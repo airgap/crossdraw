@@ -1571,7 +1571,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       if (tool !== 'text' && tool !== 'frame-text' && getTextEditState().active) {
         endTextEdit()
       }
-      set({ activeTool: tool })
+      set({ activeTool: tool, activeSnapLines: null })
     },
 
     toggleRulers() {

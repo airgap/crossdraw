@@ -294,9 +294,11 @@ export function updateShapeDrag(docX: number, docY: number, shift: boolean, alt:
 
 export function endShapeDrag() {
   if (!dragState.active) return
-  useEditorStore.getState().setActiveSnapLines(null)
+  const store = useEditorStore.getState()
+  store.setActiveSnapLines(null)
   dragState.active = false
   dragState.layerId = null
+  store.setActiveTool('select')
 }
 
 export function isShapeDragging(): boolean {

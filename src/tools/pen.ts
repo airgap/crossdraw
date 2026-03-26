@@ -227,7 +227,15 @@ export function penMouseDrag(e: MouseEvent, canvasRect: DOMRect) {
 }
 
 export function penMouseMove(e: MouseEvent, canvasRect: DOMRect) {
-  if (!penState.isDrawing) return
+  if (!penState.isDrawing) {
+    // Still compute snap guides before drawing starts so the first node placement can snap
+    const store = useEditorStore.getState()
+    const doc = screenToDocument({ x: e.clientX, y: e.clientY }, store.viewport, canvasRect)
+    const result = snapPoint(doc.x, doc.y, [])
+    const hasSnap = result.snapLinesH.length > 0 || result.snapLinesV.length > 0
+    store.setActiveSnapLines(hasSnap ? { h: result.snapLinesH, v: result.snapLinesV } : null)
+    return
+  }
   penState.previewPoint = getDocPoint(e, canvasRect, true)
 }
 

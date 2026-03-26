@@ -51,12 +51,20 @@ export function PanelShell({ children, modeConfig }: PanelShellProps) {
   useEffect(() => {
     if (!dragTabId) return
 
-    const handleGlobalPointerUp = () => {
+    const handleGlobalPointerUp = (e: PointerEvent) => {
       const result = usePanelDragStore.getState().endDrag()
-      if (!result || !result.dropTarget) return
+      if (!result) return
 
-      const { tabId, dropTarget } = result
+      const { tabId, sourceColumn, dropTarget } = result
       const layout = usePanelLayoutStore.getState()
+
+      if (!dropTarget) {
+        // No drop target — pop out to floating (unless already floating)
+        if (sourceColumn !== 'floating') {
+          layout.popOut(tabId, e.clientX - 100, e.clientY - 14)
+        }
+        return
+      }
 
       switch (dropTarget.type) {
         case 'tab-bar':
@@ -107,7 +115,7 @@ export function PanelShell({ children, modeConfig }: PanelShellProps) {
         <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 999 }}>
           <div style={{ position: 'relative', width: '100%', height: '100%', pointerEvents: 'none' }}>
             {filteredFloating.map((fp) => (
-              <div key={fp.tabId} style={{ pointerEvents: 'auto' }}>
+              <div key={fp.tabId} style={{ pointerEvents: dragTabId === fp.tabId ? 'none' : 'auto' }}>
                 <FloatingPanel panel={fp} />
               </div>
             ))}
