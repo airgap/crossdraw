@@ -312,6 +312,7 @@ export function isBuiltinTheme(name: string): boolean {
 
 const THEME_STORAGE_KEY = 'crossdraw:theme'
 const CUSTOM_THEMES_KEY = 'crossdraw:custom-themes'
+const CANVAS_BG_KEY = 'crossdraw:canvas-bg-override'
 
 // ── Accent color derivation ──
 
@@ -596,6 +597,49 @@ export function toggleTheme() {
   }
 }
 
+// ── Canvas background override ──
+
+function loadCanvasBgOverride(): string | null {
+  if (typeof localStorage === 'undefined') return null
+  return localStorage.getItem(CANVAS_BG_KEY)
+}
+
+let canvasBgOverride: string | null = loadCanvasBgOverride()
+
+/** Returns the effective canvas background (override or theme default). */
+export function getCanvasBg(): string {
+  return canvasBgOverride ?? currentTheme.canvasBg
+}
+
+/** Returns the override value, or null if using theme default. */
+export function getCanvasBgOverride(): string | null {
+  return canvasBgOverride
+}
+
+/** Set a custom canvas background, independent of theme. */
+export function setCanvasBgOverride(color: string) {
+  canvasBgOverride = color
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(CANVAS_BG_KEY, color)
+  }
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('--canvas-bg', color)
+  }
+  window.dispatchEvent(new Event('crossdraw:theme-changed'))
+}
+
+/** Clear the override, reverting to the theme's default canvas background. */
+export function clearCanvasBgOverride() {
+  canvasBgOverride = null
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem(CANVAS_BG_KEY)
+  }
+  if (typeof document !== 'undefined') {
+    document.documentElement.style.setProperty('--canvas-bg', currentTheme.canvasBg)
+  }
+  window.dispatchEvent(new Event('crossdraw:theme-changed'))
+}
+
 // ── DOM application ──
 
 function applyThemeToDOM(theme: Theme) {
@@ -610,7 +654,7 @@ function applyThemeToDOM(theme: Theme) {
   root.style.setProperty('--bg-input', theme.bgInput)
   root.style.setProperty('--bg-hover', theme.bgHover)
   root.style.setProperty('--bg-active', theme.bgActive)
-  root.style.setProperty('--canvas-bg', theme.canvasBg)
+  root.style.setProperty('--canvas-bg', canvasBgOverride ?? theme.canvasBg)
 
   // Borders
   root.style.setProperty('--border-subtle', theme.borderSubtle)

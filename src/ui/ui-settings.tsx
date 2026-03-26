@@ -1,5 +1,15 @@
 import { useState, useCallback, useRef } from 'react'
-import { getThemePreference, setTheme, getAllThemes, isBuiltinTheme, type ThemePreference } from '@/ui/theme'
+import {
+  getThemePreference,
+  setTheme,
+  getAllThemes,
+  isBuiltinTheme,
+  getCanvasBg,
+  getCanvasBgOverride,
+  setCanvasBgOverride,
+  clearCanvasBgOverride,
+  type ThemePreference,
+} from '@/ui/theme'
 import { getToolbarOrder, saveToolbarOrder, resetToolbarOrder, toolLabel } from '@/ui/toolbar'
 
 interface Props {
@@ -8,11 +18,29 @@ interface Props {
 
 export function UISettings({ onClose }: Props) {
   const [themePref, setThemePref] = useState<ThemePreference>(getThemePreference())
+  const [canvasBg, setCanvasBgLocal] = useState(getCanvasBg)
+  const [hasOverride, setHasOverride] = useState(() => getCanvasBgOverride() !== null)
   const allThemes = getAllThemes()
 
   const handleThemeChange = (name: string) => {
     setTheme(name)
     setThemePref(name)
+    // Update canvas bg display if no override
+    if (!getCanvasBgOverride()) {
+      setCanvasBgLocal(getCanvasBg())
+    }
+  }
+
+  const handleCanvasBgChange = (color: string) => {
+    setCanvasBgOverride(color)
+    setCanvasBgLocal(color)
+    setHasOverride(true)
+  }
+
+  const handleCanvasBgReset = () => {
+    clearCanvasBgOverride()
+    setCanvasBgLocal(getCanvasBg())
+    setHasOverride(false)
   }
 
   return (
@@ -104,7 +132,7 @@ export function UISettings({ onClose }: Props) {
             Theme
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 'var(--space-2)' }}>
             <ThemeOption
               label="System"
               active={themePref === 'system'}
@@ -152,6 +180,54 @@ export function UISettings({ onClose }: Props) {
                   onClick={() => handleThemeChange(t.name)}
                 />
               ))}
+          </div>
+
+          {/* Canvas background */}
+          <div
+            style={{
+              fontSize: 'var(--font-size-xs)',
+              fontWeight: 'var(--font-weight-semibold)',
+              textTransform: 'uppercase',
+              color: 'var(--text-secondary)',
+              marginTop: 'var(--space-4)',
+              marginBottom: 8,
+              letterSpacing: '0.5px',
+            }}
+          >
+            Canvas Background
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-2)' }}>
+            <input
+              type="color"
+              value={canvasBg}
+              onChange={(e) => handleCanvasBgChange(e.target.value)}
+              style={{
+                width: 28,
+                height: 28,
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-sm)',
+                padding: 0,
+                cursor: 'pointer',
+                background: 'none',
+              }}
+            />
+            <span style={{ fontSize: 'var(--font-size-sm)', color: 'var(--text-primary)', flex: 1 }}>{canvasBg}</span>
+            {hasOverride && (
+              <button
+                onClick={handleCanvasBgReset}
+                style={{
+                  padding: '3px 8px',
+                  fontSize: 10,
+                  background: 'var(--bg-input)',
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                }}
+              >
+                Reset
+              </button>
+            )}
           </div>
 
           {/* Scroll behavior hint */}
@@ -225,7 +301,6 @@ function ThemeOption({
     <button
       onClick={onClick}
       style={{
-        flex: 1,
         padding: 'var(--space-2)',
         background: active ? 'var(--accent)' : 'var(--bg-input)',
         border: `1px solid ${active ? 'var(--accent)' : 'var(--border-default)'}`,

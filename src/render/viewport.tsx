@@ -39,6 +39,7 @@ import {
 } from '@/tools/transform'
 import { importImageFile, importImageFromBlob } from '@/tools/import-image'
 import { openFileAsDocument } from '@/io/open-file'
+import { getCanvasBg } from '@/ui/theme'
 import { beginShapeDrag, updateShapeDrag, endShapeDrag, isShapeDragging } from '@/tools/shapes'
 import {
   getNodeState,
@@ -355,7 +356,7 @@ export function Viewport() {
     ctx.scale(dpr, dpr)
 
     // Clear
-    ctx.fillStyle = '#2a2a2a'
+    ctx.fillStyle = getCanvasBg()
     ctx.fillRect(0, 0, rect.width, rect.height)
 
     ctx.save()
