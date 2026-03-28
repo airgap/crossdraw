@@ -2,6 +2,7 @@ name = "crossdraw"
 main = "worker/index.ts"
 compatibility_date = "2026-03-08"
 
+# Shared config inherited by both environments
 [assets]
 directory = "dist"
 binding = "ASSETS"
@@ -11,6 +12,16 @@ not_found_handling = "none"
 binding = "RELEASES"
 bucket_name = "crossdraw-releases"
 
-[[routes]]
-pattern = "crossdraw.app/*"
-zone_name = "crossdraw.app"
+# Beta: auto-deployed on every main push
+[env.beta]
+name = "crossdraw-beta"
+routes = [
+  { pattern = "beta.crossdraw.app/*", zone_name = "crossdraw.app" }
+]
+
+# Production: deployed on release/* branches after manual approval
+[env.production]
+name = "crossdraw-production"
+routes = [
+  { pattern = "crossdraw.app/*", zone_name = "crossdraw.app" }
+]

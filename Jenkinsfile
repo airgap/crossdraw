@@ -216,9 +216,9 @@ pipeline {
         }
 
         // ────────────────────────────────────────────────────────
-        // Stage 4: Deploy to Cloudflare
+        // Stage 4: Deploy to Beta (always)
         // ────────────────────────────────────────────────────────
-        stage('Deploy') {
+        stage('Deploy Beta') {
             agent { label 'linux' }
             environment {
                 CLOUDFLARE_API_TOKEN = credentials('cloudflare-api-token')
@@ -227,7 +227,6 @@ pipeline {
             steps {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                 unstash 'web-dist'
-                // Collect release binaries from parallel stages
                 sh 'mkdir -p release'
                 unstash 'server-binaries'
                 script {
@@ -236,15 +235,14 @@ pipeline {
                     try { unstash 'electron-windows' } catch (e) { echo 'No Electron Windows artifacts' }
                     try { unstash 'android-apk' } catch (e) { echo 'No Android APK' }
                 }
-                // Deploy Worker + static assets to Cloudflare
-                // Install Node 20 via nvm (wrangler requires Node 20+, Jenkins has 18)
+                // Deploy Worker + static assets to beta.crossdraw.app
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
                     export NVM_DIR="$HOME/.nvm"
                     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
                     if ! nvm ls 20 > /dev/null 2>&1; then nvm install 20; fi
                     nvm use 20
-                    bunx wrangler deploy
+                    bunx wrangler deploy --env beta
                 '''
                 // Upload release binaries to R2
                 sh '''
@@ -255,6 +253,33 @@ pipeline {
                     for f in release/*; do
                         [ -f "$f" ] && bunx wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f" --remote || true
                     done
+                '''
+            }
+        }
+
+        // ────────────────────────────────────────────────────────
+        // Stage 5: Promote to Production (release/* branches only)
+        // ────────────────────────────────────────────────────────
+        stage('Deploy Production') {
+            when {
+                branch 'release/*'
+            }
+            agent { label 'linux' }
+            environment {
+                CLOUDFLARE_API_TOKEN = credentials('cloudflare-api-token')
+                CLOUDFLARE_ACCOUNT_ID = credentials('cloudflare-account-id')
+            }
+            steps {
+                // Manual approval gate before production deploy
+                input message: 'Deploy to production (crossdraw.app)?', ok: 'Deploy'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
+                unstash 'web-dist'
+                sh '''
+                    export PATH=$HOME/.bun/bin:$PATH
+                    export NVM_DIR="$HOME/.nvm"
+                    [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+                    nvm use 20 2>/dev/null || true
+                    bunx wrangler deploy --env production
                 '''
             }
         }
