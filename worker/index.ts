@@ -24,7 +24,23 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url)
 
-    // Future: /auth/* and /api/* routes go here
+    // Health check — unauthenticated, must precede SPA fallback
+    if (url.pathname === '/health') {
+      return new Response(
+        JSON.stringify({
+          status: 'ok',
+          service: 'crossdraw-worker',
+          timestamp: new Date().toISOString(),
+        }),
+        {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+          },
+        },
+      )
+    }
 
     // Serve release binaries from R2
     if (url.pathname.startsWith('/releases/')) {

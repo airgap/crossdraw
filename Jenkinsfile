@@ -267,10 +267,14 @@ pipeline {
                 CLOUDFLARE_ACCOUNT_ID = credentials('cloudflare-account-id')
             }
             steps {
-                echo 'Baking on beta for 10 minutes before promoting to production...'
-                sleep time: 10, unit: 'MINUTES'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                 unstash 'web-dist'
+
+                // Canary checks against beta for 10 minutes — must pass to proceed
+                echo 'Running canary checks against beta.crossdraw.app...'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun scripts/canary.ts https://beta.crossdraw.app --interval 30 --duration 600'
+
+                // Canary passed — promote to production
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
                     export NVM_DIR="$HOME/.nvm"
@@ -278,6 +282,10 @@ pipeline {
                     nvm use 20 2>/dev/null || true
                     bunx wrangler deploy --env production
                 '''
+
+                // Smoke test production
+                echo 'Running smoke test against crossdraw.app...'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun scripts/canary.ts https://crossdraw.app --once'
             }
         }
     }

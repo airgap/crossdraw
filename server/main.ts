@@ -1336,6 +1336,19 @@ const server = Bun.serve<WSData>({
       return new Response(null, { status: 101 })
     }
 
+    // Health check — unauthenticated
+    if (pathname === '/health') {
+      const wsStats = getWSStats()
+      return jsonResponse({
+        status: 'ok',
+        service: 'crossdraw-server',
+        timestamp: new Date().toISOString(),
+        uptime: process.uptime(),
+        websocket: wsStats,
+        files: fileCache.size,
+      })
+    }
+
     // API routes — wrap response with CORS headers
     if (pathname.startsWith('/api/')) {
       const res = await handleApiRequest(req, pathname)
