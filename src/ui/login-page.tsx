@@ -81,8 +81,11 @@ export function LoginPage({ onSkip }: { onSkip: () => void }) {
   }, [])
 
   return (
-    <div style={containerStyle}>
-      <div style={cardStyle}>
+    <div style={containerStyle} onClick={onSkip}>
+      <div style={cardStyle} onClick={(e) => e.stopPropagation()}>
+        <button onClick={onSkip} style={closeBtnStyle} aria-label="Close">
+          &#x2715;
+        </button>
         <h1 style={titleStyle}>Crossdraw</h1>
         <p style={subtitleStyle}>A free online drawing tool</p>
 
@@ -200,12 +203,26 @@ const containerStyle: React.CSSProperties = {
 }
 
 const cardStyle: React.CSSProperties = {
+  position: 'relative',
   width: 360,
   padding: '40px 32px',
   background: 'var(--bg-surface)',
   border: '1px solid var(--border-subtle)',
   borderRadius: 'var(--radius-lg, 12px)',
   boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+}
+
+const closeBtnStyle: React.CSSProperties = {
+  position: 'absolute',
+  top: 12,
+  right: 12,
+  background: 'none',
+  border: 'none',
+  color: 'var(--text-secondary)',
+  fontSize: 18,
+  cursor: 'pointer',
+  padding: '4px 8px',
+  lineHeight: 1,
 }
 
 const titleStyle: React.CSSProperties = {
