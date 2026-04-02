@@ -13,7 +13,7 @@ pipeline {
             printContributedVariables: true,
             printPostContent: false,
             regexpFilterText: '$ref',
-            regexpFilterExpression: '^refs/heads/(main|release/.*)$'
+            regexpFilterExpression: '^refs/heads/main$'
         )
     }
 
@@ -258,20 +258,17 @@ pipeline {
         }
 
         // ────────────────────────────────────────────────────────
-        // Stage 5: Promote to Production (release/* branches only)
+        // Stage 5: Bake on beta, then promote to production
         // ────────────────────────────────────────────────────────
         stage('Deploy Production') {
-            when {
-                branch 'release/*'
-            }
             agent { label 'linux' }
             environment {
                 CLOUDFLARE_API_TOKEN = credentials('cloudflare-api-token')
                 CLOUDFLARE_ACCOUNT_ID = credentials('cloudflare-account-id')
             }
             steps {
-                // Manual approval gate before production deploy
-                input message: 'Deploy to production (crossdraw.app)?', ok: 'Deploy'
+                echo 'Baking on beta for 10 minutes before promoting to production...'
+                sleep time: 10, unit: 'MINUTES'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                 unstash 'web-dist'
                 sh '''
