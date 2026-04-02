@@ -259,10 +259,6 @@ export function App() {
     )
   }
 
-  if (boot === 'login') {
-    return <LoginPage onSkip={() => setBoot('splash')} />
-  }
-
   if (boot === 'splash') {
     return <SplashScreen onReady={() => setBoot('editor')} />
   }
@@ -321,6 +317,7 @@ export function App() {
       )}
       <Onboarding />
       <ToastContainer />
+      {boot === 'login' && <LoginPage onSkip={() => setBoot('editor')} />}
     </div>
   )
 }

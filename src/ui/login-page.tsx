@@ -188,12 +188,14 @@ export function LoginPage({ onSkip }: { onSkip: () => void }) {
 // ── Styles ──
 
 const containerStyle: React.CSSProperties = {
+  position: 'absolute',
+  inset: 0,
+  zIndex: 9999,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  width: '100%',
-  height: '100%',
-  background: 'var(--bg-base)',
+  background: 'rgba(0, 0, 0, 0.5)',
+  backdropFilter: 'blur(6px)',
   fontFamily: 'var(--font-body)',
 }
 
