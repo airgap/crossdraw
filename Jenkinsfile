@@ -23,6 +23,11 @@ pipeline {
         timeout(time: 60, unit: 'MINUTES')
     }
 
+    environment {
+        DOPPLER_TOKEN = credentials('doppler-service-token')
+        IMAGE_TAG = "${GIT_COMMIT?.take(7) ?: 'latest'}"
+    }
+
     stages {
         // ────────────────────────────────────────────────────────
         // Stage 1: Build web assets + run tests (once, on Linux)
@@ -46,6 +51,22 @@ pipeline {
         // ────────────────────────────────────────────────────────
         stage('Package') {
             parallel {
+                // ── Docker image ───────────────────────────────
+                stage('Docker') {
+                    agent { label 'linux' }
+                    steps {
+                        sh '''
+                            export PATH=$HOME/.bun/bin:$PATH
+                            REGISTRY=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_URL --plain -p crossdraw -c prd)
+                            DO_TOKEN=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_TOKEN --plain -p crossdraw -c prd)
+                            echo "${DO_TOKEN}" | docker login registry.digitalocean.com -u do --password-stdin
+                            docker build -t "${REGISTRY}/crossdraw-server:${IMAGE_TAG}" -t "${REGISTRY}/crossdraw-server:latest" .
+                            docker push "${REGISTRY}/crossdraw-server:${IMAGE_TAG}"
+                            docker push "${REGISTRY}/crossdraw-server:latest"
+                        '''
+                    }
+                }
+
                 // ── Electron: Linux ─────────────────────────────
                 stage('Electron Linux') {
                     agent { label 'linux' }
@@ -152,36 +173,6 @@ pipeline {
                         }
                     }
                 }
-
-                // ── Mobile: iOS ─────────────────────────────────
-                // Disabled: App.xcworkspace not yet generated (needs initial pod install)
-                // stage('iOS') {
-                //     agent { label 'macos' }
-                //     steps {
-                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
-                //         unstash 'web-dist'
-                //         sh 'export PATH=$HOME/.bun/bin:$PATH && bunx cap sync ios'
-                //         dir('ios/App') {
-                //             sh 'pod install'
-                //             sh '''
-                //                 xcodebuild \
-                //                     -workspace App.xcworkspace \
-                //                     -scheme App \
-                //                     -configuration Release \
-                //                     -archivePath build/Crossdraw.xcarchive \
-                //                     archive \
-                //                     CODE_SIGN_IDENTITY="" \
-                //                     CODE_SIGNING_REQUIRED=NO \
-                //                     CODE_SIGNING_ALLOWED=NO
-                //             '''
-                //         }
-                //     }
-                //     post {
-                //         success {
-                //             archiveArtifacts artifacts: 'ios/App/build/**/*.ipa,ios/App/build/**/*.xcarchive/**', fingerprint: true, allowEmptyArchive: true
-                //         }
-                //     }
-                // }
             }
         }
 
@@ -216,7 +207,7 @@ pipeline {
         }
 
         // ────────────────────────────────────────────────────────
-        // Stage 4: Deploy to Beta (always)
+        // Stage 4: Deploy Beta (Worker + API)
         // ────────────────────────────────────────────────────────
         stage('Deploy Beta') {
             agent { label 'linux' }
@@ -254,11 +245,22 @@ pipeline {
                         [ -f "$f" ] && bunx wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f" --remote || true
                     done
                 '''
+                // Deploy API server to k8s beta
+                sh '''
+                    REGISTRY=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_URL --plain -p crossdraw -c prd)
+                    DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get K8S_CONFIG --plain -p crossdraw -c prd > /tmp/kubeconfig
+                    export KUBECONFIG=/tmp/kubeconfig
+                    kubectl set image deployment/crossdraw-server \
+                        server="${REGISTRY}/crossdraw-server:${IMAGE_TAG}" \
+                        -n crossdraw-beta
+                    kubectl rollout status deployment/crossdraw-server -n crossdraw-beta --timeout=120s
+                    rm -f /tmp/kubeconfig
+                '''
             }
         }
 
         // ────────────────────────────────────────────────────────
-        // Stage 5: Bake on beta, then promote to production
+        // Stage 5: Canary bake, then promote to production
         // ────────────────────────────────────────────────────────
         stage('Deploy Production') {
             agent { label 'linux' }
@@ -270,11 +272,16 @@ pipeline {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                 unstash 'web-dist'
 
-                // Canary checks against beta for 10 minutes — must pass to proceed
-                echo 'Running canary checks against beta.crossdraw.app...'
-                sh 'export PATH=$HOME/.bun/bin:$PATH && bun scripts/canary.ts https://beta.crossdraw.app --interval 30 --duration 600'
+                // Canary checks against beta (Worker + API) for 10 minutes
+                echo 'Running canary checks against beta...'
+                sh '''
+                    export PATH=$HOME/.bun/bin:$PATH
+                    bun scripts/canary.ts https://beta.crossdraw.app \
+                        --api-url https://beta-api.crossdraw.app \
+                        --interval 30 --duration 600
+                '''
 
-                // Canary passed — promote to production
+                // Canary passed — promote Worker to production
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
                     export NVM_DIR="$HOME/.nvm"
@@ -283,9 +290,26 @@ pipeline {
                     bunx wrangler deploy --env production
                 '''
 
-                // Smoke test production
-                echo 'Running smoke test against crossdraw.app...'
-                sh 'export PATH=$HOME/.bun/bin:$PATH && bun scripts/canary.ts https://crossdraw.app --once'
+                // Promote API server to production k8s
+                sh '''
+                    REGISTRY=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_URL --plain -p crossdraw -c prd)
+                    DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get K8S_CONFIG --plain -p crossdraw -c prd > /tmp/kubeconfig
+                    export KUBECONFIG=/tmp/kubeconfig
+                    kubectl set image deployment/crossdraw-server \
+                        server="${REGISTRY}/crossdraw-server:${IMAGE_TAG}" \
+                        -n crossdraw-production
+                    kubectl rollout status deployment/crossdraw-server -n crossdraw-production --timeout=120s
+                    rm -f /tmp/kubeconfig
+                '''
+
+                // Smoke test production (Worker + API)
+                echo 'Running smoke test against production...'
+                sh '''
+                    export PATH=$HOME/.bun/bin:$PATH
+                    bun scripts/canary.ts https://crossdraw.app \
+                        --api-url https://api.crossdraw.app \
+                        --once
+                '''
             }
         }
     }

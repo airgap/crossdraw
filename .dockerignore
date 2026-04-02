@@ -1,0 +1,13 @@
+node_modules
+.git
+.claude
+release
+android
+ios
+data
+*.AppImage
+*.deb
+*.dmg
+*.exe
+*.msi
+*.apk

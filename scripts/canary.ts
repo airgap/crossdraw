@@ -3,23 +3,26 @@
 // Canary health check script for Crossdraw deployments.
 //
 // Usage:
-//   bun scripts/canary.ts <url> [--interval 30] [--duration 600] [--once]
+//   bun scripts/canary.ts <url> [--api-url <url>] [--interval 30] [--duration 600] [--once]
 //
-// Runs three checks per round:
+// Checks per round:
 //   1. Page load — GET / returns 200 with HTML
-//   2. Health endpoint — GET /health returns { status: "ok" }
+//   2. Worker health — GET /health returns { status: "ok" }
 //   3. Static asset — parses HTML for a JS bundle, fetches it
+//   4. API health (if --api-url) — GET <api>/health returns { status: "ok" }
 //
 // Exits 0 if the final round passes, 1 otherwise.
 
 const args = process.argv.slice(2)
-const baseUrl = args.find((a) => !a.startsWith('--'))
+const positional = args.filter((a) => !a.startsWith('--'))
+const baseUrl = positional[0]
 const once = args.includes('--once')
 const interval = Number(args[args.indexOf('--interval') + 1]) || 30
 const duration = Number(args[args.indexOf('--duration') + 1]) || 600
+const apiUrl = args.includes('--api-url') ? args[args.indexOf('--api-url') + 1] : undefined
 
 if (!baseUrl) {
-  console.error('Usage: bun scripts/canary.ts <url> [--interval 30] [--duration 600] [--once]')
+  console.error('Usage: bun scripts/canary.ts <url> [--api-url <url>] [--interval 30] [--duration 600] [--once]')
   process.exit(1)
 }
 
@@ -40,7 +43,16 @@ async function check(name: string, fn: () => Promise<void>): Promise<CheckResult
   }
 }
 
-async function runChecks(url: string): Promise<CheckResult[]> {
+async function checkHealth(name: string, url: string): Promise<CheckResult> {
+  return check(name, async () => {
+    const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(10_000) })
+    if (res.status !== 200) throw new Error(`status ${res.status}`)
+    const json = (await res.json()) as { status?: string }
+    if (json.status !== 'ok') throw new Error(`status field: ${json.status}`)
+  })
+}
+
+async function runChecks(url: string, api?: string): Promise<CheckResult[]> {
   const results: CheckResult[] = []
 
   // 1. Page load
@@ -53,15 +65,8 @@ async function runChecks(url: string): Promise<CheckResult[]> {
     }),
   )
 
-  // 2. Health endpoint
-  results.push(
-    await check('health', async () => {
-      const res = await fetch(`${url}/health`, { signal: AbortSignal.timeout(10_000) })
-      if (res.status !== 200) throw new Error(`status ${res.status}`)
-      const json = (await res.json()) as { status?: string }
-      if (json.status !== 'ok') throw new Error(`status field: ${json.status}`)
-    }),
-  )
+  // 2. Worker health endpoint
+  results.push(await checkHealth('worker-health', url))
 
   // 3. Static asset — extract first script src from HTML and fetch it
   results.push(
@@ -72,10 +77,14 @@ async function runChecks(url: string): Promise<CheckResult[]> {
       if (!match) throw new Error('no asset reference found in HTML')
       const assetRes = await fetch(`${url}${match[1]}`, { signal: AbortSignal.timeout(10_000) })
       if (assetRes.status !== 200) throw new Error(`asset status ${assetRes.status}`)
-      // Consume body to avoid leaking connections
       await assetRes.arrayBuffer()
     }),
   )
+
+  // 4. API health (if provided)
+  if (api) {
+    results.push(await checkHealth('api-health', api))
+  }
 
   return results
 }
@@ -86,7 +95,7 @@ function printRound(round: number, total: number | null, results: CheckResult[])
   console.log(`\n[${time}] ${label}`)
   for (const r of results) {
     const status = r.ok ? 'OK' : 'FAIL'
-    const pad = ' '.repeat(Math.max(0, 14 - r.name.length))
+    const pad = ' '.repeat(Math.max(0, 16 - r.name.length))
     const line = `  ${r.name}${pad} ${status}  ${r.ms}ms`
     if (r.ok) {
       console.log(line)
@@ -103,10 +112,11 @@ function allPassed(results: CheckResult[]): boolean {
 // Main
 async function main() {
   console.log(`Canary: ${baseUrl}`)
-  console.log(`Mode: ${once ? 'single check' : `${duration}s bake, ${interval}s interval`}`)
+  if (apiUrl) console.log(`API:    ${apiUrl}`)
+  console.log(`Mode:   ${once ? 'single check' : `${duration}s bake, ${interval}s interval`}`)
 
   if (once) {
-    const results = await runChecks(baseUrl!)
+    const results = await runChecks(baseUrl!, apiUrl)
     printRound(1, null, results)
     process.exit(allPassed(results) ? 0 : 1)
   }
@@ -118,7 +128,7 @@ async function main() {
 
   while (Date.now() - startTime < duration * 1000) {
     round++
-    const results = await runChecks(baseUrl!)
+    const results = await runChecks(baseUrl!, apiUrl)
     printRound(round, totalRounds, results)
     lastPassed = allPassed(results)
 
@@ -133,7 +143,7 @@ async function main() {
 
   // Final round
   round++
-  const finalResults = await runChecks(baseUrl!)
+  const finalResults = await runChecks(baseUrl!, apiUrl)
   printRound(round, totalRounds, finalResults)
   lastPassed = allPassed(finalResults)
 

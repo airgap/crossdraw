@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: crossdraw-beta
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: crossdraw-data
+  namespace: crossdraw-beta
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crossdraw-server
+  namespace: crossdraw-beta
+  labels:
+    app: crossdraw-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: crossdraw-server
+  template:
+    metadata:
+      labels:
+        app: crossdraw-server
+    spec:
+      containers:
+        - name: server
+          image: IMAGE_PLACEHOLDER
+          ports:
+            - containerPort: 3000
+          env:
+            - name: CROSSDRAW_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: crossdraw-secrets
+                  key: api-key
+            - name: CROSSDRAW_ALLOWED_ORIGINS
+              value: "https://beta.crossdraw.app,https://crossdraw.app"
+          volumeMounts:
+            - name: data
+              mountPath: /app/data
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 3
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: crossdraw-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crossdraw-server
+  namespace: crossdraw-beta
+spec:
+  selector:
+    app: crossdraw-server
+  ports:
+    - port: 80
+      targetPort: 3000
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: crossdraw-server
+  namespace: crossdraw-beta
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-http-version: "1.1"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$request_uri"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - beta-api.crossdraw.app
+      secretName: beta-api-crossdraw-tls
+  rules:
+    - host: beta-api.crossdraw.app
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: crossdraw-server
+                port:
+                  number: 80
