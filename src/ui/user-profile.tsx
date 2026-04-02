@@ -4,12 +4,28 @@ import { getCurrentUser, login, logout, type AuthUser } from '@/auth/auth'
 export function UserProfile() {
   const [user, setUser] = useState<AuthUser | null>(getCurrentUser)
   const [showMenu, setShowMenu] = useState(false)
+  const [glowing, setGlowing] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const handler = () => setUser(getCurrentUser())
     window.addEventListener('crossdraw:auth-changed', handler)
     return () => window.removeEventListener('crossdraw:auth-changed', handler)
+  }, [])
+
+  // Pulse glow on sign-in button after login modal is dismissed
+  useEffect(() => {
+    const handler = () => {
+      const timer = setTimeout(() => {
+        setGlowing(true)
+        // Two pulses at 800ms each = 1600ms, then stop
+        const stop = setTimeout(() => setGlowing(false), 1600)
+        return () => clearTimeout(stop)
+      }, 2000)
+      return () => clearTimeout(timer)
+    }
+    window.addEventListener('crossdraw:login-skipped', handler)
+    return () => window.removeEventListener('crossdraw:login-skipped', handler)
   }, [])
 
   // Close menu on outside click
@@ -26,22 +42,33 @@ export function UserProfile() {
 
   if (!user) {
     return (
-      <button
-        onClick={() => login()}
-        style={{
-          height: 24,
-          padding: '0 10px',
-          border: '1px solid var(--border-default)',
-          borderRadius: 'var(--radius-sm)',
-          background: 'var(--bg-input)',
-          color: 'var(--text-primary)',
-          fontSize: 11,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        Sign in
-      </button>
+      <>
+        {glowing && (
+          <style>{`
+            @keyframes signin-glow {
+              0%, 100% { box-shadow: 0 0 0 0 transparent; }
+              50% { box-shadow: 0 0 8px 2px var(--accent, #3b82f6); }
+            }
+          `}</style>
+        )}
+        <button
+          onClick={() => login()}
+          style={{
+            height: 24,
+            padding: '0 10px',
+            border: '1px solid var(--border-default)',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--bg-input)',
+            color: 'var(--text-primary)',
+            fontSize: 11,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            animation: glowing ? 'signin-glow 800ms ease-in-out 2' : 'none',
+          }}
+        >
+          Sign in
+        </button>
+      </>
     )
   }
 

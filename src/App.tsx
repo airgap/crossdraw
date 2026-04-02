@@ -317,7 +317,14 @@ export function App() {
       )}
       <Onboarding />
       <ToastContainer />
-      {boot === 'login' && <LoginPage onSkip={() => setBoot('editor')} />}
+      {boot === 'login' && (
+        <LoginPage
+          onSkip={() => {
+            setBoot('editor')
+            window.dispatchEvent(new Event('crossdraw:login-skipped'))
+          }}
+        />
+      )}
     </div>
   )
 }
