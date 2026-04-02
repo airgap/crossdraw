@@ -84,19 +84,24 @@ export function LoginPage({ onSkip }: { onSkip: () => void }) {
     <div style={containerStyle}>
       <div style={cardStyle}>
         <h1 style={titleStyle}>Crossdraw</h1>
-        <p style={subtitleStyle}>{mode === 'signin' ? 'Sign in to your account' : 'Create a new account'}</p>
+        <p style={subtitleStyle}>A free online drawing tool</p>
 
-        {/* OAuth button */}
-        <button onClick={handleOAuth} style={oauthBtnStyle}>
-          Continue with Lyku
+        {/* Skip — use without account */}
+        <button onClick={onSkip} style={primaryBtnStyle}>
+          Start drawing
         </button>
 
         {/* Divider */}
         <div style={dividerStyle}>
           <div style={dividerLineStyle} />
-          <span style={dividerTextStyle}>or</span>
+          <span style={dividerTextStyle}>or sign in</span>
           <div style={dividerLineStyle} />
         </div>
+
+        {/* OAuth button */}
+        <button onClick={handleOAuth} style={oauthBtnStyle}>
+          Continue with Lyku
+        </button>
 
         {/* Email step */}
         {step === 'email' && (
@@ -175,11 +180,6 @@ export function LoginPage({ onSkip }: { onSkip: () => void }) {
             {mode === 'signin' ? 'Create account' : 'Sign in'}
           </button>
         </div>
-
-        {/* Skip button */}
-        <button onClick={onSkip} style={skipBtnStyle}>
-          Continue without signing in
-        </button>
       </div>
     </div>
   )
@@ -323,17 +323,4 @@ const footerStyle: React.CSSProperties = {
   marginTop: 20,
   paddingTop: 16,
   borderTop: '1px solid var(--border-subtle)',
-}
-
-const skipBtnStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  background: 'none',
-  border: 'none',
-  color: 'var(--text-tertiary)',
-  cursor: 'pointer',
-  fontSize: 11,
-  fontFamily: 'var(--font-body)',
-  marginTop: 12,
-  textAlign: 'center',
 }
