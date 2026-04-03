@@ -57,8 +57,8 @@ pipeline {
                     steps {
                         sh '''
                             export PATH=$HOME/.bun/bin:$PATH
-                            REGISTRY=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_URL --plain -p crossdraw -c prd)
-                            DO_TOKEN=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_TOKEN --plain -p crossdraw -c prd)
+                            REGISTRY=$(echo registry.digitalocean.com/crossdraw)
+                            DO_TOKEN=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_TOKEN --plain )
                             echo "${DO_TOKEN}" | docker login registry.digitalocean.com -u do --password-stdin
                             docker build -t "${REGISTRY}/crossdraw-server:${IMAGE_TAG}" -t "${REGISTRY}/crossdraw-server:latest" .
                             docker push "${REGISTRY}/crossdraw-server:${IMAGE_TAG}"
@@ -247,8 +247,8 @@ pipeline {
                 '''
                 // Deploy API server to k8s beta
                 sh '''
-                    REGISTRY=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_URL --plain -p crossdraw -c prd)
-                    DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get K8S_CONFIG --plain -p crossdraw -c prd > /tmp/kubeconfig
+                    REGISTRY=$(echo registry.digitalocean.com/crossdraw)
+                    DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get K8S_CONFIG --plain  > /tmp/kubeconfig
                     export KUBECONFIG=/tmp/kubeconfig
                     kubectl set image deployment/crossdraw-server \
                         server="${REGISTRY}/crossdraw-server:${IMAGE_TAG}" \
@@ -292,8 +292,8 @@ pipeline {
 
                 // Promote API server to production k8s
                 sh '''
-                    REGISTRY=$(DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get DO_REGISTRY_URL --plain -p crossdraw -c prd)
-                    DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get K8S_CONFIG --plain -p crossdraw -c prd > /tmp/kubeconfig
+                    REGISTRY=$(echo registry.digitalocean.com/crossdraw)
+                    DOPPLER_TOKEN=${DOPPLER_TOKEN} doppler secrets get K8S_CONFIG --plain  > /tmp/kubeconfig
                     export KUBECONFIG=/tmp/kubeconfig
                     kubectl set image deployment/crossdraw-server \
                         server="${REGISTRY}/crossdraw-server:${IMAGE_TAG}" \

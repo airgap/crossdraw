@@ -31,9 +31,11 @@ spec:
       labels:
         app: crossdraw-server
     spec:
+      imagePullSecrets:
+        - name: registry-crossdraw
       containers:
         - name: server
-          image: IMAGE_PLACEHOLDER
+          image: registry.digitalocean.com/crossdraw/crossdraw-server:latest
           ports:
             - containerPort: 3000
           env:
@@ -49,7 +51,7 @@ spec:
               mountPath: /app/data
           resources:
             requests:
-              memory: "128Mi"
+              memory: "64Mi"
               cpu: "100m"
             limits:
               memory: "256Mi"
