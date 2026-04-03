@@ -21,7 +21,7 @@ routes = [
 
 # Production: deployed on release/* branches after manual approval
 [env.production]
-name = "crossdraw-production"
+name = "crossdraw"
 routes = [
   { pattern = "crossdraw.app/*", zone_name = "crossdraw.app" }
 ]
