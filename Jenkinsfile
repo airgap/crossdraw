@@ -24,7 +24,6 @@ pipeline {
     }
 
     environment {
-        DOPPLER_TOKEN = credentials('doppler-service-token')
         IMAGE_TAG = "${GIT_COMMIT?.take(7) ?: 'latest'}"
     }
 
@@ -54,6 +53,9 @@ pipeline {
                 // ── Docker image ───────────────────────────────
                 stage('Docker') {
                     agent { label 'linux' }
+                    environment {
+                        DOPPLER_TOKEN = credentials('doppler-service-token')
+                    }
                     steps {
                         sh '''
                             export PATH=$HOME/.bun/bin:$PATH
@@ -214,6 +216,7 @@ pipeline {
             environment {
                 CLOUDFLARE_API_TOKEN = credentials('cloudflare-api-token')
                 CLOUDFLARE_ACCOUNT_ID = credentials('cloudflare-account-id')
+                DOPPLER_TOKEN = credentials('doppler-service-token')
             }
             steps {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
@@ -267,6 +270,7 @@ pipeline {
             environment {
                 CLOUDFLARE_API_TOKEN = credentials('cloudflare-api-token')
                 CLOUDFLARE_ACCOUNT_ID = credentials('cloudflare-account-id')
+                DOPPLER_TOKEN = credentials('doppler-service-token')
             }
             steps {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
