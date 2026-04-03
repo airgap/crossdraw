@@ -14,12 +14,22 @@
 // Exits 0 if the final round passes, 1 otherwise.
 
 const args = process.argv.slice(2)
-const positional = args.filter((a) => !a.startsWith('--'))
-const baseUrl = positional[0] || undefined
 const once = args.includes('--once')
 const interval = Number(args[args.indexOf('--interval') + 1]) || 30
 const duration = Number(args[args.indexOf('--duration') + 1]) || 600
 const apiUrl = args.includes('--api-url') ? args[args.indexOf('--api-url') + 1] : undefined
+
+// Collect positional args (skip values that follow --flag options)
+const flagsWithValues = new Set(['--api-url', '--interval', '--duration'])
+const positional: string[] = []
+for (let i = 0; i < args.length; i++) {
+  if (args[i].startsWith('--')) {
+    if (flagsWithValues.has(args[i])) i++ // skip the value
+  } else {
+    positional.push(args[i])
+  }
+}
+const baseUrl = positional[0] || undefined
 
 if (!baseUrl && !apiUrl) {
   console.error('Usage: bun scripts/canary.ts [<url>] [--api-url <url>] [--interval 30] [--duration 600] [--once]')
