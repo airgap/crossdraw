@@ -15,14 +15,14 @@
 
 const args = process.argv.slice(2)
 const positional = args.filter((a) => !a.startsWith('--'))
-const baseUrl = positional[0]
+const baseUrl = positional[0] || undefined
 const once = args.includes('--once')
 const interval = Number(args[args.indexOf('--interval') + 1]) || 30
 const duration = Number(args[args.indexOf('--duration') + 1]) || 600
 const apiUrl = args.includes('--api-url') ? args[args.indexOf('--api-url') + 1] : undefined
 
-if (!baseUrl) {
-  console.error('Usage: bun scripts/canary.ts <url> [--api-url <url>] [--interval 30] [--duration 600] [--once]')
+if (!baseUrl && !apiUrl) {
+  console.error('Usage: bun scripts/canary.ts [<url>] [--api-url <url>] [--interval 30] [--duration 600] [--once]')
   process.exit(1)
 }
 
@@ -52,34 +52,36 @@ async function checkHealth(name: string, url: string): Promise<CheckResult> {
   })
 }
 
-async function runChecks(url: string, api?: string): Promise<CheckResult[]> {
+async function runChecks(url: string | undefined, api?: string): Promise<CheckResult[]> {
   const results: CheckResult[] = []
 
-  // 1. Page load
-  results.push(
-    await check('page-load', async () => {
-      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-      if (res.status !== 200) throw new Error(`status ${res.status}`)
-      const body = await res.text()
-      if (!body.includes('<html')) throw new Error('response is not HTML')
-    }),
-  )
+  if (url) {
+    // 1. Page load
+    results.push(
+      await check('page-load', async () => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+        if (res.status !== 200) throw new Error(`status ${res.status}`)
+        const body = await res.text()
+        if (!body.includes('<html')) throw new Error('response is not HTML')
+      }),
+    )
 
-  // 2. Worker health endpoint
-  results.push(await checkHealth('worker-health', url))
+    // 2. Worker health endpoint
+    results.push(await checkHealth('worker-health', url))
 
-  // 3. Static asset — extract first script src from HTML and fetch it
-  results.push(
-    await check('static-asset', async () => {
-      const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
-      const html = await res.text()
-      const match = html.match(/src="(\/assets\/[^"]+)"/)
-      if (!match) throw new Error('no asset reference found in HTML')
-      const assetRes = await fetch(`${url}${match[1]}`, { signal: AbortSignal.timeout(10_000) })
-      if (assetRes.status !== 200) throw new Error(`asset status ${assetRes.status}`)
-      await assetRes.arrayBuffer()
-    }),
-  )
+    // 3. Static asset — extract first script src from HTML and fetch it
+    results.push(
+      await check('static-asset', async () => {
+        const res = await fetch(url, { signal: AbortSignal.timeout(10_000) })
+        const html = await res.text()
+        const match = html.match(/src="(\/assets\/[^"]+)"/)
+        if (!match) throw new Error('no asset reference found in HTML')
+        const assetRes = await fetch(`${url}${match[1]}`, { signal: AbortSignal.timeout(10_000) })
+        if (assetRes.status !== 200) throw new Error(`asset status ${assetRes.status}`)
+        await assetRes.arrayBuffer()
+      }),
+    )
+  }
 
   // 4. API health (if provided)
   if (api) {
@@ -111,12 +113,12 @@ function allPassed(results: CheckResult[]): boolean {
 
 // Main
 async function main() {
-  console.log(`Canary: ${baseUrl}`)
+  if (baseUrl) console.log(`Canary: ${baseUrl}`)
   if (apiUrl) console.log(`API:    ${apiUrl}`)
   console.log(`Mode:   ${once ? 'single check' : `${duration}s bake, ${interval}s interval`}`)
 
   if (once) {
-    const results = await runChecks(baseUrl!, apiUrl)
+    const results = await runChecks(baseUrl, apiUrl)
     printRound(1, null, results)
     process.exit(allPassed(results) ? 0 : 1)
   }
@@ -128,7 +130,7 @@ async function main() {
 
   while (Date.now() - startTime < duration * 1000) {
     round++
-    const results = await runChecks(baseUrl!, apiUrl)
+    const results = await runChecks(baseUrl, apiUrl)
     printRound(round, totalRounds, results)
     lastPassed = allPassed(results)
 
@@ -143,7 +145,7 @@ async function main() {
 
   // Final round
   round++
-  const finalResults = await runChecks(baseUrl!, apiUrl)
+  const finalResults = await runChecks(baseUrl, apiUrl)
   printRound(round, totalRounds, finalResults)
   lastPassed = allPassed(finalResults)
 

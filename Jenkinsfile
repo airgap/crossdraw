@@ -275,11 +275,13 @@ pipeline {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                 unstash 'web-dist'
 
-                // Canary checks against beta (Worker + API) for 10 minutes
-                echo 'Running canary checks against beta...'
+                // Canary checks against beta API for 10 minutes
+                // Worker endpoints are behind Cloudflare proxy (JS challenge blocks non-browser clients)
+                // Worker deployment is verified by wrangler deploy exit code above
+                echo 'Running canary checks against beta API...'
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
-                    bun scripts/canary.ts https://beta.crossdraw.app \
+                    bun scripts/canary.ts \
                         --api-url https://beta-api.crossdraw.app \
                         --interval 30 --duration 600
                 '''
@@ -306,11 +308,11 @@ pipeline {
                     rm -f /tmp/kubeconfig
                 '''
 
-                // Smoke test production (Worker + API)
-                echo 'Running smoke test against production...'
+                // Smoke test production API
+                echo 'Running smoke test against production API...'
                 sh '''
                     export PATH=$HOME/.bun/bin:$PATH
-                    bun scripts/canary.ts https://crossdraw.app \
+                    bun scripts/canary.ts \
                         --api-url https://api.crossdraw.app \
                         --once
                 '''
