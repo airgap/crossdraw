@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
+import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { EmptyState } from '@/ui/empty-state'
 import type { Layer, GroupLayer } from '@/types'
 import {
@@ -307,6 +308,22 @@ function LayerRow({
         onDrop={(e) => onDrop(visualIndex, e)}
         onClick={(e) => {
           if (!isEditing) selectLayer(layer.id, e.shiftKey)
+        }}
+        onDoubleClick={() => {
+          if (layer.type === 'filter' || layer.type === 'adjustment') {
+            selectLayer(layer.id)
+            const store = usePanelLayoutStore.getState()
+            store.focusTab('properties')
+            // Uncollapse the group containing the properties tab
+            for (const col of [store.rightColumn, store.leftColumn]) {
+              if (!col) continue
+              for (const g of col.groups) {
+                if (g.tabs.includes('properties') && store.collapsedGroups[g.id]) {
+                  store.setGroupCollapsed(g.id, false)
+                }
+              }
+            }
+          }
         }}
         onContextMenu={(e) => onContextMenu(layer, artboardId, e)}
         onMouseEnter={(e) => {
