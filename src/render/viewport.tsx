@@ -2896,7 +2896,7 @@ export function Viewport() {
     // Eyedropper hover tracking for loupe
     if (activeTool === 'eyedropper') {
       eyedropperHover.current = { x: e.clientX, y: e.clientY }
-      render()
+      scheduleRender()
     }
   }
 
