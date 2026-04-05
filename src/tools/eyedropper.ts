@@ -1,4 +1,5 @@
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
+import { setBrushSettings } from '@/tools/brush'
 
 /**
  * Eyedropper tool: sample a pixel color from the viewport canvas.
@@ -61,16 +62,15 @@ export function sampleColor(
  * Default: fill. Shift: stroke.
  */
 export function applyColorToSelection(hex: string, opacity: number, shiftKey: boolean) {
+  // Always update the foreground (brush) color so the color picker syncs
+  setBrushSettings({ color: hex, opacity })
+
   const store = useEditorStore.getState()
   const artboard = getActiveArtboard()
   if (!artboard) return
 
   const selectedId = store.selection.layerIds[0]
-  if (!selectedId) {
-    // No selection — copy to clipboard
-    navigator.clipboard.writeText(hex).catch(() => {})
-    return
-  }
+  if (!selectedId) return
 
   const layer = artboard.layers.find((l) => l.id === selectedId)
   if (!layer) return
