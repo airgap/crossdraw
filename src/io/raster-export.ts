@@ -1,11 +1,21 @@
 import { segmentsToPath2D } from '@/math/path'
 import { getRasterCanvas } from '@/store/raster-data'
 import { applyAdjustment } from '@/effects/adjustments'
+import { applyFilterLayerToCanvas } from '@/effects/filter-layer'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
 import { renderMeshGradient } from '@/render/mesh-gradient'
 import { encodeGIF } from '@/io/gif-encoder'
 import { encodeTIFF } from '@/io/tiff-encoder'
-import type { DesignDocument, Layer, VectorLayer, RasterLayer, GroupLayer, AdjustmentLayer, TextLayer } from '@/types'
+import type {
+  DesignDocument,
+  Layer,
+  VectorLayer,
+  RasterLayer,
+  GroupLayer,
+  AdjustmentLayer,
+  FilterLayer,
+  TextLayer,
+} from '@/types'
 
 export type ExportFormat = 'png' | 'jpeg' | 'webp' | 'gif' | 'tiff'
 
@@ -33,17 +43,19 @@ export async function exportArtboardToBlob(
   ctx.fillStyle = artboard.backgroundColor
   ctx.fillRect(0, 0, artboard.width, artboard.height)
 
-  // Check for adjustment layers
-  const hasAdjustments = artboard.layers.some((l) => l.type === 'adjustment' && l.visible)
+  // Check for adjustment or filter layers that need pixel-level processing
+  const hasPixelLayers = artboard.layers.some((l) => (l.type === 'adjustment' || l.type === 'filter') && l.visible)
 
-  if (hasAdjustments) {
-    // Render with pixel-level adjustments
+  if (hasPixelLayers) {
+    // Render with pixel-level adjustments/filters
     for (const layer of artboard.layers) {
       if (!layer.visible) continue
       if (layer.type === 'adjustment') {
         const imageData = ctx.getImageData(0, 0, artboard.width * scale, artboard.height * scale)
         applyAdjustment(imageData, layer as AdjustmentLayer)
         ctx.putImageData(imageData, 0, 0)
+      } else if (layer.type === 'filter') {
+        applyFilterLayerToCanvas(ctx, layer as FilterLayer, artboard.width * scale, artboard.height * scale)
       } else {
         renderLayerWithMask(ctx, layer, artboard.width, artboard.height)
       }
@@ -91,7 +103,7 @@ function renderLayerWithMask(
   artboardH: number,
 ) {
   if (!layer.visible) return
-  if (layer.type === 'adjustment') return
+  if (layer.type === 'adjustment' || layer.type === 'filter') return
 
   if (layer.mask && layer.mask.type === 'vector') {
     const temp = new OffscreenCanvas(artboardW, artboardH)
@@ -265,8 +277,33 @@ function renderRasterLayer(ctx: OffscreenCanvasRenderingContext2D, layer: Raster
 }
 
 function renderGroupLayer(ctx: OffscreenCanvasRenderingContext2D, group: GroupLayer) {
-  for (const child of group.children) {
-    renderLayer(ctx, child)
+  const hasGroupFilters = group.children.some((c) => (c.type === 'adjustment' || c.type === 'filter') && c.visible)
+
+  if (hasGroupFilters) {
+    // Need offscreen compositing for pixel-level operations within the group
+    const w = ctx.canvas.width
+    const h = ctx.canvas.height
+    const offscreen = new OffscreenCanvas(w, h)
+    const offCtx = offscreen.getContext('2d')!
+
+    for (const child of group.children) {
+      if (!child.visible) continue
+      if (child.type === 'adjustment') {
+        const imageData = offCtx.getImageData(0, 0, w, h)
+        applyAdjustment(imageData, child as AdjustmentLayer)
+        offCtx.putImageData(imageData, 0, 0)
+      } else if (child.type === 'filter') {
+        applyFilterLayerToCanvas(offCtx, child as FilterLayer, w, h)
+      } else {
+        renderLayer(offCtx, child)
+      }
+    }
+
+    ctx.drawImage(offscreen, 0, 0)
+  } else {
+    for (const child of group.children) {
+      renderLayer(ctx, child)
+    }
   }
 }
 

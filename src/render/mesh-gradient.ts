@@ -1,5 +1,13 @@
 import type { MeshGradientData } from '@/types'
 
+// Cache mesh gradient renders. The key encodes all point colors/opacities + grid size.
+const meshCache = new Map<string, OffscreenCanvas>()
+const MAX_MESH_CACHE = 16
+
+function meshCacheKey(mesh: MeshGradientData): string {
+  return `${mesh.rows}|${mesh.cols}|${mesh.points.map((p) => `${p.color}:${p.opacity}`).join(',')}`
+}
+
 /**
  * Render a mesh gradient into the given canvas context, clipped to `bounds`.
  *
@@ -15,6 +23,14 @@ export function renderMeshGradient(
 ): void {
   const { rows, cols, points } = mesh
   if (rows < 2 || cols < 2 || points.length < rows * cols) return
+
+  // Check cache first
+  const key = meshCacheKey(mesh)
+  const cached = meshCache.get(key)
+  if (cached) {
+    ctx.drawImage(cached, bounds.x, bounds.y, bounds.width, bounds.height)
+    return
+  }
 
   // Resolution per cell (pixels).  64 gives smooth results without being
   // too expensive for typical 2-4 row/col meshes.
@@ -73,6 +89,13 @@ export function renderMeshGradient(
   }
 
   offCtx.putImageData(imageData, 0, 0)
+
+  // Store in cache
+  if (meshCache.size >= MAX_MESH_CACHE) {
+    const oldest = meshCache.keys().next().value!
+    meshCache.delete(oldest)
+  }
+  meshCache.set(key, offscreen)
 
   // Draw the offscreen canvas into the main context, mapped to bounds
   ctx.drawImage(offscreen, bounds.x, bounds.y, bounds.width, bounds.height)

@@ -1,7 +1,47 @@
+import { getFilterGPU } from '@/effects/filter-gpu'
 import type { AdjustmentLayer, LevelsParams, CurvesParams, HueSatParams, ColorBalanceParams } from '@/types'
 
 /**
- * Apply an adjustment layer's effect to pixel data in-place.
+ * Apply an adjustment layer directly to an OffscreenCanvas context.
+ * Uses GPU acceleration when available, avoiding the getImageData/putImageData
+ * round-trip entirely. Call sites should use this instead of extracting ImageData
+ * manually + calling applyAdjustment().
+ */
+export function applyAdjustmentToCanvas(
+  ctx: OffscreenCanvasRenderingContext2D,
+  layer: AdjustmentLayer,
+  width: number,
+  height: number,
+): boolean {
+  if (!layer.visible) return true
+  const gpu = getFilterGPU()
+  if (!gpu) return false
+
+  const source = ctx.canvas
+  let result: OffscreenCanvas
+  switch (layer.adjustmentType) {
+    case 'levels':
+      result = gpu.applyLevels(source, layer.params as LevelsParams)
+      break
+    case 'curves':
+      result = gpu.applyCurves(source, layer.params as CurvesParams)
+      break
+    case 'hue-sat':
+      result = gpu.applyHueSat(source, layer.params as HueSatParams)
+      break
+    case 'color-balance':
+      result = gpu.applyColorBalance(source, layer.params as ColorBalanceParams)
+      break
+    default:
+      return false
+  }
+  ctx.clearRect(0, 0, width, height)
+  ctx.drawImage(result, 0, 0)
+  return true
+}
+
+/**
+ * Apply an adjustment layer's effect to pixel data in-place (CPU fallback).
  */
 export function applyAdjustment(imageData: ImageData, layer: AdjustmentLayer) {
   if (!layer.visible) return

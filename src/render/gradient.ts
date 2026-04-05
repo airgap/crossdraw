@@ -1,5 +1,14 @@
 import type { Gradient, GradientStop } from '@/types'
 
+// Cache box gradient renders by a key derived from gradient params + dimensions.
+// Invalidated when any param changes; avoids per-pixel recomputation every frame.
+const boxGradientCache = new Map<string, { canvas: OffscreenCanvas; key: string }>()
+const MAX_GRADIENT_CACHE = 32
+
+function boxGradientKey(grad: Gradient, w: number, h: number): string {
+  return `${w}|${h}|${grad.x}|${grad.y}|${grad.radius ?? 0.5}|${grad.stops.map((s) => `${s.offset}:${s.color}:${s.opacity}`).join(',')}`
+}
+
 /**
  * Create a Canvas 2D gradient from our Gradient type.
  * For linear/radial/conical, uses native CanvasGradient.
@@ -90,6 +99,10 @@ export function renderBoxGradient(
   width: number,
   height: number,
 ): OffscreenCanvas {
+  const key = boxGradientKey(grad, width, height)
+  const cached = boxGradientCache.get(key)
+  if (cached) return cached.canvas
+
   const canvas = new OffscreenCanvas(width, height)
   const offCtx = canvas.getContext('2d')!
   const imageData = offCtx.createImageData(width, height)
@@ -123,6 +136,14 @@ export function renderBoxGradient(
   }
 
   offCtx.putImageData(imageData, 0, 0)
+
+  // Evict oldest entry if cache is full
+  if (boxGradientCache.size >= MAX_GRADIENT_CACHE) {
+    const oldest = boxGradientCache.keys().next().value!
+    boxGradientCache.delete(oldest)
+  }
+  boxGradientCache.set(key, { canvas, key })
+
   return canvas
 }
 

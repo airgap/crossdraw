@@ -8,8 +8,9 @@ import { spatialIndex } from '@/math/hit-test'
 import { getLayerBBox } from '@/math/bbox'
 import { getRasterCanvas, getRasterData } from '@/store/raster-data'
 import { applyEffects, hasActiveEffects } from '@/effects/render-effects'
-import { computeRangeMask, applyRangeMask } from '@/effects/range-masks'
-import { applyAdjustment } from '@/effects/adjustments'
+import { applyFilterLayerToCanvas } from '@/effects/filter-layer'
+import { applyAdjustment, applyAdjustmentToCanvas } from '@/effects/adjustments'
+import { acquireCanvas, releaseCanvas } from '@/render/canvas-pool'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
 import { renderMeshGradient } from '@/render/mesh-gradient'
 import { createNoisePattern } from '@/render/noise-fill'
@@ -182,11 +183,6 @@ import type {
   DesignDocument,
   Fill,
   Interaction,
-  LevelsParams,
-  CurvesParams,
-  HueSatParams,
-  ColorBalanceParams,
-  Effect,
   BlendMode,
   FillLayer,
   CloneLayer,
@@ -1328,21 +1324,31 @@ export function Viewport() {
     collabPresences,
   ])
 
-  useEffect(() => {
-    render()
+  // Gate renders through rAF so at most one runs per display frame.
+  // This prevents slider drags (which fire 60+ input events/sec) from
+  // queueing redundant synchronous canvas redraws.
+  const rafId = useRef(0)
+  const scheduleRender = useCallback(() => {
+    cancelAnimationFrame(rafId.current)
+    rafId.current = requestAnimationFrame(render)
   }, [render])
+
+  useEffect(() => {
+    scheduleRender()
+    return () => cancelAnimationFrame(rafId.current)
+  }, [scheduleRender])
 
   useEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
-    const observer = new ResizeObserver(() => render())
+    const observer = new ResizeObserver(() => scheduleRender())
     observer.observe(canvas)
     return () => observer.disconnect()
-  }, [render])
+  }, [scheduleRender])
 
   // Set up text edit render callback
   useEffect(() => {
-    setTextEditRenderCallback(render)
+    setTextEditRenderCallback(scheduleRender)
     return () => setTextEditRenderCallback(() => {})
   }, [render])
 
@@ -3483,8 +3489,9 @@ function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
   if (isCustomBlendMode(effectiveLayer.blendMode as BlendMode)) {
     const w = ctx.canvas.width
     const h = ctx.canvas.height
-    const offscreen = new OffscreenCanvas(w, h)
+    const offscreen = acquireCanvas(w, h)
     const offCtx = offscreen.getContext('2d')!
+    offCtx.clearRect(0, 0, w, h)
 
     // Render the layer with normal compositing onto the offscreen canvas
     offCtx.save()
@@ -3522,6 +3529,7 @@ function renderLayer(ctx: CanvasRenderingContext2D, layer: Layer) {
     const blendData = offCtx.getImageData(0, 0, w, h)
     compositeImageData(baseData, blendData, effectiveLayer.blendMode as BlendMode, effectiveLayer.opacity)
     ctx.putImageData(baseData, 0, 0)
+    releaseCanvas(offscreen)
   } else {
     ctx.save()
     ctx.globalCompositeOperation = blendModeToComposite(effectiveLayer.blendMode)
@@ -3604,6 +3612,39 @@ function applyTransform(
   }
 }
 
+// Character width cache: avoids repeated measureText() calls per frame.
+// Keyed by "font|char". Cleared when it grows too large (font changes, etc.).
+const charWidthCache = new Map<string, number>()
+const MAX_CHAR_CACHE = 4096
+
+function measureChar(ctx: CanvasRenderingContext2D, ch: string): number {
+  const key = ctx.font + '|' + ch
+  const cached = charWidthCache.get(key)
+  if (cached !== undefined) return cached
+  const w = ctx.measureText(ch).width
+  if (charWidthCache.size >= MAX_CHAR_CACHE) charWidthCache.clear()
+  charWidthCache.set(key, w)
+  return w
+}
+
+function measureString(ctx: CanvasRenderingContext2D, str: string, letterSpacing: number): number {
+  if (letterSpacing === 0) {
+    // For zero letter spacing, measure the whole string at once (faster, uses kerning)
+    const key = ctx.font + '|' + str
+    const cached = charWidthCache.get(key)
+    if (cached !== undefined) return cached
+    const w = ctx.measureText(str).width
+    if (charWidthCache.size >= MAX_CHAR_CACHE) charWidthCache.clear()
+    charWidthCache.set(key, w)
+    return w
+  }
+  let width = 0
+  for (const ch of str) {
+    width += measureChar(ctx, ch) + letterSpacing
+  }
+  return width - letterSpacing // no extra spacing after last char
+}
+
 /**
  * Word-wrap text to fit within a given width.
  * Splits on spaces and explicit newlines.
@@ -3622,16 +3663,7 @@ function wrapTextLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: nu
     for (let i = 0; i < words.length; i++) {
       const word = words[i]!
       const testLine = currentLine ? currentLine + ' ' + word : word
-      let testWidth: number
-      if (letterSpacing === 0) {
-        testWidth = ctx.measureText(testLine).width
-      } else {
-        testWidth = 0
-        for (const ch of testLine) {
-          testWidth += ctx.measureText(ch).width + letterSpacing
-        }
-        testWidth -= letterSpacing // no extra spacing after last char
-      }
+      const testWidth = measureString(ctx, testLine, letterSpacing)
       if (testWidth > maxWidth && currentLine !== '') {
         wrapped.push(currentLine)
         currentLine = word
@@ -3681,7 +3713,7 @@ const OPTICAL_MARGIN_CHARS: Record<string, number> = {
 function getOpticalMarginOffset(ctx: CanvasRenderingContext2D, ch: string, _position: 'start' | 'end'): number {
   const factor = OPTICAL_MARGIN_CHARS[ch]
   if (factor == null) return 0
-  return ctx.measureText(ch).width * factor
+  return measureChar(ctx, ch) * factor
 }
 
 function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
@@ -3763,7 +3795,7 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
         let x = 0
         for (const ch of lines[i]!) {
           ctx.fillText(ch, x, y)
-          x += ctx.measureText(ch).width + letterSp
+          x += measureChar(ctx, ch) + letterSp
         }
       }
     }
@@ -3801,7 +3833,7 @@ function renderHorizontalLine(
     let x = xOffset
     for (const ch of line) {
       ctx.fillText(ch, x, y)
-      x += ctx.measureText(ch).width + letterSp
+      x += measureChar(ctx, ch) + letterSp
     }
   }
 }
@@ -3854,7 +3886,7 @@ function renderVerticalText(
 
       if (isCJKChar(ch)) {
         // CJK: render upright, centered in column
-        const charW = ctx.measureText(ch).width
+        const charW = measureChar(ctx, ch)
         ctx.fillText(ch, colX + (columnWidth - charW) / 2, cy)
       } else {
         // Latin: rotate 90 degrees clockwise
@@ -4135,16 +4167,19 @@ function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
     // We need a bounding size; use the parent canvas dimensions
     const w = ctx.canvas.width
     const h = ctx.canvas.height
-    const offscreen = new OffscreenCanvas(w, h)
+    const offscreen = acquireCanvas(w, h)
     const offCtx = offscreen.getContext('2d')!
+    offCtx.clearRect(0, 0, w, h)
 
     for (const child of group.children) {
       if (!child.visible) continue
 
       if (child.type === 'adjustment') {
-        const imageData = offCtx.getImageData(0, 0, w, h)
-        applyAdjustment(imageData, child as AdjustmentLayer)
-        offCtx.putImageData(imageData, 0, 0)
+        if (!applyAdjustmentToCanvas(offCtx, child as AdjustmentLayer, w, h)) {
+          const imageData = offCtx.getImageData(0, 0, w, h)
+          applyAdjustment(imageData, child as AdjustmentLayer)
+          offCtx.putImageData(imageData, 0, 0)
+        }
       } else if (child.type === 'filter') {
         applyFilterLayerToCanvas(offCtx, child as FilterLayer, w, h)
       } else {
@@ -4153,6 +4188,7 @@ function renderGroupLayer(ctx: CanvasRenderingContext2D, group: GroupLayer) {
     }
 
     ctx.drawImage(offscreen, 0, 0)
+    releaseCanvas(offscreen)
     ctx.restore()
   } else {
     ctx.save()
@@ -4301,10 +4337,12 @@ function renderLayerWithEffects(
   if (layer.type === 'filter') return // handled separately (modifies composite)
 
   if (hasActiveEffects(layer.effects ?? [])) {
-    const temp = new OffscreenCanvas(artboardWidth, artboardHeight)
+    const temp = acquireCanvas(artboardWidth, artboardHeight)
     const tempCtx = temp.getContext('2d')!
+    tempCtx.clearRect(0, 0, artboardWidth, artboardHeight)
     renderLayerContent(tempCtx, layer)
     const result = applyEffects(temp, layer.effects ?? [])
+    releaseCanvas(temp)
 
     if (isCustomBlendMode(layer.blendMode as BlendMode)) {
       const resCanvas = result instanceof OffscreenCanvas ? result : (result as unknown as OffscreenCanvas)
@@ -4325,13 +4363,15 @@ function renderLayerWithEffects(
     }
   } else if (layer.mask && layer.maskType === 'alpha') {
     // Alpha / luminance mask: use the brightness of the mask layer as alpha
-    const maskCanvas = new OffscreenCanvas(artboardWidth, artboardHeight)
+    const maskCanvas = acquireCanvas(artboardWidth, artboardHeight)
     const maskCtx = maskCanvas.getContext('2d')!
+    maskCtx.clearRect(0, 0, artboardWidth, artboardHeight)
     renderLayerContent(maskCtx, layer.mask)
 
     // Render the actual layer content
-    const contentCanvas = new OffscreenCanvas(artboardWidth, artboardHeight)
+    const contentCanvas = acquireCanvas(artboardWidth, artboardHeight)
     const contentCtx = contentCanvas.getContext('2d')!
+    contentCtx.clearRect(0, 0, artboardWidth, artboardHeight)
     renderLayerContent(contentCtx, layer)
 
     // Apply luminance of mask as alpha to content
@@ -4361,6 +4401,8 @@ function renderLayerWithEffects(
       ctx.globalCompositeOperation = 'source-over'
       ctx.restore()
     }
+    releaseCanvas(maskCanvas)
+    releaseCanvas(contentCanvas)
   } else if (layer.mask && layer.mask.type === 'vector') {
     // Render with vector mask (clip path)
     ctx.save()
@@ -4380,8 +4422,9 @@ function renderLayerWithEffects(
     // We need to re-derive the context state — simpler to use temp canvas
     ctx.restore()
     // Fallback: render to temp with clip
-    const temp = new OffscreenCanvas(artboardWidth, artboardHeight)
+    const temp = acquireCanvas(artboardWidth, artboardHeight)
     const tempCtx = temp.getContext('2d')!
+    tempCtx.clearRect(0, 0, artboardWidth, artboardHeight)
     // Set up clip on temp
     tempCtx.save()
     tempCtx.translate(maskT.x, maskT.y)
@@ -4407,6 +4450,7 @@ function renderLayerWithEffects(
       ctx.globalCompositeOperation = 'source-over'
       ctx.restore()
     }
+    releaseCanvas(temp)
   } else {
     renderLayer(ctx, layer)
   }
@@ -4612,9 +4656,11 @@ function renderInfiniteArtboard(ctx: CanvasRenderingContext2D, artboard: Artboar
     for (const layer of effectiveLayers) {
       if (!layer.visible) continue
       if (layer.type === 'adjustment') {
-        const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height)
-        applyAdjustment(imageData, layer as AdjustmentLayer)
-        offCtx.putImageData(imageData, 0, 0)
+        if (!applyAdjustmentToCanvas(offCtx, layer as AdjustmentLayer, offscreen.width, offscreen.height)) {
+          const imageData = offCtx.getImageData(0, 0, offscreen.width, offscreen.height)
+          applyAdjustment(imageData, layer as AdjustmentLayer)
+          offCtx.putImageData(imageData, 0, 0)
+        }
       } else {
         renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, offscreen.width, offscreen.height)
       }
@@ -4715,173 +4761,6 @@ function renderArtboard(ctx: CanvasRenderingContext2D, artboard: Artboard, selec
 // ─── Filter layer application ─────────────────────────────────
 
 /** Determine whether FilterParams represent an adjustment-type filter (pixel-level color math). */
-function isAdjustmentFilter(kind: string): kind is 'levels' | 'curves' | 'hue-sat' | 'color-balance' {
-  return kind === 'levels' || kind === 'curves' || kind === 'hue-sat' || kind === 'color-balance'
-}
-
-/**
- * Apply a FilterLayer to the current state of an offscreen canvas context.
- * Adjustment-type filters (levels, curves, hue-sat, color-balance) modify
- * pixel data in-place. Effect-type filters route through the existing
- * applyEffects pipeline via a synthetic Effect object.
- */
-function applyFilterLayerToCanvas(
-  ctx: OffscreenCanvasRenderingContext2D,
-  layer: FilterLayer,
-  width: number,
-  height: number,
-) {
-  const params = layer.filterParams
-  const kind = params.kind
-
-  // If a range mask is configured, snapshot original pixels before applying the filter
-  const hasRangeMask = !!layer.rangeMask
-  let originalImageData: ImageData | undefined
-  if (hasRangeMask) {
-    originalImageData = ctx.getImageData(0, 0, width, height)
-  }
-
-  if (kind && isAdjustmentFilter(kind)) {
-    // Adjustment-type: apply directly to pixel data
-    const imageData = ctx.getImageData(0, 0, width, height)
-    const d = imageData.data
-    switch (kind) {
-      case 'levels': {
-        const p = params as LevelsParams
-        const range = p.whitePoint - p.blackPoint
-        if (range > 0) {
-          const invGamma = 1 / Math.max(0.01, p.gamma)
-          for (let i = 0; i < d.length; i += 4) {
-            for (let c = 0; c < 3; c++) {
-              let v = (d[i + c]! - p.blackPoint) / range
-              v = Math.max(0, Math.min(1, v))
-              v = Math.pow(v, invGamma)
-              d[i + c] = Math.round(v * 255)
-            }
-          }
-        }
-        break
-      }
-      case 'curves': {
-        const p = params as CurvesParams
-        // Build LUT from control points via linear interpolation
-        const sorted = [...p.points].sort((a, b) => a[0] - b[0])
-        if (sorted.length > 0) {
-          if (sorted[0]![0] > 0) sorted.unshift([0, 0])
-          if (sorted[sorted.length - 1]![0] < 255) sorted.push([255, 255])
-          const lut = new Uint8Array(256)
-          let seg = 0
-          for (let i = 0; i < 256; i++) {
-            while (seg < sorted.length - 2 && sorted[seg + 1]![0] < i) seg++
-            const [x0, y0] = sorted[seg]!
-            const [x1, y1] = sorted[seg + 1]!
-            const t = x1 === x0 ? 0 : (i - x0) / (x1 - x0)
-            lut[i] = Math.round(Math.max(0, Math.min(255, y0 + t * (y1 - y0))))
-          }
-          for (let i = 0; i < d.length; i += 4) {
-            d[i] = lut[d[i]!]!
-            d[i + 1] = lut[d[i + 1]!]!
-            d[i + 2] = lut[d[i + 2]!]!
-          }
-        }
-        break
-      }
-      case 'hue-sat': {
-        const p = params as HueSatParams
-        for (let i = 0; i < d.length; i += 4) {
-          const r = d[i]! / 255,
-            g = d[i + 1]! / 255,
-            b = d[i + 2]! / 255
-          const max = Math.max(r, g, b),
-            min = Math.min(r, g, b)
-          let h = 0,
-            s = 0
-          const l = (max + min) / 2
-          if (max !== min) {
-            const dd = max - min
-            s = l > 0.5 ? dd / (2 - max - min) : dd / (max + min)
-            if (max === r) h = ((g - b) / dd + (g < b ? 6 : 0)) / 6
-            else if (max === g) h = ((b - r) / dd + 2) / 6
-            else h = ((r - g) / dd + 4) / 6
-          }
-          const nh = (h + p.hue / 360 + 1) % 1
-          const ns = Math.max(0, Math.min(1, s + p.saturation / 100))
-          const nl = Math.max(0, Math.min(1, l + p.lightness / 100))
-          if (ns === 0) {
-            const v = Math.round(nl * 255)
-            d[i] = v
-            d[i + 1] = v
-            d[i + 2] = v
-          } else {
-            const q = nl < 0.5 ? nl * (1 + ns) : nl + ns - nl * ns
-            const pp = 2 * nl - q
-            const hue2rgb = (t: number) => {
-              if (t < 0) t += 1
-              if (t > 1) t -= 1
-              if (t < 1 / 6) return pp + (q - pp) * 6 * t
-              if (t < 1 / 2) return q
-              if (t < 2 / 3) return pp + (q - pp) * (2 / 3 - t) * 6
-              return pp
-            }
-            d[i] = Math.round(hue2rgb(nh + 1 / 3) * 255)
-            d[i + 1] = Math.round(hue2rgb(nh) * 255)
-            d[i + 2] = Math.round(hue2rgb(nh - 1 / 3) * 255)
-          }
-        }
-        break
-      }
-      case 'color-balance': {
-        const p = params as ColorBalanceParams
-        for (let i = 0; i < d.length; i += 4) {
-          const lum = (d[i]! * 0.299 + d[i + 1]! * 0.587 + d[i + 2]! * 0.114) / 255
-          const shadowW = Math.max(0, 1 - lum * 3)
-          const highlightW = Math.max(0, lum * 3 - 2)
-          const midW = 1 - shadowW - highlightW
-          const shift = p.shadows * shadowW + p.midtones * midW + p.highlights * highlightW
-          d[i] = Math.max(0, Math.min(255, d[i]! + shift))
-          d[i + 1] = Math.max(0, Math.min(255, d[i + 1]! - shift * 0.5))
-          d[i + 2] = Math.max(0, Math.min(255, d[i + 2]! - shift * 0.5))
-        }
-        break
-      }
-    }
-
-    // Apply range mask blending if configured
-    if (hasRangeMask && originalImageData) {
-      const mask = computeRangeMask(originalImageData, layer.rangeMask!)
-      const blended = applyRangeMask(originalImageData, imageData, mask)
-      ctx.putImageData(blended, 0, 0)
-    } else {
-      ctx.putImageData(imageData, 0, 0)
-    }
-  } else if (kind) {
-    // Effect-type filter: route through applyEffects with a synthetic Effect
-    const syntheticEffect: Effect = {
-      id: layer.id,
-      type: kind as Effect['type'],
-      enabled: true,
-      opacity: layer.opacity,
-      params: params as Effect['params'],
-    }
-    // Snapshot current canvas into an OffscreenCanvas
-    const snapshot = new OffscreenCanvas(width, height)
-    snapshot.getContext('2d')!.drawImage(ctx.canvas, 0, 0)
-    const result = applyEffects(snapshot, [syntheticEffect])
-    // Clear and draw result back (result may be larger due to effect padding)
-    ctx.clearRect(0, 0, width, height)
-    const dx = (result.width - width) / 2
-    const dy = (result.height - height) / 2
-    ctx.drawImage(result, -dx, -dy)
-
-    // Apply range mask blending if configured
-    if (hasRangeMask && originalImageData) {
-      const filteredImageData = ctx.getImageData(0, 0, width, height)
-      const mask = computeRangeMask(originalImageData, layer.rangeMask!)
-      const blended = applyRangeMask(originalImageData, filteredImageData, mask)
-      ctx.putImageData(blended, 0, 0)
-    }
-  }
-}
 
 // ─── 3D exploded view rendering ──────────────────────────────
 
@@ -5062,6 +4941,22 @@ function renderArtboardDirect(
   ctx.restore()
 }
 
+// Cache for the pre-filter layer composite. When only filter/adjustment params
+// change (e.g. slider drags), the layers below are unchanged and we can skip
+// re-rendering them — just re-apply the filters on the cached bitmap.
+const preFilterCache = new Map<
+  string,
+  {
+    width: number
+    height: number
+    bgColor: string
+    // References to the content layers that were composited into the cache.
+    // If any reference changes, the cache is stale.
+    contentLayers: Layer[]
+    bitmap: ImageBitmap
+  }
+>()
+
 function renderArtboardWithAdjustments(
   ctx: CanvasRenderingContext2D,
   artboard: Artboard,
@@ -5070,31 +4965,85 @@ function renderArtboardWithAdjustments(
   height: number,
   selectedLayerIds: string[],
 ) {
-  // Render to offscreen canvas so we can apply pixel-level adjustments
-  const offscreen = new OffscreenCanvas(width, height)
+  // Split layers into content (rendered) and filter/adjustment (applied to pixels).
+  // Content layers are everything that isn't a filter or adjustment.
+  const contentLayers: Layer[] = []
+  const isFilterOrAdj = (l: Layer) => l.type === 'adjustment' || l.type === 'filter'
+
+  // We need to preserve order, so track the first filter index to know
+  // which content layers come before any filters (and thus can be cached).
+  let firstFilterIdx = -1
+  for (let i = 0; i < layers.length; i++) {
+    if (layers[i]!.visible && isFilterOrAdj(layers[i]!)) {
+      firstFilterIdx = i
+      break
+    }
+    if (layers[i]!.visible) contentLayers.push(layers[i]!)
+  }
+
+  // Try to reuse cached pre-filter composite
+  const cached = preFilterCache.get(artboard.id)
+  const cacheValid =
+    cached &&
+    cached.width === width &&
+    cached.height === height &&
+    cached.bgColor === artboard.backgroundColor &&
+    cached.contentLayers.length === contentLayers.length &&
+    cached.contentLayers.every((l, i) => l === contentLayers[i])
+
+  const offscreen = acquireCanvas(width, height)
   const offCtx = offscreen.getContext('2d')!
+  offCtx.clearRect(0, 0, width, height)
 
-  offCtx.fillStyle = artboard.backgroundColor
-  offCtx.fillRect(0, 0, width, height)
+  if (cacheValid) {
+    // Fast path: draw cached pre-filter bitmap, then only apply filters
+    offCtx.drawImage(cached.bitmap, 0, 0)
+  } else {
+    // Slow path: render all content layers up to the first filter
+    offCtx.fillStyle = artboard.backgroundColor
+    offCtx.fillRect(0, 0, width, height)
 
-  for (const layer of layers) {
-    if (!layer.visible) continue
-
-    if (layer.type === 'adjustment') {
-      // Apply adjustment to current pixel state
-      const imageData = offCtx.getImageData(0, 0, width, height)
-      applyAdjustment(imageData, layer as AdjustmentLayer)
-      offCtx.putImageData(imageData, 0, 0)
-    } else if (layer.type === 'filter') {
-      applyFilterLayerToCanvas(offCtx, layer as FilterLayer, width, height)
-    } else {
-      // Render layer using the offscreen context (cast is safe — same drawing API)
+    for (const layer of contentLayers) {
       renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, width, height)
+    }
+
+    // Cache the pre-filter composite for future frames
+    const bitmap = offscreen.transferToImageBitmap()
+    preFilterCache.set(artboard.id, {
+      width,
+      height,
+      bgColor: artboard.backgroundColor,
+      contentLayers: [...contentLayers],
+      bitmap,
+    })
+    // transferToImageBitmap clears the canvas, so draw the bitmap back
+    offCtx.drawImage(bitmap, 0, 0)
+  }
+
+  // Now apply all layers from firstFilterIdx onward (filters, adjustments,
+  // and any content layers interleaved after the first filter)
+  if (firstFilterIdx >= 0) {
+    for (let i = firstFilterIdx; i < layers.length; i++) {
+      const layer = layers[i]!
+      if (!layer.visible) continue
+
+      if (layer.type === 'adjustment') {
+        if (!applyAdjustmentToCanvas(offCtx, layer as AdjustmentLayer, width, height)) {
+          const imageData = offCtx.getImageData(0, 0, width, height)
+          applyAdjustment(imageData, layer as AdjustmentLayer)
+          offCtx.putImageData(imageData, 0, 0)
+        }
+      } else if (layer.type === 'filter') {
+        applyFilterLayerToCanvas(offCtx, layer as FilterLayer, width, height)
+      } else {
+        renderLayerWithEffects(offCtx as unknown as CanvasRenderingContext2D, layer, width, height)
+      }
     }
   }
 
   // Draw the composited result onto the main canvas
   ctx.drawImage(offscreen, artboard.x, artboard.y)
+  releaseCanvas(offscreen)
 
   // Selection outlines on main canvas (not affected by adjustments)
   ctx.save()
