@@ -424,7 +424,21 @@ function LayerRow({
           <span
             onDoubleClick={(e) => {
               e.stopPropagation()
-              setEditingLayerId(layer.id)
+              if (layer.type === 'filter' || layer.type === 'adjustment') {
+                selectLayer(layer.id)
+                const store = usePanelLayoutStore.getState()
+                store.focusTab('properties')
+                for (const col of [store.rightColumn, store.leftColumn]) {
+                  if (!col) continue
+                  for (const g of col.groups) {
+                    if (g.tabs.includes('properties') && store.collapsedGroups[g.id]) {
+                      store.setGroupCollapsed(g.id, false)
+                    }
+                  }
+                }
+              } else {
+                setEditingLayerId(layer.id)
+              }
             }}
             style={{
               flex: 1,
