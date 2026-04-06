@@ -258,6 +258,24 @@ export function PropertiesPanel() {
               />
             </div>
 
+            {/* Filter layer params — show first for filter layers */}
+            {selectedLayer.type === 'filter' && artboard && (
+              <FilterLayerSection
+                artboardId={artboard.id}
+                layer={selectedLayer as import('@/types').FilterLayer}
+                updateLayer={updateLayer}
+              />
+            )}
+
+            {/* Adjustment layer params — show first for adjustment layers */}
+            {selectedLayer.type === 'adjustment' && artboard && (
+              <AdjustmentSection
+                artboardId={artboard.id}
+                layer={selectedLayer as AdjustmentLayer}
+                updateLayer={updateLayer}
+              />
+            )}
+
             {/* Transform */}
             <div style={sectionStyle}>
               <div style={labelStyle}>Transform</div>
@@ -794,23 +812,6 @@ export function PropertiesPanel() {
             {/* Background Removal (raster only) */}
             {selectedLayer.type === 'raster' && artboard && <BackgroundRemovalSection />}
 
-            {/* Adjustment layer params */}
-            {selectedLayer.type === 'adjustment' && artboard && (
-              <AdjustmentSection
-                artboardId={artboard.id}
-                layer={selectedLayer as AdjustmentLayer}
-                updateLayer={updateLayer}
-              />
-            )}
-
-            {/* Filter layer params */}
-            {selectedLayer.type === 'filter' && artboard && (
-              <FilterLayerSection
-                artboardId={artboard.id}
-                layer={selectedLayer as import('@/types').FilterLayer}
-                updateLayer={updateLayer}
-              />
-            )}
 
             {/* Symbol instance component properties */}
             {selectedLayer.type === 'symbol-instance' && artboard && (
