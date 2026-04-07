@@ -812,7 +812,6 @@ export function PropertiesPanel() {
             {/* Background Removal (raster only) */}
             {selectedLayer.type === 'raster' && artboard && <BackgroundRemovalSection />}
 
-
             {/* Symbol instance component properties */}
             {selectedLayer.type === 'symbol-instance' && artboard && (
               <SymbolInstanceSection artboardId={artboard.id} layer={selectedLayer as SymbolInstanceLayer} />
