@@ -3721,8 +3721,11 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   applyTransform(ctx, layer.transform)
 
   const style = layer.fontStyle === 'italic' ? 'italic ' : ''
-  const weight = layer.fontWeight === 'bold' ? 'bold ' : ''
-  ctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
+  // Support numeric weights (e.g. '600') in addition to 'normal'/'bold'
+  const rawWeight = layer.fontWeight ?? 'normal'
+  const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
+  const family = layer.fontFamily.includes(' ') ? `"${layer.fontFamily}"` : layer.fontFamily
+  ctx.font = `${style}${weight}${layer.fontSize}px ${family}`
   ctx.fillStyle = layer.color
   ctx.textBaseline = 'top'
   ctx.textAlign = layer.textAlign ?? 'left'

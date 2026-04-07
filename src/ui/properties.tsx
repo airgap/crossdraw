@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
+import { FontPicker } from '@/ui/font-picker'
 import { ColorSwatch } from '@/ui/color-picker'
 import type {
   VectorLayer,
@@ -503,29 +504,22 @@ export function PropertiesPanel() {
                   value={selectedLayer.text}
                   onChange={(e) => updateLayer(artboard.id, selectedLayer.id, { text: e.target.value } as any)}
                 />
-                <div style={rowStyle}>
-                  <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Font</span>
-                  <select
-                    style={{ ...inputStyle, width: 'auto', flex: 1 }}
-                    value={selectedLayer.fontFamily}
-                    onChange={(e) => updateLayer(artboard.id, selectedLayer.id, { fontFamily: e.target.value } as any)}
-                  >
-                    {[
-                      'sans-serif',
-                      'serif',
-                      'monospace',
-                      'Arial',
-                      'Georgia',
-                      'Times New Roman',
-                      'Courier New',
-                      'Verdana',
-                    ].map((f) => (
-                      <option key={f} value={f}>
-                        {f}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <FontPicker
+                  value={selectedLayer.fontFamily}
+                  weight={
+                    selectedLayer.fontWeight === 'bold'
+                      ? 700
+                      : selectedLayer.fontWeight === 'normal'
+                        ? 400
+                        : Number(selectedLayer.fontWeight) || 400
+                  }
+                  onFamilyChange={(family) => updateLayer(artboard.id, selectedLayer.id, { fontFamily: family } as any)}
+                  onWeightChange={(w) =>
+                    updateLayer(artboard.id, selectedLayer.id, {
+                      fontWeight: w === 400 ? 'normal' : w === 700 ? 'bold' : String(w),
+                    } as any)
+                  }
+                />
                 <div style={rowStyle}>
                   <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Size</span>
                   <input
@@ -538,16 +532,6 @@ export function PropertiesPanel() {
                       updateLayer(artboard.id, selectedLayer.id, { fontSize: Number(e.target.value) } as any)
                     }
                   />
-                  <button
-                    style={{ ...btnStyle, fontSize: 9, fontWeight: selectedLayer.fontWeight === 'bold' ? 700 : 400 }}
-                    onClick={() =>
-                      updateLayer(artboard.id, selectedLayer.id, {
-                        fontWeight: selectedLayer.fontWeight === 'bold' ? 'normal' : 'bold',
-                      } as any)
-                    }
-                  >
-                    B
-                  </button>
                   <button
                     style={{
                       ...btnStyle,

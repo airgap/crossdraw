@@ -773,91 +773,45 @@ describe('font-picker boost', () => {
       expect(a).toBe(b)
     })
 
-    test('Segoe UI has weight 600', () => {
-      const segoe = getBuiltinFonts().find((f) => f.family === 'Segoe UI')
-      expect(segoe).toBeDefined()
-      expect(segoe!.weights).toContain(600)
-    })
-
-    test('Inter has 9 weights', () => {
-      const inter = getBuiltinFonts().find((f) => f.family === 'Inter')
+    test('Inter is a variable font with wght axis', () => {
+      const inter = getBuiltinFonts().find((f) => f.f === 'Inter')
       expect(inter).toBeDefined()
-      expect(inter!.weights.length).toBe(9)
+      const wghtAxis = inter!.a?.find(([tag]) => tag === 'wght')
+      expect(wghtAxis).toBeDefined()
+      expect(wghtAxis![1]).toBeLessThanOrEqual(100)
+      expect(wghtAxis![2]).toBeGreaterThanOrEqual(900)
     })
 
-    test('Roboto has weight 100', () => {
-      const roboto = getBuiltinFonts().find((f) => f.family === 'Roboto')
+    test('Roboto is a variable font', () => {
+      const roboto = getBuiltinFonts().find((f) => f.f === 'Roboto')
       expect(roboto).toBeDefined()
-      expect(roboto!.weights).toContain(100)
+      expect(roboto!.a).toBeDefined()
     })
 
-    test('Open Sans has weight 800', () => {
-      const openSans = getBuiltinFonts().find((f) => f.family === 'Open Sans')
+    test('Open Sans is a variable font', () => {
+      const openSans = getBuiltinFonts().find((f) => f.f === 'Open Sans')
       expect(openSans).toBeDefined()
-      expect(openSans!.weights).toContain(800)
+      expect(openSans!.a).toBeDefined()
     })
 
     test('Lato is sans-serif category', () => {
-      const lato = getBuiltinFonts().find((f) => f.family === 'Lato')
+      const lato = getBuiltinFonts().find((f) => f.f === 'Lato')
       expect(lato).toBeDefined()
-      expect(lato!.category).toBe('sans-serif')
+      expect(lato!.c).toBe(0) // sans-serif
     })
 
-    test('Lucida Console is monospace with weight 400 only', () => {
-      const lucida = getBuiltinFonts().find((f) => f.family === 'Lucida Console')
-      expect(lucida).toBeDefined()
-      expect(lucida!.category).toBe('monospace')
-      expect(lucida!.weights).toEqual([400])
+    test('Roboto Mono is monospace', () => {
+      const rm = getBuiltinFonts().find((f) => f.f === 'Roboto Mono')
+      expect(rm).toBeDefined()
+      expect(rm!.c).toBe(4) // monospace
     })
   })
 
-  describe('enumerateSystemFonts additional', () => {
-    test('handles empty font list from queryLocalFonts', async () => {
-      ;(window as any).queryLocalFonts = async () => []
+  describe('enumerateSystemFonts (compat shim)', () => {
+    test('returns the full catalog', async () => {
       const fonts = await enumerateSystemFonts()
-      expect(fonts).toEqual([])
-      delete (window as any).queryLocalFonts
-    })
-
-    test('handles font with only "Regular" style', async () => {
-      ;(window as any).queryLocalFonts = async () => [{ family: 'SingleFont', style: 'Regular' }]
-      const fonts = await enumerateSystemFonts()
-      expect(fonts.length).toBe(1)
-      expect(fonts[0]!.weights).toEqual([400])
-      delete (window as any).queryLocalFonts
-    })
-
-    test('handles font styles with mixed case', async () => {
-      ;(window as any).queryLocalFonts = async () => [
-        { family: 'MixCase', style: 'BOLD' },
-        { family: 'MixCase', style: 'thin' },
-        { family: 'MixCase', style: 'MEDIUM' },
-      ]
-      const fonts = await enumerateSystemFonts()
-      const f = fonts.find((ff) => ff.family === 'MixCase')
-      expect(f).toBeDefined()
-      expect(f!.weights).toContain(700) // BOLD
-      expect(f!.weights).toContain(100) // thin
-      expect(f!.weights).toContain(500) // MEDIUM
-      delete (window as any).queryLocalFonts
-    })
-
-    test('handles font style "Heavy" as weight 900', async () => {
-      ;(window as any).queryLocalFonts = async () => [{ family: 'HeavyFont', style: 'Heavy' }]
-      const fonts = await enumerateSystemFonts()
-      expect(fonts[0]!.weights).toContain(900)
-      delete (window as any).queryLocalFonts
-    })
-
-    test('handles many fonts from different families', async () => {
-      const fakeFonts = Array.from({ length: 100 }, (_, i) => ({
-        family: `Family${i}`,
-        style: 'Regular',
-      }))
-      ;(window as any).queryLocalFonts = async () => fakeFonts
-      const fonts = await enumerateSystemFonts()
-      expect(fonts.length).toBe(100)
-      delete (window as any).queryLocalFonts
+      expect(fonts.length).toBeGreaterThanOrEqual(1900)
+      expect(fonts).toEqual(getBuiltinFonts())
     })
   })
 })

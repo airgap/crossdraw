@@ -1,34 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
+import { FONT_CATALOG, CATEGORIES, type CatalogFont, type FontCategory } from '@/fonts/catalog'
+import { loadFont, isFontLoaded } from '@/fonts/loader'
 
-/** Known web-safe fonts with their weight ranges. */
-export interface FontEntry {
-  family: string
-  weights: number[]
-  category: 'serif' | 'sans-serif' | 'monospace' | 'display' | 'handwriting'
-}
+// ── Constants ──
 
-const BUILTIN_FONTS: FontEntry[] = [
-  { family: 'Arial', weights: [400, 700], category: 'sans-serif' },
-  { family: 'Helvetica', weights: [300, 400, 700], category: 'sans-serif' },
-  { family: 'Times New Roman', weights: [400, 700], category: 'serif' },
-  { family: 'Georgia', weights: [400, 700], category: 'serif' },
-  { family: 'Courier New', weights: [400, 700], category: 'monospace' },
-  { family: 'Verdana', weights: [400, 700], category: 'sans-serif' },
-  { family: 'Trebuchet MS', weights: [400, 700], category: 'sans-serif' },
-  { family: 'Impact', weights: [400], category: 'display' },
-  { family: 'Comic Sans MS', weights: [400, 700], category: 'handwriting' },
-  { family: 'Palatino Linotype', weights: [400, 700], category: 'serif' },
-  { family: 'Lucida Console', weights: [400], category: 'monospace' },
-  { family: 'Tahoma', weights: [400, 700], category: 'sans-serif' },
-  { family: 'Segoe UI', weights: [300, 400, 600, 700], category: 'sans-serif' },
-  { family: 'Roboto', weights: [100, 300, 400, 500, 700, 900], category: 'sans-serif' },
-  { family: 'Open Sans', weights: [300, 400, 600, 700, 800], category: 'sans-serif' },
-  { family: 'Lato', weights: [100, 300, 400, 700, 900], category: 'sans-serif' },
-  { family: 'Montserrat', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900], category: 'sans-serif' },
-  { family: 'Inter', weights: [100, 200, 300, 400, 500, 600, 700, 800, 900], category: 'sans-serif' },
-]
-
-const WEIGHT_NAMES: Record<number, string> = {
+export const WEIGHT_NAMES: Record<number, string> = {
   100: 'Thin',
   200: 'ExtraLight',
   300: 'Light',
@@ -44,50 +20,43 @@ export function getWeightName(weight: number): string {
   return WEIGHT_NAMES[weight] ?? `${weight}`
 }
 
-export function getBuiltinFonts(): FontEntry[] {
-  return BUILTIN_FONTS
+/** Resolve the available weights for a catalog font. */
+function getAvailableWeights(font: CatalogFont): number[] {
+  const wghtAxis = font.a?.find(([tag]) => tag === 'wght')
+  if (wghtAxis) {
+    // Variable font — generate standard weight stops within range
+    const [, min, max] = wghtAxis
+    return [100, 200, 300, 400, 500, 600, 700, 800, 900].filter((w) => w >= min && w <= max)
+  }
+  return font.w.length > 0 ? font.w : [400]
 }
 
-/**
- * Try to enumerate system fonts via the Local Font Access API.
- * Falls back to built-in list if not available.
- */
-export async function enumerateSystemFonts(): Promise<FontEntry[]> {
-  if ('queryLocalFonts' in window) {
-    try {
-      const fonts = await (
-        window as unknown as { queryLocalFonts: () => Promise<Array<{ family: string; style: string }>> }
-      ).queryLocalFonts()
-      const familyMap = new Map<string, Set<number>>()
-      for (const font of fonts) {
-        if (!familyMap.has(font.family)) {
-          familyMap.set(font.family, new Set())
-        }
-        // Parse weight from style string (rough heuristic)
-        const style = font.style.toLowerCase()
-        let weight = 400
-        if (style.includes('thin')) weight = 100
-        else if (style.includes('extralight') || style.includes('ultralight')) weight = 200
-        else if (style.includes('light')) weight = 300
-        else if (style.includes('medium')) weight = 500
-        else if (style.includes('semibold') || style.includes('demibold')) weight = 600
-        else if (style.includes('extrabold') || style.includes('ultrabold')) weight = 800
-        else if (style.includes('black') || style.includes('heavy')) weight = 900
-        else if (style.includes('bold')) weight = 700
-        familyMap.get(font.family)!.add(weight)
-      }
+/** Whether a font is a variable font (has any variation axes). */
+function isVariable(font: CatalogFont): boolean {
+  return !!font.a && font.a.length > 0
+}
 
-      return Array.from(familyMap.entries()).map(([family, weights]) => ({
-        family,
-        weights: Array.from(weights).sort((a, b) => a - b),
-        category: 'sans-serif' as const,
-      }))
-    } catch {
-      // Permission denied or API not available
-    }
-  }
+// ── Lookup helpers ──
 
-  return BUILTIN_FONTS
+const catalogByFamily = new Map<string, CatalogFont>()
+for (const f of FONT_CATALOG) catalogByFamily.set(f.f, f)
+
+export function getCatalogFont(family: string): CatalogFont | undefined {
+  return catalogByFamily.get(family)
+}
+
+export function getBuiltinFonts() {
+  return FONT_CATALOG
+}
+
+// ── Font Picker component ──
+
+const CATEGORY_LABELS: Record<FontCategory, string> = {
+  'sans-serif': 'Sans',
+  serif: 'Serif',
+  display: 'Display',
+  handwriting: 'Hand',
+  monospace: 'Mono',
 }
 
 interface FontPickerProps {
@@ -97,22 +66,104 @@ interface FontPickerProps {
   onWeightChange: (weight: number) => void
 }
 
+/** Number of fonts visible in the dropdown before scrolling. */
+const VISIBLE_ITEM_HEIGHT = 32
+const MAX_VISIBLE = 8
+const DROPDOWN_HEIGHT = VISIBLE_ITEM_HEIGHT * MAX_VISIBLE
+
+/** How many fonts to pre-render with their actual font face in the dropdown. */
+const PREVIEW_BATCH = 12
+
 export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: FontPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
-  const fonts = BUILTIN_FONTS
+  const [category, setCategory] = useState<FontCategory | null>(null)
+  const [previewLoaded, setPreviewLoaded] = useState(0)
+  const listRef = useRef<HTMLDivElement>(null)
+  const searchRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [isOpen])
+
+  // Focus search on open
+  useEffect(() => {
+    if (isOpen) searchRef.current?.focus()
+  }, [isOpen])
+
+  // Filter fonts
   const filtered = useMemo(() => {
-    if (!search) return fonts
-    const q = search.toLowerCase()
-    return fonts.filter((f) => f.family.toLowerCase().includes(q))
-  }, [fonts, search])
+    let fonts = FONT_CATALOG
+    if (category !== null) {
+      const catIdx = CATEGORIES.indexOf(category)
+      fonts = fonts.filter((f) => f.c === catIdx)
+    }
+    if (search) {
+      const q = search.toLowerCase()
+      fonts = fonts.filter((f) => f.f.toLowerCase().includes(q))
+    }
+    return fonts
+  }, [search, category])
 
-  const currentFont = fonts.find((f) => f.family === value)
-  const availableWeights = currentFont?.weights ?? [400, 700]
+  // Eagerly load fonts visible in the dropdown for preview
+  const loadVisiblePreviews = useCallback(() => {
+    const toLoad = filtered.slice(0, previewLoaded + PREVIEW_BATCH)
+    let didLoad = false
+    for (const font of toLoad) {
+      if (!isFontLoaded(font.f)) {
+        loadFont(font)
+        didLoad = true
+      }
+    }
+    if (didLoad || previewLoaded < toLoad.length) {
+      setPreviewLoaded(toLoad.length)
+    }
+  }, [filtered, previewLoaded])
+
+  useEffect(() => {
+    if (isOpen) {
+      setPreviewLoaded(0)
+      // Load first batch immediately
+      const toLoad = filtered.slice(0, PREVIEW_BATCH)
+      for (const font of toLoad) {
+        if (!isFontLoaded(font.f)) loadFont(font)
+      }
+      setPreviewLoaded(PREVIEW_BATCH)
+    }
+  }, [isOpen, filtered])
+
+  // Load more on scroll
+  const handleScroll = useCallback(() => {
+    const el = listRef.current
+    if (!el) return
+    const scrollBottom = el.scrollTop + el.clientHeight
+    const neededIndex = Math.ceil(scrollBottom / VISIBLE_ITEM_HEIGHT) + 4
+    if (neededIndex > previewLoaded) {
+      loadVisiblePreviews()
+    }
+  }, [previewLoaded, loadVisiblePreviews])
+
+  const currentFont = catalogByFamily.get(value)
+  const availableWeights = currentFont ? getAvailableWeights(currentFont) : [400, 700]
 
   return (
-    <div style={{ position: 'relative' }}>
+    <div ref={containerRef} style={{ position: 'relative' }}>
       <div style={{ display: 'flex', gap: 'var(--space-1)' }}>
         <button
           onClick={() => setIsOpen(!isOpen)}
@@ -126,7 +177,7 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             color: 'var(--text-primary)',
             textAlign: 'left',
             cursor: 'pointer',
-            fontFamily: value,
+            fontFamily: `"${value}", sans-serif`,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -134,6 +185,18 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
           }}
         >
           {value}
+          {currentFont && isVariable(currentFont) && (
+            <span
+              style={{
+                fontSize: 8,
+                color: 'var(--text-secondary)',
+                marginLeft: 4,
+                verticalAlign: 'super',
+              }}
+            >
+              VAR
+            </span>
+          )}
         </button>
         <select
           value={weight}
@@ -169,18 +232,18 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             border: '1px solid var(--border-default)',
             borderRadius: 'var(--radius-md)',
             boxShadow: '0 4px 16px rgba(0,0,0,0.4), 0 1px 3px rgba(0,0,0,0.2)',
-            maxHeight: 240,
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',
             marginTop: 2,
           }}
         >
+          {/* Search */}
           <input
+            ref={searchRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search fonts..."
-            autoFocus
+            placeholder="Search 1,929 fonts..."
             style={{
               background: 'var(--bg-input)',
               border: 'none',
@@ -191,49 +254,157 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
               outline: 'none',
             }}
           />
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {filtered.map((font) => (
-              <button
-                key={font.family}
-                onClick={() => {
-                  onFamilyChange(font.family)
-                  setIsOpen(false)
-                  setSearch('')
-                }}
-                onMouseEnter={(e) => {
-                  if (font.family !== value) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                }}
-                onMouseLeave={(e) => {
-                  if (font.family !== value) (e.currentTarget as HTMLElement).style.background = 'none'
-                }}
+
+          {/* Category filter tabs */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 0,
+              borderBottom: '1px solid var(--border-subtle)',
+              padding: '0 4px',
+            }}
+          >
+            <CategoryTab label="All" active={category === null} onClick={() => setCategory(null)} />
+            {CATEGORIES.map((cat) => (
+              <CategoryTab
+                key={cat}
+                label={CATEGORY_LABELS[cat]}
+                active={category === cat}
+                onClick={() => setCategory(category === cat ? null : cat)}
+              />
+            ))}
+          </div>
+
+          {/* Font list */}
+          <div ref={listRef} onScroll={handleScroll} style={{ maxHeight: DROPDOWN_HEIGHT, overflowY: 'auto' }}>
+            {filtered.length === 0 && (
+              <div
                 style={{
-                  display: 'block',
-                  width: '100%',
-                  textAlign: 'left',
-                  background: font.family === value ? 'var(--accent)' : 'none',
-                  border: 'none',
-                  padding: '4px 8px',
-                  fontSize: 'var(--font-size-lg)',
-                  color: font.family === value ? '#fff' : 'var(--text-primary)',
-                  cursor: 'pointer',
-                  fontFamily: font.family,
+                  padding: '12px 8px',
+                  fontSize: 'var(--font-size-sm)',
+                  color: 'var(--text-secondary)',
+                  textAlign: 'center',
                 }}
               >
-                {font.family}
-                <span
+                No fonts match
+              </div>
+            )}
+            {filtered.map((font, i) => {
+              const isSelected = font.f === value
+              const shouldPreview = i < previewLoaded
+              return (
+                <button
+                  key={font.f}
+                  onClick={() => {
+                    loadFont(font).then(() => {
+                      onFamilyChange(font.f)
+                    })
+                    onFamilyChange(font.f)
+                    setIsOpen(false)
+                    setSearch('')
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+                    // Load font on hover for preview
+                    if (!isFontLoaded(font.f)) loadFont(font)
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'none'
+                  }}
                   style={{
-                    fontSize: 'var(--font-size-xs)',
-                    color: font.family === value ? 'rgba(255,255,255,0.7)' : 'var(--text-secondary)',
-                    marginLeft: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    width: '100%',
+                    textAlign: 'left',
+                    background: isSelected ? 'var(--accent)' : 'none',
+                    border: 'none',
+                    padding: '4px 8px',
+                    height: VISIBLE_ITEM_HEIGHT,
+                    fontSize: 14,
+                    color: isSelected ? '#fff' : 'var(--text-primary)',
+                    cursor: 'pointer',
+                    fontFamily: shouldPreview ? `"${font.f}", sans-serif` : 'inherit',
+                    gap: 6,
                   }}
                 >
-                  {font.category}
-                </span>
-              </button>
-            ))}
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {font.f}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 9,
+                      color: isSelected ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)',
+                      flexShrink: 0,
+                      display: 'flex',
+                      gap: 4,
+                      alignItems: 'center',
+                    }}
+                  >
+                    {isVariable(font) && (
+                      <span
+                        style={{
+                          background: isSelected ? 'rgba(255,255,255,0.2)' : 'var(--bg-input)',
+                          padding: '1px 3px',
+                          borderRadius: 2,
+                          fontSize: 8,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        VAR
+                      </span>
+                    )}
+                    {CATEGORIES[font.c]}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+
+          {/* Status bar */}
+          <div
+            style={{
+              borderTop: '1px solid var(--border-subtle)',
+              padding: '3px 8px',
+              fontSize: 9,
+              color: 'var(--text-secondary)',
+              display: 'flex',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>{filtered.length} fonts</span>
+            <span>All fonts licensed for commercial use (OFL / Apache 2.0)</span>
           </div>
         </div>
       )}
     </div>
   )
+}
+
+function CategoryTab({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        background: 'none',
+        border: 'none',
+        borderBottom: active ? '2px solid var(--accent)' : '2px solid transparent',
+        padding: '4px 6px',
+        fontSize: 10,
+        color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
+        cursor: 'pointer',
+        fontWeight: active ? 600 : 400,
+      }}
+    >
+      {label}
+    </button>
+  )
+}
+
+// ── Backward compat ──
+
+export type FontEntry = CatalogFont
+
+/** @deprecated Use FONT_CATALOG directly. Kept for backward compat. */
+export async function enumerateSystemFonts(): Promise<CatalogFont[]> {
+  return FONT_CATALOG
 }

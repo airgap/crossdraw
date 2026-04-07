@@ -2050,6 +2050,15 @@ function buildMenus(): MenuDef[] {
           addToast('Crossdraw — A professional vector & raster design editor.', 'info')
         },
       },
+      {
+        label: 'Font Licenses',
+        action: () => {
+          addToast(
+            'Crossdraw includes 1,929 fonts from Google Fonts. All are licensed under the SIL Open Font License 1.1 or Apache License 2.0, permitting free commercial use. Full license texts: fonts.google.com/attribution',
+            'info',
+          )
+        },
+      },
     ],
   }
 

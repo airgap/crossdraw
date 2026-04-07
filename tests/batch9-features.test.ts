@@ -176,16 +176,20 @@ describe('LYK-107: raster selection tools', () => {
 describe('LYK-133: font picker', () => {
   test('getBuiltinFonts returns fonts array', () => {
     const fonts = getBuiltinFonts()
-    expect(fonts.length).toBeGreaterThan(10)
-    expect(fonts[0]!.family).toBe('Arial')
+    expect(fonts.length).toBeGreaterThan(100)
+    // Sorted by popularity — Roboto is first
+    expect(fonts[0]!.f).toBe('Roboto')
   })
 
   test('fonts have required fields', () => {
     const fonts = getBuiltinFonts()
     for (const font of fonts) {
-      expect(font.family).toBeTruthy()
-      expect(font.weights.length).toBeGreaterThan(0)
-      expect(['serif', 'sans-serif', 'monospace', 'display', 'handwriting']).toContain(font.category)
+      expect(font.f).toBeTruthy()
+      // Variable fonts have empty w[] but have axes
+      if (!font.a || font.a.length === 0) {
+        expect(font.w.length).toBeGreaterThan(0)
+      }
+      expect([0, 1, 2, 3, 4]).toContain(font.c)
     }
   })
 
@@ -204,22 +208,26 @@ describe('LYK-133: font picker', () => {
   test('font search filter works', () => {
     const fonts = getBuiltinFonts()
     const query = 'rob'
-    const filtered = fonts.filter((f) => f.family.toLowerCase().includes(query))
+    const filtered = fonts.filter((f) => f.f.toLowerCase().includes(query))
     expect(filtered.length).toBeGreaterThan(0)
-    expect(filtered[0]!.family).toBe('Roboto')
+    expect(filtered[0]!.f).toBe('Roboto')
   })
 
-  test('Montserrat has full weight range', () => {
+  test('Montserrat is a variable font with full weight range', () => {
     const fonts = getBuiltinFonts()
-    const mont = fonts.find((f) => f.family === 'Montserrat')!
-    expect(mont.weights).toEqual([100, 200, 300, 400, 500, 600, 700, 800, 900])
+    const mont = fonts.find((f) => f.f === 'Montserrat')!
+    // Montserrat is a variable font with wght axis 100-900
+    const wghtAxis = mont.a?.find(([tag]) => tag === 'wght')
+    expect(wghtAxis).toBeTruthy()
+    expect(wghtAxis![1]).toBeLessThanOrEqual(100)
+    expect(wghtAxis![2]).toBeGreaterThanOrEqual(900)
   })
 
   test('category filtering', () => {
     const fonts = getBuiltinFonts()
-    const serif = fonts.filter((f) => f.category === 'serif')
+    const serif = fonts.filter((f) => f.c === 1) // serif
     expect(serif.length).toBeGreaterThan(0)
-    const mono = fonts.filter((f) => f.category === 'monospace')
+    const mono = fonts.filter((f) => f.c === 4) // monospace
     expect(mono.length).toBeGreaterThan(0)
   })
 })

@@ -25,6 +25,7 @@ afterAll(() => {
 // ── Import after stubs ──────────────────────────────────────────
 
 import { getWeightName, getBuiltinFonts, enumerateSystemFonts, FontPicker } from '@/ui/font-picker'
+import { CATEGORIES } from '@/fonts/catalog'
 
 // ── Tests ───────────────────────────────────────────────────────
 
@@ -76,195 +77,97 @@ describe('font-picker', () => {
     })
   })
 
-  // ── getBuiltinFonts ──────────────────────────────────────────
+  // ── Google Fonts catalog ──────────────────────────────────────
 
-  describe('getBuiltinFonts', () => {
+  describe('getBuiltinFonts (Google Fonts catalog)', () => {
     test('returns an array', () => {
       const fonts = getBuiltinFonts()
       expect(Array.isArray(fonts)).toBe(true)
     })
 
-    test('has at least 10 built-in fonts', () => {
-      expect(getBuiltinFonts().length).toBeGreaterThanOrEqual(10)
+    test('has at least 1000 fonts', () => {
+      expect(getBuiltinFonts().length).toBeGreaterThanOrEqual(1000)
     })
 
     test('every font has required fields', () => {
       for (const font of getBuiltinFonts()) {
-        expect(typeof font.family).toBe('string')
-        expect(font.family.length).toBeGreaterThan(0)
-        expect(Array.isArray(font.weights)).toBe(true)
-        expect(font.weights.length).toBeGreaterThan(0)
-        expect(['serif', 'sans-serif', 'monospace', 'display', 'handwriting']).toContain(font.category)
+        expect(typeof font.f).toBe('string')
+        expect(font.f.length).toBeGreaterThan(0)
+        // Variable fonts may have empty w[] but must have axes
+        if (!font.a || font.a.length === 0) {
+          expect(font.w.length).toBeGreaterThan(0)
+        }
+        expect([0, 1, 2, 3, 4]).toContain(font.c)
       }
     })
 
-    test('includes common fonts', () => {
+    test('includes popular fonts', () => {
       const fonts = getBuiltinFonts()
-      const families = fonts.map((f) => f.family)
-      expect(families).toContain('Arial')
-      expect(families).toContain('Times New Roman')
-      expect(families).toContain('Courier New')
+      const families = fonts.map((f) => f.f)
+      expect(families).toContain('Roboto')
+      expect(families).toContain('Open Sans')
+      expect(families).toContain('Inter')
+      expect(families).toContain('Montserrat')
+      expect(families).toContain('Playfair Display')
     })
 
-    test('Arial has weights 400 and 700', () => {
-      const arial = getBuiltinFonts().find((f) => f.family === 'Arial')
-      expect(arial).toBeDefined()
-      expect(arial!.weights).toContain(400)
-      expect(arial!.weights).toContain(700)
+    test('Montserrat is a variable font', () => {
+      const mont = getBuiltinFonts().find((f) => f.f === 'Montserrat')
+      expect(mont).toBeDefined()
+      expect(mont!.a).toBeDefined()
+      const wghtAxis = mont!.a!.find(([tag]) => tag === 'wght')
+      expect(wghtAxis).toBeDefined()
+      expect(wghtAxis![1]).toBeLessThanOrEqual(100)
+      expect(wghtAxis![2]).toBeGreaterThanOrEqual(900)
     })
 
-    test('Montserrat has 9 weights (100-900)', () => {
-      const montserrat = getBuiltinFonts().find((f) => f.family === 'Montserrat')
-      expect(montserrat).toBeDefined()
-      expect(montserrat!.weights.length).toBe(9)
-      expect(montserrat!.weights).toEqual([100, 200, 300, 400, 500, 600, 700, 800, 900])
-    })
-
-    test('font weights are sorted ascending', () => {
+    test('font weights are sorted ascending (static fonts)', () => {
       for (const font of getBuiltinFonts()) {
-        for (let i = 1; i < font.weights.length; i++) {
-          expect(font.weights[i]).toBeGreaterThan(font.weights[i - 1]!)
+        if (font.w.length > 1) {
+          for (let i = 1; i < font.w.length; i++) {
+            expect(font.w[i]).toBeGreaterThan(font.w[i - 1]!)
+          }
         }
       }
     })
 
-    test('all weights are multiples of 100', () => {
-      for (const font of getBuiltinFonts()) {
-        for (const w of font.weights) {
-          expect(w % 100).toBe(0)
-        }
+    test('has fonts in all 5 categories', () => {
+      const cats = new Set(getBuiltinFonts().map((f) => f.c))
+      expect(cats.size).toBe(5)
+      for (let i = 0; i < CATEGORIES.length; i++) {
+        expect(cats.has(i)).toBe(true)
       }
     })
 
-    test('has fonts in multiple categories', () => {
-      const categories = new Set(getBuiltinFonts().map((f) => f.category))
-      expect(categories.size).toBeGreaterThanOrEqual(4)
-      expect(categories.has('serif')).toBe(true)
-      expect(categories.has('sans-serif')).toBe(true)
-      expect(categories.has('monospace')).toBe(true)
+    test('sorted by popularity', () => {
+      const fonts = getBuiltinFonts()
+      // First font should be most popular (p=0)
+      expect(fonts[0]!.p).toBe(0)
+      // Popularity should be in ascending order
+      for (let i = 1; i < Math.min(fonts.length, 50); i++) {
+        expect(fonts[i]!.p).toBeGreaterThanOrEqual(fonts[i - 1]!.p)
+      }
     })
 
-    test('Impact has only weight 400', () => {
-      const impact = getBuiltinFonts().find((f) => f.family === 'Impact')
-      expect(impact).toBeDefined()
-      expect(impact!.weights).toEqual([400])
-      expect(impact!.category).toBe('display')
-    })
-
-    test('Comic Sans MS is handwriting category', () => {
-      const comic = getBuiltinFonts().find((f) => f.family === 'Comic Sans MS')
-      expect(comic).toBeDefined()
-      expect(comic!.category).toBe('handwriting')
+    test('variable fonts have valid axes', () => {
+      const variable = getBuiltinFonts().filter((f) => f.a && f.a.length > 0)
+      expect(variable.length).toBeGreaterThan(100) // should be hundreds
+      for (const font of variable) {
+        for (const [tag, min, max] of font.a!) {
+          expect(typeof tag).toBe('string')
+          expect(tag.length).toBe(4) // OpenType axis tags are 4 chars
+          expect(min).toBeLessThan(max)
+        }
+      }
     })
   })
 
-  // ── enumerateSystemFonts ──────────────────────────────────────
+  // ── enumerateSystemFonts (compat) ─────────────────────────────
 
   describe('enumerateSystemFonts', () => {
-    test('returns built-in fonts when queryLocalFonts is not available', async () => {
-      // Our stub window doesn't have queryLocalFonts
+    test('returns the catalog (compat shim)', async () => {
       const fonts = await enumerateSystemFonts()
       expect(fonts).toEqual(getBuiltinFonts())
-    })
-
-    test('returns built-in fonts when queryLocalFonts throws', async () => {
-      ;(window as any).queryLocalFonts = async () => {
-        throw new Error('Permission denied')
-      }
-      const fonts = await enumerateSystemFonts()
-      expect(fonts).toEqual(getBuiltinFonts())
-      delete (window as any).queryLocalFonts
-    })
-
-    test('parses system fonts when queryLocalFonts is available', async () => {
-      ;(window as any).queryLocalFonts = async () => [
-        { family: 'TestFont', style: 'Regular' },
-        { family: 'TestFont', style: 'Bold' },
-        { family: 'TestFont', style: 'Light' },
-        { family: 'AnotherFont', style: 'Regular' },
-      ]
-      const fonts = await enumerateSystemFonts()
-      expect(fonts.length).toBe(2)
-
-      const testFont = fonts.find((f) => f.family === 'TestFont')
-      expect(testFont).toBeDefined()
-      expect(testFont!.weights).toContain(400) // Regular
-      expect(testFont!.weights).toContain(700) // Bold
-      expect(testFont!.weights).toContain(300) // Light
-
-      const anotherFont = fonts.find((f) => f.family === 'AnotherFont')
-      expect(anotherFont).toBeDefined()
-      expect(anotherFont!.weights).toContain(400)
-
-      delete (window as any).queryLocalFonts
-    })
-
-    test('parses weight from style strings correctly', async () => {
-      ;(window as any).queryLocalFonts = async () => [
-        { family: 'F', style: 'Thin' },
-        { family: 'F', style: 'ExtraLight' },
-        { family: 'F', style: 'UltraLight' },
-        { family: 'F', style: 'Light' },
-        { family: 'F', style: 'Medium' },
-        { family: 'F', style: 'SemiBold' },
-        { family: 'F', style: 'DemiBold' },
-        { family: 'F', style: 'Bold' },
-        { family: 'F', style: 'ExtraBold' },
-        { family: 'F', style: 'UltraBold' },
-        { family: 'F', style: 'Black' },
-        { family: 'F', style: 'Heavy' },
-      ]
-      const fonts = await enumerateSystemFonts()
-      const f = fonts.find((ff) => ff.family === 'F')
-      expect(f).toBeDefined()
-      expect(f!.weights).toContain(100) // Thin
-      expect(f!.weights).toContain(200) // ExtraLight / UltraLight
-      expect(f!.weights).toContain(300) // Light
-      expect(f!.weights).toContain(500) // Medium
-      expect(f!.weights).toContain(600) // SemiBold / DemiBold
-      expect(f!.weights).toContain(700) // Bold
-      expect(f!.weights).toContain(800) // ExtraBold / UltraBold
-      expect(f!.weights).toContain(900) // Black / Heavy
-
-      delete (window as any).queryLocalFonts
-    })
-
-    test('weights are sorted ascending', async () => {
-      ;(window as any).queryLocalFonts = async () => [
-        { family: 'F', style: 'Black' },
-        { family: 'F', style: 'Thin' },
-        { family: 'F', style: 'Bold' },
-        { family: 'F', style: 'Regular' },
-      ]
-      const fonts = await enumerateSystemFonts()
-      const f = fonts[0]!
-      for (let i = 1; i < f.weights.length; i++) {
-        expect(f.weights[i]).toBeGreaterThan(f.weights[i - 1]!)
-      }
-
-      delete (window as any).queryLocalFonts
-    })
-
-    test('system fonts default to sans-serif category', async () => {
-      ;(window as any).queryLocalFonts = async () => [{ family: 'CustomFont', style: 'Regular' }]
-      const fonts = await enumerateSystemFonts()
-      expect(fonts[0]!.category).toBe('sans-serif')
-
-      delete (window as any).queryLocalFonts
-    })
-
-    test('deduplicates weights from same family', async () => {
-      ;(window as any).queryLocalFonts = async () => [
-        { family: 'F', style: 'Regular' },
-        { family: 'F', style: 'Regular' },
-        { family: 'F', style: 'Regular' },
-      ]
-      const fonts = await enumerateSystemFonts()
-      const f = fonts[0]!
-      expect(f.weights.length).toBe(1)
-      expect(f.weights[0]).toBe(400)
-
-      delete (window as any).queryLocalFonts
     })
   })
 
