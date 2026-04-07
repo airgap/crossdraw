@@ -86,24 +86,24 @@ export const darkTheme: Theme = {
   name: 'dark',
 
   // Surface hierarchy
-  bgBase: '#0e0e0e',
-  bgSurface: '#161616',
-  bgElevated: '#1e1e1e',
-  bgOverlay: '#262626',
-  bgInput: '#121212',
-  bgHover: '#242424',
+  bgBase: '#09090b',
+  bgSurface: '#0f0f12',
+  bgElevated: '#16161a',
+  bgOverlay: '#1c1c21',
+  bgInput: '#0c0c0f',
+  bgHover: '#1a1a1f',
   bgActive: '#4a9eff',
-  canvasBg: '#1a1a1a',
+  canvasBg: '#111114',
 
   // Borders
-  borderSubtle: 'rgba(255,255,255,0.06)',
-  borderDefault: 'rgba(255,255,255,0.1)',
-  borderStrong: 'rgba(255,255,255,0.15)',
+  borderSubtle: 'rgba(255,255,255,0.05)',
+  borderDefault: 'rgba(255,255,255,0.08)',
+  borderStrong: 'rgba(255,255,255,0.13)',
 
   // Text
-  textPrimary: '#e0e0e0',
-  textSecondary: '#999999',
-  textDisabled: '#555555',
+  textPrimary: '#dcdcdc',
+  textSecondary: '#8b8b8b',
+  textDisabled: '#4a4a4a',
   textAccent: '#4a9eff',
 
   // Accent
@@ -119,11 +119,11 @@ export const darkTheme: Theme = {
   info: '#2196f3',
 
   // Legacy aliases
-  bg: '#0e0e0e',
-  bgPanel: '#161616',
-  border: 'rgba(255,255,255,0.1)',
-  borderLight: 'rgba(255,255,255,0.15)',
-  textMuted: '#666666',
+  bg: '#09090b',
+  bgPanel: '#0f0f12',
+  border: 'rgba(255,255,255,0.08)',
+  borderLight: 'rgba(255,255,255,0.13)',
+  textMuted: '#5a5a5a',
 }
 
 export const lightTheme: Theme = {
