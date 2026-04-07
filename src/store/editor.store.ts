@@ -1743,14 +1743,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         // Browser: use File System Access API or download fallback
         try {
           const buffer = encodeDocument(doc)
-          const suggestedName = `${doc.metadata.title || 'Untitled'}.xd`
+          const suggestedName = `${doc.metadata.title || 'Untitled'}.crow`
           if ('showSaveFilePicker' in window) {
             const handle = await (window as any).showSaveFilePicker({
               suggestedName,
               types: [
                 {
                   description: 'Crossdraw files',
-                  accept: { 'application/octet-stream': ['.xd'] },
+                  accept: { 'application/octet-stream': ['.crow'] },
                 },
               ],
             })
@@ -1797,14 +1797,14 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         // Browser: always use showSaveFilePicker / download fallback
         try {
           const buffer = encodeDocument(doc)
-          const suggestedName = `${doc.metadata.title || 'Untitled'}.xd`
+          const suggestedName = `${doc.metadata.title || 'Untitled'}.crow`
           if ('showSaveFilePicker' in window) {
             const handle = await (window as any).showSaveFilePicker({
               suggestedName,
               types: [
                 {
                   description: 'Crossdraw files',
-                  accept: { 'application/octet-stream': ['.xd'] },
+                  accept: { 'application/octet-stream': ['.crow'] },
                 },
               ],
             })
@@ -2549,7 +2549,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         if (state.cloudFileId) {
           await updateFile(state.cloudFileId, data)
         } else {
-          const entry = await uploadFile(`${name}.xd`, data)
+          const entry = await uploadFile(`${name}.crow`, data)
           set({ cloudFileId: entry.id })
         }
         set({ cloudSyncStatus: 'idle', isDirty: false })

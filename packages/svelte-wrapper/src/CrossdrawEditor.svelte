@@ -23,7 +23,7 @@
   /** Callback to load a document */
   export let onLoad: (() => Promise<ArrayBuffer | null>) | undefined = undefined
 
-  /** Initial .xd document buffer */
+  /** Initial .crow document buffer */
   export let initialDocument: ArrayBuffer | undefined = undefined
 
   /** CSS class for the container */

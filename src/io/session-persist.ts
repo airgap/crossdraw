@@ -1,6 +1,6 @@
 /**
  * Persist/restore the last open document to IndexedDB so it survives page reload.
- * Uses the binary .xd format for compact, lossless round-tripping.
+ * Uses the binary .crow format for compact, lossless round-tripping.
  */
 import { useEditorStore } from '@/store/editor.store'
 import { encodeDocument, decodeDocument } from '@/io/file-format'

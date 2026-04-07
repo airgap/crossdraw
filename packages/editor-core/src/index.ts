@@ -21,13 +21,13 @@ export interface CrossdrawEditorConfig {
   theme?: Partial<CrossdrawThemeTokens>
   /** Maximum file size in bytes (overrides mode default, 0 = unlimited) */
   maxFileSize?: number
-  /** Callback when the user saves — receives the .xd file as ArrayBuffer */
+  /** Callback when the user saves — receives the .crow file as ArrayBuffer */
   onSave?: (buffer: ArrayBuffer) => void
-  /** Callback to load a file — should return an ArrayBuffer of a .xd file */
+  /** Callback to load a file — should return an ArrayBuffer of a .crow file */
   onLoad?: () => Promise<ArrayBuffer | null>
   /** Mode config overrides for fine-grained control */
   modeOverrides?: Partial<ModeConfig>
-  /** Initial document to load (ArrayBuffer of .xd file) */
+  /** Initial document to load (ArrayBuffer of .crow file) */
   initialDocument?: ArrayBuffer
 }
 

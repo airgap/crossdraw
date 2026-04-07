@@ -37,7 +37,7 @@ export class ErrorBoundary extends Component<Props, State> {
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = 'recovery.xd'
+        a.download = 'recovery.crow'
         a.click()
         URL.revokeObjectURL(url)
       }

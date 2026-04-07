@@ -117,7 +117,7 @@ async function openRecentFilePath(path: string) {
       const data = await api.fileRead(path)
       const ext = path.split('.').pop()?.toLowerCase()
 
-      if (ext === 'xd') {
+      if (ext === 'crow') {
         const doc = decodeDocument(data)
         useEditorStore.setState({
           document: doc,

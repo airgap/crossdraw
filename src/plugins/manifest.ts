@@ -70,7 +70,7 @@ export interface PluginPanelContribution {
 
 export interface PluginImporterContribution {
   id: string
-  /** File extensions this importer handles (e.g., [".sketch", ".xd"]) */
+  /** File extensions this importer handles (e.g., [".sketch", ".crow"]) */
   extensions: string[]
   label: string
 }

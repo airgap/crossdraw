@@ -25,7 +25,7 @@ export class BrowserFileAdapter implements FileAdapter {
           types: [
             {
               description: 'Crossdraw files',
-              accept: { 'application/x-crossdraw': ['.xd'] },
+              accept: { 'application/x-crossdraw': ['.crow'] },
             },
           ],
         })
@@ -38,7 +38,7 @@ export class BrowserFileAdapter implements FileAdapter {
       return new Promise((resolve) => {
         const input = document.createElement('input')
         input.type = 'file'
-        input.accept = '.xd'
+        input.accept = '.crow'
         input.onchange = async () => {
           const file = input.files?.[0]
           if (!file) return resolve(null)
@@ -73,7 +73,7 @@ export class BrowserFileAdapter implements FileAdapter {
           types: [
             {
               description: 'Crossdraw files',
-              accept: { 'application/x-crossdraw': ['.xd'] },
+              accept: { 'application/x-crossdraw': ['.crow'] },
             },
           ],
         })

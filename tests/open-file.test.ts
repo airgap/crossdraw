@@ -149,8 +149,8 @@ describe('openFileAsDocument', () => {
     }
   })
 
-  it('should not throw for .xd file input', async () => {
-    const file = new File([new ArrayBuffer(10)], 'project.xd', { type: 'application/octet-stream' })
+  it('should not throw for .crow file input', async () => {
+    const file = new File([new ArrayBuffer(10)], 'project.crow', { type: 'application/octet-stream' })
     try {
       await openFileAsDocument(file)
     } catch {

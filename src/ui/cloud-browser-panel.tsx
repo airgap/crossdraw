@@ -137,7 +137,7 @@ export function CloudBrowserPanel() {
     try {
       const doc = useEditorStore.getState().document
       const buffer = encodeDocument(doc)
-      const name = `${doc.metadata.title || 'Untitled'}.xd`
+      const name = `${doc.metadata.title || 'Untitled'}.crow`
 
       if (cloudFileId) {
         const updated = await updateFile(cloudFileId, buffer, config)

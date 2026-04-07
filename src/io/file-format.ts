@@ -7,7 +7,7 @@ const MAGIC = 'DESIGN'
 const FORMAT_VERSION = 3
 
 /**
- * Encode a DesignDocument to a .xd binary buffer.
+ * Encode a DesignDocument to a .crow binary buffer.
  *
  * Layout:
  *   [6 bytes] magic "DESIGN"
@@ -53,7 +53,7 @@ export function encodeDocument(doc: DesignDocument): ArrayBuffer {
 }
 
 /**
- * Decode a .xd binary buffer back to a DesignDocument.
+ * Decode a .crow binary buffer back to a DesignDocument.
  */
 export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   const view = new DataView(buffer)
@@ -62,13 +62,13 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
   // Verify magic
   const magic = String.fromCharCode(...bytes.slice(0, 6))
   if (magic !== MAGIC) {
-    throw new Error(`Invalid .xd file: bad magic "${magic}"`)
+    throw new Error(`Invalid .crow file: bad magic "${magic}"`)
   }
 
   // Version
   const version = view.getUint32(6, true)
   if (version > FORMAT_VERSION) {
-    throw new Error(`Unsupported .xd version ${version} (max supported: ${FORMAT_VERSION})`)
+    throw new Error(`Unsupported .crow version ${version} (max supported: ${FORMAT_VERSION})`)
   }
 
   // Flags
@@ -82,22 +82,22 @@ export function decodeDocument(buffer: ArrayBuffer): DesignDocument {
 
   // Basic schema validation
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-    throw new Error('Invalid .xd file: payload is not an object')
+    throw new Error('Invalid .crow file: payload is not an object')
   }
   if (typeof raw.id !== 'string') {
-    throw new Error('Invalid .xd file: missing required field "id" (string)')
+    throw new Error('Invalid .crow file: missing required field "id" (string)')
   }
   if (!raw.metadata || typeof raw.metadata !== 'object' || Array.isArray(raw.metadata)) {
-    throw new Error('Invalid .xd file: missing required field "metadata" (object)')
+    throw new Error('Invalid .crow file: missing required field "metadata" (object)')
   }
   if (!Array.isArray(raw.artboards)) {
-    throw new Error('Invalid .xd file: missing required field "artboards" (array)')
+    throw new Error('Invalid .crow file: missing required field "artboards" (array)')
   }
 
   // Apply migrations if needed
   if (version < FORMAT_VERSION) {
     if (!canMigrate(version, FORMAT_VERSION)) {
-      throw new Error(`Cannot migrate .xd file from version ${version} to ${FORMAT_VERSION}`)
+      throw new Error(`Cannot migrate .crow file from version ${version} to ${FORMAT_VERSION}`)
     }
     raw = migrateData(raw, version, FORMAT_VERSION)
   }

@@ -24,7 +24,7 @@
         "viewType": "crossdraw.editor",
         "displayName": "Crossdraw Editor",
         "selector": [
-          { "filenamePattern": "*.xd" }
+          { "filenamePattern": "*.crow" }
         ],
         "priority": "default"
       },
@@ -69,7 +69,7 @@
       "explorer/context": [
         {
           "command": "crossdraw.openInEditor",
-          "when": "resourceExtname =~ /^\\.(xd|png|jpg|jpeg|gif|webp|svg|psd)$/i",
+          "when": "resourceExtname =~ /^\\.(crow|png|jpg|jpeg|gif|webp|svg|psd)$/i",
           "group": "navigation"
         }
       ]

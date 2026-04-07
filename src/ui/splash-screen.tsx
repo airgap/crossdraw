@@ -44,7 +44,7 @@ async function openRecentByPath(entry: RecentFileEntry) {
       const data = await api.fileRead(entry.path)
       const ext = entry.path.split('.').pop()?.toLowerCase()
 
-      if (ext === 'xd') {
+      if (ext === 'crow') {
         const doc = decodeDocument(data)
         useEditorStore.setState({
           document: doc,
@@ -273,7 +273,7 @@ export function SplashScreen({ onReady }: { onReady: () => void }) {
             }}
           >
             <p style={{ margin: 0, fontSize: 'var(--font-size-base)' }}>Drop a file here to open</p>
-            <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.7 }}>.xd, .svg, .png, .jpg, .gif, .webp</p>
+            <p style={{ margin: '8px 0 0', fontSize: 12, opacity: 0.7 }}>.crow, .svg, .png, .jpg, .gif, .webp</p>
           </div>
         </div>
       </div>

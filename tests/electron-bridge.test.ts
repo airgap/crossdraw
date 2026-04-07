@@ -65,10 +65,10 @@ describe('electronOpen', () => {
     globalThis.window = saved
   })
 
-  it('should open .xd file and set document', async () => {
+  it('should open .crow file and set document', async () => {
     const saved = globalThis.window
 
-    // Create a minimal valid .xd file data using the encode function
+    // Create a minimal valid .crow file data using the encode function
     const { encodeDocument } = require('@/io/file-format')
     const testDoc = {
       id: 'open-test-doc',
@@ -100,7 +100,7 @@ describe('electronOpen', () => {
     ;(globalThis as any).window = {
       electronAPI: {
         fileOpenDialog: async () => ({
-          filePath: '/test/file.xd',
+          filePath: '/test/file.crow',
           data: encoded,
         }),
       },
@@ -146,7 +146,7 @@ describe('electronOpen', () => {
     ;(globalThis as any).window = {
       electronAPI: {
         fileOpenDialog: async () => ({
-          filePath: '/test/file.xd',
+          filePath: '/test/file.crow',
           data: new ArrayBuffer(4), // Invalid data
         }),
       },
@@ -185,7 +185,7 @@ describe('electronSaveAs', () => {
 
     ;(globalThis as any).window = {
       electronAPI: {
-        fileSaveDialog: async () => '/test/saved.xd',
+        fileSaveDialog: async () => '/test/saved.crow',
         fileSave: async (path: string, buffer: ArrayBuffer) => {
           savedPath = path
           savedBuffer = buffer
@@ -198,12 +198,12 @@ describe('electronSaveAs', () => {
     useEditorStore.setState({ isDirty: true })
 
     await electronSaveAs()
-    expect(savedPath).toBe('/test/saved.xd')
+    expect(savedPath).toBe('/test/saved.crow')
     expect(savedBuffer).not.toBeNull()
 
     const state = useEditorStore.getState()
     expect(state.isDirty).toBe(false)
-    expect(state.filePath).toBe('/test/saved.xd')
+    expect(state.filePath).toBe('/test/saved.crow')
 
     globalThis.window = saved
   })
@@ -391,8 +391,8 @@ describe('setupElectronBridge', () => {
     setupElectronBridge()
     expect(saveHandler).not.toBeNull()
 
-    await saveHandler!('/test/saved.xd')
-    expect(savedPath).toBe('/test/saved.xd')
+    await saveHandler!('/test/saved.crow')
+    expect(savedPath).toBe('/test/saved.crow')
     expect(savedData).not.toBeNull()
     expect(useEditorStore.getState().isDirty).toBe(false)
 
@@ -474,7 +474,7 @@ describe('setupElectronBridge', () => {
     globalThis.window = saved
   })
 
-  it('should handle onFileOpened with .xd file', async () => {
+  it('should handle onFileOpened with .crow file', async () => {
     const saved = globalThis.window
     let fileOpenedHandler: Function | null = null
 
@@ -528,7 +528,7 @@ describe('setupElectronBridge', () => {
     setupElectronBridge()
     expect(fileOpenedHandler).not.toBeNull()
 
-    await fileOpenedHandler!(encoded, '/path/to/file.xd')
+    await fileOpenedHandler!(encoded, '/path/to/file.crow')
     expect(useEditorStore.getState().document.id).toBe('opened-doc')
     expect(useEditorStore.getState().isDirty).toBe(false)
 

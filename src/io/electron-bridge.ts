@@ -62,7 +62,7 @@ export function setupElectronBridge() {
     try {
       const ext = filePath.split('.').pop()?.toLowerCase()
 
-      if (ext === 'xd') {
+      if (ext === 'crow') {
         const doc = decodeDocument(data)
         useEditorStore.setState({
           document: doc,
@@ -159,7 +159,7 @@ export async function electronOpen() {
     const filePath = result.filePath || ''
     const ext = filePath.split('.').pop()?.toLowerCase()
 
-    if (ext === 'xd') {
+    if (ext === 'crow') {
       const doc = decodeDocument(result.data)
       useEditorStore.setState({
         document: doc,

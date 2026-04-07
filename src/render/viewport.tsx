@@ -1544,8 +1544,8 @@ export function Viewport() {
       const file = files[0]!
       const name = file.name.toLowerCase()
 
-      // SVG and .xd files open as new documents
-      if (name.endsWith('.xd') || name.endsWith('.svg') || file.type === 'image/svg+xml') {
+      // SVG and .crow files open as new documents
+      if (name.endsWith('.crow') || name.endsWith('.svg') || file.type === 'image/svg+xml') {
         await openFileAsDocument(file)
       } else if (file.type.startsWith('image/')) {
         // Raster images import into the current canvas

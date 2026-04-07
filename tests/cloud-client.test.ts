@@ -135,15 +135,15 @@ describe('Cloud Client - API Methods', () => {
   describe('listCloudFiles', () => {
     test('returns list of files on success', async () => {
       const files: CloudFileEntry[] = [
-        { id: '1', name: 'file1.xd', size: 1024, createdAt: '2026-01-01', updatedAt: '2026-01-01' },
-        { id: '2', name: 'file2.xd', size: 2048, createdAt: '2026-01-02', updatedAt: '2026-01-02' },
+        { id: '1', name: 'file1.crow', size: 1024, createdAt: '2026-01-01', updatedAt: '2026-01-01' },
+        { id: '2', name: 'file2.crow', size: 2048, createdAt: '2026-01-02', updatedAt: '2026-01-02' },
       ]
       mockFetchResponse = { ok: true, status: 200, statusText: 'OK', body: files }
 
       const result = await listCloudFiles(testConfig)
       expect(result).toHaveLength(2)
       expect(result[0]!.id).toBe('1')
-      expect(result[1]!.name).toBe('file2.xd')
+      expect(result[1]!.name).toBe('file2.crow')
     })
 
     test('throws on error response', async () => {
@@ -156,21 +156,21 @@ describe('Cloud Client - API Methods', () => {
     test('uploads file and returns entry', async () => {
       const entry: CloudFileEntry = {
         id: 'new-1',
-        name: 'upload.xd',
+        name: 'upload.crow',
         size: 512,
         createdAt: '2026-01-01',
         updatedAt: '2026-01-01',
       }
       mockFetchResponse = { ok: true, status: 200, statusText: 'OK', body: entry }
 
-      const result = await uploadFile('upload.xd', new ArrayBuffer(512), testConfig)
+      const result = await uploadFile('upload.crow', new ArrayBuffer(512), testConfig)
       expect(result.id).toBe('new-1')
-      expect(result.name).toBe('upload.xd')
+      expect(result.name).toBe('upload.crow')
     })
 
     test('throws on error response', async () => {
       mockFetchResponse = { ok: false, status: 413, statusText: 'Payload Too Large', body: {} }
-      await expect(uploadFile('big.xd', new ArrayBuffer(0), testConfig)).rejects.toThrow('Failed to upload file')
+      await expect(uploadFile('big.crow', new ArrayBuffer(0), testConfig)).rejects.toThrow('Failed to upload file')
     })
   })
 
@@ -194,7 +194,7 @@ describe('Cloud Client - API Methods', () => {
     test('updates file and returns entry', async () => {
       const entry: CloudFileEntry = {
         id: 'upd-1',
-        name: 'updated.xd',
+        name: 'updated.crow',
         size: 1024,
         createdAt: '2026-01-01',
         updatedAt: '2026-01-02',
@@ -244,9 +244,9 @@ describe('Cloud Client - API without explicit config', () => {
   })
 
   test('uploadFile uses stored config', async () => {
-    const entry: CloudFileEntry = { id: 'x', name: 'x.xd', size: 1, createdAt: '', updatedAt: '' }
+    const entry: CloudFileEntry = { id: 'x', name: 'x.crow', size: 1, createdAt: '', updatedAt: '' }
     mockFetchResponse = { ok: true, status: 200, statusText: 'OK', body: entry }
-    const result = await uploadFile('x.xd', new ArrayBuffer(1))
+    const result = await uploadFile('x.crow', new ArrayBuffer(1))
     expect(result.id).toBe('x')
   })
 
@@ -257,7 +257,7 @@ describe('Cloud Client - API without explicit config', () => {
   })
 
   test('updateFile uses stored config', async () => {
-    const entry: CloudFileEntry = { id: 'u', name: 'u.xd', size: 1, createdAt: '', updatedAt: '' }
+    const entry: CloudFileEntry = { id: 'u', name: 'u.crow', size: 1, createdAt: '', updatedAt: '' }
     mockFetchResponse = { ok: true, status: 200, statusText: 'OK', body: entry }
     const result = await updateFile('u', new ArrayBuffer(1))
     expect(result.id).toBe('u')

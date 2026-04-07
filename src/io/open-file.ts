@@ -7,11 +7,11 @@ import { decodeDocument } from '@/io/file-format'
 import { isAnimatedGIF, decodeGIF } from '@/io/gif-decoder'
 import type { RasterLayer, AnimationFrame, AnimationTimeline } from '@/types'
 
-const OPEN_ACCEPT = '.xd,.psd,.png,.jpg,.jpeg,.gif,.webp,.svg'
+const OPEN_ACCEPT = '.crow,.psd,.png,.jpg,.jpeg,.gif,.webp,.svg'
 
 /**
  * Open a file picker and load the selected file as a new document.
- * Supports .xd, PNG, JPEG, GIF, WebP, and SVG.
+ * Supports .crow, PNG, JPEG, GIF, WebP, and SVG.
  */
 export async function openFile(): Promise<void> {
   const input = document.createElement('input')
@@ -38,7 +38,7 @@ export async function openFileAsDocument(file: File): Promise<void> {
   const name = file.name.toLowerCase()
 
   try {
-    if (name.endsWith('.xd')) {
+    if (name.endsWith('.crow')) {
       await openDesignFile(file)
     } else if (name.endsWith('.psd')) {
       await openPSDAsDocument(file)

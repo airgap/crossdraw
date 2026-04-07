@@ -14,7 +14,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('crossdraw.openInEditor', async (uri: vscode.Uri) => {
       if (!uri) {
         const uris = await vscode.window.showOpenDialog({
-          filters: { 'Image files': ['xd', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'psd'] },
+          filters: { 'Image files': ['crow', 'png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'psd'] },
         })
         uri = uris?.[0]!
         if (!uri) return
@@ -22,7 +22,7 @@ export function activate(context: vscode.ExtensionContext) {
       await vscode.commands.executeCommand(
         'vscode.openWith',
         uri,
-        uri.path.endsWith('.xd') ? 'crossdraw.editor' : 'crossdraw.imageEditor',
+        uri.path.endsWith('.crow') ? 'crossdraw.editor' : 'crossdraw.imageEditor',
       )
     }),
   )
@@ -102,10 +102,7 @@ class CrossdrawEditorProvider implements vscode.CustomEditorProvider<CrossdrawDo
 
   // ── Persistence ──────────────────────────────────────────────
 
-  async saveCustomDocument(
-    document: CrossdrawDocument,
-    _cancellation: vscode.CancellationToken,
-  ): Promise<void> {
+  async saveCustomDocument(document: CrossdrawDocument, _cancellation: vscode.CancellationToken): Promise<void> {
     await vscode.workspace.fs.writeFile(document.uri, document.data)
   }
 
@@ -117,10 +114,7 @@ class CrossdrawEditorProvider implements vscode.CustomEditorProvider<CrossdrawDo
     await vscode.workspace.fs.writeFile(destination, document.data)
   }
 
-  async revertCustomDocument(
-    document: CrossdrawDocument,
-    _cancellation: vscode.CancellationToken,
-  ): Promise<void> {
+  async revertCustomDocument(document: CrossdrawDocument, _cancellation: vscode.CancellationToken): Promise<void> {
     const data = await vscode.workspace.fs.readFile(document.uri)
     document.update(data)
   }
@@ -145,14 +139,10 @@ class CrossdrawEditorProvider implements vscode.CustomEditorProvider<CrossdrawDo
 
   // ── Webview HTML ─────────────────────────────────────────────
 
-  private getHtml(
-    webview: vscode.Webview,
-    document: CrossdrawDocument,
-    serverUrl: string,
-  ): string {
+  private getHtml(webview: vscode.Webview, document: CrossdrawDocument, serverUrl: string): string {
     const nonce = getNonce()
     const ext = document.uri.path.split('.').pop()?.toLowerCase() ?? ''
-    const isNativeFormat = ext === 'xd'
+    const isNativeFormat = ext === 'crow'
 
     return /* html */ `<!DOCTYPE html>
 <html lang="en">
@@ -251,7 +241,7 @@ class CrossdrawEditorProvider implements vscode.CustomEditorProvider<CrossdrawDo
 
     async function loadFileData(data, mimeType) {
       if (mimeType === 'application/x-crossdraw') {
-        // .xd native format — show placeholder until full renderer is embedded
+        // .crow native format — show placeholder until full renderer is embedded
         canvas.width = 400
         canvas.height = 200
         ctx.fillStyle = '#2d2d2d'
@@ -407,8 +397,12 @@ class CrossdrawDocument extends vscode.Disposable implements vscode.CustomDocume
     this._data = newData
     this._onDidChange.fire({
       document: this,
-      undo: async () => { this._data = oldData },
-      redo: async () => { this._data = newData },
+      undo: async () => {
+        this._data = oldData
+      },
+      redo: async () => {
+        this._data = newData
+      },
     })
   }
 
@@ -435,13 +429,22 @@ function getNonce(): string {
 function mimeFromUri(uri: vscode.Uri): string {
   const ext = uri.path.split('.').pop()?.toLowerCase() ?? ''
   switch (ext) {
-    case 'png': return 'image/png'
-    case 'jpg': case 'jpeg': return 'image/jpeg'
-    case 'gif': return 'image/gif'
-    case 'webp': return 'image/webp'
-    case 'svg': return 'image/svg+xml'
-    case 'psd': return 'image/vnd.adobe.photoshop'
-    case 'xd': return 'application/x-crossdraw'
-    default: return 'application/octet-stream'
+    case 'png':
+      return 'image/png'
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg'
+    case 'gif':
+      return 'image/gif'
+    case 'webp':
+      return 'image/webp'
+    case 'svg':
+      return 'image/svg+xml'
+    case 'psd':
+      return 'image/vnd.adobe.photoshop'
+    case 'crow':
+      return 'application/x-crossdraw'
+    default:
+      return 'application/octet-stream'
   }
 }

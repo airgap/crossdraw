@@ -358,10 +358,10 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
         return errorResponse('Missing "file" field in form data', 400)
       }
       fileData = new Uint8Array(await file.arrayBuffer())
-      fileName = formData.get('name')?.toString() ?? file.name ?? 'Untitled.xd'
+      fileName = formData.get('name')?.toString() ?? file.name ?? 'Untitled.crow'
     } else {
       fileData = new Uint8Array(await req.arrayBuffer())
-      fileName = req.headers.get('X-File-Name') ?? 'Untitled.xd'
+      fileName = req.headers.get('X-File-Name') ?? 'Untitled.crow'
     }
 
     const id = generateId()

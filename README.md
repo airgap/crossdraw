@@ -244,7 +244,7 @@ vscode-extension/    # VS Code language support
 
 ## File Format
 
-Crossdraw uses the `.xd` file format — a MessagePack-encoded document with fflate compression. The format stores the full document model including artboards, layers, vector paths, raster data, gradients, symbols, styles, comments, and design variables.
+Crossdraw uses the `.crow` file format — a MessagePack-encoded document with fflate compression. The format stores the full document model including artboards, layers, vector paths, raster data, gradients, symbols, styles, comments, and design variables.
 
 ## CI/CD
 
