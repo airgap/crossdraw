@@ -91,15 +91,16 @@ async function main() {
     const category = CATEGORY_MAP[font.category] ?? 0
     const license = LICENSE_MAP[font.license] ?? 0
 
-    // Extract available weights from font styles
+    // Extract available weights from font style keys (e.g. "100", "200i", "400", "700italic")
     const weights = new Set<number>()
     let hasItalic = false
-    for (const [style, info] of Object.entries(font.fonts)) {
-      if (style.includes('i') || style.includes('italic')) {
-        hasItalic = true
+    for (const style of Object.keys(font.fonts)) {
+      const numMatch = style.match(/^(\d+)/)
+      if (numMatch) {
+        weights.add(parseInt(numMatch[1]!, 10))
       }
-      if (typeof info.thickness === 'number' && !isNaN(info.thickness)) {
-        weights.add(info.thickness)
+      if (style.includes('i')) {
+        hasItalic = true
       }
     }
     // Ensure at least weight 400
