@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { Layer, GroupLayer } from '@/types'
+import { pasteWebTextStyle } from '@/tools/web-text-paste'
 
 let clipboardLayers: Layer[] = []
 let pasteCount = 0
@@ -32,7 +33,13 @@ export function copyLayers() {
   pasteCount = 0
 }
 
-export function pasteLayers() {
+export async function pasteLayers() {
+  // Try pasting from Crossdraw Chrome extension first
+  if (clipboardLayers.length === 0) {
+    const handled = await pasteWebTextStyle()
+    if (handled) return
+  }
+
   if (clipboardLayers.length === 0) return
 
   const store = useEditorStore.getState()

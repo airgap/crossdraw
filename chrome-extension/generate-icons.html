@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head><title>Generate Crossdraw Extension Icons</title></head>
+<body>
+<p>Right-click each canvas and "Save image as" to create the icon files.</p>
+<script>
+// Generate simple "T" with crosshair icons at different sizes
+[16, 48, 128].forEach(size => {
+  const canvas = document.createElement('canvas')
+  canvas.width = canvas.height = size
+  const ctx = canvas.getContext('2d')
+
+  // Background
+  const r = size * 0.15
+  ctx.beginPath()
+  ctx.roundRect(0, 0, size, size, r)
+  ctx.fillStyle = '#6c5ce7'
+  ctx.fill()
+
+  // "T" letter
+  ctx.fillStyle = '#fff'
+  ctx.font = `bold ${size * 0.6}px system-ui`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText('T', size / 2, size / 2)
+
+  // Small crosshair in corner
+  const cx = size * 0.78, cy = size * 0.22, cr = size * 0.12
+  ctx.strokeStyle = '#fff'
+  ctx.lineWidth = Math.max(1, size * 0.04)
+  ctx.beginPath()
+  ctx.moveTo(cx - cr, cy); ctx.lineTo(cx + cr, cy)
+  ctx.moveTo(cx, cy - cr); ctx.lineTo(cx, cy + cr)
+  ctx.stroke()
+
+  document.body.appendChild(document.createElement('br'))
+  const label = document.createElement('span')
+  label.textContent = `${size}x${size}: `
+  document.body.appendChild(label)
+  document.body.appendChild(canvas)
+})
+</script>
+</body>
+</html>
