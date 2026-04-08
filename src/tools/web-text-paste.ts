@@ -64,10 +64,26 @@ function parsePayload(text: string): CrossdrawTextPayload | null {
   return null
 }
 
+/**
+ * Normalize internal font names back to canonical form.
+ * Browsers (especially on Google properties) may resolve font-family to
+ * internal names like "gf_Google_Sans_Flex variant0".
+ */
+function normalizeFontName(raw: string): string {
+  let name = raw.trim().replace(/^['"]|['"]$/g, '')
+  if (/^gf_/.test(name)) {
+    name = name
+      .replace(/^gf_/, '')
+      .replace(/\s+variant\d*$/i, '')
+      .replace(/_/g, ' ')
+  }
+  return name
+}
+
 /** Resolve the best font family from the CSS font-family string. */
 function resolveFontFamily(cssFontFamily: string): string {
   // CSS font-family is comma-separated, e.g. '"Inter", "Helvetica Neue", sans-serif'
-  const families = cssFontFamily.split(',').map((f) => f.trim().replace(/^['"]|['"]$/g, ''))
+  const families = cssFontFamily.split(',').map((f) => normalizeFontName(f))
 
   // Try to find each in our Google Fonts catalog
   for (const family of families) {

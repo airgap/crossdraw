@@ -143,7 +143,7 @@
 
     const cs = getComputedStyle(el)
     const preview = [
-      cs.fontFamily.split(',')[0].replace(/['"]/g, ''),
+      normalizeFontName(cs.fontFamily.split(',')[0]),
       cs.fontSize,
       `w${cs.fontWeight}`,
       cs.color,
@@ -171,6 +171,32 @@
     }
   }
 
+  // ── Font name normalization ──
+  // Browsers (especially on Google properties) may resolve font-family to
+  // internal names like "gf_Google_Sans_Flex variant0" instead of the
+  // canonical CSS name "Google Sans Flex". Normalize these back.
+
+  function normalizeFontName(raw) {
+    let name = raw.trim().replace(/^['"]|['"]$/g, '')
+
+    // Google's internal font loader pattern: "gf_Family_Name variant0"
+    if (/^gf_/.test(name)) {
+      name = name
+        .replace(/^gf_/, '')
+        .replace(/\s+variant\d*$/i, '')
+        .replace(/_/g, ' ')
+    }
+
+    return name
+  }
+
+  function normalizeFontFamily(cssFontFamily) {
+    return cssFontFamily
+      .split(',')
+      .map(normalizeFontName)
+      .join(', ')
+  }
+
   // ── Style extraction ──
 
   function extractTextStyle(el) {
@@ -186,7 +212,7 @@
     for (const prop of TEXT_PROPS) {
       const val = cs[prop]
       if (val !== undefined && val !== '') {
-        style[prop] = val
+        style[prop] = prop === 'fontFamily' ? normalizeFontFamily(val) : val
       }
     }
 
