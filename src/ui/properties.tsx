@@ -2,6 +2,7 @@ import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { FontPicker } from '@/ui/font-picker'
+import { getCatalogFont, invalidateStyledFonts } from '@/fonts/loader'
 import { ColorSwatch } from '@/ui/color-picker'
 import type {
   VectorLayer,
@@ -42,6 +43,7 @@ import type {
   TwirlEffectParams,
   PinchEffectParams,
   SpherizeEffectParams,
+  FontVariationAxis,
 } from '@/types'
 import { WARP_PRESETS } from '@/render/envelope-distort'
 import { createDefaultExtrude3DConfig } from '@/render/extrude-3d'
@@ -712,6 +714,11 @@ export function PropertiesPanel() {
               <OpenTypeFeaturesSection artboardId={artboard.id} layer={selectedLayer} />
             )}
 
+            {/* Variable Font Axes (text only, variable fonts) */}
+            {selectedLayer.type === 'text' && artboard && (
+              <VariableAxesSection artboardId={artboard.id} layer={selectedLayer} />
+            )}
+
             {/* Corner radius (rectangle shapes only) */}
             {selectedLayer.type === 'vector' && artboard && selectedLayer.shapeParams?.shapeType === 'rectangle' && (
               <div style={sectionStyle}>
@@ -849,6 +856,146 @@ export function PropertiesPanel() {
   )
 }
 
+// ─── Variable Font Axes section ───────────────────────────────
+
+/** Human-readable names for registered + common custom axes. */
+const AXIS_NAMES: Record<string, string> = {
+  wght: 'Weight',
+  wdth: 'Width',
+  ital: 'Italic',
+  slnt: 'Slant',
+  opsz: 'Optical Size',
+  GRAD: 'Grade',
+  CASL: 'Casual',
+  CRSV: 'Cursive',
+  MONO: 'Mono',
+  ROND: 'Roundness',
+  SHRP: 'Sharpness',
+  SOFT: 'Softness',
+  WONK: 'Wonkiness',
+  XOPQ: 'Thick Stroke',
+  YOPQ: 'Thin Stroke',
+  XTRA: 'Counter Width',
+  YTAS: 'Ascender Height',
+  YTDE: 'Descender Depth',
+  YTFI: 'Figure Height',
+  YTLC: 'Lowercase Height',
+  YTUC: 'Uppercase Height',
+  FLAR: 'Flare',
+  VOLM: 'Volume',
+}
+
+function VariableAxesSection({ artboardId, layer }: { artboardId: string; layer: TextLayer }) {
+  const updateLayer = useEditorStore((s) => s.updateLayer)
+  const catalogFont = getCatalogFont(layer.fontFamily)
+
+  // Only show for variable fonts with non-weight axes
+  if (!catalogFont?.a || catalogFont.a.length === 0) return null
+  const axes = catalogFont.a.filter(([tag]) => tag !== 'wght')
+  if (axes.length === 0) return null
+
+  const [expanded, setExpanded] = useState(false)
+  const layerAxes = layer.fontVariationAxes ?? []
+
+  function getAxisValue(tag: string, defaultVal: number): number {
+    const found = layerAxes.find((a) => a.tag === tag)
+    return found ? found.value : defaultVal
+  }
+
+  function setAxisValue(tag: string, name: string, min: number, max: number, defaultVal: number, value: number) {
+    const clamped = Math.max(min, Math.min(max, value))
+    const updated = [...layerAxes]
+    const idx = updated.findIndex((a) => a.tag === tag)
+    const axis: FontVariationAxis = { tag, name, min, max, default: defaultVal, value: clamped }
+    if (idx >= 0) {
+      updated[idx] = axis
+    } else {
+      updated.push(axis)
+    }
+    // Invalidate cached styled font so the next render picks up the change
+    invalidateStyledFonts(layer.fontFamily)
+    updateLayer(artboardId, layer.id, { fontVariationAxes: updated } as any)
+  }
+
+  function resetAll() {
+    invalidateStyledFonts(layer.fontFamily)
+    updateLayer(artboardId, layer.id, { fontVariationAxes: [] } as any)
+  }
+
+  const activeCount = layerAxes.filter((a) => {
+    const cat = axes.find(([t]) => t === a.tag)
+    return cat && a.value !== cat[3]
+  }).length
+
+  return (
+    <div style={sectionStyle}>
+      <div
+        style={{ ...labelStyle, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, userSelect: 'none' }}
+        onClick={() => setExpanded(!expanded)}
+      >
+        <span
+          style={{
+            fontSize: 8,
+            display: 'inline-block',
+            transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+            transition: 'transform 0.15s',
+          }}
+        >
+          {'\u25B6'}
+        </span>
+        Variable Axes
+        {activeCount > 0 && (
+          <span style={{ fontSize: 9, color: 'var(--accent)', marginLeft: 'auto' }}>{activeCount} set</span>
+        )}
+      </div>
+      {expanded && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 4 }}>
+          {axes.map(([tag, min, max, def]) => {
+            const name = AXIS_NAMES[tag] ?? tag
+            const value = getAxisValue(tag, def)
+            const step = max - min > 10 ? 1 : 0.1
+            return (
+              <div key={tag} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span
+                  style={{ fontSize: 10, color: 'var(--text-secondary)', width: 55, flexShrink: 0 }}
+                  title={`${tag} (${min}–${max}, default ${def})`}
+                >
+                  {name.length > 8 ? name.slice(0, 7) + '\u2026' : name}
+                </span>
+                <input
+                  type="range"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={value}
+                  style={{ flex: 1, height: 14, cursor: 'pointer' }}
+                  onChange={(e) => setAxisValue(tag, name, min, max, def, Number(e.target.value))}
+                  onDoubleClick={() => setAxisValue(tag, name, min, max, def, def)}
+                  title="Double-click to reset"
+                />
+                <input
+                  type="number"
+                  min={min}
+                  max={max}
+                  step={step}
+                  value={Math.round(value * 10) / 10}
+                  style={{ ...smallInputStyle, width: 48 }}
+                  onChange={(e) => setAxisValue(tag, name, min, max, def, Number(e.target.value))}
+                />
+              </div>
+            )
+          })}
+          {activeCount > 0 && (
+            <button style={{ ...btnStyle, fontSize: 9, alignSelf: 'flex-start', marginTop: 2 }} onClick={resetAll}>
+              Reset All
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── OpenType Features section ────────────────────────────────
 
 /** Common OpenType feature tags with human-readable labels. */
@@ -898,6 +1045,7 @@ function OpenTypeFeaturesSection({ artboardId, layer }: { artboardId: string; la
     const updated = { ...features, [tag]: !current }
     // Remove entries that are false to keep the object clean
     if (!updated[tag]) delete updated[tag]
+    invalidateStyledFonts(layer.fontFamily)
     updateLayer(artboardId, layer.id, { openTypeFeatures: updated } as any)
   }
 

@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { FONT_CATALOG, CATEGORIES, type CatalogFont, type FontCategory } from '@/fonts/catalog'
-import { loadFont, isFontLoaded } from '@/fonts/loader'
+import { loadFont, isFontLoaded, getCatalogFont } from '@/fonts/loader'
 
 // ── Constants ──
 
@@ -38,12 +38,8 @@ function isVariable(font: CatalogFont): boolean {
 
 // ── Lookup helpers ──
 
-const catalogByFamily = new Map<string, CatalogFont>()
-for (const f of FONT_CATALOG) catalogByFamily.set(f.f, f)
-
-export function getCatalogFont(family: string): CatalogFont | undefined {
-  return catalogByFamily.get(family)
-}
+// getCatalogFont is in @/fonts/loader — re-export for existing callers
+export { getCatalogFont }
 
 export function getBuiltinFonts() {
   return FONT_CATALOG
@@ -159,7 +155,7 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
     }
   }, [previewLoaded, loadVisiblePreviews])
 
-  const currentFont = catalogByFamily.get(value)
+  const currentFont = getCatalogFont(value)
   const availableWeights = currentFont ? getAvailableWeights(currentFont) : [400, 700]
 
   return (

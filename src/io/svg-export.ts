@@ -395,12 +395,20 @@ function renderTextLayerSVG(lines: string[], layer: TextLayer) {
   if (t.rotation) transforms.push(`rotate(${t.rotation})`)
   if (transforms.length > 0) attrs.push(`transform="${transforms.join(' ')}"`)
 
-  // Apply OpenType feature settings as a CSS style attribute
+  // Apply OpenType features and variable font axes as CSS style attributes
+  const styleParts: string[] = []
   if (layer.openTypeFeatures && Object.keys(layer.openTypeFeatures).length > 0) {
     const featureStr = Object.entries(layer.openTypeFeatures)
       .map(([tag, enabled]) => `"${tag}" ${enabled ? 1 : 0}`)
       .join(', ')
-    attrs.push(`style="font-feature-settings: ${featureStr}"`)
+    styleParts.push(`font-feature-settings: ${featureStr}`)
+  }
+  if (layer.fontVariationAxes && layer.fontVariationAxes.length > 0) {
+    const variationStr = layer.fontVariationAxes.map((a) => `"${a.tag}" ${a.value}`).join(', ')
+    styleParts.push(`font-variation-settings: ${variationStr}`)
+  }
+  if (styleParts.length > 0) {
+    attrs.push(`style="${styleParts.join('; ')}"`)
   }
 
   lines.push(`  <text ${attrs.join(' ')} dominant-baseline="text-before-edge">${escapeXml(layer.text)}</text>`)

@@ -44,7 +44,7 @@ interface CatalogFont {
   f: string // family
   c: number // category index: 0=sans-serif 1=serif 2=display 3=handwriting 4=monospace
   w: number[] // available weights (for static fonts)
-  a?: [string, number, number][] // variable axes: [tag, min, max]
+  a?: [string, number, number, number][] // variable axes: [tag, min, max, default]
   p: number // popularity rank (lower = more popular)
   l: number // license: 0=ofl 1=apache2 2=ufl
   s?: number // 1 if supports latin only, omitted if broad
@@ -106,9 +106,9 @@ async function main() {
     // Ensure at least weight 400
     if (weights.size === 0) weights.add(400)
 
-    // Variable axes
-    const axes: [string, number, number][] | undefined =
-      font.axes.length > 0 ? font.axes.map((a) => [a.tag, a.min, a.max]) : undefined
+    // Variable axes (include default values for UI sliders)
+    const axes: [string, number, number, number][] | undefined =
+      font.axes.length > 0 ? font.axes.map((a) => [a.tag, a.min, a.max, a.defaultValue]) : undefined
 
     // If it has a wght axis, we don't need to list individual weights
     const hasWeightAxis = axes?.some(([tag]) => tag === 'wght')
@@ -153,8 +153,8 @@ export interface CatalogFont {
   c: number
   /** Available weights (empty if variable with wght axis) */
   w: number[]
-  /** Variable axes: [tag, min, max][] */
-  a?: [string, number, number][]
+  /** Variable axes: [tag, min, max, default][] */
+  a?: [string, number, number, number][]
   /** Popularity rank (0 = most popular) */
   p: number
   /** License index */

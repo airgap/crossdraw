@@ -18,6 +18,7 @@ import { renderVariableStroke } from '@/render/variable-stroke'
 import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import { warpPaths } from '@/render/envelope-distort'
 import { render3DLayer } from '@/render/extrude-3d'
+import { getStyledFontFamily } from '@/fonts/loader'
 import { isCustomBlendMode, compositeImageData } from '@/render/blend-modes'
 import { renderCollabCursors, renderCollabViewports } from '@/collab/collab-cursors'
 import {
@@ -3724,17 +3725,21 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   // Support numeric weights (e.g. '600') in addition to 'normal'/'bold'
   const rawWeight = layer.fontWeight ?? 'normal'
   const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
-  const family = layer.fontFamily.includes(' ') ? `"${layer.fontFamily}"` : layer.fontFamily
+
+  // Use a styled font variant when OT features or variable axes are active.
+  // getStyledFontFamily creates dynamic FontFace objects with featureSettings /
+  // variationSettings descriptors, allowing Canvas 2D to render them correctly.
+  const hasFeatures = layer.openTypeFeatures && Object.keys(layer.openTypeFeatures).length > 0
+  const hasVariations = layer.fontVariationAxes && layer.fontVariationAxes.length > 0
+  const resolvedFamily =
+    hasFeatures || hasVariations
+      ? getStyledFontFamily(layer.fontFamily, layer.openTypeFeatures, layer.fontVariationAxes)
+      : layer.fontFamily
+  const family = resolvedFamily.includes(' ') ? `"${resolvedFamily}"` : resolvedFamily
   ctx.font = `${style}${weight}${layer.fontSize}px ${family}`
   ctx.fillStyle = layer.color
   ctx.textBaseline = 'top'
   ctx.textAlign = layer.textAlign ?? 'left'
-
-  // NOTE: OpenType features (layer.openTypeFeatures) are stored on the layer but
-  // Canvas 2D does not support CSS font-feature-settings. These features are
-  // applied in SVG export (which supports font-feature-settings as a style attribute).
-  // A future enhancement could render text via an HTML overlay or use the CSS Font
-  // Loading API with an OffscreenCanvas to apply OT features on the canvas.
 
   const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
   const letterSp = layer.letterSpacing ?? 0
