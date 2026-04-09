@@ -2,7 +2,7 @@ import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import { FontPicker } from '@/ui/font-picker'
-import { getCatalogFont, invalidateStyledFonts } from '@/fonts/loader'
+import { getCatalogFont } from '@/fonts/loader'
 import { ColorSwatch } from '@/ui/color-picker'
 import type {
   VectorLayer,
@@ -911,13 +911,10 @@ function VariableAxesSection({ artboardId, layer }: { artboardId: string; layer:
     } else {
       updated.push(axis)
     }
-    // Invalidate cached styled font so the next render picks up the change
-    invalidateStyledFonts(layer.fontFamily)
     updateLayer(artboardId, layer.id, { fontVariationAxes: updated } as any)
   }
 
   function resetAll() {
-    invalidateStyledFonts(layer.fontFamily)
     updateLayer(artboardId, layer.id, { fontVariationAxes: [] } as any)
   }
 
@@ -1044,7 +1041,6 @@ function OpenTypeFeaturesSection({ artboardId, layer }: { artboardId: string; la
     const updated = { ...features, [tag]: !current }
     // Remove entries that are false to keep the object clean
     if (!updated[tag]) delete updated[tag]
-    invalidateStyledFonts(layer.fontFamily)
     updateLayer(artboardId, layer.id, { openTypeFeatures: updated } as any)
   }
 

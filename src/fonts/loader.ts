@@ -139,10 +139,10 @@ const SYSTEM_FONTS = new Set([
 // ── Styled font variants (OpenType features + variable axes on Canvas 2D) ──
 //
 // Canvas 2D doesn't support font-feature-settings or font-variation-settings
-// directly. We work around this by creating new FontFace objects with the
-// desired featureSettings / variationSettings descriptors and a unique family
-// name. When Canvas resolves ctx.font, it picks up the descriptors from the
-// matching FontFace, so features and axes are applied at render time.
+// directly. We work around this by creating FontFace objects with the desired
+// descriptors under a stable alias per family. When settings change we swap
+// the FontFaces in-place using pre-fetched binary data so there's no async
+// network hit — slider drags update instantly.
 
 interface ParsedFontFace {
   weight: string
@@ -151,12 +151,17 @@ interface ParsedFontFace {
   unicodeRange?: string
 }
 
+type StyledDescriptors = FontFaceDescriptors & { variationSettings?: string }
+
 /** Parsed @font-face data per family. */
 const fontSources = new Map<string, ParsedFontFace[]>()
 const fontSourcesLoading = new Set<string>()
 
-/** Cache: "family|features|variations" → unique family name. */
-const styledCache = new Map<string, string>()
+/** Pre-fetched font binary data (URL → ArrayBuffer) for instant FontFace creation. */
+const fontBuffers = new Map<string, ArrayBuffer>()
+
+/** Stable uid + current settings key per base family. */
+const styledFamily = new Map<string, { uid: string; key: string }>()
 let styledCounter = 0
 
 /** Parse @font-face rules from Google Fonts CSS text. */
@@ -175,7 +180,7 @@ function parseFontFaceCss(css: string): ParsedFontFace[] {
   return results
 }
 
-/** Fetch and cache the parsed @font-face source URLs for a font. */
+/** Fetch and cache the parsed @font-face source URLs + binary data for a font. */
 function fetchFontSources(font: CatalogFont): void {
   if (fontSources.has(font.f) || fontSourcesLoading.has(font.f)) return
   if (SYSTEM_FONTS.has(font.f)) return
@@ -184,7 +189,17 @@ function fetchFontSources(font: CatalogFont): void {
   fetch(buildFontUrl(font))
     .then((r) => r.text())
     .then((css) => {
-      fontSources.set(font.f, parseFontFaceCss(css))
+      const parsed = parseFontFaceCss(css)
+      fontSources.set(font.f, parsed)
+      // Pre-fetch binary data so styled FontFaces can be created from buffers
+      for (const src of parsed) {
+        if (!fontBuffers.has(src.src)) {
+          fetch(src.src)
+            .then((r) => r.arrayBuffer())
+            .then((buf) => fontBuffers.set(src.src, buf))
+            .catch(() => {})
+        }
+      }
     })
     .catch(() => {})
     .finally(() => fontSourcesLoading.delete(font.f))
@@ -204,14 +219,21 @@ function formatVariations(axes: FontVariationAxis[]): string {
   return axes.map((a) => `"${a.tag}" ${a.value}`).join(', ')
 }
 
+/** Remove all FontFace objects registered under a given uid. */
+function removeFacesForUid(uid: string): void {
+  for (const face of document.fonts) {
+    if (face.family === uid) document.fonts.delete(face)
+  }
+}
+
 /**
  * Get a font family name that renders with the given OpenType features
  * and/or variable-font axis values on Canvas 2D.
  *
- * Creates dynamic FontFace objects (with featureSettings / variationSettings
- * descriptors) on first call for each unique combination, then caches the
- * result. Returns the original family as a fallback while font sources are
- * still loading.
+ * Uses a stable uid per base family — when settings change, FontFaces are
+ * swapped in-place using pre-fetched ArrayBuffers so the update is instant
+ * (no network round-trip). Falls back to url() sources if buffers aren't
+ * cached yet.
  */
 export function getStyledFontFamily(
   family: string,
@@ -222,17 +244,17 @@ export function getStyledFontFamily(
   const variationStr = variations && variations.length > 0 ? formatVariations(variations) : ''
   if (!featureStr && !variationStr) return family
 
-  const cacheKey = `${family}|${featureStr}|${variationStr}`
-  const cached = styledCache.get(cacheKey)
-  if (cached) return cached
+  const settingsKey = `${featureStr}|${variationStr}`
+  const existing = styledFamily.get(family)
 
-  // FontFaceDescriptors includes variationSettings in the spec but TS lib may lag
-  type Descriptors = FontFaceDescriptors & { variationSettings?: string }
+  // Same settings as last time — return cached uid
+  if (existing && existing.key === settingsKey) return existing.uid
 
   // System fonts: use local() source
   if (SYSTEM_FONTS.has(family)) {
-    const uid = `__cd${styledCounter++}`
-    const desc: Descriptors = { display: 'swap' as FontDisplay }
+    const uid = existing?.uid ?? `__cd${styledCounter++}`
+    if (existing) removeFacesForUid(uid)
+    const desc: StyledDescriptors = { display: 'swap' as FontDisplay }
     if (featureStr) desc.featureSettings = featureStr
     if (variationStr) desc.variationSettings = variationStr
     try {
@@ -242,22 +264,23 @@ export function getStyledFontFamily(
     } catch {
       return family
     }
-    styledCache.set(cacheKey, uid)
+    styledFamily.set(family, { uid, key: settingsKey })
     return uid
   }
 
   // Web fonts: need parsed source data
   const sources = fontSources.get(family)
   if (!sources) {
-    // Trigger fetch so it's ready on the next render
     const cat = catalogByFamily.get(family)
     if (cat) fetchFontSources(cat)
     return family
   }
 
-  const uid = `__cd${styledCounter++}`
+  const uid = existing?.uid ?? `__cd${styledCounter++}`
+  if (existing) removeFacesForUid(uid)
+
   for (const src of sources) {
-    const desc: Descriptors = {
+    const desc: StyledDescriptors = {
       weight: src.weight,
       style: src.style,
       display: 'swap' as FontDisplay,
@@ -266,7 +289,10 @@ export function getStyledFontFamily(
     if (featureStr) desc.featureSettings = featureStr
     if (variationStr) desc.variationSettings = variationStr
     try {
-      const face = new FontFace(uid, `url(${src.src})`, desc as FontFaceDescriptors)
+      // Use pre-fetched buffer for instant creation, fall back to url()
+      const buffer = fontBuffers.get(src.src)
+      const source: ArrayBuffer | string = buffer ?? `url(${src.src})`
+      const face = new FontFace(uid, source, desc as FontFaceDescriptors)
       document.fonts.add(face)
       face.load().catch(() => {})
     } catch {
@@ -274,24 +300,6 @@ export function getStyledFontFamily(
     }
   }
 
-  styledCache.set(cacheKey, uid)
+  styledFamily.set(family, { uid, key: settingsKey })
   return uid
-}
-
-/**
- * Invalidate styled font cache entries for a family.
- * Call when the user changes features/axes so stale entries are dropped.
- */
-export function invalidateStyledFonts(family: string): void {
-  for (const [key, uid] of styledCache) {
-    if (key.startsWith(family + '|')) {
-      // Remove FontFace objects for this uid
-      for (const face of document.fonts) {
-        if (face.family === uid) {
-          document.fonts.delete(face)
-        }
-      }
-      styledCache.delete(key)
-    }
-  }
 }
