@@ -33,12 +33,13 @@ pipeline {
             steps {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun install --frozen-lockfile'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun run format:check'
+                sh 'export PATH=$HOME/.bun/bin:$PATH && bun run generate:fonts'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bunx tsc -b'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun test'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bunx vite build'
                 stash includes: 'dist/**', name: 'web-dist'
                 // Stash source for Windows (can't git-fetch from internal Gitea)
-                stash includes: 'package.json,bun.lockb,electron/**,electron-builder.yml,src/**,tsconfig*.json,index.html,vite.config.ts,public/**', name: 'source'
+                stash includes: 'package.json,bun.lockb,bun.lock,electron/**,electron-builder.yml,src/**,tsconfig*.json,index.html,vite.config.ts,public/**', name: 'source'
             }
         }
 
