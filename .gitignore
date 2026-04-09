@@ -7,6 +7,10 @@ release/
 *.tsbuildinfo
 server/dist-embed.ts
 
+# Generated font previews (bun scripts/generate-font-previews.ts)
+public/font-previews.png
+src/fonts/preview-meta.json
+
 # Mobile build outputs
 android/app/build/
 android/.gradle/

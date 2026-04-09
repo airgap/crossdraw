@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { FONT_CATALOG, CATEGORIES, type CatalogFont, type FontCategory } from '@/fonts/catalog'
 import { loadFont, getCatalogFont } from '@/fonts/loader'
-import previews from '@/fonts/previews.json'
+import previewMeta from '@/fonts/preview-meta.json'
 
 // ── Constants ──
 
@@ -45,11 +45,12 @@ export function getBuiltinFonts() {
   return FONT_CATALOG
 }
 
-// ── Preview data ──
+// ── Preview sprite data ──
 
-const previewData = previews as Record<string, { d: string; vx: number; vy: number; vw: number; vh: number }>
+const SPRITE_URL = '/font-previews.png'
+const SPRITE_WIDTH = (previewMeta as any).width as number
+const SPRITE_ROW_HEIGHT = (previewMeta as any).rowHeight as number
 
-// Build a map from catalog index to the font's index in FONT_CATALOG
 const catalogIndexMap = new Map<string, number>()
 for (let i = 0; i < FONT_CATALOG.length; i++) {
   catalogIndexMap.set(FONT_CATALOG[i]!.f, i)
@@ -57,20 +58,29 @@ for (let i = 0; i < FONT_CATALOG.length; i++) {
 
 function FontPreview({ family, color }: { family: string; color: string }) {
   const idx = catalogIndexMap.get(family)
-  const p = idx !== undefined ? previewData[idx] : undefined
-  if (!p) {
-    // No SVG preview — fall back to text label
+  if (idx === undefined) {
     return <span>{family}</span>
   }
   return (
-    <svg
-      viewBox={`${p.vx} ${p.vy} ${p.vw} ${p.vh}`}
-      height={14}
-      style={{ maxWidth: '100%', display: 'block' }}
+    <div
+      role="img"
       aria-label={family}
-    >
-      <path d={p.d} fill={color} />
-    </svg>
+      style={
+        {
+          width: SPRITE_WIDTH,
+          height: SPRITE_ROW_HEIGHT,
+          backgroundColor: color,
+          WebkitMaskImage: `url(${SPRITE_URL})`,
+          WebkitMaskPosition: `0 ${-(idx * SPRITE_ROW_HEIGHT)}px`,
+          WebkitMaskSize: `${SPRITE_WIDTH}px auto`,
+          WebkitMaskRepeat: 'no-repeat',
+          maskImage: `url(${SPRITE_URL})`,
+          maskPosition: `0 ${-(idx * SPRITE_ROW_HEIGHT)}px`,
+          maskSize: `${SPRITE_WIDTH}px auto`,
+          maskRepeat: 'no-repeat',
+        } as React.CSSProperties
+      }
+    />
   )
 }
 
