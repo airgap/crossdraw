@@ -887,14 +887,13 @@ const AXIS_NAMES: Record<string, string> = {
 
 function VariableAxesSection({ artboardId, layer }: { artboardId: string; layer: TextLayer }) {
   const updateLayer = useEditorStore((s) => s.updateLayer)
+  const [expanded, setExpanded] = useState(false)
   const catalogFont = getCatalogFont(layer.fontFamily)
 
-  // Only show for variable fonts with non-weight axes
-  if (!catalogFont?.a || catalogFont.a.length === 0) return null
-  const axes = catalogFont.a.filter(([tag]) => tag !== 'wght')
+  // All hooks must be above this line — early returns below
+  const axes = catalogFont?.a?.filter(([tag]) => tag !== 'wght') ?? []
   if (axes.length === 0) return null
 
-  const [expanded, setExpanded] = useState(false)
   const layerAxes = layer.fontVariationAxes ?? []
 
   function getAxisValue(tag: string, defaultVal: number): number {
