@@ -4,6 +4,7 @@
  */
 import { useEditorStore } from '@/store/editor.store'
 import { encodeDocument, decodeDocument } from '@/io/file-format'
+import { loadDocumentFonts } from '@/fonts/loader'
 
 const DB_NAME = 'crossdraw'
 const DB_VERSION = 1
@@ -69,6 +70,7 @@ export async function restoreLastDocument(): Promise<boolean> {
       isDirty: false,
       filePath: null,
     })
+    loadDocumentFonts(doc)
     return true
   } catch {
     return false

@@ -90,6 +90,29 @@ export function preloadFonts(fonts: CatalogFont[], count: number): void {
   }
 }
 
+/** Scan a document for text layers and load all referenced fonts. */
+export function loadDocumentFonts(doc: {
+  artboards: Array<{ layers: Array<{ type: string; fontFamily?: string }> }>
+}): void {
+  const families = new Set<string>()
+  function walk(layers: Array<{ type: string; fontFamily?: string; children?: any[] }>) {
+    for (const layer of layers) {
+      if (layer.type === 'text' && layer.fontFamily) {
+        families.add(layer.fontFamily)
+      }
+      if ((layer as any).children) walk((layer as any).children)
+    }
+  }
+  for (const artboard of doc.artboards) {
+    walk(artboard.layers)
+  }
+  for (const family of families) {
+    if (isFontLoaded(family)) continue
+    const cat = catalogByFamily.get(family)
+    if (cat) loadFont(cat)
+  }
+}
+
 /** System fonts that don't need loading. */
 const SYSTEM_FONTS = new Set([
   'Arial',

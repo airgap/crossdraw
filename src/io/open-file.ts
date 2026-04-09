@@ -5,6 +5,7 @@ import { importSVG } from '@/io/svg-import'
 import { importPSD } from '@/io/psd-import'
 import { decodeDocument } from '@/io/file-format'
 import { isAnimatedGIF, decodeGIF } from '@/io/gif-decoder'
+import { loadDocumentFonts } from '@/fonts/loader'
 import type { RasterLayer, AnimationFrame, AnimationTimeline } from '@/types'
 
 const OPEN_ACCEPT = '.crow,.psd,.png,.jpg,.jpeg,.gif,.webp,.svg'
@@ -70,6 +71,7 @@ async function openDesignFile(file: File): Promise<void> {
     isDirty: false,
     filePath: null,
   })
+  loadDocumentFonts(doc)
 }
 
 async function openPSDAsDocument(file: File): Promise<void> {
@@ -86,6 +88,7 @@ async function openPSDAsDocument(file: File): Promise<void> {
     isDirty: false,
     filePath: null,
   })
+  loadDocumentFonts(doc)
 }
 
 async function openSVGAsDocument(file: File): Promise<void> {

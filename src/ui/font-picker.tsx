@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { FONT_CATALOG, CATEGORIES, type CatalogFont, type FontCategory } from '@/fonts/catalog'
-import { loadFont, isFontLoaded, getCatalogFont } from '@/fonts/loader'
+import { loadFont, getCatalogFont } from '@/fonts/loader'
+import previews from '@/fonts/previews.json'
 
 // ── Constants ──
 
@@ -24,7 +25,6 @@ export function getWeightName(weight: number): string {
 function getAvailableWeights(font: CatalogFont): number[] {
   const wghtAxis = font.a?.find(([tag]) => tag === 'wght')
   if (wghtAxis) {
-    // Variable font — generate standard weight stops within range
     const [, min, max] = wghtAxis
     return [100, 200, 300, 400, 500, 600, 700, 800, 900].filter((w) => w >= min && w <= max)
   }
@@ -45,6 +45,35 @@ export function getBuiltinFonts() {
   return FONT_CATALOG
 }
 
+// ── Preview data ──
+
+const previewData = previews as Record<string, { d: string; vx: number; vy: number; vw: number; vh: number }>
+
+// Build a map from catalog index to the font's index in FONT_CATALOG
+const catalogIndexMap = new Map<string, number>()
+for (let i = 0; i < FONT_CATALOG.length; i++) {
+  catalogIndexMap.set(FONT_CATALOG[i]!.f, i)
+}
+
+function FontPreview({ family, color }: { family: string; color: string }) {
+  const idx = catalogIndexMap.get(family)
+  const p = idx !== undefined ? previewData[idx] : undefined
+  if (!p) {
+    // No SVG preview — fall back to text label
+    return <span>{family}</span>
+  }
+  return (
+    <svg
+      viewBox={`${p.vx} ${p.vy} ${p.vw} ${p.vh}`}
+      height={14}
+      style={{ maxWidth: '100%', display: 'block' }}
+      aria-label={family}
+    >
+      <path d={p.d} fill={color} />
+    </svg>
+  )
+}
+
 // ── Font Picker component ──
 
 const CATEGORY_LABELS: Record<FontCategory, string> = {
@@ -62,19 +91,16 @@ interface FontPickerProps {
   onWeightChange: (weight: number) => void
 }
 
-/** Number of fonts visible in the dropdown before scrolling. */
-const VISIBLE_ITEM_HEIGHT = 32
+const ITEM_HEIGHT = 32
 const MAX_VISIBLE = 8
-const DROPDOWN_HEIGHT = VISIBLE_ITEM_HEIGHT * MAX_VISIBLE
-
-/** How many fonts to pre-render with their actual font face in the dropdown. */
-const PREVIEW_BATCH = 12
+const DROPDOWN_HEIGHT = ITEM_HEIGHT * MAX_VISIBLE
+const OVERSCAN = 4 // extra items above/below viewport
 
 export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: FontPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [category, setCategory] = useState<FontCategory | null>(null)
-  const [previewLoaded, setPreviewLoaded] = useState(0)
+  const [scrollTop, setScrollTop] = useState(0)
   const listRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -100,7 +126,10 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
 
   // Focus search on open
   useEffect(() => {
-    if (isOpen) searchRef.current?.focus()
+    if (isOpen) {
+      searchRef.current?.focus()
+      setScrollTop(0)
+    }
   }, [isOpen])
 
   // Filter fonts
@@ -117,43 +146,17 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
     return fonts
   }, [search, category])
 
-  // Eagerly load fonts visible in the dropdown for preview
-  const loadVisiblePreviews = useCallback(() => {
-    const toLoad = filtered.slice(0, previewLoaded + PREVIEW_BATCH)
-    let didLoad = false
-    for (const font of toLoad) {
-      if (!isFontLoaded(font.f)) {
-        loadFont(font)
-        didLoad = true
-      }
-    }
-    if (didLoad || previewLoaded < toLoad.length) {
-      setPreviewLoaded(toLoad.length)
-    }
-  }, [filtered, previewLoaded])
-
-  useEffect(() => {
-    if (isOpen) {
-      setPreviewLoaded(0)
-      // Load first batch immediately
-      const toLoad = filtered.slice(0, PREVIEW_BATCH)
-      for (const font of toLoad) {
-        if (!isFontLoaded(font.f)) loadFont(font)
-      }
-      setPreviewLoaded(PREVIEW_BATCH)
-    }
-  }, [isOpen, filtered])
-
-  // Load more on scroll
+  // Virtual scrolling: only render visible items
   const handleScroll = useCallback(() => {
-    const el = listRef.current
-    if (!el) return
-    const scrollBottom = el.scrollTop + el.clientHeight
-    const neededIndex = Math.ceil(scrollBottom / VISIBLE_ITEM_HEIGHT) + 4
-    if (neededIndex > previewLoaded) {
-      loadVisiblePreviews()
+    if (listRef.current) {
+      setScrollTop(listRef.current.scrollTop)
     }
-  }, [previewLoaded, loadVisiblePreviews])
+  }, [])
+
+  const totalHeight = filtered.length * ITEM_HEIGHT
+  const startIdx = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - OVERSCAN)
+  const endIdx = Math.min(filtered.length, Math.ceil((scrollTop + DROPDOWN_HEIGHT) / ITEM_HEIGHT) + OVERSCAN)
+  const visibleItems = filtered.slice(startIdx, endIdx)
 
   const currentFont = getCatalogFont(value)
   const availableWeights = currentFont ? getAvailableWeights(currentFont) : [400, 700]
@@ -173,7 +176,6 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             color: 'var(--text-primary)',
             textAlign: 'left',
             cursor: 'pointer',
-            fontFamily: `"${value}", sans-serif`,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
@@ -271,9 +273,9 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             ))}
           </div>
 
-          {/* Font list */}
-          <div ref={listRef} onScroll={handleScroll} style={{ maxHeight: DROPDOWN_HEIGHT, overflowY: 'auto' }}>
-            {filtered.length === 0 && (
+          {/* Font list — virtual scrolling */}
+          <div ref={listRef} onScroll={handleScroll} style={{ height: DROPDOWN_HEIGHT, overflowY: 'auto' }}>
+            {filtered.length === 0 ? (
               <div
                 style={{
                   padding: '12px 8px',
@@ -284,76 +286,86 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
               >
                 No fonts match
               </div>
-            )}
-            {filtered.map((font, i) => {
-              const isSelected = font.f === value
-              const shouldPreview = i < previewLoaded
-              return (
-                <button
-                  key={font.f}
-                  onClick={() => {
-                    loadFont(font).then(() => {
-                      onFamilyChange(font.f)
-                    })
-                    onFamilyChange(font.f)
-                    setIsOpen(false)
-                    setSearch('')
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
-                    // Load font on hover for preview
-                    if (!isFontLoaded(font.f)) loadFont(font)
-                  }}
-                  onMouseLeave={(e) => {
-                    if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'none'
-                  }}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    width: '100%',
-                    textAlign: 'left',
-                    background: isSelected ? 'var(--accent)' : 'none',
-                    border: 'none',
-                    padding: '4px 8px',
-                    height: VISIBLE_ITEM_HEIGHT,
-                    fontSize: 14,
-                    color: isSelected ? '#fff' : 'var(--text-primary)',
-                    cursor: 'pointer',
-                    fontFamily: shouldPreview ? `"${font.f}", sans-serif` : 'inherit',
-                    gap: 6,
-                  }}
-                >
-                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {font.f}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: 9,
-                      color: isSelected ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)',
-                      flexShrink: 0,
-                      display: 'flex',
-                      gap: 4,
-                      alignItems: 'center',
-                    }}
-                  >
-                    {isVariable(font) && (
+            ) : (
+              <div style={{ height: totalHeight, position: 'relative' }}>
+                {visibleItems.map((font, i) => {
+                  const absIdx = startIdx + i
+                  const isSelected = font.f === value
+                  return (
+                    <button
+                      key={font.f}
+                      onClick={() => {
+                        loadFont(font)
+                        onFamilyChange(font.f)
+                        setIsOpen(false)
+                        setSearch('')
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) (e.currentTarget as HTMLElement).style.background = 'none'
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: absIdx * ITEM_HEIGHT,
+                        left: 0,
+                        right: 0,
+                        display: 'flex',
+                        alignItems: 'center',
+                        width: '100%',
+                        textAlign: 'left',
+                        background: isSelected ? 'var(--accent)' : 'none',
+                        border: 'none',
+                        padding: '4px 8px',
+                        height: ITEM_HEIGHT,
+                        fontSize: 14,
+                        color: isSelected ? '#fff' : 'var(--text-primary)',
+                        cursor: 'pointer',
+                        gap: 6,
+                      }}
+                    >
                       <span
                         style={{
-                          background: isSelected ? 'rgba(255,255,255,0.2)' : 'var(--bg-input)',
-                          padding: '1px 3px',
-                          borderRadius: 2,
-                          fontSize: 8,
-                          fontFamily: 'inherit',
+                          flex: 1,
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          minWidth: 0,
                         }}
                       >
-                        VAR
+                        <FontPreview family={font.f} color={isSelected ? '#fff' : 'var(--text-primary)'} />
                       </span>
-                    )}
-                    {CATEGORIES[font.c]}
-                  </span>
-                </button>
-              )
-            })}
+                      <span
+                        style={{
+                          fontSize: 9,
+                          color: isSelected ? 'rgba(255,255,255,0.6)' : 'var(--text-secondary)',
+                          flexShrink: 0,
+                          display: 'flex',
+                          gap: 4,
+                          alignItems: 'center',
+                        }}
+                      >
+                        {isVariable(font) && (
+                          <span
+                            style={{
+                              background: isSelected ? 'rgba(255,255,255,0.2)' : 'var(--bg-input)',
+                              padding: '1px 3px',
+                              borderRadius: 2,
+                              fontSize: 8,
+                              fontFamily: 'inherit',
+                            }}
+                          >
+                            VAR
+                          </span>
+                        )}
+                        {CATEGORIES[font.c]}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           {/* Status bar */}
