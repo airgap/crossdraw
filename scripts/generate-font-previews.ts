@@ -42,30 +42,56 @@ async function getFontUrl(family: string): Promise<string | null> {
   }
 }
 
-/** Download a TTF font and convert the font name to SVG path data. */
-async function renderFont(url: string, text: string): Promise<Preview | null> {
+/** Try to render text as SVG path. Returns null if parse/render fails or path is empty. */
+function tryRender(font: opentype.Font, text: string): Preview | null {
+  const path = font.getPath(text, 0, FONT_SIZE, FONT_SIZE)
+  const bbox = path.getBoundingBox()
+  const pathData = path.toPathData(0) // integer precision
+
+  const vw = Math.ceil(bbox.x2 - bbox.x1)
+  const vh = Math.ceil(bbox.y2 - bbox.y1)
+  if (vw <= 0 || vh <= 0 || !pathData) return null
+  if (pathData.length > MAX_PATH_LENGTH) return null
+
+  return {
+    d: pathData,
+    vx: Math.floor(bbox.x1),
+    vy: Math.floor(bbox.y1),
+    vw: vw + 1,
+    vh: vh + 1,
+  }
+}
+
+/** Fallback strings to try when the full name is too complex. */
+const FALLBACKS = [
+  (name: string) => name.split(' ')[0]!, // first word: "Playfair" from "Playfair Display"
+  (_: string) => 'AaBbCc',
+]
+
+/**
+ * Download a TTF font and convert text to SVG path data.
+ * If the full family name exceeds MAX_PATH_LENGTH, falls back to shorter strings.
+ */
+async function renderFont(url: string, familyName: string): Promise<Preview | null> {
   try {
     const resp = await fetch(url)
     if (!resp.ok) return null
     const buffer = await resp.arrayBuffer()
     const font = opentype.parse(buffer)
-    const path = font.getPath(text, 0, FONT_SIZE, FONT_SIZE)
-    const bbox = path.getBoundingBox()
-    // Precision 0 = integer coordinates only, much smaller output
-    const pathData = path.toPathData(0)
 
-    const vw = Math.ceil(bbox.x2 - bbox.x1)
-    const vh = Math.ceil(bbox.y2 - bbox.y1)
-    if (vw <= 0 || vh <= 0 || !pathData) return null
-    if (pathData.length > MAX_PATH_LENGTH) return null // too complex for preview
+    // Try full name first
+    const full = tryRender(font, familyName)
+    if (full) return full
 
-    return {
-      d: pathData,
-      vx: Math.floor(bbox.x1),
-      vy: Math.floor(bbox.y1),
-      vw: vw + 1,
-      vh: vh + 1,
+    // Fall back to shorter preview strings
+    for (const fn of FALLBACKS) {
+      const text = fn(familyName)
+      if (text === familyName) continue // skip if same as what we already tried
+      const preview = tryRender(font, text)
+      if (preview) return preview
     }
+
+    return null
   } catch {
     return null
   }
