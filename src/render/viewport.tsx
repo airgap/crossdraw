@@ -18,7 +18,7 @@ import { renderVariableStroke } from '@/render/variable-stroke'
 import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import { warpPaths } from '@/render/envelope-distort'
 import { render3DLayer } from '@/render/extrude-3d'
-import { getStyledFontFamily } from '@/fonts/loader'
+import { getStyledFontFamily, setStyledFontRenderCallback } from '@/fonts/loader'
 import { isCustomBlendMode, compositeImageData } from '@/render/blend-modes'
 import { renderCollabCursors, renderCollabViewports } from '@/collab/collab-cursors'
 import {
@@ -1352,6 +1352,12 @@ export function Viewport() {
     setTextEditRenderCallback(scheduleRender)
     return () => setTextEditRenderCallback(() => {})
   }, [render])
+
+  // Re-render once styled font variants (variable axes / OT features) finish loading
+  useEffect(() => {
+    setStyledFontRenderCallback(scheduleRender)
+    return () => setStyledFontRenderCallback(null)
+  }, [scheduleRender])
 
   // Pixel cursor overlay div — positioned over the hovered grid cell, CSS-animated pulse
   const pixelCursorRef = useRef<HTMLDivElement>(null)

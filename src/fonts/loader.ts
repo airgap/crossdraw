@@ -138,16 +138,29 @@ const SYSTEM_FONTS = new Set([
 
 // ── Styled font variants (OpenType features + variable axes on Canvas 2D) ──
 //
-// Canvas 2D doesn't support font-feature-settings or font-variation-settings.
-// The JS FontFace() constructor also ignores variationSettings — it's not a
-// supported descriptor. CSS @font-face rules DO support both descriptors, so
-// we inject <style> elements with @font-face rules under a stable alias per
-// family. Pre-fetched font buffers are served via blob URLs so there's no
-// network delay when slider values change.
+// Canvas 2D doesn't expose font-feature-settings / font-variation-settings as
+// context properties. But Chrome DOES honor those descriptors when they're
+// baked into a CSS @font-face rule and the canvas references the corresponding
+// font-family — provided the face is fully loaded.
+//
+// Strategy:
+//  1. Each unique (family, features, variations) tuple gets its own permanent
+//     uid alias and its own <style> element. We never overwrite an existing
+//     declaration — overwriting <style>.textContent briefly unregisters the
+//     face, which causes canvas to flicker back to a fallback font.
+//  2. We preserve every relevant descriptor (font-weight, font-style,
+//     font-stretch, unicode-range) from Google Fonts' CSS. font-stretch ranges
+//     are critical: without them, Chrome won't treat the face as variable.
+//  3. We explicitly preload the new face via document.fonts.load() and trigger
+//     a viewport re-render once it's ready, so canvas always rasterizes with
+//     the up-to-date variation values.
+//  4. An LRU cap evicts old aliases so continuous slider drags don't grow the
+//     style/font-face count without bound.
 
 interface ParsedFontFace {
   weight: string
   style: string
+  stretch?: string
   src: string
   unicodeRange?: string
 }
@@ -155,6 +168,8 @@ interface ParsedFontFace {
 /** Parsed @font-face data per family. */
 const fontSources = new Map<string, ParsedFontFace[]>()
 const fontSourcesLoading = new Set<string>()
+/** Render callbacks pending until a family's source CSS finishes loading. */
+const fontSourcesPending = new Map<string, Array<() => void>>()
 
 /** Pre-fetched font binary data (URL → ArrayBuffer). */
 const fontBuffers = new Map<string, ArrayBuffer>()
@@ -162,9 +177,23 @@ const fontBuffers = new Map<string, ArrayBuffer>()
 /** Blob URL cache (source URL → blob URL). Created once per font source. */
 const blobUrls = new Map<string, string>()
 
-/** Stable uid + current settings key per base family. */
-const styledFamily = new Map<string, { uid: string; key: string }>()
+/** Per-(family, settings) cache: uid + insertion order index for LRU eviction. */
+interface StyledEntry {
+  uid: string
+  loaded: boolean
+}
+const styledCache = new Map<string, StyledEntry>() // key = `${family}\n${settingsKey}`
 let styledCounter = 0
+const STYLED_CACHE_MAX = 64
+
+/** Optional callback the viewport registers so we can request a redraw. */
+let renderCallback: (() => void) | null = null
+export function setStyledFontRenderCallback(cb: (() => void) | null): void {
+  renderCallback = cb
+}
+function requestRender(): void {
+  if (renderCallback) renderCallback()
+}
 
 /** Parse @font-face rules from Google Fonts CSS text. */
 function parseFontFaceCss(css: string): ParsedFontFace[] {
@@ -175,9 +204,10 @@ function parseFontFaceCss(css: string): ParsedFontFace[] {
     const block = m[1]!
     const weight = block.match(/font-weight:\s*([^;]+)/)?.[1]?.trim() ?? '400'
     const style = block.match(/font-style:\s*([^;]+)/)?.[1]?.trim() ?? 'normal'
+    const stretch = block.match(/font-stretch:\s*([^;]+)/)?.[1]?.trim()
     const src = block.match(/src:\s*url\(([^)]+)\)/)?.[1]?.trim()
     const ur = block.match(/unicode-range:\s*([^;]+)/)?.[1]?.trim()
-    if (src) results.push({ weight, style, src, unicodeRange: ur })
+    if (src) results.push({ weight, style, stretch, src, unicodeRange: ur })
   }
   return results
 }
@@ -193,13 +223,37 @@ function fetchFontSources(font: CatalogFont): void {
     .then((css) => {
       const parsed = parseFontFaceCss(css)
       fontSources.set(font.f, parsed)
-      // Pre-fetch binary data for blob URLs (instant styled font updates)
+      // Pre-fetch binary data for blob URLs (instant styled font updates).
+      // Once *all* sources are buffered, drain any pending render callbacks
+      // so the viewport picks up the now-resolvable styled family.
+      let remaining = parsed.length
       for (const src of parsed) {
-        if (!fontBuffers.has(src.src)) {
-          fetch(src.src)
-            .then((r) => r.arrayBuffer())
-            .then((buf) => fontBuffers.set(src.src, buf))
-            .catch(() => {})
+        if (fontBuffers.has(src.src)) {
+          remaining--
+          continue
+        }
+        fetch(src.src)
+          .then((r) => r.arrayBuffer())
+          .then((buf) => {
+            fontBuffers.set(src.src, buf)
+          })
+          .catch(() => {})
+          .finally(() => {
+            remaining--
+            if (remaining === 0) {
+              const pending = fontSourcesPending.get(font.f)
+              if (pending) {
+                fontSourcesPending.delete(font.f)
+                for (const cb of pending) cb()
+              }
+            }
+          })
+      }
+      if (remaining === 0) {
+        const pending = fontSourcesPending.get(font.f)
+        if (pending) {
+          fontSourcesPending.delete(font.f)
+          for (const cb of pending) cb()
         }
       }
     })
@@ -218,7 +272,11 @@ function formatFeatures(features: Record<string, boolean>): string {
 
 /** Build a CSS font-variation-settings string from axes. */
 function formatVariations(axes: FontVariationAxis[]): string {
-  return axes.map((a) => `"${a.tag}" ${a.value}`).join(', ')
+  return axes
+    .slice()
+    .sort((a, b) => a.tag.localeCompare(b.tag))
+    .map((a) => `"${a.tag}" ${a.value}`)
+    .join(', ')
 }
 
 /** Get or create a blob URL for a pre-fetched font source. */
@@ -232,17 +290,30 @@ function getBlobUrl(srcUrl: string): string | null {
   return url
 }
 
-/** Inject or update a <style> element with @font-face rules. */
+/** Inject a *new* <style> element with @font-face rules. Never overwrites. */
 function injectFontStyle(uid: string, cssText: string): void {
   const elId = `__cd-${uid}`
-  let el = document.getElementById(elId) as HTMLStyleElement | null
-  if (el) {
-    el.textContent = cssText
-  } else {
-    el = document.createElement('style')
-    el.id = elId
-    el.textContent = cssText
-    document.head.appendChild(el)
+  if (document.getElementById(elId)) return
+  const el = document.createElement('style')
+  el.id = elId
+  el.textContent = cssText
+  document.head.appendChild(el)
+}
+
+/** Drop a styled alias's <style> element so the browser can free its face. */
+function removeFontStyle(uid: string): void {
+  const el = document.getElementById(`__cd-${uid}`)
+  if (el) el.remove()
+}
+
+/** Trim styledCache down to STYLED_CACHE_MAX (Map preserves insertion order). */
+function evictOldStyledEntries(): void {
+  while (styledCache.size > STYLED_CACHE_MAX) {
+    const oldestKey = styledCache.keys().next().value
+    if (oldestKey === undefined) break
+    const entry = styledCache.get(oldestKey)!
+    styledCache.delete(oldestKey)
+    removeFontStyle(entry.uid)
   }
 }
 
@@ -250,9 +321,9 @@ function injectFontStyle(uid: string, cssText: string): void {
  * Get a font family name that renders with the given OpenType features
  * and/or variable-font axis values on Canvas 2D.
  *
- * Injects CSS @font-face rules (which support font-variation-settings,
- * unlike the JS FontFace API) under a stable alias. Pre-fetched font
- * buffers are served via blob URLs for instant slider updates.
+ * Each unique settings tuple gets its own permanent CSS alias. Returns the
+ * base family while the new alias is still loading; once ready, requests a
+ * viewport re-render via the registered render callback.
  */
 export function getStyledFontFamily(
   family: string,
@@ -264,41 +335,73 @@ export function getStyledFontFamily(
   if (!featureStr && !variationStr) return family
 
   const settingsKey = `${featureStr}|${variationStr}`
-  const existing = styledFamily.get(family)
+  const cacheKey = `${family}\n${settingsKey}`
+  const cached = styledCache.get(cacheKey)
+  if (cached) {
+    // Refresh LRU position
+    styledCache.delete(cacheKey)
+    styledCache.set(cacheKey, cached)
+    return cached.loaded ? cached.uid : family
+  }
 
-  // Same settings as last time — return cached uid
-  if (existing && existing.key === settingsKey) return existing.uid
-
-  const uid = existing?.uid ?? `__cd${styledCounter++}`
-
-  // Build extra CSS descriptors
+  // Build extra descriptors that bake the requested settings into the face
   let extras = ''
   if (featureStr) extras += `  font-feature-settings: ${featureStr};\n`
   if (variationStr) extras += `  font-variation-settings: ${variationStr};\n`
 
-  // System fonts: local() source
+  const uid = `__cd${styledCounter++}`
+  const entry: StyledEntry = { uid, loaded: false }
+
+  // System fonts: local() source — load is effectively instant
   if (SYSTEM_FONTS.has(family)) {
     injectFontStyle(
       uid,
-      `@font-face {\n  font-family: '${uid}';\n  src: local('${family}');\n  font-display: swap;\n${extras}}`,
+      `@font-face {\n  font-family: '${uid}';\n  src: local('${family}');\n  font-display: block;\n${extras}}`,
     )
-    styledFamily.set(family, { uid, key: settingsKey })
-    return uid
+    styledCache.set(cacheKey, entry)
+    evictOldStyledEntries()
+    // Wait for the new face to be fully registered before reporting success
+    document.fonts
+      .load(`16px '${uid}'`)
+      .then(() => {
+        entry.loaded = true
+        requestRender()
+      })
+      .catch(() => {
+        entry.loaded = true
+        requestRender()
+      })
+    return family
   }
 
   // Web fonts: need parsed source data
   const sources = fontSources.get(family)
   if (!sources) {
     const cat = catalogByFamily.get(family)
-    if (cat) fetchFontSources(cat)
+    if (cat) {
+      fetchFontSources(cat)
+      // Re-attempt once sources land so the styled alias materializes without
+      // requiring the user to wiggle the slider.
+      let pending = fontSourcesPending.get(family)
+      if (!pending) {
+        pending = []
+        fontSourcesPending.set(family, pending)
+      }
+      pending.push(() => {
+        // Drop the no-op cache entry so the next call rebuilds with real CSS
+        styledCache.delete(cacheKey)
+        requestRender()
+      })
+    }
     return family
   }
 
   const rules = sources
     .map((src) => {
       const url = getBlobUrl(src.src) ?? src.src
-      let css = `@font-face {\n  font-family: '${uid}';\n  src: url('${url}');\n`
-      css += `  font-weight: ${src.weight};\n  font-style: ${src.style};\n  font-display: swap;\n`
+      let css = `@font-face {\n  font-family: '${uid}';\n  src: url('${url}') format('woff2');\n`
+      css += `  font-weight: ${src.weight};\n  font-style: ${src.style};\n  font-display: block;\n`
+      if (src.stretch) css += `  font-stretch: ${src.stretch};\n`
       if (src.unicodeRange) css += `  unicode-range: ${src.unicodeRange};\n`
       css += extras
       css += '}'
@@ -307,6 +410,22 @@ export function getStyledFontFamily(
     .join('\n')
 
   injectFontStyle(uid, rules)
-  styledFamily.set(family, { uid, key: settingsKey })
-  return uid
+  styledCache.set(cacheKey, entry)
+  evictOldStyledEntries()
+
+  // The face is registered but the browser may not have decoded the buffer
+  // yet. document.fonts.load() forces it and resolves once the alias is
+  // usable on canvas. We trigger a re-render so the viewport picks it up.
+  document.fonts
+    .load(`16px '${uid}'`)
+    .then(() => {
+      entry.loaded = true
+      requestRender()
+    })
+    .catch(() => {
+      entry.loaded = true
+      requestRender()
+    })
+
+  return family
 }
