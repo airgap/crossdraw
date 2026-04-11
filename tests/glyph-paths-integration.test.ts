@@ -18,8 +18,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Browser, Page } from 'puppeteer-core'
 
 const CHROME_PATH = '/usr/bin/google-chrome'
@@ -30,18 +32,22 @@ let glyphPathsBundle = ''
 
 beforeAll(async () => {
   if (SKIP) return
+  // Use a per-run tempdir so concurrent users on a shared dev/CI host
+  // don't collide on a single /tmp/<name>.mjs that the first writer owns.
+  const tmpDir = mkdtempSync(join(tmpdir(), 'cd-glyph-paths-'))
   // Make sure the vendored fontkit / wawoff2 are up to date before we
-  // bundle glyph-paths.ts (which dynamic-imports them).
+  // bundle glyph-paths.ts (which dynamic-imports them). Inherit cwd so
+  // the script writes vendor output into whatever workspace we're running
+  // from (jenkins workspace on CI, dev checkout locally).
   const gen = spawnSync('bun', ['scripts/build-fontkit-vendor.ts'], {
-    cwd: '/raid/Crossdraw',
     stdio: 'pipe',
   })
   if (gen.status !== 0) throw new Error('vendor bundle: ' + gen.stderr.toString())
-  const out = '/tmp/glyph-paths-integration-bundle.mjs'
+  const out = join(tmpDir, 'glyph-paths-integration-bundle.mjs')
   const bundle = spawnSync(
     'bun',
     ['build', 'src/fonts/glyph-paths.ts', '--target=browser', '--format=esm', '--outfile=' + out],
-    { cwd: '/raid/Crossdraw', stdio: 'pipe' },
+    { stdio: 'pipe' },
   )
   if (bundle.status !== 0) throw new Error('glyph-paths bundle: ' + bundle.stderr.toString())
   glyphPathsBundle = readFileSync(out, 'utf8')

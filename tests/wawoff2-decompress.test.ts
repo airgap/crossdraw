@@ -8,8 +8,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Browser, Page } from 'puppeteer-core'
 
 const CHROME_PATH = '/usr/bin/google-chrome'
@@ -21,8 +23,11 @@ let wawoff2Bundle = ''
 
 beforeAll(async () => {
   if (SKIP) return
-  const fkPath = '/tmp/fontkit-bundle.mjs'
-  const wwPath = '/tmp/wawoff2-bundle.mjs'
+  // Per-run tempdir so concurrent users on a shared dev/CI host don't
+  // collide on a single /tmp/<name>.mjs that the first writer owns.
+  const tmpDir = mkdtempSync(join(tmpdir(), 'cd-wawoff2-'))
+  const fkPath = join(tmpDir, 'fontkit-bundle.mjs')
+  const wwPath = join(tmpDir, 'wawoff2-bundle.mjs')
   const fk = spawnSync(
     'bun',
     [
@@ -32,13 +37,13 @@ beforeAll(async () => {
       '--format=esm',
       '--outfile=' + fkPath,
     ],
-    { cwd: '/raid/Crossdraw', stdio: 'pipe' },
+    { stdio: 'pipe' },
   )
   if (fk.status !== 0) throw new Error('fontkit bundle: ' + fk.stderr.toString())
   const ww = spawnSync(
     'bun',
     ['build', './node_modules/wawoff2/decompress.js', '--target=browser', '--format=esm', '--outfile=' + wwPath],
-    { cwd: '/raid/Crossdraw', stdio: 'pipe' },
+    { stdio: 'pipe' },
   )
   if (ww.status !== 0) throw new Error('wawoff2 bundle: ' + ww.stderr.toString())
   fontkitBundle = readFileSync(fkPath, 'utf8')

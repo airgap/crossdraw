@@ -23,8 +23,10 @@
  */
 
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import type { Browser, Page } from 'puppeteer-core'
 
 const CHROME_PATH = '/usr/bin/google-chrome'
@@ -40,8 +42,10 @@ beforeAll(async () => {
   if (SKIP) return
   // fontkit's shipped browser-module.mjs has unresolved bare-specifier
   // imports (restructure, @swc/helpers, ...). Bundle it into a single
-  // self-contained ESM file so the page can import it directly.
-  const bundlePath = '/tmp/fontkit-bundle.mjs'
+  // self-contained ESM file so the page can import it directly. Use a
+  // per-run tempdir so concurrent users on a shared dev/CI host don't
+  // collide on a single /tmp/<name>.mjs.
+  const bundlePath = join(mkdtempSync(join(tmpdir(), 'cd-fontkit-')), 'fontkit-bundle.mjs')
   const res = spawnSync(
     'bun',
     [
@@ -51,7 +55,7 @@ beforeAll(async () => {
       '--format=esm',
       '--outfile=' + bundlePath,
     ],
-    { cwd: '/raid/Crossdraw', stdio: 'pipe' },
+    { stdio: 'pipe' },
   )
   if (res.status !== 0) {
     throw new Error('Failed to bundle fontkit: ' + res.stderr.toString())
