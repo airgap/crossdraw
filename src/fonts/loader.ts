@@ -7,7 +7,6 @@
  */
 
 import { FONT_CATALOG, type CatalogFont } from './catalog'
-import type { FontVariationAxis } from '@/types'
 
 const loaded = new Set<string>()
 const loading = new Map<string, Promise<void>>()
@@ -136,26 +135,33 @@ const SYSTEM_FONTS = new Set([
   'system-ui',
 ])
 
-// ── Styled font variants (OpenType features + variable axes on Canvas 2D) ──
+// ── Styled font variants (OpenType features on Canvas 2D) ──
 //
-// Canvas 2D doesn't expose font-feature-settings / font-variation-settings as
-// context properties. But Chrome DOES honor those descriptors when they're
-// baked into a CSS @font-face rule and the canvas references the corresponding
-// font-family — provided the face is fully loaded.
+// Canvas 2D doesn't expose font-feature-settings as a context property. But
+// Chrome DOES honor that descriptor when it's baked into a CSS @font-face
+// rule and the canvas references the corresponding font-family — provided
+// the face is fully loaded.
 //
-// Strategy:
-//  1. Each unique (family, features, variations) tuple gets its own permanent
-//     uid alias and its own <style> element. We never overwrite an existing
-//     declaration — overwriting <style>.textContent briefly unregisters the
-//     face, which causes canvas to flicker back to a fallback font.
+// This module used to bake `font-variation-settings` into @font-face
+// descriptors too, but every non-`wght` axis is silently ignored by Chrome
+// Canvas 2D (see `tests/variable-font-rendering.test.ts` for the executable
+// record of every approach we tried and how each failed). Variable-axis
+// rendering now goes through src/fonts/glyph-paths.ts, which decompresses
+// WOFF2 to TTF and path-fills glyphs directly, bypassing the text stack.
+//
+// Strategy (features only):
+//  1. Each unique (family, features) tuple gets its own permanent uid alias
+//     and its own <style> element. We never overwrite an existing declaration
+//     — overwriting <style>.textContent briefly unregisters the face, which
+//     causes canvas to flicker back to a fallback font.
 //  2. We preserve every relevant descriptor (font-weight, font-style,
-//     font-stretch, unicode-range) from Google Fonts' CSS. font-stretch ranges
-//     are critical: without them, Chrome won't treat the face as variable.
-//  3. We explicitly preload the new face via document.fonts.load() and trigger
-//     a viewport re-render once it's ready, so canvas always rasterizes with
-//     the up-to-date variation values.
-//  4. An LRU cap evicts old aliases so continuous slider drags don't grow the
-//     style/font-face count without bound.
+//     font-stretch, unicode-range) from Google Fonts' CSS. font-stretch
+//     ranges are critical: without them, Chrome won't treat the face as
+//     variable (which matters for the native `wght` fast path).
+//  3. We explicitly preload the new face via document.fonts.load() and
+//     trigger a viewport re-render once it's ready.
+//  4. An LRU cap evicts old aliases so continuous feature-toggle churn
+//     doesn't grow the style/font-face count without bound.
 
 interface ParsedFontFace {
   weight: string
@@ -261,6 +267,66 @@ function fetchFontSources(font: CatalogFont): void {
     .finally(() => fontSourcesLoading.delete(font.f))
 }
 
+// ── Public accessors for the glyph-paths module ──
+// These let src/fonts/glyph-paths.ts reuse this module's font buffer cache
+// and source parsing instead of duplicating the Google Fonts fetch logic.
+
+/** Get the parsed @font-face sources for a family (undefined if not yet fetched). */
+export function getFontSources(family: string): ParsedFontFace[] | undefined {
+  return fontSources.get(family)
+}
+
+/** Get the prefetched raw font binary (WOFF2 bytes) for a source URL. */
+export function getFontBuffer(srcUrl: string): ArrayBuffer | undefined {
+  return fontBuffers.get(srcUrl)
+}
+
+/** Test-only: synchronously populate a font's parsed sources and raw binary
+ *  data. Lets puppeteer-driven tests exercise glyph-paths.ts without going
+ *  through the catalog + Google Fonts CSS round-trip. Not used in production. */
+export function __testInjectFontSource(
+  family: string,
+  sourceUrl: string,
+  buffer: ArrayBuffer,
+  unicodeRange = 'U+0000-00FF',
+): void {
+  fontSources.set(family, [{ weight: '100 1000', style: 'normal', src: sourceUrl, unicodeRange }])
+  fontBuffers.set(sourceUrl, buffer)
+}
+
+/** Kick off fetching a font's sources if not already in progress. Returns a
+ *  promise that resolves when sources + binary data are available, or rejects
+ *  if the font is unknown / failed to load. */
+export function ensureFontSources(family: string): Promise<void> {
+  if (fontSources.has(family)) {
+    // Sources parsed. Check if all binaries are loaded.
+    const sources = fontSources.get(family)!
+    const allBuffered = sources.every((s) => fontBuffers.has(s.src))
+    if (allBuffered) return Promise.resolve()
+    // Sources parsed but binaries still arriving — queue a pending callback.
+    return new Promise((resolve) => {
+      let pending = fontSourcesPending.get(family)
+      if (!pending) {
+        pending = []
+        fontSourcesPending.set(family, pending)
+      }
+      pending.push(() => resolve())
+    })
+  }
+  if (SYSTEM_FONTS.has(family)) return Promise.reject(new Error(`System font: ${family}`))
+  const cat = catalogByFamily.get(family)
+  if (!cat) return Promise.reject(new Error(`Unknown font: ${family}`))
+  fetchFontSources(cat)
+  return new Promise((resolve) => {
+    let pending = fontSourcesPending.get(family)
+    if (!pending) {
+      pending = []
+      fontSourcesPending.set(family, pending)
+    }
+    pending.push(() => resolve())
+  })
+}
+
 /** Build a CSS font-feature-settings string from a features map. */
 function formatFeatures(features: Record<string, boolean>): string {
   const parts: string[] = []
@@ -268,15 +334,6 @@ function formatFeatures(features: Record<string, boolean>): string {
     if (on) parts.push(`"${tag}" 1`)
   }
   return parts.join(', ')
-}
-
-/** Build a CSS font-variation-settings string from axes. */
-function formatVariations(axes: FontVariationAxis[]): string {
-  return axes
-    .slice()
-    .sort((a, b) => a.tag.localeCompare(b.tag))
-    .map((a) => `"${a.tag}" ${a.value}`)
-    .join(', ')
 }
 
 /** Get or create a blob URL for a pre-fetched font source. */
@@ -318,24 +375,21 @@ function evictOldStyledEntries(): void {
 }
 
 /**
- * Get a font family name that renders with the given OpenType features
- * and/or variable-font axis values on Canvas 2D.
+ * Get a font family name that renders with the given OpenType features on
+ * Canvas 2D.
  *
- * Each unique settings tuple gets its own permanent CSS alias. Returns the
- * base family while the new alias is still loading; once ready, requests a
+ * Each unique feature set gets its own permanent CSS alias. Returns the base
+ * family while the new alias is still loading; once ready, requests a
  * viewport re-render via the registered render callback.
+ *
+ * Note: variable-font axes are NOT handled here — see src/fonts/glyph-paths.ts
+ * for the path-based renderer that drives them.
  */
-export function getStyledFontFamily(
-  family: string,
-  features?: Record<string, boolean>,
-  variations?: FontVariationAxis[],
-): string {
+export function getStyledFontFamily(family: string, features?: Record<string, boolean>): string {
   const featureStr = features && Object.keys(features).length > 0 ? formatFeatures(features) : ''
-  const variationStr = variations && variations.length > 0 ? formatVariations(variations) : ''
-  if (!featureStr && !variationStr) return family
+  if (!featureStr) return family
 
-  const settingsKey = `${featureStr}|${variationStr}`
-  const cacheKey = `${family}\n${settingsKey}`
+  const cacheKey = `${family}\n${featureStr}`
   const cached = styledCache.get(cacheKey)
   if (cached) {
     // Refresh LRU position
@@ -344,10 +398,7 @@ export function getStyledFontFamily(
     return cached.loaded ? cached.uid : family
   }
 
-  // Build extra descriptors that bake the requested settings into the face
-  let extras = ''
-  if (featureStr) extras += `  font-feature-settings: ${featureStr};\n`
-  if (variationStr) extras += `  font-variation-settings: ${variationStr};\n`
+  const extras = `  font-feature-settings: ${featureStr};\n`
 
   const uid = `__cd${styledCounter++}`
   const entry: StyledEntry = { uid, loaded: false }

@@ -11,6 +11,9 @@ server/dist-embed.ts
 public/font-previews.png
 src/fonts/preview-meta.json
 
+# Generated fontkit + wawoff2 browser bundles (bun scripts/build-fontkit-vendor.ts)
+src/fonts/vendor/
+
 # Mobile build outputs
 android/app/build/
 android/.gradle/
