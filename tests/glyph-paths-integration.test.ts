@@ -134,16 +134,18 @@ import {
       wghtOnlyAtDefault: needsPathRendering(axesJustDefaultWght),
       wdthNonDefault: needsPathRendering(axesNarrow),
       empty: needsPathRendering([]),
+      featureEnabled: needsPathRendering(axesJustDefaultWght, { liga: true }),
+      featureDisabled: needsPathRendering(axesJustDefaultWght, { liga: false }),
     }
 
     // ── 5. First call kicks off background load, reports not-ready ──
-    const firstHandle = getPathText('Roboto Flex', axesNarrow, 48)
+    const firstHandle = getPathText('Roboto Flex', axesNarrow, undefined, 48)
     const initiallyReady = firstHandle.ready
 
     // ── 6. Wait for render callback, then re-request the handle ──
     await readyPromise
-    const narrow = getPathText('Roboto Flex', axesNarrow, 48)
-    const wide = getPathText('Roboto Flex', axesWide, 48)
+    const narrow = getPathText('Roboto Flex', axesNarrow, undefined, 48)
+    const wide = getPathText('Roboto Flex', axesWide, undefined, 48)
 
     // ── 7. Render both variants and compare pixels ──
     const canvas = document.getElementById('c')
@@ -169,7 +171,7 @@ import {
     const wideW = wide.measureWidth('Hello')
 
     // ── 9. Cache hit: second call returns ready immediately ──
-    const immediateHandle = getPathText('Roboto Flex', axesNarrow, 48)
+    const immediateHandle = getPathText('Roboto Flex', axesNarrow, undefined, 48)
     const immediateReady = immediateHandle.ready
 
     window.__result = {
@@ -197,10 +199,12 @@ import {
     console.log('glyph-paths integration:', result)
     expect(result.ok).toBe(true)
 
-    // Gating: only non-wght variations should trigger path rendering
+    // Gating: non-wght variations OR any enabled feature must trigger
     expect(result.gatingChecks.wghtOnlyAtDefault).toBe(false)
     expect(result.gatingChecks.wdthNonDefault).toBe(true)
     expect(result.gatingChecks.empty).toBe(false)
+    expect(result.gatingChecks.featureEnabled).toBe(true)
+    expect(result.gatingChecks.featureDisabled).toBe(false)
 
     // Load sequence: first call pending, second call (post-render-callback) ready,
     // repeat call within the same tick ready too

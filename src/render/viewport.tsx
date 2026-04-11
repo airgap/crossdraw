@@ -18,7 +18,6 @@ import { renderVariableStroke } from '@/render/variable-stroke'
 import { renderWiggleStroke } from '@/render/wiggle-stroke'
 import { warpPaths } from '@/render/envelope-distort'
 import { render3DLayer } from '@/render/extrude-3d'
-import { getStyledFontFamily, setStyledFontRenderCallback } from '@/fonts/loader'
 import { getPathText, needsPathRendering, setPathTextRenderCallback } from '@/fonts/glyph-paths'
 import { isCustomBlendMode, compositeImageData } from '@/render/blend-modes'
 import { renderCollabCursors, renderCollabViewports } from '@/collab/collab-cursors'
@@ -1354,14 +1353,10 @@ export function Viewport() {
     return () => setTextEditRenderCallback(() => {})
   }, [render])
 
-  // Re-render once styled font variants (variable axes / OT features) finish loading
+  // Re-render once path-based text (variable axes / OT features) finishes loading
   useEffect(() => {
-    setStyledFontRenderCallback(scheduleRender)
     setPathTextRenderCallback(scheduleRender)
-    return () => {
-      setStyledFontRenderCallback(null)
-      setPathTextRenderCallback(null)
-    }
+    return () => setPathTextRenderCallback(null)
   }, [scheduleRender])
 
   // Pixel cursor overlay div — positioned over the hovered grid cell, CSS-animated pulse
@@ -3737,13 +3732,12 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   const rawWeight = layer.fontWeight ?? 'normal'
   const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
 
-  // OpenType features still go through the CSS @font-face alias path — that's
-  // the one thing Canvas 2D honours via descriptor. Variable axes take the
-  // path-based renderer below (`pathText`); the native font shorthand only
-  // handles `wght`, and that's driven through `ctx.font` directly.
-  const hasFeatures = layer.openTypeFeatures && Object.keys(layer.openTypeFeatures).length > 0
-  const resolvedFamily = hasFeatures ? getStyledFontFamily(layer.fontFamily, layer.openTypeFeatures) : layer.fontFamily
-  const family = resolvedFamily.includes(' ') ? `"${resolvedFamily}"` : resolvedFamily
+  // Native font shorthand drives the fallback path and letter metrics. It
+  // only understands `wght` of the variable axes, and ignores OpenType
+  // features entirely; both of those are applied by the fontkit-driven
+  // path renderer below (`pathText`) when any non-wght axis or any feature
+  // is active.
+  const family = layer.fontFamily.includes(' ') ? `"${layer.fontFamily}"` : layer.fontFamily
   ctx.font = `${style}${weight}${layer.fontSize}px ${family}`
   ctx.fillStyle = layer.color
   ctx.textBaseline = 'top'
@@ -3756,33 +3750,39 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   // Area text: word-wrap and clip to bounding box
   const isAreaText = layer.textMode === 'area' && layer.textWidth != null && layer.textWidth > 0
 
-  // ── Path-based variable font rendering ──
+  // ── Path-based rendering for non-wght axes and OpenType features ──
   //
-  // Chrome Canvas 2D can only drive the `wght` axis of variable fonts (via
-  // the numeric font-weight shorthand). Every other axis — wdth, opsz, slnt,
-  // custom — is silently ignored regardless of how you try to push it.
+  // Chrome Canvas 2D can only drive the `wght` axis of variable fonts
+  // (via the numeric font-weight shorthand). Every other axis — wdth,
+  // opsz, slnt, custom — is silently ignored. It also ignores every
+  // attempt to set OpenType features: there is no context property,
+  // `font-feature-settings` is not part of the shorthand, and
+  // `@font-face { font-feature-settings: ... }` descriptors are parsed
+  // but not applied to Canvas rendering.
   //
-  // When the layer has any non-wght variation at a non-default value, we
-  // route rendering through `getPathText`, which decompresses the WOFF2 to
-  // TTF in a WASM worker, asks fontkit for variation-applied glyph outlines,
-  // and replays them into `ctx.fill()`. See src/fonts/glyph-paths.ts for the
-  // full story.
+  // When the layer has any non-wght variation at a non-default value OR
+  // any feature toggled on, we route rendering through `getPathText`,
+  // which decompresses the WOFF2 to TTF via a WASM bundle, shapes the
+  // string with fontkit's `font.layout()` (applying both variations and
+  // GSUB substitutions), and replays the resulting glyph paths into
+  // `ctx.fill()`. See `src/fonts/glyph-paths.ts` for the full story.
   //
-  // The path renderer returns `ready=false` while loading is in flight; we
-  // fall through to the native text stack in that window, and the registered
-  // render callback re-triggers paint when the pipeline finishes. First-run
-  // for a (family, variation) tuple costs a WASM init + WOFF2 decode; every
-  // subsequent glyph is a cached Path2D lookup.
+  // The path renderer returns `ready=false` while loading is in flight;
+  // we fall through to the native text stack in that window, and the
+  // registered render callback re-triggers paint when the pipeline
+  // finishes. First-run for a (family, variation, feature) tuple costs a
+  // WASM init + WOFF2 decode; every subsequent glyph is a cached Path2D
+  // lookup.
   //
   // The integration point is intentionally surgical: only single-column,
   // non-vertical, non-optical-margin, non-warped text uses the path
-  // renderer for now. Other branches (vertical / columns / optical margin
-  // / text warp) keep using native rendering. Since those branches don't
-  // yet honour any variable axis at all, this is pure progress — they
-  // still render wght correctly but ignore other axes, matching the
-  // pre-path-rendering baseline.
-  const pathText = needsPathRendering(layer.fontVariationAxes)
-    ? getPathText(layer.fontFamily, layer.fontVariationAxes, layer.fontSize)
+  // renderer. Other branches (vertical / columns / optical margin / text
+  // warp) keep using native rendering. Since those branches don't yet
+  // honour any variable axis or feature at all, this is pure progress —
+  // they still render wght correctly but ignore other axes and features,
+  // matching the pre-path-rendering baseline.
+  const pathText = needsPathRendering(layer.fontVariationAxes, layer.openTypeFeatures)
+    ? getPathText(layer.fontFamily, layer.fontVariationAxes, layer.openTypeFeatures, layer.fontSize)
     : null
   const pathReady = pathText !== null && pathText.ready
 
