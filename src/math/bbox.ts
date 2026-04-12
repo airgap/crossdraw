@@ -1,4 +1,5 @@
 import type { Segment, Path, VectorLayer, Layer, Artboard, GroupLayer, TextLayer } from '@/types'
+import { needsPathRendering, getPathText } from '@/fonts/glyph-paths'
 
 export interface BBox {
   minX: number
@@ -280,18 +281,36 @@ function getTextLayerBBox(layer: TextLayer, artboard: Artboard): BBox {
     const lines = layer.text.split('\n')
     const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
     localW = 0
-    try {
-      const canvas = new OffscreenCanvas(1, 1)
-      const mctx = canvas.getContext('2d')!
-      const style = layer.fontStyle === 'italic' ? 'italic ' : ''
-      const weight = layer.fontWeight === 'bold' ? 'bold ' : ''
-      mctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
+    // When the path renderer is active (non-wght variable axes or OT
+    // features), use its measureWidth — native measureText can't drive
+    // those axes and would return stale widths.
+    const usePath = needsPathRendering(layer.fontVariationAxes, layer.openTypeFeatures)
+    let pathAxes = layer.fontVariationAxes
+    if (usePath && pathAxes && !pathAxes.some((a) => a.tag === 'wght')) {
+      const fw = layer.fontWeight
+      const wVal = fw === 'bold' ? 700 : fw === 'normal' ? 400 : Number(fw) || 400
+      pathAxes = [...pathAxes, { tag: 'wght', name: 'Weight', min: 100, max: 1000, default: 400, value: wVal }]
+    }
+    const pt = usePath ? getPathText(layer.fontFamily, pathAxes, layer.openTypeFeatures, layer.fontSize) : null
+    if (pt && pt.ready) {
       for (const line of lines) {
-        localW = Math.max(localW, mctx.measureText(line).width)
+        localW = Math.max(localW, pt.measureWidth(line))
       }
-    } catch {
-      for (const line of lines) {
-        localW = Math.max(localW, layer.fontSize * line.length * 0.6)
+    } else {
+      try {
+        const canvas = new OffscreenCanvas(1, 1)
+        const mctx = canvas.getContext('2d')!
+        const style = layer.fontStyle === 'italic' ? 'italic ' : ''
+        const rawWeight = layer.fontWeight ?? 'normal'
+        const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
+        mctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
+        for (const line of lines) {
+          localW = Math.max(localW, mctx.measureText(line).width)
+        }
+      } catch {
+        for (const line of lines) {
+          localW = Math.max(localW, layer.fontSize * line.length * 0.6)
+        }
       }
     }
     localH = lines.length * lineH
