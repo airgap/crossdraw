@@ -3781,8 +3781,17 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   // honour any variable axis or feature at all, this is pure progress —
   // they still render wght correctly but ignore other axes and features,
   // matching the pre-path-rendering baseline.
+  // The path renderer drives wght through fontkit's getVariation(), not
+  // through ctx.font. The UI's weight dropdown updates layer.fontWeight
+  // but NOT fontVariationAxes (which filters out wght). Inject wght so
+  // the path renderer honours the weight dropdown.
+  let pathAxes = layer.fontVariationAxes
+  if (pathAxes && !pathAxes.some((a) => a.tag === 'wght')) {
+    const wVal = rawWeight === 'bold' ? 700 : rawWeight === 'normal' ? 400 : Number(rawWeight) || 400
+    pathAxes = [...pathAxes, { tag: 'wght', name: 'Weight', min: 100, max: 1000, default: 400, value: wVal }]
+  }
   const pathText = needsPathRendering(layer.fontVariationAxes, layer.openTypeFeatures)
-    ? getPathText(layer.fontFamily, layer.fontVariationAxes, layer.openTypeFeatures, layer.fontSize)
+    ? getPathText(layer.fontFamily, pathAxes, layer.openTypeFeatures, layer.fontSize)
     : null
   const pathReady = pathText !== null && pathText.ready
 
