@@ -97,6 +97,10 @@ const CATEGORY_LABELS: Record<FontCategory, string> = {
 interface FontPickerProps {
   value: string
   weight: number
+  /** When the wght variable axis is driving weight, this is set to the axis
+   *  value and the dropdown shows '---'. Selecting from the dropdown clears
+   *  the axis override via onWeightChange. */
+  axisWeight?: number | null
   onFamilyChange: (family: string) => void
   onWeightChange: (weight: number) => void
 }
@@ -106,7 +110,7 @@ const MAX_VISIBLE = 8
 const DROPDOWN_HEIGHT = ITEM_HEIGHT * MAX_VISIBLE
 const OVERSCAN = 4 // extra items above/below viewport
 
-export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: FontPickerProps) {
+export function FontPicker({ value, weight, axisWeight, onFamilyChange, onWeightChange }: FontPickerProps) {
   const [search, setSearch] = useState('')
   const [isOpen, setIsOpen] = useState(false)
   const [category, setCategory] = useState<FontCategory | null>(null)
@@ -207,7 +211,7 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
           )}
         </button>
         <select
-          value={weight}
+          value={axisWeight != null ? '' : weight}
           onChange={(e) => onWeightChange(parseInt(e.target.value))}
           style={{
             background: 'var(--bg-input)',
@@ -215,11 +219,16 @@ export function FontPicker({ value, weight, onFamilyChange, onWeightChange }: Fo
             borderRadius: 'var(--radius-md)',
             padding: '4px',
             fontSize: 'var(--font-size-sm)',
-            color: 'var(--text-primary)',
+            color: axisWeight != null ? 'var(--text-secondary)' : 'var(--text-primary)',
             width: 90,
             height: 'var(--height-button)',
           }}
         >
+          {axisWeight != null && (
+            <option value="" disabled>
+              ---
+            </option>
+          )}
           {availableWeights.map((w) => (
             <option key={w} value={w}>
               {getWeightName(w)}

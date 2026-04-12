@@ -301,7 +301,8 @@ function getTextLayerBBox(layer: TextLayer, artboard: Artboard): BBox {
         const canvas = new OffscreenCanvas(1, 1)
         const mctx = canvas.getContext('2d')!
         const style = layer.fontStyle === 'italic' ? 'italic ' : ''
-        const rawWeight = layer.fontWeight ?? 'normal'
+        const wghtAxisEntry = layer.fontVariationAxes?.find((a) => a.tag === 'wght')
+        const rawWeight = wghtAxisEntry ? String(Math.round(wghtAxisEntry.value)) : (layer.fontWeight ?? 'normal')
         const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
         mctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
         for (const line of lines) {

@@ -3728,8 +3728,12 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   applyTransform(ctx, layer.transform)
 
   const style = layer.fontStyle === 'italic' ? 'italic ' : ''
-  // Support numeric weights (e.g. '600') in addition to 'normal'/'bold'
-  const rawWeight = layer.fontWeight ?? 'normal'
+  // The wght axis slider writes to fontVariationAxes, the weight dropdown
+  // writes to fontWeight. Prefer the axis value when present so the native
+  // ctx.font path honours the axis slider even when no other axis triggers
+  // path rendering.
+  const wghtAxisEntry = layer.fontVariationAxes?.find((a) => a.tag === 'wght')
+  const rawWeight = wghtAxisEntry ? String(Math.round(wghtAxisEntry.value)) : (layer.fontWeight ?? 'normal')
   const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
 
   // Native font shorthand drives the fallback path and letter metrics. It
@@ -3782,9 +3786,9 @@ function renderTextLayer(ctx: CanvasRenderingContext2D, layer: TextLayer) {
   // they still render wght correctly but ignore other axes and features,
   // matching the pre-path-rendering baseline.
   // The path renderer drives wght through fontkit's getVariation(), not
-  // through ctx.font. The UI's weight dropdown updates layer.fontWeight
-  // but NOT fontVariationAxes (which filters out wght). Inject wght so
-  // the path renderer honours the weight dropdown.
+  // through ctx.font. When the user picks from the weight dropdown (which
+  // clears the wght axis), fontVariationAxes won't have a wght entry —
+  // inject one from fontWeight so the path renderer still honours it.
   let pathAxes = layer.fontVariationAxes
   if (pathAxes && !pathAxes.some((a) => a.tag === 'wght')) {
     const wVal = rawWeight === 'bold' ? 700 : rawWeight === 'normal' ? 400 : Number(rawWeight) || 400

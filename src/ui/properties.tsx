@@ -515,12 +515,20 @@ export function PropertiesPanel() {
                         ? 400
                         : Number(selectedLayer.fontWeight) || 400
                   }
+                  axisWeight={
+                    (selectedLayer.fontVariationAxes ?? []).find((a) => a.tag === 'wght' && a.value !== a.default)
+                      ?.value ?? null
+                  }
                   onFamilyChange={(family) => updateLayer(artboard.id, selectedLayer.id, { fontFamily: family } as any)}
-                  onWeightChange={(w) =>
+                  onWeightChange={(w) => {
+                    // When the user picks from the dropdown, also clear any
+                    // wght axis override so the dropdown is back in control.
+                    const axesWithoutWght = (selectedLayer.fontVariationAxes ?? []).filter((a) => a.tag !== 'wght')
                     updateLayer(artboard.id, selectedLayer.id, {
                       fontWeight: w === 400 ? 'normal' : w === 700 ? 'bold' : String(w),
+                      fontVariationAxes: axesWithoutWght,
                     } as any)
-                  }
+                  }}
                 />
                 <div style={rowStyle}>
                   <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Size</span>
@@ -891,7 +899,7 @@ function VariableAxesSection({ artboardId, layer }: { artboardId: string; layer:
   const catalogFont = getCatalogFont(layer.fontFamily)
 
   // All hooks must be above this line — early returns below
-  const axes = catalogFont?.a?.filter(([tag]) => tag !== 'wght') ?? []
+  const axes = catalogFont?.a ?? []
   if (axes.length === 0) return null
 
   const layerAxes = layer.fontVariationAxes ?? []
