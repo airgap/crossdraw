@@ -276,6 +276,10 @@ function getVariation(
   axes: FontVariationAxis[] | undefined,
 ): FontkitFont {
   if (!axes || axes.length === 0) return font
+  // Static fonts (no fvar/gvar) can't be varied — return as-is. This
+  // happens when a text layer carries leftover fontVariationAxes from a
+  // previous variable font, or when Google Fonts serves a static subset.
+  if (!font.variationAxes || Object.keys(font.variationAxes).length === 0) return font
   const vkey = variationKey(axes)
   const cacheKey = `${family}\n${sourceUrl}\n${vkey}`
   const cached = variationCache.get(cacheKey)
