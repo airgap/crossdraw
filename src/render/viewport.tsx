@@ -445,7 +445,15 @@ export function Viewport() {
 
     // Transform handles (in document space, outside artboard clip)
     if (activeTool === 'select' && selection.layerIds.length > 0) {
-      renderTransformHandles(ctx, document, selection.layerIds, viewport.zoom, touchMode)
+      renderTransformHandles(
+        ctx,
+        document,
+        selection.layerIds,
+        viewport.zoom,
+        touchMode,
+        mouseDocPos.current.x,
+        mouseDocPos.current.y,
+      )
     }
 
     // Snap lines
@@ -952,7 +960,6 @@ export function Viewport() {
         ctx.stroke()
         // Corner and edge handles (adjusting phase only)
         if (isCropAdjusting()) {
-          const hs = Math.min(10, Math.max(4, 6 / viewport.zoom))
           ctx.fillStyle = '#ffffff'
           ctx.strokeStyle = '#000000'
           ctx.lineWidth = 1 / viewport.zoom
@@ -962,21 +969,23 @@ export function Viewport() {
             [cr.x, cr.y + cr.h],
             [cr.x + cr.w, cr.y + cr.h],
           ]
-          for (const pt of corners) {
-            ctx.fillRect(pt[0]! - hs / 2, pt[1]! - hs / 2, hs, hs)
-            ctx.strokeRect(pt[0]! - hs / 2, pt[1]! - hs / 2, hs, hs)
-          }
-          // Edge midpoints
           const edges = [
             [cr.x + cr.w / 2, cr.y],
             [cr.x + cr.w / 2, cr.y + cr.h],
             [cr.x, cr.y + cr.h / 2],
             [cr.x + cr.w, cr.y + cr.h / 2],
           ]
-          const ehs = hs * 0.7
-          for (const pt of edges) {
-            ctx.fillRect(pt[0]! - ehs / 2, pt[1]! - ehs / 2, ehs, ehs)
-            ctx.strokeRect(pt[0]! - ehs / 2, pt[1]! - ehs / 2, ehs, ehs)
+          const allHandles = [...corners, ...edges]
+          const mx = mouseDocPos.current.x
+          const my = mouseDocPos.current.y
+          for (let i = 0; i < allHandles.length; i++) {
+            const pt = allHandles[i]!
+            const isEdge = i >= corners.length
+            const baseSize = (touchMode ? 14 : 6) / viewport.zoom
+            const hs = touchMode ? baseSize : baseSize * proximityScale(mx, my, pt[0]!, pt[1]!, viewport.zoom)
+            const s = isEdge ? hs * 0.7 : hs
+            ctx.fillRect(pt[0]! - s / 2, pt[1]! - s / 2, s, s)
+            ctx.strokeRect(pt[0]! - s / 2, pt[1]! - s / 2, s, s)
           }
         }
         ctx.restore()
@@ -5248,6 +5257,18 @@ function renderAutoLayoutOverlay(
   }
 }
 
+// ─── Handle proximity scaling ─────────────────────────────────
+
+/** Returns a 0.5–1.0 factor: 1.0 when the cursor is on top of the handle,
+ *  tapering to 0.5 beyond ~60 screen-pixels away. */
+function proximityScale(cursorX: number, cursorY: number, handleX: number, handleY: number, zoom: number): number {
+  const dx = (cursorX - handleX) * zoom
+  const dy = (cursorY - handleY) * zoom
+  const screenDist = Math.sqrt(dx * dx + dy * dy)
+  const t = Math.min(1, screenDist / 60)
+  return 1 - t * 0.5 // 1.0 → 0.5
+}
+
 // ─── Transform handles ────────────────────────────────────────
 
 function renderTransformHandles(
@@ -5256,6 +5277,8 @@ function renderTransformHandles(
   selectedLayerIds: string[],
   zoom: number,
   touchMode = false,
+  cursorX = 0,
+  cursorY = 0,
 ) {
   for (const artboard of doc.artboards) {
     for (const layer of artboard.layers) {
@@ -5264,7 +5287,7 @@ function renderTransformHandles(
       const bbox = getLayerBBox(layer, artboard)
       if (bbox.minX === Infinity) continue
 
-      const handleSize = touchMode ? Math.min(22, Math.max(10, 14 / zoom)) : Math.min(10, Math.max(4, 6 / zoom))
+      const baseSize = (touchMode ? 14 : 6) / zoom
       const lineWidth = 1 / zoom
 
       // Dashed bbox
@@ -5285,11 +5308,14 @@ function renderTransformHandles(
       ctx.stroke()
 
       // Rotation handle (circle)
+      const rotSize = touchMode
+        ? baseSize
+        : baseSize * proximityScale(cursorX, cursorY, handles.rotation.x, handles.rotation.y, zoom)
       ctx.fillStyle = '#fff'
       ctx.strokeStyle = '#4a7dff'
       ctx.lineWidth = lineWidth
       ctx.beginPath()
-      ctx.arc(handles.rotation.x, handles.rotation.y, handleSize * 0.6, 0, Math.PI * 2)
+      ctx.arc(handles.rotation.x, handles.rotation.y, rotSize * 0.6, 0, Math.PI * 2)
       ctx.fill()
       ctx.stroke()
 
@@ -5297,11 +5323,12 @@ function renderTransformHandles(
       const resizeHandles: (keyof typeof handles)[] = ['nw', 'n', 'ne', 'w', 'e', 'sw', 's', 'se']
       for (const key of resizeHandles) {
         const h = handles[key]
+        const hs = touchMode ? baseSize : baseSize * proximityScale(cursorX, cursorY, h.x, h.y, zoom)
         ctx.fillStyle = '#fff'
         ctx.strokeStyle = '#4a7dff'
         ctx.lineWidth = lineWidth
-        ctx.fillRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize)
-        ctx.strokeRect(h.x - handleSize / 2, h.y - handleSize / 2, handleSize, handleSize)
+        ctx.fillRect(h.x - hs / 2, h.y - hs / 2, hs, hs)
+        ctx.strokeRect(h.x - hs / 2, h.y - hs / 2, hs, hs)
       }
     }
   }

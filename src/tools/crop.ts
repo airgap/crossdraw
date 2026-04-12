@@ -81,7 +81,7 @@ export function getCropRect(): { x: number; y: number; w: number; h: number } | 
 export function hitTestCropHandle(docX: number, docY: number, zoom: number): CropHandle {
   if (state.phase !== 'adjusting') return null
   const r = state
-  const handleR = Math.min(14, Math.max(6, 8 / zoom))
+  const handleR = 8 / zoom
 
   // Corners
   if (dist2(docX, docY, r.x, r.y) <= handleR * handleR) return 'nw'
