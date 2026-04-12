@@ -221,13 +221,12 @@ export function commitCrop() {
     }
   }
 
-  // Artboard crop
-  const cx = Math.max(artboard.x, rect.x)
-  const cy = Math.max(artboard.y, rect.y)
-  const cx2 = Math.min(artboard.x + artboard.width, rect.x + rect.w)
-  const cy2 = Math.min(artboard.y + artboard.height, rect.y + rect.h)
-  const cw = cx2 - cx
-  const ch = cy2 - cy
+  // Artboard crop — the crop rect may extend beyond the artboard to
+  // enlarge the canvas, not just shrink it.
+  const cx = rect.x
+  const cy = rect.y
+  const cw = rect.w
+  const ch = rect.h
   if (cw < 1 || ch < 1) {
     state = { ...idle }
     return
