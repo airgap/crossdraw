@@ -228,6 +228,7 @@ export function PropertiesPanel() {
   const setLayerMask = useEditorStore((s) => s.setLayerMask)
   const removeLayerMask = useEditorStore((s) => s.removeLayerMask)
   const resizeArtboard = useEditorStore((s) => s.resizeArtboard)
+  const setArtboardBackground = useEditorStore((s) => s.setArtboardBackground)
   const setAutoLayout = useEditorStore((s) => s.setAutoLayout)
   const setLayoutSizing = useEditorStore((s) => s.setLayoutSizing)
   const runAutoLayout = useEditorStore((s) => s.runAutoLayout)
@@ -853,6 +854,39 @@ export function PropertiesPanel() {
                 value={artboard.height}
                 onChange={(e) => resizeArtboard(artboard.id, artboard.width, Math.max(1, Number(e.target.value)))}
               />
+            </div>
+            <div style={rowStyle}>
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Fill</span>
+              <input
+                type="color"
+                style={{ width: 24, height: 20, padding: 0, border: 'none', cursor: 'pointer' }}
+                value={artboard.backgroundColor.slice(0, 7)}
+                onChange={(e) => {
+                  const alpha = artboard.backgroundColor.length === 9 ? artboard.backgroundColor.slice(7, 9) : 'ff'
+                  setArtboardBackground(artboard.id, e.target.value + (alpha === 'ff' ? '' : alpha))
+                }}
+              />
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>A</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                style={smallInputStyle}
+                value={Math.round(
+                  (artboard.backgroundColor.length === 9
+                    ? parseInt(artboard.backgroundColor.slice(7, 9), 16) / 255
+                    : 1) * 100,
+                )}
+                onChange={(e) => {
+                  const pct = Math.max(0, Math.min(100, Number(e.target.value)))
+                  const hex = artboard.backgroundColor.slice(0, 7)
+                  const alpha = Math.round((pct / 100) * 255)
+                    .toString(16)
+                    .padStart(2, '0')
+                  setArtboardBackground(artboard.id, alpha === 'ff' ? hex : hex + alpha)
+                }}
+              />
+              <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>%</span>
             </div>
             <PerspectivePanel />
           </div>

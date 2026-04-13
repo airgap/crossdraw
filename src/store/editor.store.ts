@@ -227,6 +227,7 @@ export interface EditorActions {
   deleteArtboard: (id: string) => void
   resizeArtboard: (id: string, width: number, height: number) => void
   moveArtboard: (id: string, x: number, y: number) => void
+  setArtboardBackground: (id: string, color: string) => void
 
   // Layer
   addLayer: (artboardId: string, layer: Layer) => void
@@ -933,6 +934,13 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
           artboard.x = x
           artboard.y = y
         }
+      })
+    },
+
+    setArtboardBackground(id, color) {
+      mutateDocument('Set artboard background', (draft) => {
+        const artboard = findArtboard(draft, id)
+        if (artboard) artboard.backgroundColor = color
       })
     },
 
