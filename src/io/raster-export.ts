@@ -4,6 +4,7 @@ import { applyAdjustment } from '@/effects/adjustments'
 import { applyFilterLayerToCanvas } from '@/effects/filter-layer'
 import { createCanvasGradient, renderBoxGradient } from '@/render/gradient'
 import { renderMeshGradient } from '@/render/mesh-gradient'
+import { needsPathRendering, getPathText, ensurePathTextReady } from '@/fonts/glyph-paths'
 import { encodeGIF } from '@/io/gif-encoder'
 import { encodeTIFF } from '@/io/tiff-encoder'
 import type {
@@ -38,6 +39,14 @@ export async function exportArtboardToBlob(
   const canvas = new OffscreenCanvas(artboard.width * scale, artboard.height * scale)
   const ctx = canvas.getContext('2d')!
   ctx.scale(scale, scale)
+
+  // Pre-load fonts for text layers that use variable axes or OT features
+  // so getPathText() returns ready=true synchronously during render.
+  const textFamilies = new Set<string>()
+  collectTextFamilies(artboard.layers, textFamilies)
+  if (textFamilies.size > 0) {
+    await Promise.all([...textFamilies].map((f) => ensurePathTextReady(f)))
+  }
 
   // Background
   ctx.fillStyle = artboard.backgroundColor
@@ -315,18 +324,64 @@ function renderTextLayer(ctx: OffscreenCanvasRenderingContext2D, layer: TextLaye
   if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
 
   const style = layer.fontStyle === 'italic' ? 'italic ' : ''
-  const weight = layer.fontWeight === 'bold' ? 'bold ' : ''
-  ctx.font = `${style}${weight}${layer.fontSize}px ${layer.fontFamily}`
+  // Prefer wght axis value when present, fall back to fontWeight
+  const wghtAxisEntry = layer.fontVariationAxes?.find((a: { tag: string; value: number }) => a.tag === 'wght')
+  const rawWeight = wghtAxisEntry ? String(Math.round(wghtAxisEntry.value)) : (layer.fontWeight ?? 'normal')
+  const weight = rawWeight === 'normal' ? '' : rawWeight === 'bold' ? 'bold ' : `${rawWeight} `
+
+  const family = layer.fontFamily.includes(' ') ? `"${layer.fontFamily}"` : layer.fontFamily
+  ctx.font = `${style}${weight}${layer.fontSize}px ${family}`
   ctx.fillStyle = layer.color
   ctx.textBaseline = 'top'
   ctx.textAlign = layer.textAlign ?? 'left'
 
   const lineH = layer.fontSize * (layer.lineHeight ?? 1.4)
+  const letterSp = layer.letterSpacing ?? 0
+
+  // Path-based rendering for variable axes and OpenType features
+  let pathAxes = layer.fontVariationAxes
+  if (pathAxes && !pathAxes.some((a: { tag: string }) => a.tag === 'wght')) {
+    const wVal = rawWeight === 'bold' ? 700 : rawWeight === 'normal' ? 400 : Number(rawWeight) || 400
+    pathAxes = [...pathAxes, { tag: 'wght', name: 'Weight', min: 100, max: 1000, default: 400, value: wVal }]
+  }
+  const pathText = needsPathRendering(layer.fontVariationAxes, layer.openTypeFeatures)
+    ? getPathText(layer.fontFamily, pathAxes, layer.openTypeFeatures, layer.fontSize)
+    : null
+  const pathReady = pathText !== null && pathText.ready
+
   const lines = layer.text.split('\n')
+  const align = layer.textAlign ?? 'left'
   for (let i = 0; i < lines.length; i++) {
-    ctx.fillText(lines[i]!, 0, i * lineH)
+    const line = lines[i]!
+    const y = i * lineH
+    if (pathReady && pathText) {
+      const w = pathText.measureWidth(line) + Math.max(0, line.length - 1) * letterSp
+      const x = align === 'center' ? -w / 2 : align === 'right' ? -w : 0
+      pathText.fillText(ctx as unknown as CanvasRenderingContext2D, line, x, y, letterSp)
+    } else if (letterSp === 0) {
+      ctx.fillText(line, 0, y)
+    } else {
+      let x = 0
+      for (const ch of line) {
+        ctx.fillText(ch, x, y)
+        x += ctx.measureText(ch).width + letterSp
+      }
+    }
   }
   ctx.restore()
+}
+
+function collectTextFamilies(layers: Layer[], out: Set<string>) {
+  for (const layer of layers) {
+    if (layer.type === 'text' && layer.visible) {
+      const tl = layer as TextLayer
+      if (needsPathRendering(tl.fontVariationAxes, tl.openTypeFeatures)) {
+        out.add(tl.fontFamily)
+      }
+    } else if (layer.type === 'group' && layer.visible) {
+      collectTextFamilies((layer as GroupLayer).children, out)
+    }
+  }
 }
 
 export async function downloadBlob(blob: Blob, filename: string) {

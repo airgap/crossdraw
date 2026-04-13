@@ -484,6 +484,20 @@ export function getPathText(
   }
 }
 
+/**
+ * Await the full font decode pipeline so that a subsequent synchronous
+ * `getPathText()` call returns `ready: true`. Used by export paths that
+ * cannot rely on the render-callback repaint loop.
+ */
+export async function ensurePathTextReady(family: string): Promise<void> {
+  await ensureFontSources(family)
+  const sourceUrl = pickBasicLatinSource(family)
+  if (!sourceUrl) return
+  const buf = getFontBuffer(sourceUrl)
+  if (!buf) return
+  await decodeFont(family, sourceUrl)
+}
+
 /** Drop all decoded fonts and caches (e.g. for tests). */
 export function clearGlyphPathCaches(): void {
   fontCache.clear()
