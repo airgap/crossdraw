@@ -1302,9 +1302,6 @@ export function Viewport() {
     ctx.font = '12px monospace'
     ctx.fillText(`${Math.round(viewport.zoom * 100)}%`, showRulers ? RULER_SIZE + 4 : 8, rect.height - 8)
 
-    const toolLabel = quickMaskActive ? 'QUICK MASK' : activeTool.toUpperCase()
-    ctx.fillText(toolLabel, rect.width - ctx.measureText(toolLabel).width - 8, rect.height - 8)
-
     // Collaboration: remote user viewport rectangles and cursors
     if (collabPresences.length > 0) {
       const collabVP = { zoom: viewport.zoom, panX: viewport.panX, panY: viewport.panY }
