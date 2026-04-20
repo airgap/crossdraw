@@ -4,6 +4,8 @@
  * and by the ToolOptionsBar UI to display and edit them.
  */
 
+import { setBrushSettings, setSecondaryColor as setBrushSecondaryColor } from '@/tools/brush'
+
 // ── Shape defaults (rectangle, polygon, star) ──
 
 interface ShapeDefaults {
@@ -122,6 +124,25 @@ export function getGradientDefaults(): GradientDefaults {
 
 export function setGradientDefaults(patch: Partial<GradientDefaults>) {
   Object.assign(gradientDefaults, patch)
+}
+
+// ── Active primary / secondary color ──
+//
+// The primary color is the one painted by the brush and applied as the default
+// fill/stroke for new vector objects. The secondary color is used by tools that
+// support two-color interactions (scatter brush dual-color, right-drag picker).
+// Clicking a palette swatch or moving the color picker should route through
+// setPrimaryColor so the brush, pen, line, and fill tools all agree.
+
+export function setPrimaryColor(color: string, opacity = 1) {
+  setBrushSettings({ color, opacity })
+  fillDefaults.fillColor = color
+  penDefaults.strokeColor = color
+  lineDefaults.strokeColor = color
+}
+
+export function setSecondaryColor(color: string, opacity = 1) {
+  setBrushSecondaryColor(color, opacity)
 }
 
 // ── Zoom mode ──

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
 import type { NamedColor } from '@/types'
 import { v4 as uuid } from 'uuid'
+import { setPrimaryColor, setSecondaryColor } from '@/ui/tool-options-state'
 
 const STORAGE_KEY = 'crossdraw:palette'
 
@@ -36,12 +37,16 @@ export function ColorPalette() {
   const artboard = getActiveArtboard()
   const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
 
-  function handleSwatchClick(color: string) {
-    if (!artboard || !selectedLayer) return
-    if (selectedLayer.type === 'vector' || selectedLayer.type === 'text') {
+  function handleSwatchClick(color: string, secondary: boolean) {
+    if (secondary) {
+      setSecondaryColor(color, 1)
+      return
+    }
+    setPrimaryColor(color, 1)
+    if (artboard && selectedLayer) {
       if (selectedLayer.type === 'vector') {
         setFill(artboard.id, selectedLayer.id, { type: 'solid', color, opacity: 1 })
-      } else {
+      } else if (selectedLayer.type === 'text') {
         useEditorStore.getState().updateLayer(artboard.id, selectedLayer.id, { color })
       }
     }
@@ -104,40 +109,70 @@ export function ColorPalette() {
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3 }}>
         {colors.map((c) => (
-          <div
+          <Swatch
             key={c.id}
-            title={`${c.name}: ${c.value}`}
-            onClick={() => handleSwatchClick(c.value)}
-            onContextMenu={(e) => {
-              e.preventDefault()
-              handleRemoveColor(c.id)
-            }}
-            style={{
-              width: 20,
-              height: 20,
-              borderRadius: 'var(--radius-sm)',
-              background: c.value,
-              border: '1px solid var(--border-default)',
-              cursor: 'pointer',
-              position: 'relative',
-            }}
-          >
-            <input
-              type="color"
-              value={c.value}
-              onChange={(e) => handleChangeColor(c.id, e.target.value)}
-              style={{
-                position: 'absolute',
-                inset: 0,
-                opacity: 0,
-                cursor: 'pointer',
-                width: '100%',
-                height: '100%',
-              }}
-            />
-          </div>
+            color={c}
+            onSelect={(secondary) => handleSwatchClick(c.value, secondary)}
+            onEdit={(v) => handleChangeColor(c.id, v)}
+            onRemove={() => handleRemoveColor(c.id)}
+          />
         ))}
       </div>
+    </div>
+  )
+}
+
+function Swatch({
+  color,
+  onSelect,
+  onEdit,
+  onRemove,
+}: {
+  color: NamedColor
+  onSelect: (secondary: boolean) => void
+  onEdit: (value: string) => void
+  onRemove: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  return (
+    <div
+      title={`${color.name}: ${color.value} — click: primary · shift-click: secondary · alt-click: edit · right-click: remove`}
+      onClick={(e) => {
+        if (e.altKey) {
+          inputRef.current?.click()
+          return
+        }
+        onSelect(e.shiftKey)
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        onRemove()
+      }}
+      style={{
+        width: 20,
+        height: 20,
+        background: color.value,
+        border: '1px solid var(--border-default)',
+        cursor: 'pointer',
+        position: 'relative',
+      }}
+    >
+      <input
+        ref={inputRef}
+        type="color"
+        value={color.value}
+        onChange={(e) => onEdit(e.target.value)}
+        tabIndex={-1}
+        aria-hidden
+        style={{
+          position: 'absolute',
+          inset: 0,
+          opacity: 0,
+          width: '100%',
+          height: '100%',
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   )
 }

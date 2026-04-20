@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { ColorPicker } from '@/ui/color-picker'
-import { getBrushSettings, setBrushSettings, setSecondaryColor } from '@/tools/brush'
-import { setFillDefaults } from '@/ui/tool-options-state'
+import { getBrushSettings } from '@/tools/brush'
+import { setPrimaryColor, setSecondaryColor } from '@/ui/tool-options-state'
 
 export function ColorPickerPanel() {
   const [color, setColor] = useState(() => getBrushSettings().color)
@@ -20,8 +20,7 @@ export function ColorPickerPanel() {
   const handleChange = useCallback((hex: string, a: number) => {
     setColor(hex)
     setOpacity(a)
-    setBrushSettings({ color: hex, opacity: a })
-    setFillDefaults({ fillColor: hex })
+    setPrimaryColor(hex, a)
   }, [])
 
   const handleSecondaryChange = useCallback((hex: string, a: number) => {
