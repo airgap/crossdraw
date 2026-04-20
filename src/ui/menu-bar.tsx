@@ -2047,7 +2047,7 @@ function buildMenus(): MenuDef[] {
       {
         label: 'About Crossdraw',
         action: () => {
-          addToast('Crossdraw — A professional vector & raster design editor.', 'info')
+          window.dispatchEvent(new CustomEvent('crossdraw:show-about'))
         },
       },
       {

@@ -19,6 +19,7 @@ import { usePanelLayoutStore } from '@/ui/panels/panel-layout-store'
 import { ShareDialog } from '@/ui/share-dialog'
 import { ToastContainer } from '@/ui/toast'
 import { Onboarding } from '@/ui/onboarding'
+import { AboutModal } from '@/ui/about-modal'
 import { CanvasTabBar } from '@/ui/canvas-tab-bar'
 import { newDocumentFromClipboard } from '@/tools/import-image'
 
@@ -316,6 +317,7 @@ export function App() {
         </Suspense>
       )}
       <Onboarding />
+      <AboutModal />
       <ToastContainer />
       {boot === 'login' && (
         <LoginPage

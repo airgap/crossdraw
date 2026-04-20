@@ -23,3 +23,6 @@ interface Window {
   showOpenFilePicker?: (options?: OpenFilePickerOptions) => Promise<FileSystemFileHandle[]>
   showSaveFilePicker?: (options?: SaveFilePickerOptions) => Promise<FileSystemFileHandle>
 }
+
+// Injected by Vite at build time from package.json
+declare const __APP_VERSION__: string
