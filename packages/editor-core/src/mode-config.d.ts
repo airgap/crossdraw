@@ -1,4 +1,4 @@
-export type EditorMode = 'full' | 'pngtuber'
+export type EditorMode = 'full' | 'pngtuber' | 'attachment'
 
 export interface ModeConfig {
   tools: string[]
@@ -10,7 +10,4 @@ export interface ModeConfig {
   maxFileSize: number
 }
 
-export declare function getModeConfig(
-  mode: EditorMode,
-  overrides?: Partial<ModeConfig>,
-): ModeConfig
+export declare function getModeConfig(mode: EditorMode, overrides?: Partial<ModeConfig>): ModeConfig

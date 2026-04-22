@@ -5,8 +5,8 @@
 
   // ── Props ──
 
-  /** Editor mode: 'full' or 'pngtuber' */
-  export let mode: 'full' | 'pngtuber' = 'pngtuber'
+  /** Editor mode: 'full', 'pngtuber', or 'attachment' */
+  export let mode: 'full' | 'pngtuber' | 'attachment' = 'pngtuber'
 
   /** Override theme tokens directly (takes precedence over auto-detected Lyku theme) */
   export let theme: Partial<CrossdrawThemeTokens> | undefined = undefined

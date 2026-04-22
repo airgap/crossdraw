@@ -4,6 +4,7 @@ import { App } from './App'
 import { ErrorBoundary } from '@/ui/error-boundary'
 import { setupElectronBridge } from '@/io/electron-bridge'
 import { useEditorStore } from '@/store/editor.store'
+import { EmbedApp, isEmbedMode } from '@/embed/embed-app'
 
 // Initialize Electron IPC if running inside Electron
 setupElectronBridge()
@@ -11,13 +12,16 @@ setupElectronBridge()
 // Start cloud preference syncing (auto-activates when logged in)
 import '@/cloud/preference-sync'
 
-// Warn before unloading if document has unsaved changes
-window.addEventListener('beforeunload', (e) => {
-  if (useEditorStore.getState().isDirty) {
-    e.preventDefault()
-    e.returnValue = ''
-  }
-})
+// Warn before unloading if document has unsaved changes. In embed mode the
+// host owns iframe lifecycle so the unload prompt would be noise.
+if (!isEmbedMode()) {
+  window.addEventListener('beforeunload', (e) => {
+    if (useEditorStore.getState().isDirty) {
+      e.preventDefault()
+      e.returnValue = ''
+    }
+  })
+}
 
 // ── Native-feel touch behavior ──────────────────────────────────
 // Prevent browser context menu on long-press (app has its own)
@@ -60,10 +64,10 @@ document.addEventListener(
   { passive: false },
 )
 
+const embedMode = isEmbedMode()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <ErrorBoundary>
-      <App />
-    </ErrorBoundary>
+    <ErrorBoundary>{embedMode ? <EmbedApp /> : <App />}</ErrorBoundary>
   </StrictMode>,
 )
