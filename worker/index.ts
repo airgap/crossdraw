@@ -66,10 +66,29 @@ export default {
     }
 
     // Try serving static assets; fall back to index.html for SPA routes
-    const response = await env.ASSETS.fetch(request)
+    let response = await env.ASSETS.fetch(request)
     if (response.status === 404) {
       // SPA fallback: serve index.html for unknown paths
-      return env.ASSETS.fetch(new Request(new URL('/', url), request))
+      response = await env.ASSETS.fetch(new Request(new URL('/', url), request))
+    }
+
+    // Allow approved first-parties to embed the editor as an iframe. The
+    // default X-Frame-Options=SAMEORIGIN from the asset platform blocks
+    // cross-origin framing outright, so we replace it with a frame-ancestors
+    // CSP that names the embed partners.
+    const ct = response.headers.get('content-type') ?? ''
+    if (ct.includes('text/html')) {
+      const headers = new Headers(response.headers)
+      headers.delete('x-frame-options')
+      headers.set(
+        'content-security-policy',
+        "frame-ancestors 'self' https://lyku.org https://*.lyku.org https://beta.lyku.org",
+      )
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      })
     }
     return response
   },
