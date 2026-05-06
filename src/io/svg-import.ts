@@ -366,12 +366,14 @@ function parseSVGElement(el: SVGElement, ctx: ParseContext): Layer | null {
   return layer
 }
 
-function parseGroup(el: SVGElement, ctx: ParseContext): GroupLayer {
+function parseGroup(el: SVGElement, ctx: ParseContext): GroupLayer | null {
   const children: Layer[] = []
   for (const child of el.children) {
     const layer = parseSVGElement(child as SVGElement, ctx)
     if (layer) children.push(layer)
   }
+
+  if (children.length === 0) return null
 
   return {
     id: uuid(),

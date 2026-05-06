@@ -535,6 +535,26 @@ describe('svg-import-coverage: importSVG edge cases', () => {
     expect(doc.artboards[0]!.width).toBe(200)
   })
 
+  test('empty <g> elements are skipped during import', () => {
+    // Adobe Illustrator's SVG export commonly emits trailing empty <g></g> placeholders.
+    const svg = svgWrap(`
+      <g>
+        <g>
+          <path d="M10 10 L20 20 Z" fill="black"/>
+        </g>
+      </g>
+      <g></g>
+      <g></g>
+      <g><g></g></g>
+    `)
+    const doc = importSVG(svg)
+    // Only the populated outer group should survive; the three empty/empty-nested groups are dropped.
+    expect(doc.artboards[0]!.layers.length).toBe(1)
+    const top = doc.artboards[0]!.layers[0]! as GroupLayer
+    expect(top.type).toBe('group')
+    expect(top.children.length).toBe(1)
+  })
+
   test('SVG with unknown element tags are skipped', () => {
     const svg = svgWrap(`
       <foreignObject x="0" y="0" width="50" height="50">
