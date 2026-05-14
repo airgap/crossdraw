@@ -1,6 +1,6 @@
 import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
-import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard, findLayerDeep } from '@/store/editor.store'
 import { FontPicker } from '@/ui/font-picker'
 import { getCatalogFont } from '@/fonts/loader'
 import { ColorSwatch } from '@/ui/color-picker'
@@ -234,7 +234,8 @@ export function PropertiesPanel() {
   const runAutoLayout = useEditorStore((s) => s.runAutoLayout)
 
   const artboard = getActiveArtboard()
-  const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
+  const selectedLayer =
+    artboard && selection.layerIds.length > 0 ? findLayerDeep(artboard.layers, selection.layerIds[0]!) : undefined
 
   return (
     <div

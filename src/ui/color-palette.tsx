@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { useEditorStore, getActiveArtboard } from '@/store/editor.store'
+import { useEditorStore, getActiveArtboard, findLayerDeep } from '@/store/editor.store'
 import type { NamedColor } from '@/types'
 import { v4 as uuid } from 'uuid'
 import { setPrimaryColor, setSecondaryColor } from '@/ui/tool-options-state'
@@ -35,7 +35,8 @@ export function ColorPalette() {
   const setFill = useEditorStore((s) => s.setFill)
 
   const artboard = getActiveArtboard()
-  const selectedLayer = artboard?.layers.find((l) => selection.layerIds.includes(l.id))
+  const selectedLayer =
+    artboard && selection.layerIds.length > 0 ? findLayerDeep(artboard.layers, selection.layerIds[0]!) : undefined
 
   function handleSwatchClick(color: string, secondary: boolean) {
     if (secondary) {

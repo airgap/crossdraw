@@ -72,6 +72,18 @@ export function getActiveArtboard(): Artboard | null {
   return state.document.artboards.find((a) => !a.isInfinite) ?? state.document.artboards[0] ?? null
 }
 
+/** Recursively find a layer by ID within a layer tree (descends into groups). */
+export function findLayerDeep(layers: Layer[], layerId: string): Layer | undefined {
+  for (const layer of layers) {
+    if (layer.id === layerId) return layer
+    if (layer.type === 'group') {
+      const found = findLayerDeep(layer.children, layerId)
+      if (found) return found
+    }
+  }
+  return undefined
+}
+
 export interface HistoryEntry {
   description: string
   patches: Patch[]
@@ -730,18 +742,6 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
     return artboard.layers.findIndex((l) => l.id === layerId)
   }
 
-  /** Recursively find a layer by ID within an artboard's layer tree. */
-  function findLayerDeep(layers: Layer[], layerId: string): Layer | undefined {
-    for (const layer of layers) {
-      if (layer.id === layerId) return layer
-      if (layer.type === 'group') {
-        const found = findLayerDeep(layer.children, layerId)
-        if (found) return found
-      }
-    }
-    return undefined
-  }
-
   /** Find the parent group of a layer, or null if it's at the top level. */
   function findParentGroup(layers: Layer[], layerId: string): GroupLayer | null {
     for (const layer of layers) {
@@ -1169,7 +1169,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       mutateDocument('Set fill', (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (!artboard) return
-        const layer = artboard.layers.find((l) => l.id === layerId)
+        const layer = findLayerDeep(artboard.layers, layerId)
         if (layer && layer.type === 'vector') {
           layer.fill = fill
         }
@@ -1180,7 +1180,7 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
       mutateDocument('Set stroke', (draft) => {
         const artboard = findArtboard(draft, artboardId)
         if (!artboard) return
-        const layer = artboard.layers.find((l) => l.id === layerId)
+        const layer = findLayerDeep(artboard.layers, layerId)
         if (layer && layer.type === 'vector') {
           layer.stroke = stroke
         }
