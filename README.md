@@ -167,7 +167,6 @@ bun run electron:dev
 
 # Build & package
 bun run electron:pack            # All platforms
-bun run electron:pack:win        # Windows (NSIS + portable)
 bun run electron:pack:mac        # macOS (DMG, universal)
 bun run electron:pack:linux      # Linux (AppImage + deb)
 ```
@@ -188,7 +187,6 @@ bun run server:compile:linux-x64
 bun run server:compile:linux-arm64
 bun run server:compile:darwin-x64       # macOS Intel
 bun run server:compile:darwin-arm64     # macOS Apple Silicon
-bun run server:compile:windows-x64
 ```
 
 ### Mobile (Capacitor)
@@ -251,7 +249,7 @@ Crossdraw uses the `.crow` file format — a MessagePack-encoded document with f
 The Jenkins pipeline runs on pushes to `main` and `release/*` branches:
 
 1. **Build & Test** — Format check, TypeScript compilation, test suite, Vite build
-2. **Package** (parallel) — Electron apps (Linux, macOS, Windows), web server binaries (5 platforms), Android APK
+2. **Package** (parallel) — Electron apps (Linux, macOS), web server binaries (Linux + macOS), Android APK
 3. **Deploy** — Cloudflare Workers + R2 for web app and release binaries
 
 ## Author

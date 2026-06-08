@@ -38,8 +38,6 @@ pipeline {
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bun test'
                 sh 'export PATH=$HOME/.bun/bin:$PATH && bunx vite build'
                 stash includes: 'dist/**', name: 'web-dist'
-                // Stash source for Windows (can't git-fetch from internal Gitea)
-                stash includes: 'package.json,bun.lockb,bun.lock,electron/**,electron-builder.yml,src/**,tsconfig*.json,index.html,vite.config.ts,public/**', name: 'source'
             }
         }
 
@@ -97,7 +95,6 @@ pipeline {
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-linux-arm64 --outfile release/crossdraw-server-linux-arm64'
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-darwin-x64 --outfile release/crossdraw-server-darwin-x64'
                         sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-darwin-arm64 --outfile release/crossdraw-server-darwin-arm64'
-                        sh 'export PATH=$HOME/.bun/bin:$PATH && bun build server/main.ts --compile --target=bun-windows-x64 --outfile release/crossdraw-server-windows-x64.exe'
                     }
                     post {
                         success {
@@ -120,27 +117,6 @@ pipeline {
                         success {
                             stash includes: 'release/*.dmg,release/*.zip', name: 'electron-macos', allowEmpty: true
                             archiveArtifacts artifacts: 'release/*.dmg,release/*.zip', fingerprint: true
-                        }
-                    }
-                }
-
-                // ── Electron: Windows ─────────────────────────
-                stage('Electron Windows') {
-                    agent { label 'windows' }
-                    options {
-                        skipDefaultCheckout()
-                    }
-                    steps {
-                        unstash 'source'
-                        unstash 'web-dist'
-                        bat 'bun install --frozen-lockfile'
-                        bat 'bunx tsc -p electron/tsconfig.json'
-                        bat 'bunx electron-builder --config electron-builder.yml --win --x64 --arm64'
-                    }
-                    post {
-                        success {
-                            stash includes: 'release/*.exe,release/*.msi', name: 'electron-windows', allowEmpty: true
-                            archiveArtifacts artifacts: 'release/*.exe,release/*.msi', fingerprint: true
                         }
                     }
                 }
@@ -225,7 +201,6 @@ pipeline {
                 script {
                     try { unstash 'electron-linux' } catch (e) { echo 'No Electron Linux artifacts' }
                     try { unstash 'electron-macos' } catch (e) { echo 'No Electron macOS artifacts' }
-                    try { unstash 'electron-windows' } catch (e) { echo 'No Electron Windows artifacts' }
                     try { unstash 'android-apk' } catch (e) { echo 'No Android APK' }
                 }
                 // Deploy Worker + static assets to beta.crossdraw.app

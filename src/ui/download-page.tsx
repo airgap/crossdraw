@@ -76,14 +76,6 @@ function AndroidIcon({ size = 28 }: { size?: number }) {
   )
 }
 
-function WindowsIcon({ size = 28 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M3 12V6.5l8-1.1V12H3zm0 .5h8v6.6l-8-1.1V12.5zM11.5 5.3l9.5-1.3v8h-9.5V5.3zM11.5 12.5H21v8l-9.5-1.3v-6.7z" />
-    </svg>
-  )
-}
-
 function MonitorIcon({ size = 28 }: { size?: number }) {
   return (
     <svg
@@ -171,30 +163,6 @@ const releases: Release[] = [
     filename: 'Crossdraw-0.1.0.dmg',
     type: 'desktop',
   },
-  {
-    name: 'Windows x64',
-    platform: 'Windows',
-    arch: 'x64',
-    icon: WindowsIcon,
-    filename: 'Crossdraw-Setup-0.1.0.exe',
-    type: 'desktop',
-  },
-  {
-    name: 'Windows arm64',
-    platform: 'Windows',
-    arch: 'arm64',
-    icon: WindowsIcon,
-    filename: 'Crossdraw-Setup-0.1.0-arm64.exe',
-    type: 'desktop',
-  },
-  {
-    name: 'Windows Portable',
-    platform: 'Windows',
-    arch: 'x64',
-    icon: WindowsIcon,
-    filename: 'Crossdraw-0.1.0-portable.exe',
-    type: 'desktop',
-  },
   // Mobile
   {
     name: 'Android',
@@ -235,14 +203,6 @@ const releases: Release[] = [
     arch: 'arm64',
     icon: ServerIcon,
     filename: 'crossdraw-server-darwin-arm64',
-    type: 'server',
-  },
-  {
-    name: 'Server Windows x64',
-    platform: 'Windows',
-    arch: 'x64',
-    icon: ServerIcon,
-    filename: 'crossdraw-server-windows-x64.exe',
     type: 'server',
   },
   // Extensions

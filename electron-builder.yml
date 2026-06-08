@@ -25,17 +25,6 @@ mac:
   hardenedRuntime: true
   gatekeeperAssess: false
 
-win:
-  target:
-    - target: nsis
-      arch:
-        - x64
-        - arm64
-    - target: portable
-      arch:
-        - x64
-  icon: build/icon.ico
-
 linux:
   maintainer: airgap
   target:
@@ -47,10 +36,6 @@ linux:
         - x64
   category: Graphics
   icon: build/icon.png
-
-nsis:
-  oneClick: false
-  allowToChangeInstallationDirectory: true
 
 fileAssociations:
   - ext: crow
