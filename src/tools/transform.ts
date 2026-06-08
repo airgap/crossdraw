@@ -18,6 +18,8 @@ interface DragState {
   originalTextWidth?: number
   originalTextHeight?: number
   originalTextMode?: 'point' | 'area'
+  /** Additional layers being dragged together (body handle only — multi-select drag). */
+  extraLayers?: Array<{ layerId: string; originalTransform: Transform }>
 }
 
 let drag: DragState | null = null
@@ -123,16 +125,33 @@ export function hitTestHandles(docPoint: Point, bbox: BBox, zoom: number, touchM
   return null
 }
 
-export function beginTransform(handle: HandleType, docPoint: Point, layerId: string, artboardId: string) {
+export function beginTransform(
+  handle: HandleType,
+  docPoint: Point,
+  layerId: string,
+  artboardId: string,
+  extraLayerIds?: string[],
+) {
   const store = useEditorStore.getState()
   const artboard = store.document.artboards.find((a) => a.id === artboardId)
   if (!artboard) return
-  const layer = artboard.layers.find((l) => l.id === layerId)
+  const layer = findLayerDeepLocal(artboard.layers, layerId)
   if (!layer) return
   // Skip layer types that shouldn't be individually transformed
   if (layer.type === 'adjustment' || layer.type === 'filter' || layer.type === 'fill') return
 
   const isText = layer.type === 'text'
+  let extraLayers: DragState['extraLayers']
+  if (handle === 'body' && extraLayerIds && extraLayerIds.length > 0) {
+    extraLayers = []
+    for (const id of extraLayerIds) {
+      if (id === layerId) continue
+      const extra = findLayerDeepLocal(artboard.layers, id)
+      if (!extra) continue
+      if (extra.type === 'adjustment' || extra.type === 'filter' || extra.type === 'fill') continue
+      extraLayers.push({ layerId: id, originalTransform: { ...extra.transform } })
+    }
+  }
   drag = {
     handle,
     layerId,
@@ -144,7 +163,20 @@ export function beginTransform(handle: HandleType, docPoint: Point, layerId: str
     originalTextWidth: isText ? layer.textWidth : undefined,
     originalTextHeight: isText ? layer.textHeight : undefined,
     originalTextMode: isText ? layer.textMode : undefined,
+    extraLayers,
   }
+}
+
+// Local recursive layer lookup (descends into groups).
+function findLayerDeepLocal(layers: Layer[], id: string): Layer | undefined {
+  for (const l of layers) {
+    if (l.id === id) return l
+    if (l.type === 'group') {
+      const found = findLayerDeepLocal(l.children, id)
+      if (found) return found
+    }
+  }
+  return undefined
 }
 
 export function updateTransform(docPoint: Point, shiftKey = false) {
@@ -164,37 +196,50 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
     // Get the layer's world bounding box for snap calculations
     const store = useEditorStore.getState()
     const artboard = store.document.artboards.find((a) => a.id === d.artboardId)
+    const allDraggedIds = [d.layerId, ...(d.extraLayers?.map((e) => e.layerId) ?? [])]
+    let snappedDx = deltaX
+    let snappedDy = deltaY
     if (artboard) {
-      const layer = artboard.layers.find((l) => l.id === d.layerId)
+      const layer = findLayerDeepLocal(artboard.layers, d.layerId)
       if (layer) {
         const layerBBox = getLayerBBox(layer, artboard)
         if (layerBBox.minX !== Infinity) {
-          // snapBBox takes the original bbox (before this drag) and raw deltas
           const origBBox: BBox = {
             minX: layerBBox.minX - (layer.transform.x - orig.x),
             minY: layerBBox.minY - (layer.transform.y - orig.y),
             maxX: layerBBox.maxX - (layer.transform.x - orig.x),
             maxY: layerBBox.maxY - (layer.transform.y - orig.y),
           }
-          const snapResult = snapBBox(origBBox, deltaX, deltaY, [d.layerId])
-          t.x = orig.x + snapResult.dx
-          t.y = orig.y + snapResult.dy
+          const snapResult = snapBBox(origBBox, deltaX, deltaY, allDraggedIds)
+          snappedDx = snapResult.dx
+          snappedDy = snapResult.dy
           store.setActiveSnapLines({
             h: snapResult.snapLinesH,
             v: snapResult.snapLinesV,
           })
         } else {
-          t.x = orig.x + deltaX
-          t.y = orig.y + deltaY
           store.setActiveSnapLines(null)
         }
-      } else {
-        t.x = orig.x + deltaX
-        t.y = orig.y + deltaY
       }
-    } else {
-      t.x = orig.x + deltaX
-      t.y = orig.y + deltaY
+    }
+    t.x = orig.x + snappedDx
+    t.y = orig.y + snappedDy
+
+    if (d.extraLayers && d.extraLayers.length > 0) {
+      // Apply the same delta to each extra layer in a single silent batch update.
+      const updates = [
+        { layerId: d.layerId, transform: t },
+        ...d.extraLayers.map((e) => ({
+          layerId: e.layerId,
+          transform: {
+            ...e.originalTransform,
+            x: e.originalTransform.x + snappedDx,
+            y: e.originalTransform.y + snappedDy,
+          },
+        })),
+      ]
+      useEditorStore.getState().translateLayersBatchSilent(d.artboardId, updates)
+      return
     }
   } else if (d.handle === 'rotation') {
     const store = useEditorStore.getState()
@@ -351,13 +396,47 @@ export function endTransform() {
     drag = null
     return
   }
-  const layer = artboard.layers.find((l) => l.id === d.layerId)
+  const layer = findLayerDeepLocal(artboard.layers, d.layerId)
   if (!layer) {
     drag = null
     return
   }
 
+  // Multi-layer body drag: restore all silently, then commit all in one undo entry.
+  if (d.handle === 'body' && d.extraLayers && d.extraLayers.length > 0) {
+    const moved = layer.transform.x !== d.originalTransform.x || layer.transform.y !== d.originalTransform.y
+    if (!moved) {
+      drag = null
+      return
+    }
+    const finalUpdates: Array<{ layerId: string; transform: Transform }> = [
+      { layerId: d.layerId, transform: { ...layer.transform } },
+    ]
+    for (const e of d.extraLayers) {
+      const cur = findLayerDeepLocal(artboard.layers, e.layerId)
+      if (cur) finalUpdates.push({ layerId: e.layerId, transform: { ...cur.transform } })
+    }
+    const restoreUpdates: Array<{ layerId: string; transform: Transform }> = [
+      { layerId: d.layerId, transform: { ...d.originalTransform } },
+      ...d.extraLayers.map((e) => ({ layerId: e.layerId, transform: { ...e.originalTransform } })),
+    ]
+    store.translateLayersBatchSilent(d.artboardId, restoreUpdates)
+    store.translateLayersBatch(d.artboardId, finalUpdates)
+    drag = null
+    return
+  }
+
   const finalTransform = { ...layer.transform }
+
+  // Single-layer body drag with no movement (eg. click-without-drag to select a layer):
+  // skip the redundant commit so we don't create a no-op undo entry.
+  if (d.handle === 'body') {
+    const moved = finalTransform.x !== d.originalTransform.x || finalTransform.y !== d.originalTransform.y
+    if (!moved) {
+      drag = null
+      return
+    }
+  }
 
   if (d.isTextLayer && d.originalTextMode === 'area' && layer.type === 'text') {
     // Area text: capture final text reflow state
@@ -390,6 +469,15 @@ export function cancelTransform() {
   if (!d) return
   const store = useEditorStore.getState()
   store.setActiveSnapLines(null)
+  if (d.handle === 'body' && d.extraLayers && d.extraLayers.length > 0) {
+    const restoreUpdates: Array<{ layerId: string; transform: Transform }> = [
+      { layerId: d.layerId, transform: { ...d.originalTransform } },
+      ...d.extraLayers.map((e) => ({ layerId: e.layerId, transform: { ...e.originalTransform } })),
+    ]
+    store.translateLayersBatchSilent(d.artboardId, restoreUpdates)
+    drag = null
+    return
+  }
   if (d.isTextLayer) {
     store.updateLayerSilent(d.artboardId, d.layerId, {
       transform: { ...d.originalTransform },

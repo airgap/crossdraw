@@ -40,6 +40,7 @@ import type {
   CloneLayer,
   SmartObjectLayer,
   Gradient,
+  Transform,
 } from '@/types'
 import { encodeDocument } from '@/io/file-format'
 import { isElectron } from '@/io/electron-bridge'
@@ -265,6 +266,14 @@ export interface EditorActions {
   // Fill/stroke
   setFill: (artboardId: string, layerId: string, fill: Fill | null) => void
   setStroke: (artboardId: string, layerId: string, stroke: Stroke | null) => void
+  /** Apply the same fill to many vector layers in one undo entry. */
+  setFillForLayers: (artboardId: string, layerIds: string[], fill: Fill | null) => void
+  /** Apply the same stroke to many vector layers in one undo entry. */
+  setStrokeForLayers: (artboardId: string, layerIds: string[], stroke: Stroke | null) => void
+  /** Commit a batch of transform updates in one undo entry (used after multi-layer drag). */
+  translateLayersBatch: (artboardId: string, updates: Array<{ layerId: string; transform: Transform }>) => void
+  /** Silent variant of translateLayersBatch — for live drag previews. */
+  translateLayersBatchSilent: (artboardId: string, updates: Array<{ layerId: string; transform: Transform }>) => void
 
   // Effects
   addEffect: (artboardId: string, layerId: string, effect: Effect) => void
@@ -1185,6 +1194,55 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
           layer.stroke = stroke
         }
       })
+    },
+
+    setFillForLayers(artboardId, layerIds, fill) {
+      if (layerIds.length === 0) return
+      mutateDocument(layerIds.length > 1 ? `Set fill (${layerIds.length})` : 'Set fill', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        for (const id of layerIds) {
+          const layer = findLayerDeep(artboard.layers, id)
+          if (layer && layer.type === 'vector') layer.fill = fill
+        }
+      })
+    },
+
+    setStrokeForLayers(artboardId, layerIds, stroke) {
+      if (layerIds.length === 0) return
+      mutateDocument(layerIds.length > 1 ? `Set stroke (${layerIds.length})` : 'Set stroke', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        for (const id of layerIds) {
+          const layer = findLayerDeep(artboard.layers, id)
+          if (layer && layer.type === 'vector') layer.stroke = stroke
+        }
+      })
+    },
+
+    translateLayersBatch(artboardId, updates) {
+      if (updates.length === 0) return
+      mutateDocument(updates.length > 1 ? `Move ${updates.length} layers` : 'Move layer', (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        for (const u of updates) {
+          const layer = findLayerDeep(artboard.layers, u.layerId)
+          if (layer) layer.transform = u.transform
+        }
+      })
+    },
+
+    translateLayersBatchSilent(artboardId, updates) {
+      if (updates.length === 0) return
+      const doc = produce(get().document, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        for (const u of updates) {
+          const layer = findLayerDeep(artboard.layers, u.layerId)
+          if (layer) layer.transform = u.transform
+        }
+      })
+      set({ document: doc })
     },
 
     // Effects

@@ -221,6 +221,8 @@ export function PropertiesPanel() {
   const selection = useEditorStore((s) => s.selection)
   const setFill = useEditorStore((s) => s.setFill)
   const setStroke = useEditorStore((s) => s.setStroke)
+  const setFillForLayers = useEditorStore((s) => s.setFillForLayers)
+  const setStrokeForLayers = useEditorStore((s) => s.setStrokeForLayers)
   const updateLayer = useEditorStore((s) => s.updateLayer)
   const addEffect = useEditorStore((s) => s.addEffect)
   const removeEffect = useEditorStore((s) => s.removeEffect)
@@ -784,8 +786,20 @@ export function PropertiesPanel() {
             {/* Fill & Stroke (vector only) */}
             {selectedLayer.type === 'vector' && artboard && (
               <>
-                <FillSection artboardId={artboard.id} layer={selectedLayer} setFill={setFill} />
-                <StrokeSection artboardId={artboard.id} layer={selectedLayer} setStroke={setStroke} />
+                <FillSection
+                  artboardId={artboard.id}
+                  layer={selectedLayer}
+                  selectedLayerIds={selection.layerIds}
+                  setFill={setFill}
+                  setFillForLayers={setFillForLayers}
+                />
+                <StrokeSection
+                  artboardId={artboard.id}
+                  layer={selectedLayer}
+                  selectedLayerIds={selection.layerIds}
+                  setStroke={setStroke}
+                  setStrokeForLayers={setStrokeForLayers}
+                />
               </>
             )}
 
@@ -1174,16 +1188,26 @@ function createDefaultNoiseFill(): NoiseFillConfig {
 function FillSection({
   artboardId,
   layer,
+  selectedLayerIds,
   setFill,
+  setFillForLayers,
 }: {
   artboardId: string
   layer: VectorLayer
+  selectedLayerIds: string[]
   setFill: (a: string, l: string, f: Fill | null) => void
+  setFillForLayers: (a: string, ids: string[], f: Fill | null) => void
 }) {
   const fill = layer.fill
 
+  // Apply to all selected layers when there's a multi-selection, single layer otherwise.
+  function applyFill(f: Fill | null) {
+    if (selectedLayerIds.length > 1) setFillForLayers(artboardId, selectedLayerIds, f)
+    else setFill(artboardId, layer.id, f)
+  }
+
   function switchToGradient() {
-    setFill(artboardId, layer.id, {
+    applyFill({
       type: 'gradient',
       gradient: createDefaultGradient(),
       opacity: fill?.opacity ?? 1,
@@ -1191,7 +1215,7 @@ function FillSection({
   }
 
   function switchToSolid() {
-    setFill(artboardId, layer.id, {
+    applyFill({
       type: 'solid',
       color: '#000000',
       opacity: fill?.opacity ?? 1,
@@ -1199,7 +1223,7 @@ function FillSection({
   }
 
   function switchToNoise() {
-    setFill(artboardId, layer.id, {
+    applyFill({
       type: 'noise',
       noise: createDefaultNoiseFill(),
       opacity: fill?.opacity ?? 1,
@@ -1208,7 +1232,7 @@ function FillSection({
 
   function updateNoise(updates: Partial<NoiseFillConfig>) {
     if (!fill || fill.type !== 'noise' || !fill.noise) return
-    setFill(artboardId, layer.id, {
+    applyFill({
       ...fill,
       noise: { ...fill.noise, ...updates },
     })
@@ -1236,10 +1260,7 @@ function FillSection({
                   Noise
                 </button>
               )}
-              <button
-                style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
-                onClick={() => setFill(artboardId, layer.id, null)}
-              >
+              <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={() => applyFill(null)}>
                 Remove
               </button>
             </>
@@ -1249,7 +1270,7 @@ function FillSection({
       {!fill && (
         <div style={rowStyle}>
           <div
-            onClick={() => setFill(artboardId, layer.id, { type: 'solid', color: '#000000', opacity: 1 })}
+            onClick={() => applyFill({ type: 'solid', color: '#000000', opacity: 1 })}
             title="Add fill"
             style={{
               width: 24,
@@ -1272,14 +1293,14 @@ function FillSection({
             <ColorSwatch
               color={fill.color ?? '#000000'}
               opacity={fill.opacity}
-              onChange={(hex, a) => setFill(artboardId, layer.id, { ...fill, color: hex, opacity: a })}
+              onChange={(hex, a) => applyFill({ ...fill, color: hex, opacity: a })}
             />
             <input
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={fill.color ?? '#000000'}
               onChange={(e) => {
                 if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  setFill(artboardId, layer.id, { ...fill, color: e.target.value })
+                  applyFill({ ...fill, color: e.target.value })
                 }
               }}
             />
@@ -1291,10 +1312,7 @@ function FillSection({
       )}
       {fill && fill.type === 'gradient' && fill.gradient && (
         <>
-          <GradientEditor
-            gradient={fill.gradient}
-            onChange={(g) => setFill(artboardId, layer.id, { ...fill, gradient: g })}
-          />
+          <GradientEditor gradient={fill.gradient} onChange={(g) => applyFill({ ...fill, gradient: g })} />
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Alpha</span>
             <input
@@ -1303,7 +1321,7 @@ function FillSection({
               max="100"
               style={{ flex: 1 }}
               value={Math.round(fill.opacity * 100)}
-              onChange={(e) => setFill(artboardId, layer.id, { ...fill, opacity: Number(e.target.value) / 100 })}
+              onChange={(e) => applyFill({ ...fill, opacity: Number(e.target.value) / 100 })}
             />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(fill.opacity * 100)}%
@@ -1418,7 +1436,7 @@ function FillSection({
               max="100"
               style={{ flex: 1 }}
               value={Math.round(fill.opacity * 100)}
-              onChange={(e) => setFill(artboardId, layer.id, { ...fill, opacity: Number(e.target.value) / 100 })}
+              onChange={(e) => applyFill({ ...fill, opacity: Number(e.target.value) / 100 })}
             />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(fill.opacity * 100)}%
@@ -1451,30 +1469,37 @@ function dashPatternKey(dasharray?: number[]): string {
 function StrokeSection({
   artboardId,
   layer,
+  selectedLayerIds,
   setStroke,
+  setStrokeForLayers,
 }: {
   artboardId: string
   layer: VectorLayer
+  selectedLayerIds: string[]
   setStroke: (a: string, l: string, s: Stroke | null) => void
+  setStrokeForLayers: (a: string, ids: string[], s: Stroke | null) => void
 }) {
   const stroke = layer.stroke
+
+  // Apply to all selected layers when there's a multi-selection, single layer otherwise.
+  const applyStroke = (s: Stroke | null) => {
+    if (selectedLayerIds.length > 1) setStrokeForLayers(artboardId, selectedLayerIds, s)
+    else setStroke(artboardId, layer.id, s)
+  }
 
   return (
     <div style={sectionStyle}>
       <div style={{ ...labelStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>Stroke</span>
         {stroke ? (
-          <button
-            style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
-            onClick={() => setStroke(artboardId, layer.id, null)}
-          >
+          <button style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }} onClick={() => applyStroke(null)}>
             Remove
           </button>
         ) : (
           <button
             style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}
             onClick={() =>
-              setStroke(artboardId, layer.id, {
+              applyStroke({
                 color: '#000000',
                 width: 2,
                 opacity: 1,
@@ -1495,14 +1520,14 @@ function StrokeSection({
             <ColorSwatch
               color={stroke.color}
               opacity={stroke.opacity}
-              onChange={(hex, a) => setStroke(artboardId, layer.id, { ...stroke, color: hex, opacity: a })}
+              onChange={(hex, a) => applyStroke({ ...stroke, color: hex, opacity: a })}
             />
             <input
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={stroke.color}
               onChange={(e) => {
                 if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  setStroke(artboardId, layer.id, { ...stroke, color: e.target.value })
+                  applyStroke({ ...stroke, color: e.target.value })
                 }
               }}
             />
@@ -1519,9 +1544,7 @@ function StrokeSection({
               step="0.5"
               style={smallInputStyle}
               value={stroke.width}
-              onChange={(e) =>
-                setStroke(artboardId, layer.id, { ...stroke, width: Math.max(0.5, Number(e.target.value)) })
-              }
+              onChange={(e) => applyStroke({ ...stroke, width: Math.max(0.5, Number(e.target.value)) })}
             />
             <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>px</span>
           </div>
@@ -1533,11 +1556,11 @@ function StrokeSection({
               onChange={(e) => {
                 const key = e.target.value
                 if (key === 'none') {
-                  setStroke(artboardId, layer.id, { ...stroke, widthProfile: undefined })
+                  applyStroke({ ...stroke, widthProfile: undefined })
                 } else {
                   const preset = WIDTH_PRESETS[key]
                   if (preset) {
-                    setStroke(artboardId, layer.id, {
+                    applyStroke({
                       ...stroke,
                       widthProfile: preset.map((p) => [...p] as [number, number]),
                     })
@@ -1558,9 +1581,7 @@ function StrokeSection({
             <select
               style={{ ...inputStyle, width: 'auto' }}
               value={stroke.position ?? 'center'}
-              onChange={(e) =>
-                setStroke(artboardId, layer.id, { ...stroke, position: e.target.value as Stroke['position'] })
-              }
+              onChange={(e) => applyStroke({ ...stroke, position: e.target.value as Stroke['position'] })}
             >
               <option value="center">Center</option>
               <option value="inside">Inside</option>
@@ -1572,9 +1593,7 @@ function StrokeSection({
             <select
               style={{ ...inputStyle, width: 'auto' }}
               value={stroke.linecap}
-              onChange={(e) =>
-                setStroke(artboardId, layer.id, { ...stroke, linecap: e.target.value as Stroke['linecap'] })
-              }
+              onChange={(e) => applyStroke({ ...stroke, linecap: e.target.value as Stroke['linecap'] })}
             >
               <option value="butt">Butt</option>
               <option value="round">Round</option>
@@ -1584,9 +1603,7 @@ function StrokeSection({
             <select
               style={{ ...inputStyle, width: 'auto' }}
               value={stroke.linejoin}
-              onChange={(e) =>
-                setStroke(artboardId, layer.id, { ...stroke, linejoin: e.target.value as Stroke['linejoin'] })
-              }
+              onChange={(e) => applyStroke({ ...stroke, linejoin: e.target.value as Stroke['linejoin'] })}
             >
               <option value="miter">Miter</option>
               <option value="bevel">Bevel</option>
@@ -1604,7 +1621,7 @@ function StrokeSection({
                 style={smallInputStyle}
                 value={stroke.miterLimit}
                 onChange={(e) =>
-                  setStroke(artboardId, layer.id, {
+                  applyStroke({
                     ...stroke,
                     miterLimit: Math.max(1, Math.min(20, Number(e.target.value))),
                   })
@@ -1620,7 +1637,7 @@ function StrokeSection({
               onChange={(e) => {
                 const preset = DASH_PRESETS.find((p) => p.key === e.target.value)
                 if (preset) {
-                  setStroke(artboardId, layer.id, {
+                  applyStroke({
                     ...stroke,
                     dasharray: preset.value.length ? [...preset.value] : undefined,
                   })
@@ -1642,7 +1659,7 @@ function StrokeSection({
               max="100"
               style={{ flex: 1 }}
               value={Math.round(stroke.opacity * 100)}
-              onChange={(e) => setStroke(artboardId, layer.id, { ...stroke, opacity: Number(e.target.value) / 100 })}
+              onChange={(e) => applyStroke({ ...stroke, opacity: Number(e.target.value) / 100 })}
             />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(stroke.opacity * 100)}%
@@ -1661,7 +1678,7 @@ function StrokeSection({
                   const wiggle: WiggleStrokeConfig = stroke.wiggle
                     ? { ...stroke.wiggle, enabled }
                     : { enabled, amplitude: 4, frequency: 10, seed: 0, taperStart: 0, taperEnd: 0 }
-                  setStroke(artboardId, layer.id, { ...stroke, wiggle })
+                  applyStroke({ ...stroke, wiggle })
                 }}
               />
               Wiggle
@@ -1679,7 +1696,7 @@ function StrokeSection({
                   style={{ flex: 1 }}
                   value={stroke.wiggle.amplitude}
                   onChange={(e) =>
-                    setStroke(artboardId, layer.id, {
+                    applyStroke({
                       ...stroke,
                       wiggle: { ...stroke.wiggle!, amplitude: Number(e.target.value) },
                     })
@@ -1699,7 +1716,7 @@ function StrokeSection({
                   style={{ flex: 1 }}
                   value={stroke.wiggle.frequency}
                   onChange={(e) =>
-                    setStroke(artboardId, layer.id, {
+                    applyStroke({
                       ...stroke,
                       wiggle: { ...stroke.wiggle!, frequency: Number(e.target.value) },
                     })
@@ -1718,7 +1735,7 @@ function StrokeSection({
                   style={smallInputStyle}
                   value={stroke.wiggle.seed}
                   onChange={(e) =>
-                    setStroke(artboardId, layer.id, {
+                    applyStroke({
                       ...stroke,
                       wiggle: { ...stroke.wiggle!, seed: Math.max(0, Math.floor(Number(e.target.value))) },
                     })
@@ -1735,7 +1752,7 @@ function StrokeSection({
                   style={{ flex: 1 }}
                   value={stroke.wiggle.taperStart}
                   onChange={(e) =>
-                    setStroke(artboardId, layer.id, {
+                    applyStroke({
                       ...stroke,
                       wiggle: { ...stroke.wiggle!, taperStart: Number(e.target.value) },
                     })
@@ -1755,7 +1772,7 @@ function StrokeSection({
                   style={{ flex: 1 }}
                   value={stroke.wiggle.taperEnd}
                   onChange={(e) =>
-                    setStroke(artboardId, layer.id, {
+                    applyStroke({
                       ...stroke,
                       wiggle: { ...stroke.wiggle!, taperEnd: Number(e.target.value) },
                     })

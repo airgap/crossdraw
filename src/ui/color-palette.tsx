@@ -32,11 +32,9 @@ function savePalette(colors: NamedColor[]) {
 export function ColorPalette() {
   const [colors, setColors] = useState<NamedColor[]>(loadPalette)
   const selection = useEditorStore((s) => s.selection)
-  const setFill = useEditorStore((s) => s.setFill)
+  const setFillForLayers = useEditorStore((s) => s.setFillForLayers)
 
   const artboard = getActiveArtboard()
-  const selectedLayer =
-    artboard && selection.layerIds.length > 0 ? findLayerDeep(artboard.layers, selection.layerIds[0]!) : undefined
 
   function handleSwatchClick(color: string, secondary: boolean) {
     if (secondary) {
@@ -44,12 +42,23 @@ export function ColorPalette() {
       return
     }
     setPrimaryColor(color, 1)
-    if (artboard && selectedLayer) {
-      if (selectedLayer.type === 'vector') {
-        setFill(artboard.id, selectedLayer.id, { type: 'solid', color, opacity: 1 })
-      } else if (selectedLayer.type === 'text') {
-        useEditorStore.getState().updateLayer(artboard.id, selectedLayer.id, { color })
-      }
+    if (!artboard || selection.layerIds.length === 0) return
+
+    // Bucket selection by type so vectors get fill and texts get color in one go.
+    const vectorIds: string[] = []
+    const textIds: string[] = []
+    for (const id of selection.layerIds) {
+      const l = findLayerDeep(artboard.layers, id)
+      if (!l) continue
+      if (l.type === 'vector') vectorIds.push(id)
+      else if (l.type === 'text') textIds.push(id)
+    }
+    if (vectorIds.length > 0) {
+      setFillForLayers(artboard.id, vectorIds, { type: 'solid', color, opacity: 1 })
+    }
+    const updateLayer = useEditorStore.getState().updateLayer
+    for (const id of textIds) {
+      updateLayer(artboard.id, id, { color } as any)
     }
   }
 

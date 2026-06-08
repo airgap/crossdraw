@@ -1679,24 +1679,51 @@ export function Viewport() {
 
   function getSelectedLayerBBox() {
     if (selection.layerIds.length === 0) return null
-    for (const artboard of document.artboards) {
-      for (const layer of artboard.layers) {
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    function visit(
+      layers: (typeof document.artboards)[number]['layers'],
+      artboard: (typeof document.artboards)[number],
+    ) {
+      for (const layer of layers) {
         if (selection.layerIds.includes(layer.id)) {
           const bbox = getLayerBBox(layer, artboard)
-          if (bbox.minX !== Infinity) return bbox
+          if (bbox.minX !== Infinity) {
+            if (bbox.minX < minX) minX = bbox.minX
+            if (bbox.minY < minY) minY = bbox.minY
+            if (bbox.maxX > maxX) maxX = bbox.maxX
+            if (bbox.maxY > maxY) maxY = bbox.maxY
+          }
         }
+        if (layer.type === 'group') visit(layer.children, artboard)
       }
     }
-    return null
+    for (const artboard of document.artboards) visit(artboard.layers, artboard)
+    if (minX === Infinity) return null
+    return { minX, minY, maxX, maxY }
   }
 
   function getSelectedLayerInfo() {
-    for (const artboard of document.artboards) {
-      for (const layer of artboard.layers) {
+    function visit(
+      layers: (typeof document.artboards)[number]['layers'],
+      artboardId: string,
+    ): { layerId: string; artboardId: string } | null {
+      for (const layer of layers) {
         if (selection.layerIds.includes(layer.id)) {
-          return { layerId: layer.id, artboardId: artboard.id }
+          return { layerId: layer.id, artboardId }
+        }
+        if (layer.type === 'group') {
+          const found = visit(layer.children, artboardId)
+          if (found) return found
         }
       }
+      return null
+    }
+    for (const artboard of document.artboards) {
+      const found = visit(artboard.layers, artboard.id)
+      if (found) return found
     }
     return null
   }
@@ -2397,12 +2424,13 @@ export function Viewport() {
     if (activeTool === 'select') {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
 
-      // Check transform handles first
+      // Check resize/rotate handles first (NOT body — body needs to lose to layer hit-testing
+      // so clicking an unselected layer drawn inside the combined bbox still switches selection).
       if (selection.layerIds.length > 0) {
         const bbox = getSelectedLayerBBox()
         if (bbox) {
           const handle = hitTestHandles(docPoint, bbox, viewport.zoom, useEditorStore.getState().touchMode)
-          if (handle) {
+          if (handle && handle !== 'body') {
             const info = getSelectedLayerInfo()
             if (info) {
               beginTransform(handle, docPoint, info.layerId, info.artboardId)
@@ -2413,11 +2441,45 @@ export function Viewport() {
         }
       }
 
-      // Hit test for layer selection
+      // Hit test for layer selection / drag.
       const hits = spatialIndex.hitTest(docPoint.x, docPoint.y, document)
       if (hits.length > 0) {
-        selectLayer(hits[0]!.layer.id, e.shiftKey)
+        const hitLayerId = hits[0]!.layer.id
+        const hitArtboardId = hits[0]!.artboard.id
+        const alreadySelected = selection.layerIds.includes(hitLayerId)
+        if (e.shiftKey) {
+          selectLayer(hitLayerId, true)
+        } else if (!alreadySelected) {
+          // Replace selection with the clicked layer and begin its drag.
+          selectLayer(hitLayerId, false)
+          beginTransform('body', docPoint, hitLayerId, hitArtboardId)
+          isDragging.current = true
+        } else {
+          // Clicked layer is part of the current selection — drag all selected layers together.
+          const extra = selection.layerIds.filter((id) => id !== hitLayerId)
+          beginTransform('body', docPoint, hitLayerId, hitArtboardId, extra.length > 0 ? extra : undefined)
+          isDragging.current = true
+        }
       } else {
+        // No layer was hit. If the click is inside the combined selection bbox
+        // (eg. empty area between selected shapes), treat it as a body drag of the
+        // existing selection. Otherwise, start a marquee.
+        const selBBox = !e.shiftKey && selection.layerIds.length > 0 ? getSelectedLayerBBox() : null
+        if (
+          selBBox &&
+          docPoint.x >= selBBox.minX &&
+          docPoint.x <= selBBox.maxX &&
+          docPoint.y >= selBBox.minY &&
+          docPoint.y <= selBBox.maxY
+        ) {
+          const info = getSelectedLayerInfo()
+          if (info) {
+            const extra = selection.layerIds.filter((id) => id !== info.layerId)
+            beginTransform('body', docPoint, info.layerId, info.artboardId, extra.length > 0 ? extra : undefined)
+            isDragging.current = true
+            return
+          }
+        }
         if (!e.shiftKey) deselectAll()
         // Start marquee selection
         marquee.current = {
