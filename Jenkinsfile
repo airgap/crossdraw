@@ -208,8 +208,8 @@ pipeline {
                     export PATH=$HOME/.bun/bin:$PATH
                     export NVM_DIR="$HOME/.nvm"
                     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-                    if ! nvm ls 20 > /dev/null 2>&1; then nvm install 20; fi
-                    nvm use 20
+                    if ! nvm ls 22 > /dev/null 2>&1; then nvm install 22; fi
+                    nvm use 22
                     bunx wrangler deploy --env beta
                 '''
                 // Upload release binaries to R2
@@ -217,7 +217,7 @@ pipeline {
                     export PATH=$HOME/.bun/bin:$PATH
                     export NVM_DIR="$HOME/.nvm"
                     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-                    nvm use 20 2>/dev/null || true
+                    nvm use 22 2>/dev/null || true
                     for f in release/*; do
                         [ -f "$f" ] && bunx wrangler r2 object put "crossdraw-releases/$(basename $f)" --file="$f" --remote || true
                     done
@@ -267,7 +267,8 @@ pipeline {
                     export PATH=$HOME/.bun/bin:$PATH
                     export NVM_DIR="$HOME/.nvm"
                     [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-                    nvm use 20 2>/dev/null || true
+                    if ! nvm ls 22 > /dev/null 2>&1; then nvm install 22; fi
+                    nvm use 22
                     bunx wrangler deploy --env production
                 '''
 
