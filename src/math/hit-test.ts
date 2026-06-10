@@ -100,10 +100,22 @@ function preciseHitTest(layer: Layer, artboard: Artboard, docX: number, docY: nu
 
   if (layer.type !== 'vector') return false
 
-  // Convert doc coords to layer-local coords (accounting for scale)
+  // Convert doc coords to layer-local coords (inverting translate, scale, then skew)
   const t = layer.transform
-  const localX = (docX - artboard.x - t.x) / (t.scaleX || 1)
-  const localY = (docY - artboard.y - t.y) / (t.scaleY || 1)
+  let localX = (docX - artboard.x - t.x) / (t.scaleX || 1)
+  let localY = (docY - artboard.y - t.y) / (t.scaleY || 1)
+  if (t.skewX || t.skewY) {
+    // Forward shear is x' = x + tanX·y, y' = tanY·x + y — invert it.
+    const tanX = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
+    const tanY = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
+    const det = 1 - tanX * tanY
+    if (Math.abs(det) > 1e-6) {
+      const ux = (localX - tanX * localY) / det
+      const uy = (localY - tanY * localX) / det
+      localX = ux
+      localY = uy
+    }
+  }
 
   // Use CanvasRenderingContext2D for hit testing
   const canvas = new OffscreenCanvas(1, 1)

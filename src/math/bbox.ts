@@ -1,4 +1,4 @@
-import type { Segment, Path, VectorLayer, Layer, Artboard, GroupLayer, TextLayer } from '@/types'
+import type { Segment, Path, VectorLayer, Layer, Artboard, GroupLayer, TextLayer, Transform } from '@/types'
 import { needsPathRendering, getPathText } from '@/fonts/glyph-paths'
 
 export interface BBox {
@@ -188,22 +188,45 @@ export function getPathBBox(path: Path): BBox {
   return pathBBox(path.segments)
 }
 
+/** Map a local-space bbox through a layer transform — skew, then scale, then
+ *  translate — matching the render order in applyTransform. Rotation is
+ *  intentionally ignored to keep selection bounds axis-aligned. */
+export function transformLocalBBox(local: BBox, t: Transform, originX: number, originY: number): BBox {
+  const tanX = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
+  const tanY = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  const corners: Array<[number, number]> = [
+    [local.minX, local.minY],
+    [local.maxX, local.minY],
+    [local.minX, local.maxY],
+    [local.maxX, local.maxY],
+  ]
+  for (const [x, y] of corners) {
+    const X = (x + tanX * y) * t.scaleX + t.x + originX
+    const Y = (tanY * x + y) * t.scaleY + t.y + originY
+    if (X < minX) minX = X
+    if (X > maxX) maxX = X
+    if (Y < minY) minY = Y
+    if (Y > maxY) maxY = Y
+  }
+  return { minX, minY, maxX, maxY }
+}
+
 /** Compute bounding box for any layer type. */
 export function getLayerBBox(layer: Layer, artboard: Artboard): BBox {
   switch (layer.type) {
     case 'vector':
       return getVectorLayerBBox(layer, artboard)
-    case 'raster': {
-      const t = layer.transform
-      const w = layer.width * t.scaleX
-      const h = layer.height * t.scaleY
-      return {
-        minX: artboard.x + t.x + Math.min(0, w),
-        minY: artboard.y + t.y + Math.min(0, h),
-        maxX: artboard.x + t.x + Math.max(0, w),
-        maxY: artboard.y + t.y + Math.max(0, h),
-      }
-    }
+    case 'raster':
+      return transformLocalBBox(
+        { minX: 0, minY: 0, maxX: layer.width, maxY: layer.height },
+        layer.transform,
+        artboard.x,
+        artboard.y,
+      )
     case 'group':
       return getGroupLayerBBox(layer, artboard)
     case 'text':
@@ -239,8 +262,35 @@ function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
 
   if (bbox.minX === Infinity) return { ...EMPTY_BBOX }
 
-  // Apply group's own transform (scale relative to group origin, then translate)
+  // Apply group's own transform (skew and scale relative to group origin, then translate)
   const t = group.transform
+  if (t.skewX || t.skewY) {
+    const tanX = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
+    const tanY = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
+    const originX = artboard.x + t.x
+    const originY = artboard.y + t.y
+    let mnX = Infinity
+    let mnY = Infinity
+    let mxX = -Infinity
+    let mxY = -Infinity
+    const corners: Array<[number, number]> = [
+      [bbox.minX, bbox.minY],
+      [bbox.maxX, bbox.minY],
+      [bbox.minX, bbox.maxY],
+      [bbox.maxX, bbox.maxY],
+    ]
+    for (const [cx, cy] of corners) {
+      const lx = cx - originX
+      const ly = cy - originY
+      const X = originX + lx + tanX * ly
+      const Y = originY + tanY * lx + ly
+      if (X < mnX) mnX = X
+      if (X > mxX) mxX = X
+      if (Y < mnY) mnY = Y
+      if (Y > mxY) mxY = Y
+    }
+    bbox = { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY }
+  }
   if (t.scaleX !== 1 || t.scaleY !== 1) {
     const originX = artboard.x + t.x
     const originY = artboard.y + t.y
@@ -317,14 +367,7 @@ function getTextLayerBBox(layer: TextLayer, artboard: Artboard): BBox {
     localH = lines.length * lineH
   }
 
-  const w = localW * t.scaleX
-  const h = localH * t.scaleY
-  const minX = w >= 0 ? artboard.x + t.x : artboard.x + t.x + w
-  const maxX = w >= 0 ? artboard.x + t.x + w : artboard.x + t.x
-  const minY = h >= 0 ? artboard.y + t.y : artboard.y + t.y + h
-  const maxY = h >= 0 ? artboard.y + t.y + h : artboard.y + t.y
-
-  return { minX, minY, maxX, maxY }
+  return transformLocalBBox({ minX: 0, minY: 0, maxX: localW, maxY: localH }, t, artboard.x, artboard.y)
 }
 
 /** Compute the union bounding box of all layers in an infinite artboard, with padding.
@@ -366,18 +409,8 @@ function getVectorLayerBBox(layer: VectorLayer, artboard: Artboard): BBox {
     bbox = mergeBBox(bbox, getPathBBox(path))
   }
 
-  // Apply layer transform (scale then translate)
-  const t = layer.transform
-  const x1 = bbox.minX * t.scaleX
-  const x2 = bbox.maxX * t.scaleX
-  const y1 = bbox.minY * t.scaleY
-  const y2 = bbox.maxY * t.scaleY
-  bbox = {
-    minX: Math.min(x1, x2) + t.x + artboard.x,
-    minY: Math.min(y1, y2) + t.y + artboard.y,
-    maxX: Math.max(x1, x2) + t.x + artboard.x,
-    maxY: Math.max(y1, y2) + t.y + artboard.y,
-  }
+  // Apply layer transform (skew, scale, translate)
+  bbox = transformLocalBBox(bbox, layer.transform, artboard.x, artboard.y)
 
   // Expand for stroke
   if (layer.stroke) {
