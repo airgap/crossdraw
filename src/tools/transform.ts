@@ -6,6 +6,15 @@ import { snapBBox, snapPoint } from '@/tools/snap'
 
 export type HandleType = 'nw' | 'n' | 'ne' | 'w' | 'e' | 'sw' | 's' | 'se' | 'rotation' | 'body'
 
+interface MultiTransformEntry {
+  layerId: string
+  originalTransform: Transform
+  /** Area text reflows (textWidth/textHeight) instead of scaling. */
+  isAreaText?: boolean
+  originalTextWidth?: number
+  originalTextHeight?: number
+}
+
 interface DragState {
   handle: HandleType
   layerId: string
@@ -18,8 +27,12 @@ interface DragState {
   originalTextWidth?: number
   originalTextHeight?: number
   originalTextMode?: 'point' | 'area'
-  /** Additional layers being dragged together (body handle only — multi-select drag). */
-  extraLayers?: Array<{ layerId: string; originalTransform: Transform }>
+  /** Additional layers being transformed together (multi-select). */
+  extraLayers?: MultiTransformEntry[]
+  /** Combined world bbox at drag start — only set for multi-layer transforms. */
+  combinedWorldBBox?: BBox
+  /** Artboard origin captured at drag start — for converting world↔local coords. */
+  artboardOrigin?: { x: number; y: number }
 }
 
 let drag: DragState | null = null
@@ -142,14 +155,42 @@ export function beginTransform(
 
   const isText = layer.type === 'text'
   let extraLayers: DragState['extraLayers']
-  if (handle === 'body' && extraLayerIds && extraLayerIds.length > 0) {
+  let combinedWorldBBox: BBox | undefined
+  let artboardOrigin: { x: number; y: number } | undefined
+  if (extraLayerIds && extraLayerIds.length > 0) {
     extraLayers = []
     for (const id of extraLayerIds) {
       if (id === layerId) continue
       const extra = findLayerDeepLocal(artboard.layers, id)
       if (!extra) continue
       if (extra.type === 'adjustment' || extra.type === 'filter' || extra.type === 'fill') continue
-      extraLayers.push({ layerId: id, originalTransform: { ...extra.transform } })
+      const entry: MultiTransformEntry = { layerId: id, originalTransform: { ...extra.transform } }
+      if (extra.type === 'text' && extra.textMode === 'area' && extra.textWidth != null && extra.textWidth > 0) {
+        entry.isAreaText = true
+        entry.originalTextWidth = extra.textWidth
+        const lineH = extra.fontSize * (extra.lineHeight ?? 1.4)
+        entry.originalTextHeight = extra.textHeight ?? extra.text.split('\n').length * lineH
+      }
+      extraLayers.push(entry)
+    }
+    // Compute combined world bbox (primary + all extras), used by resize/rotate handles.
+    let mnX = Infinity,
+      mnY = Infinity,
+      mxX = -Infinity,
+      mxY = -Infinity
+    for (const id of [layerId, ...extraLayers.map((e) => e.layerId)]) {
+      const ll = findLayerDeepLocal(artboard.layers, id)
+      if (!ll) continue
+      const wb = getLayerBBox(ll, artboard)
+      if (wb.minX === Infinity) continue
+      if (wb.minX < mnX) mnX = wb.minX
+      if (wb.minY < mnY) mnY = wb.minY
+      if (wb.maxX > mxX) mxX = wb.maxX
+      if (wb.maxY > mxY) mxY = wb.maxY
+    }
+    if (mnX !== Infinity) {
+      combinedWorldBBox = { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY }
+      artboardOrigin = { x: artboard.x, y: artboard.y }
     }
   }
   drag = {
@@ -164,6 +205,8 @@ export function beginTransform(
     originalTextHeight: isText ? layer.textHeight : undefined,
     originalTextMode: isText ? layer.textMode : undefined,
     extraLayers,
+    combinedWorldBBox,
+    artboardOrigin,
   }
 }
 
@@ -179,7 +222,198 @@ function findLayerDeepLocal(layers: Layer[], id: string): Layer | undefined {
   return undefined
 }
 
-export function updateTransform(docPoint: Point, shiftKey = false) {
+/** Maps a resize-handle key to the combined-bbox anchor and drag direction. */
+const MULTI_SCALE_CFG: Record<
+  string,
+  { ax: 'min' | 'max' | 'mid'; ay: 'min' | 'max' | 'mid'; dragX: number; dragY: number }
+> = {
+  se: { ax: 'min', ay: 'min', dragX: 1, dragY: 1 },
+  nw: { ax: 'max', ay: 'max', dragX: -1, dragY: -1 },
+  ne: { ax: 'min', ay: 'max', dragX: 1, dragY: -1 },
+  sw: { ax: 'max', ay: 'min', dragX: -1, dragY: 1 },
+  e: { ax: 'min', ay: 'mid', dragX: 1, dragY: 0 },
+  w: { ax: 'max', ay: 'mid', dragX: -1, dragY: 0 },
+  n: { ax: 'mid', ay: 'max', dragX: 0, dragY: -1 },
+  s: { ax: 'mid', ay: 'min', dragX: 0, dragY: 1 },
+}
+
+/** Apply scale, rotation, or skew to all layers in a multi-select transform, around the combined bbox. */
+function applyMultiLayerTransform(
+  d: DragState,
+  docPoint: Point,
+  deltaX: number,
+  deltaY: number,
+  shiftKey: boolean,
+  skewMode: boolean,
+) {
+  const store = useEditorStore.getState()
+  const cw = d.combinedWorldBBox!
+  const ao = d.artboardOrigin!
+  const primary: MultiTransformEntry = {
+    layerId: d.layerId,
+    originalTransform: d.originalTransform,
+    isAreaText: d.isTextLayer && d.originalTextMode === 'area' && d.originalTextWidth != null,
+    originalTextWidth: d.originalTextWidth,
+    originalTextHeight: d.originalTextHeight ?? (d.isTextLayer ? d.localBBox.maxY - d.localBBox.minY : undefined),
+  }
+  const entries: MultiTransformEntry[] = [primary, ...(d.extraLayers ?? [])]
+  const combinedW = cw.maxX - cw.minX
+  const combinedH = cw.maxY - cw.minY
+
+  if (d.handle === 'rotation') {
+    store.setActiveSnapLines(null)
+    const cx = (cw.minX + cw.maxX) / 2
+    const cy = (cw.minY + cw.maxY) / 2
+    const startAngle = Math.atan2(d.startDocPoint.y - cy, d.startDocPoint.x - cx)
+    const curAngle = Math.atan2(docPoint.y - cy, docPoint.x - cx)
+    let deltaDeg = ((curAngle - startAngle) * 180) / Math.PI
+    if (shiftKey) deltaDeg = Math.round(deltaDeg / 15) * 15
+    const rad = (deltaDeg * Math.PI) / 180
+    const cos = Math.cos(rad)
+    const sin = Math.sin(rad)
+
+    const items = entries.map((e) => {
+      const o = e.originalTransform
+      const wx = ao.x + o.x
+      const wy = ao.y + o.y
+      const rx = wx - cx
+      const ry = wy - cy
+      const newWx = cx + rx * cos - ry * sin
+      const newWy = cy + rx * sin + ry * cos
+      return {
+        layerId: e.layerId,
+        updates: {
+          transform: { ...o, x: newWx - ao.x, y: newWy - ao.y, rotation: o.rotation + deltaDeg },
+        } as Partial<Layer>,
+      }
+    })
+    store.updateLayersBatchSilent(d.artboardId, items)
+    return
+  }
+
+  // Skew: shear all layers about the opposite edge of the combined bbox.
+  if (skewMode && (d.handle === 'n' || d.handle === 's' || d.handle === 'e' || d.handle === 'w')) {
+    store.setActiveSnapLines(null)
+    const horizontal = d.handle === 'n' || d.handle === 's'
+    if ((horizontal && combinedH <= 0.001) || (!horizontal && combinedW <= 0.001)) return
+
+    // World shear factor K such that the dragged edge follows the cursor and the
+    // opposite (anchor) edge stays fixed: x' = x + K·(y − anchorY) (or transposed).
+    let K: number
+    let anchor: number
+    if (d.handle === 'n') {
+      K = -deltaX / combinedH
+      anchor = cw.maxY
+    } else if (d.handle === 's') {
+      K = deltaX / combinedH
+      anchor = cw.minY
+    } else if (d.handle === 'e') {
+      K = deltaY / combinedW
+      anchor = cw.minX
+    } else {
+      K = -deltaY / combinedW
+      anchor = cw.maxX
+    }
+
+    const items = entries.map((e) => {
+      const o = e.originalTransform
+      const wx = ao.x + o.x
+      const wy = ao.y + o.y
+      const sxr = o.scaleX || 1
+      const syr = o.scaleY || 1
+      if (horizontal) {
+        // Content shear in layer-local coords: tan(a)·scaleX/scaleY must match world K.
+        const aDeg = (Math.atan(K * (syr / sxr)) * 180) / Math.PI
+        return {
+          layerId: e.layerId,
+          updates: {
+            transform: { ...o, x: wx + K * (wy - anchor) - ao.x, skewX: (o.skewX ?? 0) + aDeg },
+          } as Partial<Layer>,
+        }
+      }
+      const bDeg = (Math.atan(K * (sxr / syr)) * 180) / Math.PI
+      return {
+        layerId: e.layerId,
+        updates: {
+          transform: { ...o, y: wy + K * (wx - anchor) - ao.y, skewY: (o.skewY ?? 0) + bDeg },
+        } as Partial<Layer>,
+      }
+    })
+    store.updateLayersBatchSilent(d.artboardId, items)
+    return
+  }
+
+  const cfg = MULTI_SCALE_CFG[d.handle]
+  if (!cfg) return
+
+  const ax = cfg.ax === 'min' ? cw.minX : cfg.ax === 'max' ? cw.maxX : (cw.minX + cw.maxX) / 2
+  const ay = cfg.ay === 'min' ? cw.minY : cfg.ay === 'max' ? cw.maxY : (cw.minY + cw.maxY) / 2
+
+  let sx = 1
+  let sy = 1
+  if (cfg.dragX !== 0 && combinedW > 0.001) {
+    sx = 1 + (cfg.dragX * deltaX) / combinedW
+    if (Math.abs(sx) < 0.01) sx = 0.01 * Math.sign(sx || 1)
+  }
+  if (cfg.dragY !== 0 && combinedH > 0.001) {
+    sy = 1 + (cfg.dragY * deltaY) / combinedH
+    if (Math.abs(sy) < 0.01) sy = 0.01 * Math.sign(sy || 1)
+  }
+
+  // Shift on a corner = lock aspect ratio
+  const isCorner = d.handle === 'nw' || d.handle === 'ne' || d.handle === 'sw' || d.handle === 'se'
+  if (shiftKey && isCorner) {
+    const m = Math.max(Math.abs(sx), Math.abs(sy))
+    sx = m * Math.sign(sx || 1)
+    sy = m * Math.sign(sy || 1)
+  }
+
+  // Snap the moving edge/corner of the combined bbox to guides/grid/artboard edges.
+  const allIds = entries.map((e) => e.layerId)
+  const movingX = cfg.dragX === 1 ? cw.maxX : cfg.dragX === -1 ? cw.minX : null
+  const movingY = cfg.dragY === 1 ? cw.maxY : cfg.dragY === -1 ? cw.minY : null
+  const snapDocX = movingX !== null ? ax + (movingX - ax) * sx : null
+  const snapDocY = movingY !== null ? ay + (movingY - ay) * sy : null
+  const snap = snapPoint(snapDocX ?? docPoint.x, snapDocY ?? docPoint.y, allIds)
+  if (snap.x !== null && movingX !== null && Math.abs(movingX - ax) > 0.001) {
+    const snapped = (snap.x - ax) / (movingX - ax)
+    if (Math.abs(snapped) >= 0.01) sx = snapped
+  }
+  if (snap.y !== null && movingY !== null && Math.abs(movingY - ay) > 0.001) {
+    const snapped = (snap.y - ay) / (movingY - ay)
+    if (Math.abs(snapped) >= 0.01) sy = snapped
+  }
+  store.setActiveSnapLines({ h: snap.snapLinesH, v: snap.snapLinesV })
+
+  const items = entries.map((e) => {
+    const o = e.originalTransform
+    const wx = ao.x + o.x
+    const wy = ao.y + o.y
+    const newWx = ax + (wx - ax) * sx
+    const newWy = ay + (wy - ay) * sy
+    if (e.isAreaText && e.originalTextWidth != null) {
+      // Area text reflows: convert the scale into textWidth/textHeight, keep scaleX/scaleY.
+      return {
+        layerId: e.layerId,
+        updates: {
+          transform: { ...o, x: newWx - ao.x, y: newWy - ao.y },
+          textMode: 'area',
+          textWidth: Math.max(20, e.originalTextWidth * Math.abs(sx)),
+          textHeight: Math.max(10, (e.originalTextHeight ?? 100) * Math.abs(sy)),
+        } as Partial<Layer>,
+      }
+    }
+    return {
+      layerId: e.layerId,
+      updates: {
+        transform: { ...o, x: newWx - ao.x, y: newWy - ao.y, scaleX: o.scaleX * sx, scaleY: o.scaleY * sy },
+      } as Partial<Layer>,
+    }
+  })
+  store.updateLayersBatchSilent(d.artboardId, items)
+}
+
+export function updateTransform(docPoint: Point, shiftKey = false, skewMode = false) {
   const d = drag
   if (!d) return
 
@@ -190,16 +424,33 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
   const localW = lb.maxX - lb.minX
   const localH = lb.maxY - lb.minY
 
+  // Multi-layer scale / rotate / skew around the combined bbox.
+  // 'body' still uses the existing single-translation path (which already supports extraLayers).
+  if (d.extraLayers && d.extraLayers.length > 0 && d.handle !== 'body' && d.combinedWorldBBox && d.artboardOrigin) {
+    applyMultiLayerTransform(d, docPoint, deltaX, deltaY, shiftKey, skewMode)
+    return
+  }
+
   const t: Transform = { ...orig }
 
   if (d.handle === 'body') {
-    // Get the layer's world bounding box for snap calculations
+    // Get the world bounding box for snap calculations — the combined bbox for
+    // multi-select drags, the single layer's bbox otherwise.
     const store = useEditorStore.getState()
     const artboard = store.document.artboards.find((a) => a.id === d.artboardId)
     const allDraggedIds = [d.layerId, ...(d.extraLayers?.map((e) => e.layerId) ?? [])]
     let snappedDx = deltaX
     let snappedDy = deltaY
-    if (artboard) {
+    if (d.extraLayers && d.extraLayers.length > 0 && d.combinedWorldBBox) {
+      // combinedWorldBBox was captured at drag start, so it already reflects original positions.
+      const snapResult = snapBBox(d.combinedWorldBBox, deltaX, deltaY, allDraggedIds)
+      snappedDx = snapResult.dx
+      snappedDy = snapResult.dy
+      store.setActiveSnapLines({
+        h: snapResult.snapLinesH,
+        v: snapResult.snapLinesV,
+      })
+    } else if (artboard) {
       const layer = findLayerDeepLocal(artboard.layers, d.layerId)
       if (layer) {
         const layerBBox = getLayerBBox(layer, artboard)
@@ -258,6 +509,28 @@ export function updateTransform(docPoint: Point, shiftKey = false) {
       rotation = Math.round(rotation / 15) * 15
     }
     t.rotation = rotation
+  } else if (skewMode && (d.handle === 'n' || d.handle === 's' || d.handle === 'e' || d.handle === 'w')) {
+    // Skew via edge handles (Ctrl/Cmd+drag): shear so the dragged edge follows
+    // the cursor and the opposite edge stays fixed.
+    useEditorStore.getState().setActiveSnapLines(null)
+    if (d.handle === 'n' || d.handle === 's') {
+      const denom = (orig.scaleX || 1) * localH
+      if (Math.abs(denom) > 0.001) {
+        // Content shear in local coords: world x-offset(y_local) = scaleX·tan(a)·y_local.
+        const k = (d.handle === 'n' ? -deltaX : deltaX) / denom
+        t.skewX = (orig.skewX ?? 0) + (Math.atan(k) * 180) / Math.PI
+        const anchorLocalY = d.handle === 'n' ? lb.maxY : lb.minY
+        t.x = orig.x - (orig.scaleX || 1) * k * anchorLocalY
+      }
+    } else {
+      const denom = (orig.scaleY || 1) * localW
+      if (Math.abs(denom) > 0.001) {
+        const k = (d.handle === 'w' ? -deltaY : deltaY) / denom
+        t.skewY = (orig.skewY ?? 0) + (Math.atan(k) * 180) / Math.PI
+        const anchorLocalX = d.handle === 'e' ? lb.minX : lb.maxX
+        t.y = orig.y - (orig.scaleY || 1) * k * anchorLocalX
+      }
+    }
   } else if (d.isTextLayer && d.originalTextMode === 'area') {
     // Area text: resize changes textWidth/textHeight for reflow, not scaleX/scaleY
     const cfg = scaleConfigs[d.handle]
@@ -402,26 +675,61 @@ export function endTransform() {
     return
   }
 
-  // Multi-layer body drag: restore all silently, then commit all in one undo entry.
-  if (d.handle === 'body' && d.extraLayers && d.extraLayers.length > 0) {
-    const moved = layer.transform.x !== d.originalTransform.x || layer.transform.y !== d.originalTransform.y
+  // Multi-layer transform (body / scale / rotate / skew): restore all silently, commit in one undo entry.
+  if (d.extraLayers && d.extraLayers.length > 0) {
+    const ct = layer.transform
+    const ot = d.originalTransform
+    const moved =
+      ct.x !== ot.x ||
+      ct.y !== ot.y ||
+      ct.scaleX !== ot.scaleX ||
+      ct.scaleY !== ot.scaleY ||
+      ct.rotation !== ot.rotation ||
+      (ct.skewX ?? 0) !== (ot.skewX ?? 0) ||
+      (ct.skewY ?? 0) !== (ot.skewY ?? 0) ||
+      (layer.type === 'text' && (layer.textWidth !== d.originalTextWidth || layer.textHeight !== d.originalTextHeight))
     if (!moved) {
       drag = null
       return
     }
-    const finalUpdates: Array<{ layerId: string; transform: Transform }> = [
-      { layerId: d.layerId, transform: { ...layer.transform } },
-    ]
-    for (const e of d.extraLayers) {
-      const cur = findLayerDeepLocal(artboard.layers, e.layerId)
-      if (cur) finalUpdates.push({ layerId: e.layerId, transform: { ...cur.transform } })
+
+    // Capture current (dragged) state per layer, including text reflow fields.
+    const finalItems: Array<{ layerId: string; updates: Partial<Layer> }> = []
+    for (const id of [d.layerId, ...d.extraLayers.map((e) => e.layerId)]) {
+      const cur = findLayerDeepLocal(artboard.layers, id)
+      if (!cur) continue
+      const updates: Partial<Layer> = { transform: { ...cur.transform } }
+      if (cur.type === 'text' && cur.textMode === 'area') {
+        Object.assign(updates, { textMode: 'area', textWidth: cur.textWidth, textHeight: cur.textHeight })
+      }
+      finalItems.push({ layerId: id, updates })
     }
-    const restoreUpdates: Array<{ layerId: string; transform: Transform }> = [
-      { layerId: d.layerId, transform: { ...d.originalTransform } },
-      ...d.extraLayers.map((e) => ({ layerId: e.layerId, transform: { ...e.originalTransform } })),
+
+    const restoreItems: Array<{ layerId: string; updates: Partial<Layer> }> = [
+      {
+        layerId: d.layerId,
+        updates: d.isTextLayer
+          ? ({
+              transform: { ...d.originalTransform },
+              textMode: d.originalTextMode,
+              textWidth: d.originalTextWidth,
+              textHeight: d.originalTextHeight,
+            } as Partial<Layer>)
+          : { transform: { ...d.originalTransform } },
+      },
+      ...d.extraLayers.map((e) => ({
+        layerId: e.layerId,
+        updates: e.isAreaText
+          ? ({
+              transform: { ...e.originalTransform },
+              textWidth: e.originalTextWidth,
+              textHeight: e.originalTextHeight,
+            } as Partial<Layer>)
+          : { transform: { ...e.originalTransform } },
+      })),
     ]
-    store.translateLayersBatchSilent(d.artboardId, restoreUpdates)
-    store.translateLayersBatch(d.artboardId, finalUpdates)
+    store.updateLayersBatchSilent(d.artboardId, restoreItems)
+    store.updateLayersBatch(d.artboardId, finalItems, `Transform ${finalItems.length} layers`)
     drag = null
     return
   }
@@ -469,12 +777,31 @@ export function cancelTransform() {
   if (!d) return
   const store = useEditorStore.getState()
   store.setActiveSnapLines(null)
-  if (d.handle === 'body' && d.extraLayers && d.extraLayers.length > 0) {
-    const restoreUpdates: Array<{ layerId: string; transform: Transform }> = [
-      { layerId: d.layerId, transform: { ...d.originalTransform } },
-      ...d.extraLayers.map((e) => ({ layerId: e.layerId, transform: { ...e.originalTransform } })),
+  if (d.extraLayers && d.extraLayers.length > 0) {
+    const restoreItems: Array<{ layerId: string; updates: Partial<Layer> }> = [
+      {
+        layerId: d.layerId,
+        updates: d.isTextLayer
+          ? ({
+              transform: { ...d.originalTransform },
+              textMode: d.originalTextMode,
+              textWidth: d.originalTextWidth,
+              textHeight: d.originalTextHeight,
+            } as Partial<Layer>)
+          : { transform: { ...d.originalTransform } },
+      },
+      ...d.extraLayers.map((e) => ({
+        layerId: e.layerId,
+        updates: e.isAreaText
+          ? ({
+              transform: { ...e.originalTransform },
+              textWidth: e.originalTextWidth,
+              textHeight: e.originalTextHeight,
+            } as Partial<Layer>)
+          : { transform: { ...e.originalTransform } },
+      })),
     ]
-    store.translateLayersBatchSilent(d.artboardId, restoreUpdates)
+    store.updateLayersBatchSilent(d.artboardId, restoreItems)
     drag = null
     return
   }

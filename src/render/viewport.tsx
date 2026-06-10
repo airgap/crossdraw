@@ -5,7 +5,7 @@ import { getAnimationOverrides } from '@/animation/animator'
 import { zoomAtPoint, screenToDocument } from '@/math/viewport'
 import { segmentsToPath2D } from '@/math/path'
 import { spatialIndex } from '@/math/hit-test'
-import { getLayerBBox } from '@/math/bbox'
+import { getLayerBBox, type BBox } from '@/math/bbox'
 import { getRasterCanvas, getRasterData } from '@/store/raster-data'
 import { applyEffects, hasActiveEffects } from '@/effects/render-effects'
 import { applyFilterLayerToCanvas } from '@/effects/filter-layer'
@@ -2433,7 +2433,10 @@ export function Viewport() {
           if (handle && handle !== 'body') {
             const info = getSelectedLayerInfo()
             if (info) {
-              beginTransform(handle, docPoint, info.layerId, info.artboardId)
+              // For multi-select, pass all other selected layers so the transform applies to all.
+              const extra =
+                selection.layerIds.length > 1 ? selection.layerIds.filter((id) => id !== info.layerId) : undefined
+              beginTransform(handle, docPoint, info.layerId, info.artboardId, extra)
               isDragging.current = true
               return
             }
@@ -2603,7 +2606,8 @@ export function Viewport() {
 
     if (activeTool === 'select' && isDragging.current && isTransformDragging()) {
       const docPoint = screenToDocument({ x: e.clientX, y: e.clientY }, viewport, rect)
-      updateTransform(docPoint, e.shiftKey)
+      // Ctrl/Cmd+drag on an edge handle skews instead of scaling
+      updateTransform(docPoint, e.shiftKey, e.ctrlKey || e.metaKey)
       return
     }
 
@@ -5339,13 +5343,30 @@ function renderTransformHandles(
   cursorX = 0,
   cursorY = 0,
 ) {
-  for (const artboard of doc.artboards) {
-    for (const layer of artboard.layers) {
-      if (!selectedLayerIds.includes(layer.id)) continue
+  // Collect bboxes by artboard so multi-select draws ONE combined bbox per artboard.
+  const groups = new Map<string, { artboard: Artboard; bbox: BBox }>()
+  function visit(layers: Layer[], artboard: Artboard) {
+    for (const layer of layers) {
+      if (selectedLayerIds.includes(layer.id)) {
+        const bbox = getLayerBBox(layer, artboard)
+        if (bbox.minX !== Infinity) {
+          const g = groups.get(artboard.id)
+          if (!g) groups.set(artboard.id, { artboard, bbox: { ...bbox } })
+          else {
+            if (bbox.minX < g.bbox.minX) g.bbox.minX = bbox.minX
+            if (bbox.minY < g.bbox.minY) g.bbox.minY = bbox.minY
+            if (bbox.maxX > g.bbox.maxX) g.bbox.maxX = bbox.maxX
+            if (bbox.maxY > g.bbox.maxY) g.bbox.maxY = bbox.maxY
+          }
+        }
+      }
+      if (layer.type === 'group') visit(layer.children, artboard)
+    }
+  }
+  for (const artboard of doc.artboards) visit(artboard.layers, artboard)
 
-      const bbox = getLayerBBox(layer, artboard)
-      if (bbox.minX === Infinity) continue
-
+  for (const { bbox } of groups.values()) {
+    {
       const baseSize = (touchMode ? 14 : 6) / zoom
       const lineWidth = 1 / zoom
 

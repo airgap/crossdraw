@@ -274,6 +274,14 @@ export interface EditorActions {
   translateLayersBatch: (artboardId: string, updates: Array<{ layerId: string; transform: Transform }>) => void
   /** Silent variant of translateLayersBatch — for live drag previews. */
   translateLayersBatchSilent: (artboardId: string, updates: Array<{ layerId: string; transform: Transform }>) => void
+  /** Commit arbitrary per-layer updates in one undo entry (multi-layer transforms that touch more than `transform`). */
+  updateLayersBatch: (
+    artboardId: string,
+    items: Array<{ layerId: string; updates: Partial<Layer> }>,
+    description?: string,
+  ) => void
+  /** Silent variant of updateLayersBatch — for live drag previews. */
+  updateLayersBatchSilent: (artboardId: string, items: Array<{ layerId: string; updates: Partial<Layer> }>) => void
 
   // Effects
   addEffect: (artboardId: string, layerId: string, effect: Effect) => void
@@ -1240,6 +1248,34 @@ export const useEditorStore = create<EditorState & EditorActions>()((set, get) =
         for (const u of updates) {
           const layer = findLayerDeep(artboard.layers, u.layerId)
           if (layer) layer.transform = u.transform
+        }
+      })
+      set({ document: doc })
+    },
+
+    updateLayersBatch(artboardId, items, description) {
+      if (items.length === 0) return
+      mutateDocument(
+        description ?? (items.length > 1 ? `Transform ${items.length} layers` : 'Transform layer'),
+        (draft) => {
+          const artboard = findArtboard(draft, artboardId)
+          if (!artboard) return
+          for (const item of items) {
+            const layer = findLayerDeep(artboard.layers, item.layerId)
+            if (layer) Object.assign(layer, item.updates)
+          }
+        },
+      )
+    },
+
+    updateLayersBatchSilent(artboardId, items) {
+      if (items.length === 0) return
+      const doc = produce(get().document, (draft) => {
+        const artboard = findArtboard(draft, artboardId)
+        if (!artboard) return
+        for (const item of items) {
+          const layer = findLayerDeep(artboard.layers, item.layerId)
+          if (layer) Object.assign(layer, item.updates)
         }
       })
       set({ document: doc })

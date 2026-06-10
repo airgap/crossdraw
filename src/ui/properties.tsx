@@ -1538,6 +1538,15 @@ function StrokeSection({
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 30 }}>Width</span>
             <input
+              type="range"
+              min="0.5"
+              max="100"
+              step="0.5"
+              style={{ flex: 1 }}
+              value={stroke.width}
+              onChange={(e) => applyStroke({ ...stroke, width: Math.max(0.5, Number(e.target.value)) })}
+            />
+            <input
               type="number"
               min="0.5"
               max="100"
