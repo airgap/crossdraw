@@ -1357,6 +1357,66 @@ describe('shortcut-registry deep', () => {
     })
   })
 
+  describe('Paste shortcut preserves the native clipboard event', () => {
+    test('Ctrl/Cmd+V runs layer paste but does NOT preventDefault', () => {
+      // The window `paste` event is how viewport/splash import clipboard images
+      // (PNG/JPEG/GIF/WebP). A keydown preventDefault() on Ctrl+V cancels that
+      // event in Chromium, so the Paste binding must let the default through.
+      initShortcuts()
+      const pasteBinding = getBindings().find((b) => b.id === 'edit.paste')!
+      const origAction = pasteBinding.action
+      let actionRan = false
+      pasteBinding.action = () => {
+        actionRan = true
+      }
+
+      let prevented = false
+      const event = {
+        key: 'v',
+        ctrlKey: true,
+        shiftKey: false,
+        altKey: false,
+        metaKey: false,
+        target: { tagName: 'CANVAS', isContentEditable: false },
+        preventDefault: () => {
+          prevented = true
+        },
+      } as unknown as KeyboardEvent
+
+      for (const listener of keydownListeners) listener(event)
+
+      expect(actionRan).toBe(true) // layer paste still fires from keydown
+      expect(prevented).toBe(false) // native `paste` event left intact for image import
+
+      pasteBinding.action = origAction
+    })
+
+    test('other edit shortcuts (Copy) still preventDefault', () => {
+      initShortcuts()
+      const copyBinding = getBindings().find((b) => b.id === 'edit.copy')!
+      const origAction = copyBinding.action
+      copyBinding.action = () => {}
+
+      let prevented = false
+      const event = {
+        key: 'c',
+        ctrlKey: true,
+        shiftKey: false,
+        altKey: false,
+        metaKey: false,
+        target: { tagName: 'CANVAS', isContentEditable: false },
+        preventDefault: () => {
+          prevented = true
+        },
+      } as unknown as KeyboardEvent
+
+      for (const listener of keydownListeners) listener(event)
+      expect(prevented).toBe(true)
+
+      copyBinding.action = origAction
+    })
+  })
+
   describe('loadCustomBindings with stored overrides for multiple shortcuts', () => {
     test('only overridden bindings change', () => {
       const overrides = {

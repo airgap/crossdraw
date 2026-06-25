@@ -655,7 +655,12 @@ export function initShortcuts() {
 
     for (const binding of bindings) {
       if (matchesCombo(e, binding.key)) {
-        e.preventDefault()
+        // Don't suppress the browser's native `paste` event for Paste (Ctrl/Cmd+V).
+        // Image import (PNG/JPEG/GIF/WebP) relies on the `paste` event, which a
+        // keydown preventDefault() cancels in Chromium. Layer paste still runs via
+        // the action below; when the clipboard holds an external image instead of
+        // internal layers, the window `paste` handler imports it.
+        if (binding.id !== 'edit.paste') e.preventDefault()
         binding.action()
         return
       }

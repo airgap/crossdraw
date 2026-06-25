@@ -5,7 +5,7 @@ import type { ExportSlice, Artboard } from '@/types'
 import { exportArtboardToBlob, downloadBlob } from '@/io/raster-export'
 import { exportArtboardToSVG, downloadSVG } from '@/io/svg-export'
 
-const FORMAT_OPTIONS: ExportSlice['format'][] = ['png', 'jpeg', 'svg']
+const FORMAT_OPTIONS: ExportSlice['format'][] = ['png', 'jpeg', 'webp', 'svg']
 const SCALE_OPTIONS = [1, 2, 3, 4]
 
 function createSliceFromArtboard(artboard: Artboard): ExportSlice {
@@ -36,7 +36,7 @@ async function exportSlice(slice: ExportSlice, artboardId: string) {
       },
       artboardId,
     )
-    const ext = slice.format === 'jpeg' ? 'jpg' : 'png'
+    const ext = slice.format === 'jpeg' ? 'jpg' : slice.format === 'webp' ? 'webp' : 'png'
     const safeName = slice.name.replace(/[^a-zA-Z0-9_-]/g, '_')
     const scaleSuffix = slice.scale > 1 ? `@${slice.scale}x` : ''
     downloadBlob(blob, `${safeName}${scaleSuffix}.${ext}`)
