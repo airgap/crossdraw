@@ -23,6 +23,8 @@ metadata:
     app: crossdraw-server
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: crossdraw-server
@@ -39,6 +41,8 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            - name: CROSSDRAW_DATA_DIR
+              value: "/app/data"
             - name: CROSSDRAW_API_KEY
               valueFrom:
                 secretKeyRef:

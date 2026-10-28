@@ -27,10 +27,7 @@ spec:
     matchLabels:
       app: crossdraw-server
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxUnavailable: 0
-      maxSurge: 1
+    type: Recreate
   template:
     metadata:
       labels:
@@ -44,6 +41,8 @@ spec:
           ports:
             - containerPort: 3000
           env:
+            - name: CROSSDRAW_DATA_DIR
+              value: "/app/data"
             - name: CROSSDRAW_API_KEY
               valueFrom:
                 secretKeyRef:
