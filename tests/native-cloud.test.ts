@@ -296,3 +296,28 @@ test('durable document and exact receipt survive owned server process restart', 
   )
   expect(unpack(bytes.subarray(16)).artboards[0].layers[0].text).toBe('durable')
 })
+
+test('native field-addressed operations preserve unrelated properties in the same layer', async () => {
+  const metadata = await upload('create-nested-fields-001')
+  const ws = socket(metadata.id, tokenA, 'client-nested-fields')
+  await next(ws, (v) => v.type === 'sync')
+  const op = {
+    id: 'operation-nested-001',
+    clientId: 'client-nested-fields',
+    timestamp: 3,
+    type: 'update-layer',
+    path: ['artboards', 'board-a', 'layers', 'layer-a', 'opaque'],
+    value: { keep: 'nested update' },
+  }
+  const ack = next(ws, (v) => v.type === 'ack')
+  ws.send(JSON.stringify({ type: 'op', payload: op, baseRevision: 1 }))
+  expect((await ack).payload.revision).toBe(2)
+  ws.close()
+  const bytes = Buffer.from(
+    await (await fetch(`${origin}/api/files/${metadata.id}`, { headers: auth() })).arrayBuffer(),
+  )
+  const doc = unpack(bytes.subarray(16))
+  expect(doc.artboards[0].layers[0].opaque.keep).toBe('nested update')
+  expect(doc.artboards[0].layers[0].text).toBe('before')
+  expect(doc.artboards[0].layers[0].keep).toBeUndefined()
+})

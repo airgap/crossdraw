@@ -434,16 +434,22 @@ export function applyOperation(root: any, op: Operation) {
         case 'update-layer': {
           const found = layer(board.layers, op.path[3]!)
           if (!found) throw new FileError(409, 'Layer is unavailable')
+          let target = found
+          for (const key of op.path.slice(4)) {
+            if (['__proto__', 'constructor', 'prototype'].includes(key) || !object(target[key]))
+              throw new FileError(400, 'Invalid layer property path')
+            target = target[key]
+          }
           const fields = safeFields(op.value)
-          if ('id' in fields) throw new FileError(400, 'Layer identity is immutable')
-          Object.assign(found, fields)
+          if (op.path.length === 4 && 'id' in fields) throw new FileError(400, 'Layer identity is immutable')
+          Object.assign(target, fields)
           if (op.unset) {
             if (
               !Array.isArray(op.unset) ||
               op.unset.some((k) => typeof k !== 'string' || ['id', '__proto__', 'constructor', 'prototype'].includes(k))
             )
               throw new FileError(400, 'Invalid removed field')
-            for (const key of op.unset) delete found[key]
+            for (const key of op.unset) delete target[key]
           }
           break
         }
