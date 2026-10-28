@@ -15,6 +15,7 @@ import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync, unlink
 import { join, extname, resolve } from 'path'
 import { createHash } from 'crypto'
 import { authenticateRequest } from './auth'
+import { nativeFiles } from './native-files'
 
 // ── CLI args ────────────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export interface FileIndex {
   files: CloudFileMetadata[]
 }
 
-const DATA_DIR = resolve(import.meta.dir, '..', 'data')
+const DATA_DIR = resolve(process.env['CROSSDRAW_DATA_DIR'] ?? join(import.meta.dir, '..', 'data'))
 const FILES_DIR = join(DATA_DIR, 'files')
 const SHARES_DIR = join(DATA_DIR, 'shares')
 const INDEX_PATH = join(DATA_DIR, 'index.json')
@@ -293,17 +294,6 @@ function getAllowedOrigin(req: Request): string {
   return ''
 }
 
-/** Legacy API key auth check — still used as fallback. */
-function checkAuth(req: Request): boolean {
-  if (!API_KEY) return true // No auth required in dev mode
-  const header = req.headers.get('X-API-Key')
-  if (header === API_KEY) return true
-  // Also accept Bearer JWT tokens (validated elsewhere, but allow through if present)
-  const auth = req.headers.get('Authorization')
-  if (auth?.startsWith('Bearer ')) return true
-  return false
-}
-
 function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
@@ -327,7 +317,7 @@ function withCors(res: Response, req: Request): Response {
 function corsHeaders(req: Request): Record<string, string> {
   const headers: Record<string, string> = {
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key',
+    'Access-Control-Allow-Headers': 'Content-Type, X-API-Key, Authorization, X-File-Name, If-Match, Idempotency-Key',
   }
   const origin = getAllowedOrigin(req)
   if (origin) headers['Access-Control-Allow-Origin'] = origin
@@ -340,9 +330,14 @@ async function handleApiRequest(req: Request, pathname: string): Promise<Respons
     return new Response(null, { status: 204, headers: corsHeaders(req) })
   }
 
-  // Auth check
-  if (!checkAuth(req)) {
+  const authenticated = await authenticateRequest(req)
+  if (!authenticated.authenticated || authenticated.user.id === '__anonymous__')
     return errorResponse('Unauthorized', 401)
+  if (authenticated.user.id !== '__api-key__') {
+    const native = await nativeFiles(req, authenticated.user)
+    if (native) return native
+    // Old global stores have no trustworthy owner. They require the explicit legacy key.
+    if (pathname !== '/api/preferences') return errorResponse('This legacy store requires an API key', 403)
   }
 
   // POST /api/files — upload a file
@@ -1324,6 +1319,7 @@ import { handleWSUpgrade, websocketHandlers, getWSStats, type WSData } from './w
 const server = Bun.serve<WSData>({
   port,
   hostname: host,
+  maxRequestBodySize: 32 * 1024 * 1024,
   async fetch(req, server) {
     const url = new URL(req.url)
     let pathname = url.pathname
@@ -1333,7 +1329,7 @@ const server = Bun.serve<WSData>({
       const upgradeResult = await handleWSUpgrade(req, server)
       if (upgradeResult) return upgradeResult
       // null means upgrade succeeded
-      return new Response(null, { status: 101 })
+      return undefined
     }
 
     // Health check — unauthenticated
@@ -1396,7 +1392,7 @@ const server = Bun.serve<WSData>({
 
     return new Response('Not Found', { status: 404 })
   },
-  websocket: websocketHandlers as any,
+  websocket: { ...websocketHandlers, maxPayloadLength: 64 * 1024 * 1024 } as any,
 })
 
 const totalKB = Math.round([...fileCache.values()].reduce((s, f) => s + f.size, 0) / 1024)
@@ -1408,15 +1404,6 @@ console.log(`
   ws://${host}:${port}/ws
   ${fileCache.size} files, ${totalKB}KB
   Cloud storage: ${DATA_DIR}
-  API auth: ${API_KEY ? 'enabled' : 'disabled (dev mode)'}
+  API auth: JWT accounts required; legacy key ${API_KEY ? 'enabled' : 'disabled'}
   WebSocket: enabled
 `)
-
-if (!API_KEY) {
-  console.warn(`
-  ╔══════════════════════════════════════════════════════════════╗
-  ║  WARNING: No CROSSDRAW_API_KEY set — API is unauthenticated ║
-  ║  Set CROSSDRAW_API_KEY env var before exposing to a network  ║
-  ╚══════════════════════════════════════════════════════════════╝
-`)
-}

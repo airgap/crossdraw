@@ -14,6 +14,7 @@ export interface AuthenticatedUser {
   id: string
   email?: string
   name?: string
+  expiresAt?: number
 }
 
 export type AuthResult = { authenticated: true; user: AuthenticatedUser } | { authenticated: false; error: string }
@@ -21,7 +22,7 @@ export type AuthResult = { authenticated: true; user: AuthenticatedUser } | { au
 // ── Configuration ──
 
 const API_KEY = process.env['CROSSDRAW_API_KEY'] ?? ''
-const JWKS_URL = process.env['CROSSDRAW_JWKS_URL'] ?? 'https://api.lyku.org/.well-known/jwks.json'
+const JWKS_URL = process.env['CROSSDRAW_JWKS_URL'] ?? 'https://api.lyku.org/oauth-jwks'
 const JWT_ISSUER = process.env['CROSSDRAW_JWT_ISSUER'] ?? 'https://lyku.org'
 const JWT_AUDIENCE = process.env['CROSSDRAW_JWT_AUDIENCE'] ?? 'crossdraw'
 
@@ -60,7 +61,6 @@ async function fetchJWKS(): Promise<JWKSResponse> {
     jwksCachedAt = now
     return cachedJWKS
   } catch (err) {
-    if (cachedJWKS) return cachedJWKS // Use stale cache on error
     throw err
   }
 }
@@ -113,7 +113,7 @@ async function importJWKAsKey(jwk: JWK): Promise<CryptoKey> {
   throw new Error(`Unsupported key type: ${jwk.kty}`)
 }
 
-function getAlgorithm(jwk: JWK): AlgorithmIdentifier | RsaPssParams | EcdsaParams {
+function getAlgorithm(jwk: JWK): { name: 'RSASSA-PKCS1-v1_5' } | { name: 'ECDSA'; hash: 'SHA-256' } {
   if (jwk.kty === 'RSA') {
     return { name: 'RSASSA-PKCS1-v1_5' }
   }
@@ -126,12 +126,23 @@ export async function validateJWT(token: string): Promise<AuthResult> {
   try {
     const { header, payload, signatureInput, signature } = decodeJWTParts(token)
 
+    if (header.alg !== 'RS256' && header.alg !== 'ES256') {
+      return { authenticated: false, error: 'Unsupported JWT algorithm' }
+    }
+    if (typeof header.kid !== 'string' || !header.kid) {
+      return { authenticated: false, error: 'JWT key identity is required' }
+    }
     // Find matching key
     const jwks = await fetchJWKS()
     const kid = header.kid
     const jwk = kid ? jwks.keys.find((k) => k.kid === kid) : jwks.keys[0]
 
-    if (!jwk) {
+    if (
+      !jwk ||
+      (jwk.alg && jwk.alg !== header.alg) ||
+      (header.alg === 'RS256' && jwk.kty !== 'RSA') ||
+      (header.alg === 'ES256' && (jwk.kty !== 'EC' || jwk.crv !== 'P-256'))
+    ) {
       return { authenticated: false, error: 'No matching JWK found' }
     }
 
@@ -147,22 +158,25 @@ export async function validateJWT(token: string): Promise<AuthResult> {
 
     // Check expiration
     const now = Math.floor(Date.now() / 1000)
-    if (payload.exp && payload.exp < now) {
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= now) {
       return { authenticated: false, error: 'Token expired' }
     }
 
     // Check not-before
-    if (payload.nbf && payload.nbf > now + 30) {
+    if (
+      payload.nbf !== undefined &&
+      (typeof payload.nbf !== 'number' || !Number.isFinite(payload.nbf) || payload.nbf > now + 30)
+    ) {
       return { authenticated: false, error: 'Token not yet valid' }
     }
 
     // Check issuer
-    if (JWT_ISSUER && payload.iss && payload.iss !== JWT_ISSUER) {
+    if (payload.iss !== JWT_ISSUER) {
       return { authenticated: false, error: 'Invalid issuer' }
     }
 
     // Check audience
-    if (JWT_AUDIENCE && payload.aud) {
+    {
       const audiences = Array.isArray(payload.aud) ? payload.aud : [payload.aud]
       if (!audiences.includes(JWT_AUDIENCE)) {
         return { authenticated: false, error: 'Invalid audience' }
@@ -171,12 +185,13 @@ export async function validateJWT(token: string): Promise<AuthResult> {
 
     // Extract user
     const user: AuthenticatedUser = {
-      id: payload.sub ?? payload.user_id ?? '',
+      id: payload.sub ?? '',
+      expiresAt: payload.exp * 1000,
       email: payload.email,
       name: payload.name ?? payload.display_name,
     }
 
-    if (!user.id) {
+    if (typeof user.id !== 'string' || !/^(0|[1-9][0-9]{0,19})$/.test(user.id)) {
       return { authenticated: false, error: 'No subject in token' }
     }
 
@@ -210,7 +225,7 @@ export async function authenticateRequest(req: Request): Promise<AuthResult> {
   }
 
   // No auth provided — in dev mode (no API key configured), allow anonymous
-  if (!API_KEY) {
+  if (process.env['CROSSDRAW_ALLOW_ANONYMOUS'] === '1' && !API_KEY) {
     return {
       authenticated: true,
       user: { id: '__anonymous__', name: 'Anonymous' },
@@ -232,7 +247,7 @@ export async function authenticateWebSocket(url: URL): Promise<AuthResult> {
   }
 
   // No token — allow anonymous in dev mode
-  if (!API_KEY) {
+  if (process.env['CROSSDRAW_ALLOW_ANONYMOUS'] === '1' && !API_KEY) {
     const clientId = url.searchParams.get('client') ?? 'anonymous'
     return {
       authenticated: true,

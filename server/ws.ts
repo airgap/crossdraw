@@ -13,11 +13,13 @@
  */
 
 import { authenticateWebSocket, type AuthenticatedUser } from './auth'
+import { commitOperation, roomFile, FileError, type Operation } from './native-files'
 
 // ── Types ──
 
 interface CollabMessage {
   type: 'op' | 'presence' | 'ack' | 'sync' | 'join' | 'leave'
+  baseRevision?: number
   payload: unknown
 }
 
@@ -138,7 +140,7 @@ export async function handleWSUpgrade(
   const roomId = url.searchParams.get('room')
   const clientId = url.searchParams.get('client')
 
-  if (!roomId || !clientId) {
+  if (!roomId || !clientId || !/^[a-zA-Z0-9-]{8,128}$/.test(clientId)) {
     return new Response('Missing room or client parameter', { status: 400 })
   }
 
@@ -148,6 +150,14 @@ export async function handleWSUpgrade(
     return new Response(`Unauthorized: ${authResult.error}`, { status: 401 })
   }
 
+  try {
+    if (!authResult.user.expiresAt) return new Response('JWT account required', { status: 401 })
+    roomFile(roomId, authResult.user)
+  } catch (error) {
+    return new Response(error instanceof FileError ? error.message : 'Room access failed', {
+      status: error instanceof FileError ? error.status : 500,
+    })
+  }
   // Upgrade to WebSocket
   const upgraded = server.upgrade(req, {
     data: {
@@ -170,6 +180,12 @@ export async function handleWSUpgrade(
 export const websocketHandlers = {
   open(ws: ServerWebSocket<WSData>) {
     const { roomId, clientId, user } = ws.data
+    try {
+      roomFile(roomId, user)
+    } catch {
+      ws.close(4003, 'Room access denied')
+      return
+    }
     const room = getOrCreateRoom(roomId)
 
     // Register client
@@ -203,7 +219,7 @@ export const websocketHandlers = {
       ws.send(
         JSON.stringify({
           type: 'sync',
-          payload: { clients: presences },
+          payload: { clients: presences, ...roomFile(roomId, user), protocol: 1 },
         }),
       )
     } catch {
@@ -212,7 +228,17 @@ export const websocketHandlers = {
   },
 
   message(ws: ServerWebSocket<WSData>, message: string | ArrayBuffer) {
-    const { roomId, clientId } = ws.data
+    const { roomId, clientId, user } = ws.data
+    if (!user.expiresAt || user.expiresAt <= Date.now()) {
+      ws.close(4001, 'Token expired')
+      return
+    }
+    try {
+      roomFile(roomId, user)
+    } catch {
+      ws.close(4003, 'Room access revoked')
+      return
+    }
     const room = rooms.get(roomId)
     if (!room) return
 
@@ -224,16 +250,17 @@ export const websocketHandlers = {
       const msg = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message)) as CollabMessage
 
       switch (msg.type) {
-        case 'op':
-          // Broadcast CRDT operations to all other clients
-          broadcastToRoom(room, clientId, msg)
-          // Send ack back to sender
-          try {
-            ws.send(JSON.stringify({ type: 'ack', payload: { type: 'op' } }))
-          } catch {
-            /* ignore */
-          }
+        case 'op': {
+          const operation = msg.payload as Operation
+          if (operation?.clientId !== clientId) throw new FileError(400, 'Operation client does not match')
+          const receipt = commitOperation(roomId, user, operation, msg.baseRevision!)
+          // Persistence precedes both publication and the exact acknowledgement.
+          if (!receipt.duplicate) broadcastToRoom(room, clientId, { ...msg, baseRevision: receipt.revision - 1 })
+          ws.send(
+            JSON.stringify({ type: 'ack', payload: { opId: operation.id, revision: receipt.revision, durable: true } }),
+          )
           break
+        }
 
         case 'presence':
           // Relay presence to all others
@@ -241,17 +268,23 @@ export const websocketHandlers = {
           break
 
         case 'sync':
-          // Sync request: broadcast to all others (they'll respond with their state)
-          broadcastToRoom(room, clientId, msg)
+          ws.send(JSON.stringify({ type: 'sync', payload: { ...roomFile(roomId, user), protocol: 1 } }))
           break
 
         default:
-          // Forward unknown message types
-          broadcastToRoom(room, clientId, msg)
+          throw new FileError(400, 'Unsupported collaboration message')
           break
       }
-    } catch {
-      // Ignore malformed messages
+    } catch (error) {
+      ws.send(
+        JSON.stringify({
+          type: 'error',
+          payload: {
+            status: error instanceof FileError ? error.status : 400,
+            message: error instanceof FileError ? error.message : 'Invalid collaboration message',
+          },
+        }),
+      )
     }
   },
 
