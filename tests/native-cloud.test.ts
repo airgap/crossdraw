@@ -160,7 +160,7 @@ test('file ownership, conditional updates and create receipts hold through actua
     ).toBe(403)
   const first = await fetch(`${origin}/api/files/${metadata.id}`, {
     method: 'PUT',
-    headers: { ...auth(), 'If-Match': '"1"' },
+    headers: { ...auth(), 'If-Match': '"1"', 'X-File-Name': 'Renamed.crow' },
     body: crow(),
   })
   expect(first.status).toBe(200)
@@ -170,11 +170,26 @@ test('file ownership, conditional updates and create receipts hold through actua
     body: crow(),
   })
   expect(stale.status).toBe(409)
+  const replayAfterEdit = await fetch(`${origin}/api/files`, {
+    method: 'POST',
+    headers: { ...auth(), 'X-File-Name': 'Native.crow', 'Idempotency-Key': 'create-fixture-0001' },
+    body: crow(),
+  })
+  expect(replayAfterEdit.status).toBe(200)
+  expect(((await replayAfterEdit.json()) as any).id).toBe(metadata.id)
+  expect(
+    (
+      await fetch(`${origin}/ws?room=${metadata.id}&client=legacy-browser&token=${encodeURIComponent(tokenA)}`, {
+        headers: { Upgrade: 'websocket' },
+      })
+    ).status,
+  ).toBe(426)
+
   expect((await fetch(`${origin}/api/libraries`, { headers: auth() })).status).toBe(403)
 })
 function socket(id: string, token: string, client: string) {
   return new WebSocket(
-    `${origin.replace('http:', 'ws:')}/ws?room=${id}&client=${client}&token=${encodeURIComponent(token)}`,
+    `${origin.replace('http:', 'ws:')}/ws?protocol=1&room=${id}&client=${client}&token=${encodeURIComponent(token)}`,
   )
 }
 function next(ws: WebSocket, filter: (value: any) => boolean = () => true): Promise<any> {

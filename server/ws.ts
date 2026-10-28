@@ -137,6 +137,8 @@ export async function handleWSUpgrade(
   server: { upgrade: (req: Request, opts: { data: WSData }) => boolean },
 ): Promise<Response | null> {
   const url = new URL(req.url)
+  if (url.searchParams.get('protocol') !== '1')
+    return new Response('Crossdraw native protocol 1 is required', { status: 426 })
   const roomId = url.searchParams.get('room')
   const clientId = url.searchParams.get('client')
 
@@ -247,6 +249,8 @@ export const websocketHandlers = {
     if (client) client.lastSeen = Date.now()
 
     try {
+      if ((typeof message === 'string' ? Buffer.byteLength(message) : message.byteLength) > 4 * 1024 * 1024)
+        throw new FileError(413, 'Collaboration operation exceeds 4 MiB')
       const msg = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message)) as CollabMessage
 
       switch (msg.type) {

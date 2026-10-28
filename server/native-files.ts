@@ -51,12 +51,13 @@ interface Receipt {
   actor: string
   fingerprint: string
   revision: number
-  op: Operation
+  id: string
 }
 interface RecordFile {
   metadata: Metadata
   crow: string
   createKey: string
+  createFingerprint: string
   receipts: Receipt[]
   deleted: boolean
 }
@@ -173,7 +174,7 @@ function replace(record: RecordFile, bytes: Uint8Array) {
   record.metadata.revision++
 }
 function name(req: Request, fallback: string) {
-  const value = req.headers.get('X-File-Name') ?? fallback
+  const value = new URL(req.url).searchParams.get('name') ?? req.headers.get('X-File-Name') ?? fallback
   if (!value.trim() || value.length > 512 || /[\x00-\x1f\x7f]/.test(value))
     throw new FileError(400, 'Invalid file name')
   return value
@@ -236,8 +237,7 @@ export async function nativeFiles(req: Request, user: AuthenticatedUser): Promis
         if (
           old.metadata.ownerId !== user.id ||
           old.createKey !== requestKey ||
-          old.metadata.checksum !== hash(bytes).slice(0, 16) ||
-          old.metadata.name !== fileName
+          old.createFingerprint !== hash(`${fileName}\0${hash(bytes)}`)
         )
           throw new FileError(409, 'Upload key already identifies another file')
         return json(metadata(old, user), 200)
@@ -257,6 +257,7 @@ export async function nativeFiles(req: Request, user: AuthenticatedUser): Promis
         },
         crow: Buffer.from(bytes).toString('base64'),
         createKey: requestKey,
+        createFingerprint: hash(`${fileName}\0${hash(bytes)}`),
         receipts: [],
         deleted: false,
       }
@@ -314,9 +315,9 @@ export function roomFile(id: string, user: AuthenticatedUser) {
   const record = load(id)
   return {
     metadata: metadata(record, user),
-    ops: record.receipts.map((r) => r.op),
+    ops: [],
     receipts: record.receipts.map((r) => ({
-      id: r.op.id,
+      id: r.id,
       actor: r.actor,
       fingerprint: r.fingerprint,
       revision: r.revision,
@@ -353,9 +354,29 @@ function remove(layers: any[], id: string): boolean {
 export function applyOperation(root: any, op: Operation) {
   const board = root.artboards.find((b: any) => b.id === op.path[1])
   switch (op.type) {
-    case 'update-document':
-      Object.assign(root, safeFields(op.value))
+    case 'update-document': {
+      let target = root
+      for (const key of op.path) {
+        if (
+          ['__proto__', 'constructor', 'prototype', 'artboards', 'rasterChunks'].includes(key) ||
+          !object(target[key])
+        )
+          throw new FileError(400, 'Invalid document property path')
+        target = target[key]
+      }
+      const fields = safeFields(op.value)
+      if (op.path.length === 0 && Object.keys(fields).some((k) => ['id', 'artboards', 'rasterChunks'].includes(k)))
+        throw new FileError(400, 'Invalid document update')
+      Object.assign(target, fields)
+      if (op.unset) {
+        for (const key of op.unset) {
+          if (['id', '__proto__', 'constructor', 'prototype', 'artboards', 'rasterChunks'].includes(key))
+            throw new FileError(400, 'Invalid removed field')
+          delete target[key]
+        }
+      }
       break
+    }
     case 'add-artboard': {
       const value = safeFields(op.value)
       if (typeof value.id !== 'string' || !Array.isArray(value.layers)) throw new FileError(400, 'Invalid artboard')
@@ -458,7 +479,7 @@ export function commitOperation(id: string, user: AuthenticatedUser, op: Operati
   )
     throw new FileError(400, 'Invalid collaboration operation')
   const fingerprint = hash(JSON.stringify(op))
-  const receipt = record.receipts.find((r) => r.op.id === op.id)
+  const receipt = record.receipts.find((r) => r.id === op.id)
   if (receipt) {
     if (receipt.actor !== user.id || receipt.fingerprint !== fingerprint)
       throw new FileError(409, 'Operation identity was reused')
@@ -469,7 +490,7 @@ export function commitOperation(id: string, user: AuthenticatedUser, op: Operati
   const root = decode(body(record))
   applyOperation(root, op)
   replace(record, encode(root))
-  record.receipts.push({ actor: user.id, fingerprint, revision: record.metadata.revision, op })
+  record.receipts.push({ actor: user.id, fingerprint, revision: record.metadata.revision, id: op.id })
   persist(record)
   return { revision: record.metadata.revision, duplicate: false }
 }
