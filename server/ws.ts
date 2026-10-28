@@ -249,8 +249,8 @@ export const websocketHandlers = {
     if (client) client.lastSeen = Date.now()
 
     try {
-      if ((typeof message === 'string' ? Buffer.byteLength(message) : message.byteLength) > 4 * 1024 * 1024)
-        throw new FileError(413, 'Collaboration operation exceeds 4 MiB')
+      if ((typeof message === 'string' ? Buffer.byteLength(message) : message.byteLength) > 32 * 1024 * 1024)
+        throw new FileError(413, 'Collaboration operation exceeds 32 MiB')
       const msg = JSON.parse(typeof message === 'string' ? message : new TextDecoder().decode(message)) as CollabMessage
 
       switch (msg.type) {
