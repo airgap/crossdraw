@@ -209,6 +209,7 @@ export async function nativeFiles(req: Request, user: AuthenticatedUser): Promis
         durableOps: true,
         exactAcknowledgements: true,
         idempotentCreates: true,
+        fieldOperations: true,
       })
     if (path === '/api/files' && req.method === 'GET') {
       ensureDirectory()
