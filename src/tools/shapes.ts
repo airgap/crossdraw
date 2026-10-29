@@ -276,7 +276,7 @@ export function updateShapeDrag(docX: number, docY: number, shift: boolean, alt:
       transform: { x: localX, y: localY, scaleX: 1, scaleY: 1, rotation: 0 },
       effects: [],
       paths: [{ id: uuid(), segments, closed: true }],
-      fill: { type: 'solid', color: '#4a7dff', opacity: 1 },
+      fill: { type: 'solid', color: shapeDefs.fillColor, opacity: 1 },
       stroke: null,
       shapeParams,
     }

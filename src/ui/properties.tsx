@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { useEditorStore, getActiveArtboard, findLayerDeep } from '@/store/editor.store'
 import { FontPicker } from '@/ui/font-picker'
 import { getCatalogFont } from '@/fonts/loader'
-import { ColorSwatch } from '@/ui/color-picker'
+import { ColorSwatch, HexInput } from '@/ui/color-picker'
 import type {
   VectorLayer,
   Fill,
@@ -66,6 +66,8 @@ import { PerspectivePanel } from '@/ui/perspective-panel'
 import { applyBackgroundRemovalFilter } from '@/filters/apply-background-removal'
 import type { BackgroundRemovalParams } from '@/filters/background-removal'
 import { generateRectangle } from '@/tools/shapes'
+import { computeLocalBBox } from '@/tools/transform'
+import { rotateTransformAboutLocalPoint } from '@/math/layer-transform'
 import { WIDTH_PRESETS, WIDTH_PRESET_LABELS, matchWidthPreset } from '@/render/variable-stroke'
 import {
   AlignLeft,
@@ -239,6 +241,14 @@ export function PropertiesPanel() {
   const selectedLayer =
     artboard && selection.layerIds.length > 0 ? findLayerDeep(artboard.layers, selection.layerIds[0]!) : undefined
 
+  // Local (untransformed) bounds of the selected layer. The W/H fields edit
+  // pixel dimensions and convert to scaleX/scaleY under the hood; R rotates
+  // around the local bbox center.
+  const localBBox = artboard && selectedLayer ? computeLocalBBox(selectedLayer, artboard) : null
+  const hasLocalBBox = localBBox !== null && localBBox.minX !== Infinity
+  const localW = hasLocalBBox ? localBBox.maxX - localBBox.minX : 0
+  const localH = hasLocalBBox ? localBBox.maxY - localBBox.minY : 0
+
   return (
     <div
       style={{
@@ -316,24 +326,34 @@ export function PropertiesPanel() {
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>W</span>
                 <input
                   type="number"
+                  min="0.1"
                   style={smallInputStyle}
-                  value={Math.round(selectedLayer.transform.scaleX * 100)}
+                  disabled={localW < 0.001}
+                  value={Math.round(Math.abs(selectedLayer.transform.scaleX) * localW * 10) / 10}
                   onChange={(e) => {
-                    if (!artboard) return
+                    if (!artboard || localW < 0.001) return
+                    const v = Number(e.target.value)
+                    if (!(v > 0)) return
+                    const sign = selectedLayer.transform.scaleX < 0 ? -1 : 1
                     updateLayer(artboard.id, selectedLayer.id, {
-                      transform: { ...selectedLayer.transform, scaleX: Number(e.target.value) / 100 },
+                      transform: { ...selectedLayer.transform, scaleX: (v / localW) * sign },
                     })
                   }}
                 />
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 14 }}>H</span>
                 <input
                   type="number"
+                  min="0.1"
                   style={smallInputStyle}
-                  value={Math.round(selectedLayer.transform.scaleY * 100)}
+                  disabled={localH < 0.001}
+                  value={Math.round(Math.abs(selectedLayer.transform.scaleY) * localH * 10) / 10}
                   onChange={(e) => {
-                    if (!artboard) return
+                    if (!artboard || localH < 0.001) return
+                    const v = Number(e.target.value)
+                    if (!(v > 0)) return
+                    const sign = selectedLayer.transform.scaleY < 0 ? -1 : 1
                     updateLayer(artboard.id, selectedLayer.id, {
-                      transform: { ...selectedLayer.transform, scaleY: Number(e.target.value) / 100 },
+                      transform: { ...selectedLayer.transform, scaleY: (v / localH) * sign },
                     })
                   }}
                 />
@@ -346,9 +366,23 @@ export function PropertiesPanel() {
                   value={Math.round(selectedLayer.transform.rotation * 10) / 10}
                   onChange={(e) => {
                     if (!artboard) return
-                    updateLayer(artboard.id, selectedLayer.id, {
-                      transform: { ...selectedLayer.transform, rotation: Number(e.target.value) },
-                    })
+                    const deg = Number(e.target.value)
+                    if (Number.isNaN(deg)) return
+                    const t = selectedLayer.transform
+                    // Rotate in place around the local bbox center; layers with a
+                    // custom anchor pivot around it in the render already.
+                    const hasCustomAnchor =
+                      Math.abs((t.anchorX ?? 0.5) - 0.5) > 0.001 || Math.abs((t.anchorY ?? 0.5) - 0.5) > 0.001
+                    const transform =
+                      !hasCustomAnchor && hasLocalBBox
+                        ? rotateTransformAboutLocalPoint(
+                            t,
+                            (localBBox.minX + localBBox.maxX) / 2,
+                            (localBBox.minY + localBBox.maxY) / 2,
+                            deg,
+                          )
+                        : { ...t, rotation: deg }
+                    updateLayer(artboard.id, selectedLayer.id, { transform })
                   }}
                 />
                 <span style={{ fontSize: 10, color: 'var(--text-secondary)' }}>deg</span>
@@ -1295,14 +1329,10 @@ function FillSection({
               opacity={fill.opacity}
               onChange={(hex, a) => applyFill({ ...fill, color: hex, opacity: a })}
             />
-            <input
+            <HexInput
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={fill.color ?? '#000000'}
-              onChange={(e) => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  applyFill({ ...fill, color: e.target.value })
-                }
-              }}
+              onChange={(hex) => applyFill({ ...fill, color: hex })}
             />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(fill.opacity * 100)}%
@@ -1405,27 +1435,19 @@ function FillSection({
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Color 1</span>
             <ColorSwatch color={fill.noise.color1} opacity={1} onChange={(hex) => updateNoise({ color1: hex })} />
-            <input
+            <HexInput
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={fill.noise.color1}
-              onChange={(e) => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  updateNoise({ color1: e.target.value })
-                }
-              }}
+              onChange={(hex) => updateNoise({ color1: hex })}
             />
           </div>
           <div style={rowStyle}>
             <span style={{ fontSize: 10, color: 'var(--text-secondary)', width: 40 }}>Color 2</span>
             <ColorSwatch color={fill.noise.color2} opacity={1} onChange={(hex) => updateNoise({ color2: hex })} />
-            <input
+            <HexInput
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={fill.noise.color2}
-              onChange={(e) => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  updateNoise({ color2: e.target.value })
-                }
-              }}
+              onChange={(hex) => updateNoise({ color2: hex })}
             />
           </div>
           <div style={rowStyle}>
@@ -1522,14 +1544,10 @@ function StrokeSection({
               opacity={stroke.opacity}
               onChange={(hex, a) => applyStroke({ ...stroke, color: hex, opacity: a })}
             />
-            <input
+            <HexInput
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={stroke.color}
-              onChange={(e) => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  applyStroke({ ...stroke, color: e.target.value })
-                }
-              }}
+              onChange={(hex) => applyStroke({ ...stroke, color: hex })}
             />
             <span style={{ fontSize: 10, color: '#aaa', width: 28, textAlign: 'right' }}>
               {Math.round(stroke.opacity * 100)}%

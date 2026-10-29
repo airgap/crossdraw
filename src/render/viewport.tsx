@@ -6,6 +6,7 @@ import { zoomAtPoint, screenToDocument } from '@/math/viewport'
 import { segmentsToPath2D } from '@/math/path'
 import { spatialIndex } from '@/math/hit-test'
 import { getLayerBBox, type BBox } from '@/math/bbox'
+import { applyLayerTransform, invertLayerPoint } from '@/math/layer-transform'
 import { getRasterCanvas, getRasterData } from '@/store/raster-data'
 import { applyEffects, hasActiveEffects } from '@/effects/render-effects'
 import { applyFilterLayerToCanvas } from '@/effects/filter-layer'
@@ -3661,34 +3662,7 @@ function applyTransform(
   },
   bounds?: { width: number; height: number },
 ) {
-  ctx.translate(t.x, t.y)
-
-  // If anchor point is set and bounds are known, offset the transform origin
-  const ax = t.anchorX ?? 0.5
-  const ay = t.anchorY ?? 0.5
-  const hasCustomAnchor = bounds && (Math.abs(ax - 0.5) > 0.001 || Math.abs(ay - 0.5) > 0.001)
-
-  if (hasCustomAnchor) {
-    const ox = ax * bounds.width
-    const oy = ay * bounds.height
-    ctx.translate(ox, oy)
-    ctx.scale(t.scaleX, t.scaleY)
-    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
-    if (t.skewX || t.skewY) {
-      const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
-      const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
-      ctx.transform(1, sy, sx, 1, 0, 0)
-    }
-    ctx.translate(-ox, -oy)
-  } else {
-    ctx.scale(t.scaleX, t.scaleY)
-    if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
-    if (t.skewX || t.skewY) {
-      const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
-      const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
-      ctx.transform(1, sy, sx, 1, 0, 0)
-    }
-  }
+  applyLayerTransform(ctx, t, bounds)
 }
 
 // Character width cache: avoids repeated measureText() calls per frame.
@@ -4550,9 +4524,7 @@ function renderLayerWithEffects(
     ctx.globalAlpha = layer.opacity
 
     const maskT = layer.mask.transform
-    ctx.translate(maskT.x, maskT.y)
-    ctx.scale(maskT.scaleX, maskT.scaleY)
-    if (maskT.rotation) ctx.rotate((maskT.rotation * Math.PI) / 180)
+    applyLayerTransform(ctx, maskT)
     for (const path of layer.mask.paths) {
       ctx.clip(segmentsToPath2D(path.segments))
     }
@@ -5204,10 +5176,7 @@ function renderArtboardWithAdjustments(
 
 function renderSelectionOutline(ctx: CanvasRenderingContext2D, layer: VectorLayer) {
   ctx.save()
-  const t = layer.transform
-  ctx.translate(t.x, t.y)
-  ctx.scale(t.scaleX, t.scaleY)
-  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+  applyLayerTransform(ctx, layer.transform)
 
   const zoom = useEditorStore.getState().viewport.zoom
   ctx.strokeStyle = '#4a7dff'
@@ -5577,9 +5546,8 @@ function renderNodeToolOverlay(
     if (!layer || layer.type !== 'vector') continue
 
     ctx.save()
-    ctx.translate(artboard.x + layer.transform.x, artboard.y + layer.transform.y)
-    ctx.scale(layer.transform.scaleX, layer.transform.scaleY)
-    if (layer.transform.rotation) ctx.rotate((layer.transform.rotation * Math.PI) / 180)
+    ctx.translate(artboard.x, artboard.y)
+    applyLayerTransform(ctx, layer.transform)
 
     const lineWidth = 1 / zoom
 
@@ -5588,8 +5556,13 @@ function renderNodeToolOverlay(
     let localCursorY = 0
     let hasCursor = false
     if (cursorDoc && !isTouchDevice) {
-      localCursorX = cursorDoc.x - artboard.x - layer.transform.x
-      localCursorY = cursorDoc.y - artboard.y - layer.transform.y
+      const local = invertLayerPoint(
+        layer.transform,
+        cursorDoc.x - artboard.x - layer.transform.x,
+        cursorDoc.y - artboard.y - layer.transform.y,
+      )
+      localCursorX = local.x
+      localCursorY = local.y
       hasCursor = true
     }
 

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { getLayerBBox } from '@/math/bbox'
+import { applyLayerTransform } from '@/math/layer-transform'
 import type { DesignDocument, Artboard, Layer, Interaction, Transition } from '@/types'
 
 /** Only allow http: and https: URLs to prevent javascript: injection */
@@ -96,15 +97,7 @@ function renderLayerSimple(ctx: CanvasRenderingContext2D, layer: Layer, doc: Des
   ctx.save()
   ctx.globalAlpha = layer.opacity
 
-  const t = layer.transform
-  ctx.translate(t.x, t.y)
-  ctx.scale(t.scaleX, t.scaleY)
-  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
-  if (t.skewX || t.skewY) {
-    const sx = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
-    const sy = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
-    ctx.transform(1, sy, sx, 1, 0, 0)
-  }
+  applyLayerTransform(ctx, layer.transform)
 
   switch (layer.type) {
     case 'vector': {

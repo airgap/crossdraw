@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import { useState } from 'react'
 import type { Gradient, GradientStop } from '@/types'
+import { HexInput } from '@/ui/color-picker'
 import { createDefaultMeshData } from '@/render/mesh-gradient'
 
 const rowStyle: React.CSSProperties = {
@@ -164,14 +165,10 @@ export function GradientEditor({ gradient, onChange }: { gradient: Gradient; onC
                 style={{ opacity: 0, position: 'absolute', inset: 0, width: '100%', height: '100%', cursor: 'pointer' }}
               />
             </div>
-            <input
+            <HexInput
               style={{ ...inputStyle, fontFamily: 'monospace', fontSize: 11 }}
               value={gradient.stops[selectedStop]!.color}
-              onChange={(e) => {
-                if (/^#[0-9a-fA-F]{6}$/.test(e.target.value)) {
-                  updateStop(selectedStop, { color: e.target.value })
-                }
-              }}
+              onChange={(hex) => updateStop(selectedStop, { color: hex })}
             />
             <button
               style={{ ...btnStyle, fontSize: 9, padding: '1px 4px' }}

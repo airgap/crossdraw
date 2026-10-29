@@ -104,12 +104,24 @@ function collectGradients(layers: Layer[], out: Gradient[]) {
   }
 }
 
-/** Build SVG transform attribute parts from a layer transform. */
-function buildTransformParts(t: { x: number; y: number; scaleX: number; scaleY: number; rotation: number }): string[] {
+/** Build SVG transform attribute parts from a layer transform.
+ *  Order matches the app render: translate, rotate, skew, scale (SVG applies
+ *  list entries left-to-right, rightmost first to the geometry). */
+function buildTransformParts(t: {
+  x: number
+  y: number
+  scaleX: number
+  scaleY: number
+  rotation: number
+  skewX?: number
+  skewY?: number
+}): string[] {
   const parts: string[] = []
   if (t.x !== 0 || t.y !== 0) parts.push(`translate(${t.x} ${t.y})`)
-  if (t.scaleX !== 1 || t.scaleY !== 1) parts.push(`scale(${t.scaleX} ${t.scaleY})`)
   if (t.rotation) parts.push(`rotate(${t.rotation})`)
+  if (t.skewX) parts.push(`skewX(${t.skewX})`)
+  if (t.skewY) parts.push(`skewY(${t.skewY})`)
+  if (t.scaleX !== 1 || t.scaleY !== 1) parts.push(`scale(${t.scaleX} ${t.scaleY})`)
   return parts
 }
 
@@ -247,8 +259,10 @@ function renderRasterLayerSVG(lines: string[], layer: RasterLayer) {
   if (layer.opacity < 1) attrs.push(`opacity="${layer.opacity}"`)
 
   const transforms: string[] = []
-  if (t.scaleX !== 1 || t.scaleY !== 1) transforms.push(`scale(${t.scaleX} ${t.scaleY})`)
   if (t.rotation) transforms.push(`rotate(${t.rotation})`)
+  if (t.skewX) transforms.push(`skewX(${t.skewX})`)
+  if (t.skewY) transforms.push(`skewY(${t.skewY})`)
+  if (t.scaleX !== 1 || t.scaleY !== 1) transforms.push(`scale(${t.scaleX} ${t.scaleY})`)
   if (transforms.length > 0) attrs.push(`transform="${transforms.join(' ')}"`)
 
   attrs.push(`href="${dataUrl}"`)
@@ -391,8 +405,10 @@ function renderTextLayerSVG(lines: string[], layer: TextLayer) {
   if (layer.opacity < 1) attrs.push(`opacity="${layer.opacity}"`)
 
   const transforms: string[] = []
-  if (t.scaleX !== 1 || t.scaleY !== 1) transforms.push(`scale(${t.scaleX} ${t.scaleY})`)
   if (t.rotation) transforms.push(`rotate(${t.rotation})`)
+  if (t.skewX) transforms.push(`skewX(${t.skewX})`)
+  if (t.skewY) transforms.push(`skewY(${t.skewY})`)
+  if (t.scaleX !== 1 || t.scaleY !== 1) transforms.push(`scale(${t.scaleX} ${t.scaleY})`)
   if (transforms.length > 0) attrs.push(`transform="${transforms.join(' ')}"`)
 
   // Apply OpenType features and variable font axes as CSS style attributes

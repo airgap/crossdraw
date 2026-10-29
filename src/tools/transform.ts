@@ -1,6 +1,7 @@
 import { useEditorStore } from '@/store/editor.store'
 import type { Point } from '@/math/viewport'
 import { pathBBox, mergeBBox, getLayerBBox, type BBox } from '@/math/bbox'
+import { layerMatrix2x2, rotateTransformAboutLocalPoint } from '@/math/layer-transform'
 import type { Transform, Layer } from '@/types'
 import { snapBBox, snapPoint } from '@/tools/snap'
 
@@ -41,7 +42,7 @@ export function isTransformDragging(): boolean {
   return drag !== null
 }
 
-function computeLocalBBox(layer: Layer, artboard: { x: number; y: number }): BBox {
+export function computeLocalBBox(layer: Layer, artboard: { x: number; y: number }): BBox {
   switch (layer.type) {
     case 'vector': {
       let bbox: BBox = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity }
@@ -319,23 +320,21 @@ function applyMultiLayerTransform(
       const o = e.originalTransform
       const wx = ao.x + o.x
       const wy = ao.y + o.y
-      const sxr = o.scaleX || 1
-      const syr = o.scaleY || 1
+      // Skew applies after scale, so the layer-local skew angle equals the
+      // world shear directly: world x-offset = tan(a)·(world y-extent).
+      const kDeg = (Math.atan(K) * 180) / Math.PI
       if (horizontal) {
-        // Content shear in layer-local coords: tan(a)·scaleX/scaleY must match world K.
-        const aDeg = (Math.atan(K * (syr / sxr)) * 180) / Math.PI
         return {
           layerId: e.layerId,
           updates: {
-            transform: { ...o, x: wx + K * (wy - anchor) - ao.x, skewX: (o.skewX ?? 0) + aDeg },
+            transform: { ...o, x: wx + K * (wy - anchor) - ao.x, skewX: (o.skewX ?? 0) + kDeg },
           } as Partial<Layer>,
         }
       }
-      const bDeg = (Math.atan(K * (sxr / syr)) * 180) / Math.PI
       return {
         layerId: e.layerId,
         updates: {
-          transform: { ...o, y: wy + K * (wx - anchor) - ao.y, skewY: (o.skewY ?? 0) + bDeg },
+          transform: { ...o, y: wy + K * (wx - anchor) - ao.y, skewY: (o.skewY ?? 0) + kDeg },
         } as Partial<Layer>,
       }
     })
@@ -497,8 +496,13 @@ export function updateTransform(docPoint: Point, shiftKey = false, skewMode = fa
     const artboard = store.document.artboards.find((a) => a.id === d.artboardId)
     if (!artboard) return
 
-    const centerX = artboard.x + orig.x + ((lb.minX + lb.maxX) / 2) * orig.scaleX
-    const centerY = artboard.y + orig.y + ((lb.minY + lb.maxY) / 2) * orig.scaleY
+    // Pivot: the layer's local bbox center, mapped through the original
+    // transform to find its current world position.
+    const pivotLocalX = (lb.minX + lb.maxX) / 2
+    const pivotLocalY = (lb.minY + lb.maxY) / 2
+    const m = layerMatrix2x2(orig)
+    const centerX = artboard.x + orig.x + m.a * pivotLocalX + m.c * pivotLocalY
+    const centerY = artboard.y + orig.y + m.b * pivotLocalX + m.d * pivotLocalY
 
     const startAngle = Math.atan2(d.startDocPoint.y - centerY, d.startDocPoint.x - centerX)
     const curAngle = Math.atan2(docPoint.y - centerY, docPoint.x - centerX)
@@ -508,27 +512,39 @@ export function updateTransform(docPoint: Point, shiftKey = false, skewMode = fa
     if (shiftKey) {
       rotation = Math.round(rotation / 15) * 15
     }
-    t.rotation = rotation
+    // Rotate in place: keep the pivot's world position fixed by adjusting x/y.
+    // Layers with a custom anchor already pivot around it in the render, so
+    // they only need the rotation value.
+    const hasCustomAnchor =
+      Math.abs((orig.anchorX ?? 0.5) - 0.5) > 0.001 || Math.abs((orig.anchorY ?? 0.5) - 0.5) > 0.001
+    if (hasCustomAnchor) {
+      t.rotation = rotation
+    } else {
+      const rotated = rotateTransformAboutLocalPoint(orig, pivotLocalX, pivotLocalY, rotation)
+      t.rotation = rotated.rotation
+      t.x = rotated.x
+      t.y = rotated.y
+    }
   } else if (skewMode && (d.handle === 'n' || d.handle === 's' || d.handle === 'e' || d.handle === 'w')) {
     // Skew via edge handles (Ctrl/Cmd+drag): shear so the dragged edge follows
     // the cursor and the opposite edge stays fixed.
     useEditorStore.getState().setActiveSnapLines(null)
     if (d.handle === 'n' || d.handle === 's') {
-      const denom = (orig.scaleX || 1) * localH
+      const denom = (orig.scaleY || 1) * localH
       if (Math.abs(denom) > 0.001) {
-        // Content shear in local coords: world x-offset(y_local) = scaleX·tan(a)·y_local.
+        // Skew applies after scale: world x-offset(y_local) = tan(a)·scaleY·y_local.
         const k = (d.handle === 'n' ? -deltaX : deltaX) / denom
         t.skewX = (orig.skewX ?? 0) + (Math.atan(k) * 180) / Math.PI
         const anchorLocalY = d.handle === 'n' ? lb.maxY : lb.minY
-        t.x = orig.x - (orig.scaleX || 1) * k * anchorLocalY
+        t.x = orig.x - (orig.scaleY || 1) * k * anchorLocalY
       }
     } else {
-      const denom = (orig.scaleY || 1) * localW
+      const denom = (orig.scaleX || 1) * localW
       if (Math.abs(denom) > 0.001) {
         const k = (d.handle === 'w' ? -deltaY : deltaY) / denom
         t.skewY = (orig.skewY ?? 0) + (Math.atan(k) * 180) / Math.PI
         const anchorLocalX = d.handle === 'e' ? lb.minX : lb.maxX
-        t.y = orig.y - (orig.scaleY || 1) * k * anchorLocalX
+        t.y = orig.y - (orig.scaleX || 1) * k * anchorLocalX
       }
     }
   } else if (d.isTextLayer && d.originalTextMode === 'area') {

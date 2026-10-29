@@ -392,7 +392,7 @@ describe('svg-export coverage', () => {
     }
     const doc = createDoc([textLayer])
     const svg = exportArtboardToSVG(doc)
-    expect(svg).toContain('transform="scale(2 3) rotate(45)"')
+    expect(svg).toContain('transform="rotate(45) scale(2 3)"')
   })
 
   test('text layer with openTypeFeatures', () => {

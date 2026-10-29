@@ -76,6 +76,81 @@ function addToPalette(hex: string) {
   localStorage.setItem(PALETTE_KEY, JSON.stringify(palette))
 }
 
+// ─── Hex text field ────────────────────────────────────────────
+
+/**
+ * Normalize user-typed hex into `#rrggbb`, or null if it isn't a
+ * complete color yet. Accepts a missing `#` and 3-digit shorthand.
+ */
+export function normalizeHex(input: string): string | null {
+  const raw = input.trim().replace(/^#/, '')
+  if (/^[0-9a-fA-F]{3}$/.test(raw)) {
+    return ('#' + raw[0]! + raw[0]! + raw[1]! + raw[1]! + raw[2]! + raw[2]!).toLowerCase()
+  }
+  if (/^[0-9a-fA-F]{6}$/.test(raw)) return ('#' + raw).toLowerCase()
+  return null
+}
+
+/**
+ * Text field for a hex color. Keeps what the user is typing in local state —
+ * a plain controlled input that only accepts complete hex codes rejects every
+ * intermediate keystroke, which makes the field impossible to type into.
+ * Incomplete input is reverted on blur.
+ */
+export function HexInput({
+  value,
+  onChange,
+  style,
+  title,
+}: {
+  value: string
+  onChange: (hex: string) => void
+  style?: React.CSSProperties
+  title?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  const editing = useRef(false)
+
+  // Follow the external value except while the user is mid-edit.
+  useEffect(() => {
+    if (!editing.current) setDraft(value)
+  }, [value])
+
+  return (
+    <input
+      style={style}
+      title={title}
+      value={draft}
+      spellCheck={false}
+      onFocus={() => {
+        editing.current = true
+      }}
+      onChange={(e) => {
+        setDraft(e.target.value)
+        const hex = normalizeHex(e.target.value)
+        if (hex) onChange(hex)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        else if (e.key === 'Escape') {
+          setDraft(value)
+          e.currentTarget.blur()
+        }
+      }}
+      onBlur={() => {
+        editing.current = false
+        const hex = normalizeHex(draft)
+        if (hex) {
+          setDraft(hex)
+          onChange(hex)
+        } else {
+          setDraft(value)
+        }
+      }}
+    />
+  )
+}
+
 // ─── Types ─────────────────────────────────────────────────────
 
 export interface ColorPickerProps {
@@ -716,13 +791,7 @@ export function ColorPicker({ color, opacity = 1, onChange, onSecondaryChange, e
         {mode === 'hex' && (
           <div style={{ display: 'flex', gap: 4, alignItems: 'flex-start' }}>
             <div style={{ flex: 1 }}>
-              <input
-                style={fieldInputStyle}
-                value={currentHex}
-                onChange={(e) => handleHexInput(e.target.value)}
-                onBlur={(e) => handleHexInput(e.target.value)}
-                spellCheck={false}
-              />
+              <HexInput style={fieldInputStyle} value={currentHex} onChange={handleHexInput} />
               <div style={fieldLabelStyle}>Hex</div>
             </div>
             <div style={{ width: 44 }}>

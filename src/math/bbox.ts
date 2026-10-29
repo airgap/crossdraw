@@ -1,5 +1,6 @@
 import type { Segment, Path, VectorLayer, Layer, Artboard, GroupLayer, TextLayer, Transform } from '@/types'
 import { needsPathRendering, getPathText } from '@/fonts/glyph-paths'
+import { layerMatrix2x2 } from './layer-transform'
 
 export interface BBox {
   minX: number
@@ -188,12 +189,11 @@ export function getPathBBox(path: Path): BBox {
   return pathBBox(path.segments)
 }
 
-/** Map a local-space bbox through a layer transform — skew, then scale, then
- *  translate — matching the render order in applyTransform. Rotation is
- *  intentionally ignored to keep selection bounds axis-aligned. */
+/** Map a local-space bbox through the full layer transform — scale, skew,
+ *  rotation, then translate — matching the render order in applyLayerTransform.
+ *  Returns the axis-aligned bounds of the transformed corners. */
 export function transformLocalBBox(local: BBox, t: Transform, originX: number, originY: number): BBox {
-  const tanX = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
-  const tanY = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
+  const { a, b, c, d } = layerMatrix2x2(t)
   let minX = Infinity
   let minY = Infinity
   let maxX = -Infinity
@@ -205,8 +205,8 @@ export function transformLocalBBox(local: BBox, t: Transform, originX: number, o
     [local.maxX, local.maxY],
   ]
   for (const [x, y] of corners) {
-    const X = (x + tanX * y) * t.scaleX + t.x + originX
-    const Y = (tanY * x + y) * t.scaleY + t.y + originY
+    const X = a * x + c * y + t.x + originX
+    const Y = b * x + d * y + t.y + originY
     if (X < minX) minX = X
     if (X > maxX) maxX = X
     if (Y < minY) minY = Y
@@ -262,13 +262,13 @@ function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
 
   if (bbox.minX === Infinity) return { ...EMPTY_BBOX }
 
-  // Apply group's own transform (skew and scale relative to group origin, then translate)
+  // Apply the group's own transform. Child bboxes are in group-content space
+  // offset by the artboard origin, so strip that origin, map through the
+  // group's scale/skew/rotation, and re-add origin plus the group translation
+  // — mirroring the render (applyLayerTransform on the group, children inside).
   const t = group.transform
-  if (t.skewX || t.skewY) {
-    const tanX = Math.tan(((t.skewX ?? 0) * Math.PI) / 180)
-    const tanY = Math.tan(((t.skewY ?? 0) * Math.PI) / 180)
-    const originX = artboard.x + t.x
-    const originY = artboard.y + t.y
+  if (t.x !== 0 || t.y !== 0 || t.scaleX !== 1 || t.scaleY !== 1 || t.rotation !== 0 || t.skewX || t.skewY) {
+    const { a, b, c, d } = layerMatrix2x2(t)
     let mnX = Infinity
     let mnY = Infinity
     let mxX = -Infinity
@@ -280,38 +280,16 @@ function getGroupLayerBBox(group: GroupLayer, artboard: Artboard): BBox {
       [bbox.maxX, bbox.maxY],
     ]
     for (const [cx, cy] of corners) {
-      const lx = cx - originX
-      const ly = cy - originY
-      const X = originX + lx + tanX * ly
-      const Y = originY + tanY * lx + ly
+      const lx = cx - artboard.x
+      const ly = cy - artboard.y
+      const X = artboard.x + t.x + a * lx + c * ly
+      const Y = artboard.y + t.y + b * lx + d * ly
       if (X < mnX) mnX = X
       if (X > mxX) mxX = X
       if (Y < mnY) mnY = Y
       if (Y > mxY) mxY = Y
     }
     bbox = { minX: mnX, minY: mnY, maxX: mxX, maxY: mxY }
-  }
-  if (t.scaleX !== 1 || t.scaleY !== 1) {
-    const originX = artboard.x + t.x
-    const originY = artboard.y + t.y
-    const x1 = (bbox.minX - originX) * t.scaleX + originX
-    const x2 = (bbox.maxX - originX) * t.scaleX + originX
-    const y1 = (bbox.minY - originY) * t.scaleY + originY
-    const y2 = (bbox.maxY - originY) * t.scaleY + originY
-    bbox = {
-      minX: Math.min(x1, x2),
-      minY: Math.min(y1, y2),
-      maxX: Math.max(x1, x2),
-      maxY: Math.max(y1, y2),
-    }
-  }
-  if (t.x !== 0 || t.y !== 0) {
-    bbox = {
-      minX: bbox.minX + t.x,
-      minY: bbox.minY + t.y,
-      maxX: bbox.maxX + t.x,
-      maxY: bbox.maxY + t.y,
-    }
   }
 
   return bbox

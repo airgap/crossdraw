@@ -13,6 +13,8 @@ interface ShapeDefaults {
   polygonSides: number
   starPoints: number
   starInnerRatio: number
+  /** Solid fill applied to newly drawn shapes. */
+  fillColor: string
 }
 
 const shapeDefaults: ShapeDefaults = {
@@ -20,6 +22,7 @@ const shapeDefaults: ShapeDefaults = {
   polygonSides: 6,
   starPoints: 5,
   starInnerRatio: 0.4,
+  fillColor: '#4a7dff',
 }
 
 export function getShapeDefaults(): ShapeDefaults {
@@ -137,6 +140,7 @@ export function setGradientDefaults(patch: Partial<GradientDefaults>) {
 export function setPrimaryColor(color: string, opacity = 1) {
   setBrushSettings({ color, opacity })
   fillDefaults.fillColor = color
+  shapeDefaults.fillColor = color
   penDefaults.strokeColor = color
   lineDefaults.strokeColor = color
 }

@@ -14,12 +14,13 @@ import {
   setGradientDefaults,
   getZoomMode,
   setZoomMode,
+  setPrimaryColor,
 } from '@/ui/tool-options-state'
 
 describe('tool-options-state', () => {
   // Reset defaults between tests
   beforeEach(() => {
-    setShapeDefaults({ cornerRadius: 0, polygonSides: 6, starPoints: 5, starInnerRatio: 0.4 })
+    setShapeDefaults({ cornerRadius: 0, polygonSides: 6, starPoints: 5, starInnerRatio: 0.4, fillColor: '#4a7dff' })
     setPenDefaults({ strokeWidth: 2, strokeColor: '#000000' })
     setLineDefaults({ strokeWidth: 2, strokeColor: '#000000' })
     setTextDefaults({ fontFamily: 'sans-serif', fontSize: 16 })
@@ -37,6 +38,18 @@ describe('tool-options-state', () => {
       expect(defaults.polygonSides).toBe(6)
       expect(defaults.starPoints).toBe(5)
       expect(defaults.starInnerRatio).toBe(0.4)
+    })
+
+    test('exposes a fill color for new shapes', () => {
+      expect(getShapeDefaults().fillColor).toBe('#4a7dff')
+      setShapeDefaults({ fillColor: '#ff0000' })
+      expect(getShapeDefaults().fillColor).toBe('#ff0000')
+    })
+
+    test('primary color drives the shape fill color', () => {
+      setPrimaryColor('#00ff88')
+      expect(getShapeDefaults().fillColor).toBe('#00ff88')
+      expect(getFillDefaults().fillColor).toBe('#00ff88')
     })
 
     test('returns a copy', () => {

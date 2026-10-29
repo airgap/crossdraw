@@ -20,9 +20,8 @@ function transformToCSS(t: Transform): string[] {
   props.push(`left: ${t.x}px;`)
   props.push(`top: ${t.y}px;`)
 
-  if (t.scaleX !== 1 || t.scaleY !== 1) {
-    transforms.push(`scale(${t.scaleX}, ${t.scaleY})`)
-  }
+  // Order matches the app render: rotate, skew, scale (CSS applies the
+  // rightmost function to the element first).
   if (t.rotation !== 0) {
     transforms.push(`rotate(${t.rotation}deg)`)
   }
@@ -31,6 +30,9 @@ function transformToCSS(t: Transform): string[] {
   }
   if (t.skewY) {
     transforms.push(`skewY(${t.skewY}deg)`)
+  }
+  if (t.scaleX !== 1 || t.scaleY !== 1) {
+    transforms.push(`scale(${t.scaleX}, ${t.scaleY})`)
   }
   if (transforms.length > 0) {
     props.push(`transform: ${transforms.join(' ')};`)

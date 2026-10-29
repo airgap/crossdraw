@@ -257,6 +257,17 @@ function CheckboxInput({
 
 // ── Tool-specific option panels ──
 
+/** Fill color applied to newly drawn shapes — shared by every shape tool. */
+function ShapeFillOption() {
+  const [defaults, setDefaults] = useState(getShapeDefaults)
+  const update = useCallback((color: string) => {
+    setShapeDefaults({ fillColor: color })
+    setDefaults((prev) => ({ ...prev, fillColor: color }))
+  }, [])
+
+  return <ColorSwatch label="Fill" value={defaults.fillColor} onChange={update} />
+}
+
 function RectangleOptions() {
   const [defaults, setDefaults] = useState(getShapeDefaults)
   const update = useCallback((patch: Partial<ReturnType<typeof getShapeDefaults>>) => {
@@ -265,13 +276,16 @@ function RectangleOptions() {
   }, [])
 
   return (
-    <NumberInput
-      label="Corner Radius"
-      value={defaults.cornerRadius}
-      min={0}
-      max={200}
-      onChange={(v) => update({ cornerRadius: v })}
-    />
+    <>
+      <ShapeFillOption />
+      <NumberInput
+        label="Corner Radius"
+        value={defaults.cornerRadius}
+        min={0}
+        max={200}
+        onChange={(v) => update({ cornerRadius: v })}
+      />
+    </>
   )
 }
 
@@ -283,13 +297,16 @@ function PolygonOptions() {
   }, [])
 
   return (
-    <NumberInput
-      label="Sides"
-      value={defaults.polygonSides}
-      min={3}
-      max={12}
-      onChange={(v) => update({ polygonSides: v })}
-    />
+    <>
+      <ShapeFillOption />
+      <NumberInput
+        label="Sides"
+        value={defaults.polygonSides}
+        min={3}
+        max={12}
+        onChange={(v) => update({ polygonSides: v })}
+      />
+    </>
   )
 }
 
@@ -302,6 +319,7 @@ function StarOptions() {
 
   return (
     <>
+      <ShapeFillOption />
       <NumberInput
         label="Points"
         value={defaults.starPoints}
@@ -1886,6 +1904,9 @@ export function ToolOptionsBar() {
   switch (activeTool) {
     case 'rectangle':
       options = <RectangleOptions />
+      break
+    case 'ellipse':
+      options = <ShapeFillOption />
       break
     case 'polygon':
       options = <PolygonOptions />

@@ -1,4 +1,5 @@
 import { segmentsToPath2D } from '@/math/path'
+import { applyLayerTransform } from '@/math/layer-transform'
 import { getRasterCanvas } from '@/store/raster-data'
 import { applyAdjustment } from '@/effects/adjustments'
 import { applyFilterLayerToCanvas } from '@/effects/filter-layer'
@@ -188,10 +189,7 @@ function renderLayerContent(ctx: OffscreenCanvasRenderingContext2D, layer: Layer
 
 function renderVectorLayer(ctx: OffscreenCanvasRenderingContext2D, layer: VectorLayer) {
   ctx.save()
-  const t = layer.transform
-  ctx.translate(t.x, t.y)
-  ctx.scale(t.scaleX, t.scaleY)
-  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+  applyLayerTransform(ctx, layer.transform)
 
   // Compute bounding box for gradient sizing
   let bboxX = 0,
@@ -277,10 +275,7 @@ function renderRasterLayer(ctx: OffscreenCanvasRenderingContext2D, layer: Raster
   if (!rasterCanvas) return
 
   ctx.save()
-  const t = layer.transform
-  ctx.translate(t.x, t.y)
-  ctx.scale(t.scaleX, t.scaleY)
-  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+  applyLayerTransform(ctx, layer.transform)
   ctx.drawImage(rasterCanvas, 0, 0)
   ctx.restore()
 }
@@ -318,10 +313,7 @@ function renderGroupLayer(ctx: OffscreenCanvasRenderingContext2D, group: GroupLa
 
 function renderTextLayer(ctx: OffscreenCanvasRenderingContext2D, layer: TextLayer) {
   ctx.save()
-  const t = layer.transform
-  ctx.translate(t.x, t.y)
-  ctx.scale(t.scaleX, t.scaleY)
-  if (t.rotation) ctx.rotate((t.rotation * Math.PI) / 180)
+  applyLayerTransform(ctx, layer.transform)
 
   const style = layer.fontStyle === 'italic' ? 'italic ' : ''
   // Prefer wght axis value when present, fall back to fontWeight
