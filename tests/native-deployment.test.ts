@@ -53,3 +53,25 @@ test('the deployment guard rejects overlapping writers and an unmounted storage 
     expect(() => checkDeployment(candidate)).toThrow()
   }
 })
+
+test('the explicitly staged native beta overlay keeps authentication inside the beta realm', () => {
+  const source = readFileSync(new URL('../k8s/native-beta-auth.patch.yaml', import.meta.url), 'utf8')
+  const patch = Bun.YAML.parse(source) as any
+  expect(patch.metadata).toEqual({ name: 'crossdraw-server', namespace: 'crossdraw-beta' })
+  const [server] = patch.spec.template.spec.containers
+  expect(server.name).toBe('server')
+  const environment = Object.fromEntries(server.env.map((entry: any) => [entry.name, entry.value]))
+  expect(environment).toEqual({
+    CROSSDRAW_JWKS_URL: 'https://beta-api.lyku.org/oauth-jwks',
+    CROSSDRAW_JWT_ISSUER: 'https://beta.lyku.org',
+    CROSSDRAW_JWT_AUDIENCE: 'crossdraw',
+    CROSSDRAW_ALLOWED_ORIGINS: 'https://beta.crossdraw.app',
+  })
+  for (const environment of ['beta', 'production']) {
+    const deployment = resources(environment).find((document) => document.kind === 'Deployment')
+    const defaults = deployment.spec.template.spec.containers[0].env
+    expect(defaults.some((entry: any) => ['CROSSDRAW_JWKS_URL', 'CROSSDRAW_JWT_ISSUER'].includes(entry.name))).toBe(
+      false,
+    )
+  }
+})

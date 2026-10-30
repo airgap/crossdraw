@@ -1,0 +1,21 @@
+# Explicit native beta acceptance overlay. Apply only with matching beta OAuth
+# issuer/signing configuration; the default deployment manifests stay unchanged.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crossdraw-server
+  namespace: crossdraw-beta
+spec:
+  template:
+    spec:
+      containers:
+        - name: server
+          env:
+            - name: CROSSDRAW_JWKS_URL
+              value: "https://beta-api.lyku.org/oauth-jwks"
+            - name: CROSSDRAW_JWT_ISSUER
+              value: "https://beta.lyku.org"
+            - name: CROSSDRAW_JWT_AUDIENCE
+              value: "crossdraw"
+            - name: CROSSDRAW_ALLOWED_ORIGINS
+              value: "https://beta.crossdraw.app"

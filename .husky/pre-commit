@@ -1,1 +1,15 @@
-npx lint-staged
+# refs/stash is shared by all worktrees; never create or restore an automatic backup.
+# Without that backup, formatters must not stage unrelated unstaged hunks.
+unstaged=$(git diff --name-only) || exit 1
+staged=$(git diff --cached --name-only) || exit 1
+partial=$(printf '%s\n' "$staged" | grep -Fx -e "$unstaged") || {
+    status=$?
+    [ "$status" -eq 1 ] || exit "$status"
+}
+if [ -n "$partial" ]; then
+    echo "pre-commit refused: files have both staged and unstaged changes:" >&2
+    echo "$partial" >&2
+    echo "Stage the rest of each file before committing." >&2
+    exit 1
+fi
+npx lint-staged --no-stash
