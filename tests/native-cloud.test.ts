@@ -403,3 +403,13 @@ test('a storage fsync failure produces neither a durable ACK nor a peer operatio
   expect(result.exitCode, result.stderr.toString()).toBe(0)
   expect(result.stdout.toString()).toContain('persistence failure withheld ACK and broadcast')
 })
+
+test('queued upgrade and I/O or encoding expiry withhold private outbound frames', () => {
+  const result = Bun.spawnSync(['parabun', 'server/tests/native-expiry-boundary.ts'], {
+    env: { PATH: process.env['PATH'] ?? '/usr/bin' },
+  })
+  expect(result.exitCode, result.stderr.toString()).toBe(0)
+  expect(result.stdout.toString()).toContain(
+    'expiry boundaries withheld initial, broadcast, sync, ACK and error frames',
+  )
+})

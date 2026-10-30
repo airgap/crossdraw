@@ -49,6 +49,19 @@ type ServerWebSocket<T> = {
   readyState: number
 }
 
+function unexpired(ws: ServerWebSocket<WSData>): boolean {
+  if (!ws.data.user.expiresAt || ws.data.user.expiresAt <= Date.now()) {
+    ws.close(4001, 'Token expired')
+    return false
+  }
+  return true
+}
+
+function sendBeforeExpiry(ws: ServerWebSocket<WSData>, data: string): void {
+  // File reads and frame encoding may cross the token deadline after an earlier check.
+  if (unexpired(ws) && ws.readyState === 1) ws.send(data)
+}
+
 // ── Room management ──
 
 const rooms = new Map<string, Room>()
@@ -106,10 +119,7 @@ function broadcastToRoom(room: Room, senderClientId: string, message: CollabMess
   for (const [id, client] of room.clients) {
     if (id === senderClientId) continue
     try {
-      if (!client.user.expiresAt || client.user.expiresAt <= Date.now()) {
-        client.ws.close(4001, 'Token expired')
-        continue
-      }
+      if (!unexpired(client.ws)) continue
       try {
         roomFile(room.id, client.user)
       } catch {
@@ -117,7 +127,7 @@ function broadcastToRoom(room: Room, senderClientId: string, message: CollabMess
         continue
       }
       if (client.ws.readyState === 1) {
-        client.ws.send(data)
+        sendBeforeExpiry(client.ws, data)
       }
     } catch {
       // Client disconnected — will be cleaned up on close
@@ -192,12 +202,14 @@ export async function handleWSUpgrade(
 export const websocketHandlers = {
   open(ws: ServerWebSocket<WSData>) {
     const { roomId, clientId, user } = ws.data
+    if (!unexpired(ws)) return
     try {
       roomFile(roomId, user)
     } catch {
       ws.close(4003, 'Room access denied')
       return
     }
+    if (!unexpired(ws)) return
     const room = getOrCreateRoom(roomId)
 
     // Register client
@@ -228,7 +240,8 @@ export const websocketHandlers = {
       }))
 
     try {
-      ws.send(
+      sendBeforeExpiry(
+        ws,
         JSON.stringify({
           type: 'sync',
           payload: { clients: presences, ...roomFile(roomId, user), protocol: 1 },
@@ -241,10 +254,7 @@ export const websocketHandlers = {
 
   message(ws: ServerWebSocket<WSData>, message: string | ArrayBuffer) {
     const { roomId, clientId, user } = ws.data
-    if (!user.expiresAt || user.expiresAt <= Date.now()) {
-      ws.close(4001, 'Token expired')
-      return
-    }
+    if (!unexpired(ws)) return
     try {
       roomFile(roomId, user)
     } catch {
@@ -270,7 +280,8 @@ export const websocketHandlers = {
           const receipt = commitOperation(roomId, user, operation, msg.baseRevision!)
           // Persistence precedes both publication and the exact acknowledgement.
           if (!receipt.duplicate) broadcastToRoom(room, clientId, { ...msg, baseRevision: receipt.revision - 1 })
-          ws.send(
+          sendBeforeExpiry(
+            ws,
             JSON.stringify({
               type: 'ack',
               payload: {
@@ -290,7 +301,7 @@ export const websocketHandlers = {
           break
 
         case 'sync':
-          ws.send(JSON.stringify({ type: 'sync', payload: { ...roomFile(roomId, user), protocol: 1 } }))
+          sendBeforeExpiry(ws, JSON.stringify({ type: 'sync', payload: { ...roomFile(roomId, user), protocol: 1 } }))
           break
 
         default:
@@ -298,7 +309,8 @@ export const websocketHandlers = {
           break
       }
     } catch (error) {
-      ws.send(
+      sendBeforeExpiry(
+        ws,
         JSON.stringify({
           type: 'error',
           payload: {
