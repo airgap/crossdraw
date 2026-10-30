@@ -133,6 +133,8 @@ test('actual HTTP server rejects forged/missing JWT claims and account mismatche
   }
   const session = await fetch(`${origin}/api/session`, { headers: auth() })
   expect(session.status).toBe(200)
+  const capabilities = (await (await fetch(`${origin}/api/native-capabilities`, { headers: auth() })).json()) as any
+  expect(capabilities.receiptFingerprints).toBe(true)
   expect(await session.json()).toEqual({ userId: '42' })
   expect((await fetch(`${origin}/api/files`)).status).toBe(401)
 })
@@ -234,10 +236,21 @@ test('authorized rooms persist exact op acknowledgements and unknown/raster byte
   const acknowledged = next(a, (v) => v.type === 'ack')
   a.send(JSON.stringify({ type: 'op', payload: op, baseRevision: 1 }))
   expect((await observed).payload).toEqual(op)
-  expect((await acknowledged).payload).toEqual({ opId: op.id, revision: 2, durable: true })
+  const firstProof = (await acknowledged).payload
+  expect(firstProof).toMatchObject({ opId: op.id, revision: 2, durable: true })
+  expect(firstProof.fingerprint).toMatch(/^[a-f0-9]{64}$/)
+  const later = next(a, (v) => v.type === 'ack')
+  a.send(
+    JSON.stringify({
+      type: 'op',
+      payload: { ...op, id: 'operation-native-newer', value: { later: true } },
+      baseRevision: 2,
+    }),
+  )
+  expect((await later).payload.revision).toBe(3)
   const replay = next(a, (v) => v.type === 'ack')
   a.send(JSON.stringify({ type: 'op', payload: op, baseRevision: 1 }))
-  expect((await replay).payload.revision).toBe(2)
+  expect((await replay).payload).toEqual(firstProof)
   const downloaded = Buffer.from(
     await (await fetch(`${origin}/api/files/${metadata.id}`, { headers: auth() })).arrayBuffer(),
   )
@@ -260,7 +273,12 @@ test('authorized rooms persist exact op acknowledgements and unknown/raster byte
   const reopened = socket(metadata.id, tokenA, 'client-native-c')
   const restored = await next(reopened, (v) => v.type === 'sync')
   expect(restored.payload.receipts[0].id).toBe(op.id)
-  expect(restored.payload.metadata.revision).toBe(2)
+  expect(restored.payload.metadata.revision).toBe(3)
+  expect(restored.payload.receipts[0]).toMatchObject({
+    id: op.id,
+    revision: firstProof.revision,
+    fingerprint: firstProof.fingerprint,
+  })
   reopened.close()
 })
 
@@ -320,4 +338,68 @@ test('native field-addressed operations preserve unrelated properties in the sam
   expect(doc.artboards[0].layers[0].opaque.keep).toBe('nested update')
   expect(doc.artboards[0].layers[0].text).toBe('before')
   expect(doc.artboards[0].layers[0].keep).toBeUndefined()
+})
+
+test('quiet expired recipients cannot receive another valid client operation', async () => {
+  const metadata = await upload('create-idle-expiry-001')
+  const expiry = Math.floor(Date.now() / 1000) + 2
+  const short = await jwt(user, { exp: expiry })
+  const a = socket(metadata.id, tokenA, 'client-expiry-live')
+  await next(a, (v) => v.type === 'sync')
+  const b = socket(metadata.id, short, 'client-expiry-idle')
+  await next(b, (v) => v.type === 'sync')
+  const received: any[] = []
+  b.addEventListener('message', (event) => {
+    received.push(JSON.parse(String(event.data)))
+  })
+  const closed = new Promise<number>((resolve) => {
+    b.onclose = (event) => resolve(event.code)
+  })
+  await Bun.sleep(Math.max(0, expiry * 1000 - Date.now() + 20))
+  const acknowledged = next(a, (v) => v.type === 'ack')
+  a.send(
+    JSON.stringify({
+      type: 'op',
+      baseRevision: 1,
+      payload: {
+        id: 'operation-idle-expiry',
+        clientId: 'client-expiry-live',
+        timestamp: 4,
+        type: 'update-layer',
+        path: ['artboards', 'board-a', 'layers', 'layer-a'],
+        value: { text: 'private new edit' },
+      },
+    }),
+  )
+  expect((await acknowledged).payload.durable).toBe(true)
+  expect(await closed).toBe(4001)
+  expect(received.some((message) => message.type === 'op')).toBe(false)
+  a.close()
+})
+
+test('quiet recipients lose outbound room access after the owner deletes the document', async () => {
+  const metadata = await upload('create-idle-deletion-001')
+  const a = socket(metadata.id, tokenA, 'client-deletion-live')
+  await next(a, (v) => v.type === 'sync')
+  const b = socket(metadata.id, tokenA, 'client-deletion-idle')
+  await next(b, (v) => v.type === 'sync')
+  const closed = new Promise<number>((resolve) => {
+    b.onclose = (event) => resolve(event.code)
+  })
+  const response = await fetch(`${origin}/api/files/${metadata.id}`, {
+    method: 'DELETE',
+    headers: { ...auth(), 'If-Match': '"1"' },
+  })
+  expect(response.ok).toBe(true)
+  // The departing client emits a room event; its quiet peer must be rechecked first.
+  a.close()
+  expect(await closed).toBe(4003)
+})
+
+test('a storage fsync failure produces neither a durable ACK nor a peer operation', () => {
+  const result = Bun.spawnSync(['parabun', 'server/tests/native-persistence-failure.ts'], {
+    env: { PATH: process.env['PATH'] ?? '/usr/bin' },
+  })
+  expect(result.exitCode, result.stderr.toString()).toBe(0)
+  expect(result.stdout.toString()).toContain('persistence failure withheld ACK and broadcast')
 })

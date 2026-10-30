@@ -208,6 +208,7 @@ export async function nativeFiles(req: Request, user: AuthenticatedUser): Promis
         conditionalUpdates: true,
         durableOps: true,
         exactAcknowledgements: true,
+        receiptFingerprints: true,
         idempotentCreates: true,
         fieldOperations: true,
       })
@@ -490,14 +491,15 @@ export function commitOperation(id: string, user: AuthenticatedUser, op: Operati
   if (receipt) {
     if (receipt.actor !== user.id || receipt.fingerprint !== fingerprint)
       throw new FileError(409, 'Operation identity was reused')
-    return { revision: receipt.revision, duplicate: true }
+    return { revision: receipt.revision, fingerprint: receipt.fingerprint, duplicate: true }
   }
   if (baseRevision !== record.metadata.revision) throw new FileError(409, 'Document revision changed')
   if (record.receipts.length >= MAX_OPS) throw new FileError(507, 'Document operation history is full')
   const root = decode(body(record))
   applyOperation(root, op)
   replace(record, encode(root))
-  record.receipts.push({ actor: user.id, fingerprint, revision: record.metadata.revision, id: op.id })
+  const storedReceipt = { actor: user.id, fingerprint, revision: record.metadata.revision, id: op.id }
+  record.receipts.push(storedReceipt)
   persist(record)
-  return { revision: record.metadata.revision, duplicate: false }
+  return { revision: storedReceipt.revision, fingerprint: storedReceipt.fingerprint, duplicate: false }
 }

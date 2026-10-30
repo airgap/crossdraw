@@ -106,6 +106,16 @@ function broadcastToRoom(room: Room, senderClientId: string, message: CollabMess
   for (const [id, client] of room.clients) {
     if (id === senderClientId) continue
     try {
+      if (!client.user.expiresAt || client.user.expiresAt <= Date.now()) {
+        client.ws.close(4001, 'Token expired')
+        continue
+      }
+      try {
+        roomFile(room.id, client.user)
+      } catch {
+        client.ws.close(4003, 'Room access revoked')
+        continue
+      }
       if (client.ws.readyState === 1) {
         client.ws.send(data)
       }
@@ -261,7 +271,15 @@ export const websocketHandlers = {
           // Persistence precedes both publication and the exact acknowledgement.
           if (!receipt.duplicate) broadcastToRoom(room, clientId, { ...msg, baseRevision: receipt.revision - 1 })
           ws.send(
-            JSON.stringify({ type: 'ack', payload: { opId: operation.id, revision: receipt.revision, durable: true } }),
+            JSON.stringify({
+              type: 'ack',
+              payload: {
+                opId: operation.id,
+                revision: receipt.revision,
+                fingerprint: receipt.fingerprint,
+                durable: true,
+              },
+            }),
           )
           break
         }
